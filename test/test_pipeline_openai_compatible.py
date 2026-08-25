@@ -46,7 +46,8 @@ def test_resolve_openai_compatible_settings_uses_env_style_keys(monkeypatch):
 
     settings = pipeline_openai_compatible.resolve_openai_compatible_settings(
         {
-            "AGILAB_LLM_BASE_URL": "http://gpu-box:8000",
+            "AGILAB_LLM_BASE_URL": "http://10.20.30.40:8000",
+            "AGILAB_LLM_TRUSTED_ORIGINS": "http://10.20.30.40:8000",
             "AGILAB_LLM_API_KEY": "gateway-secret",
             "AGILAB_LLM_MODEL": "mistralai/Mistral-7B-Instruct-v0.3",
             "AGILAB_LLM_TEMPERATURE": "0.2",
@@ -55,7 +56,7 @@ def test_resolve_openai_compatible_settings_uses_env_style_keys(monkeypatch):
         }
     )
 
-    assert settings.base_url == "http://gpu-box:8000/v1"
+    assert settings.base_url == "http://10.20.30.40:8000/v1"
     assert settings.api_key == "gateway-secret"
     assert settings.model == "mistralai/Mistral-7B-Instruct-v0.3"
     assert settings.temperature == 0.2

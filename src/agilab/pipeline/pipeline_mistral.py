@@ -11,6 +11,10 @@ import urllib.request
 import streamlit as st
 
 from agi_env import AgiEnv
+from agilab.security.llm_endpoint_policy import (
+    build_same_origin_llm_opener,
+    validate_llm_endpoint,
+)
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -197,10 +201,14 @@ def call_mistral_chat_completion(
 ) -> Tuple[str, str]:
     payload, model = build_mistral_chat_payload(messages, envars)
     data = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(
+    endpoint = validate_llm_endpoint(
         mistral_chat_completions_url(
             envars.get(MISTRAL_BASE_URL_ENV) or os.getenv(MISTRAL_BASE_URL_ENV)
         ),
+        envars=envars,
+    )
+    request = urllib.request.Request(
+        endpoint,
         data=data,
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -209,8 +217,11 @@ def call_mistral_chat_completion(
         },
         method="POST",
     )
+    open_request = urlopen
+    if urlopen is urllib.request.urlopen:
+        open_request = build_same_origin_llm_opener(envars=envars).open
     try:
-        with urlopen(request, timeout=_resolve_timeout(envars)) as response:
+        with open_request(request, timeout=_resolve_timeout(envars)) as response:
             raw = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:
         detail = ""
@@ -260,12 +271,12 @@ def ensure_cached_mistral_api_key(
 
 def prompt_for_mistral_api_key(message: str) -> None:
     st.warning(message)
-    default_value = st.session_state.get("mistral_api_key", "")
     with st.form("experiment_missing_mistral_api_key"):
         new_key = st.text_input(
             "Mistral API key",
-            value=default_value,
+            value="",
             type="password",
+            help="Existing credentials are never displayed.",
         )
         save_profile = st.checkbox(
             "Save to ~/.agilab/.env",

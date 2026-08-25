@@ -28,6 +28,19 @@ import_agilab_symbols = _import_guard_module.import_agilab_symbols
 
 import_agilab_symbols(
     globals(),
+    "agilab.security.llm_endpoint_policy",
+    {
+        "build_no_redirect_http_client": "_build_no_redirect_http_client",
+        "clear_credentials_on_origin_change": "_clear_credentials_on_origin_change",
+        "validate_llm_endpoint": "_validate_llm_endpoint",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "security/llm_endpoint_policy.py",
+    fallback_name="agilab_llm_endpoint_policy_fallback",
+)
+
+import_agilab_symbols(
+    globals(),
     "agilab.env_file_utils",
     {"load_env_file_map": "_load_env_file_map"},
     current_file=__file__,
@@ -273,6 +286,7 @@ def _ollama_generate(
     num_predict: Optional[int] = None,
     seed: Optional[int] = None,
     timeout_s: float = 120.0,
+    envars: Optional[Dict[str, str]] = None,
 ) -> str:
     return _ollama_generate_impl(
         endpoint=endpoint,
@@ -285,6 +299,7 @@ def _ollama_generate(
         seed=seed,
         timeout_s=timeout_s,
         endpoint_var_name=UOAIC_OLLAMA_ENDPOINT_ENV,
+        envars=envars,
     )
 
 
@@ -343,8 +358,9 @@ def chat_ollama_local(
             num_ctx=num_ctx,
             num_predict=num_predict,
             seed=seed,
+            envars=envars,
         )
-    except RuntimeError as exc:
+    except (RuntimeError, ValueError) as exc:
         st.error(str(exc))
         raise JumpToMain(exc)
 
@@ -378,6 +394,7 @@ def chat_offline(
         or os.getenv("GPT_OSS_ENDPOINT")
         or st.session_state.get("gpt_oss_endpoint")
     )
+    endpoint = _validate_llm_endpoint(endpoint, envars=envars)
     envars["GPT_OSS_ENDPOINT"] = endpoint
 
     prompt_for_request = list(prompt or [])
@@ -397,7 +414,9 @@ def chat_offline(
     timeout = float(envars.get("GPT_OSS_TIMEOUT", 60))
     model_name = str(payload.get("model", ""))
     try:
-        response = requests.post(endpoint, json=payload, timeout=timeout)
+        response = requests.post(endpoint, json=payload, timeout=timeout, allow_redirects=False)
+        if 300 <= int(getattr(response, "status_code", 200)) < 400:
+            raise requests.exceptions.RequestException("GPT-OSS endpoint redirect was refused")
         response.raise_for_status()
         data = response.json()
     except requests.exceptions.RequestException as exc:
@@ -519,6 +538,26 @@ def chat_universal_offline(
         raise JumpToMain(exc) from exc
 
 
+def _close_owned_llm_clients(client: Any, http_client: Any) -> None:
+    """Close an SDK client and its transport once without masking the primary result."""
+    seen: set[int] = set()
+    for resource in (client, http_client):
+        if resource is None or id(resource) in seen:
+            continue
+        seen.add(id(resource))
+        try:
+            if bool(getattr(resource, "is_closed", False)):
+                continue
+            close = getattr(resource, "close", None)
+            if callable(close):
+                close()
+        except Exception as exc:
+            logger.warning(
+                "Failed to close LLM client resource: %s",
+                bound_log_value(_redact_sensitive(str(exc)), LOG_DETAIL_LIMIT),
+            )
+
+
 def chat_online(
     input_request: str,
     prompt: List[Dict[str, str]],
@@ -540,6 +579,26 @@ def chat_online(
     env_file_map = _load_env_file_map(ENV_FILE_PATH)
     if env_file_map:
         envars.update(env_file_map)
+
+    openai_endpoint = (
+        envars.get("AZURE_OPENAI_ENDPOINT")
+        or os.getenv("AZURE_OPENAI_ENDPOINT")
+        or envars.get("OPENAI_BASE_URL")
+        or os.getenv("OPENAI_BASE_URL")
+        or "https://api.openai.com/v1"
+    )
+    if _clear_credentials_on_origin_change(
+        openai_endpoint,
+        session_state=st.session_state,
+        envars=envars,
+        origin_state_key="_openai_credential_origin",
+        session_secret_keys=("openai_api_key",),
+        env_secret_keys=("OPENAI_API_KEY", "AZURE_OPENAI_API_KEY"),
+    ):
+        prompt_for_openai_api_key(
+            "The OpenAI/Azure endpoint origin changed. Re-enter the API key before continuing."
+        )
+        raise JumpToMain(ValueError("OpenAI endpoint origin changed"))
 
     api_key = ensure_cached_api_key(envars)
     if not api_key or is_placeholder_api_key(api_key):
@@ -569,8 +628,14 @@ def chat_online(
     messages.append({"role": "user", "content": input_request})
 
     # Create client (supports OpenAI/Azure/proxy)
+    client: Any = None
+    owned_http_client: Any = None
     try:
-        client, model_name, is_azure = make_openai_client_and_model(envars, api_key)
+        client, model_name, is_azure, owned_http_client = make_openai_client_and_model(
+            envars,
+            api_key,
+            include_http_client=True,
+        )
     except (RuntimeError, TypeError, ValueError, AttributeError, ImportError, OSError) as e:
         st.error("Failed to initialise OpenAI/Azure client. Check your SDK install and environment variables.")
         logger.error(
@@ -630,6 +695,8 @@ def chat_online(
             bound_log_value(msg, LOG_DETAIL_LIMIT),
         )
         raise JumpToMain(e)
+    finally:
+        _close_owned_llm_clients(client, owned_http_client)
 
 
 def _openai_compatible_safe_error(message: str, settings: OpenAICompatibleSettings) -> str:
@@ -677,12 +744,19 @@ def chat_openai_compatible(
             messages.append({"role": role, "content": content})
     messages.append({"role": "user", "content": input_request})
 
+    client: Any = None
+    owned_http_client: Any = None
     try:
         payload, settings = _build_openai_compatible_completion_kwargs_impl(messages, envars)
+        owned_http_client = _build_no_redirect_http_client(
+            settings.base_url,
+            envars=envars,
+        )
         client = OpenAIClient(
             api_key=settings.api_key or DEFAULT_OPENAI_COMPAT_API_KEY,
             base_url=settings.base_url,
             timeout=settings.timeout_s,
+            http_client=owned_http_client,
         )
         response = client.chat.completions.create(**payload)
         content = response.choices[0].message.content
@@ -697,6 +771,8 @@ def chat_openai_compatible(
         st.error(f"OpenAI-compatible endpoint failed: {msg}")
         logger.error("OpenAI-compatible endpoint failed: %s", bound_log_value(msg, LOG_DETAIL_LIMIT))
         raise JumpToMain(exc) from exc
+    finally:
+        _close_owned_llm_clients(client, owned_http_client)
 
 
 def chat_mistral_online(
@@ -711,6 +787,24 @@ def chat_mistral_online(
     env_file_map = _load_env_file_map(ENV_FILE_PATH)
     if env_file_map:
         envars.update(env_file_map)
+
+    mistral_endpoint = (
+        envars.get("MISTRAL_BASE_URL")
+        or os.getenv("MISTRAL_BASE_URL")
+        or "https://api.mistral.ai/v1"
+    )
+    if _clear_credentials_on_origin_change(
+        mistral_endpoint,
+        session_state=st.session_state,
+        envars=envars,
+        origin_state_key="_mistral_credential_origin",
+        session_secret_keys=("mistral_api_key",),
+        env_secret_keys=("MISTRAL_API_KEY",),
+    ):
+        prompt_for_mistral_api_key(
+            "The Mistral endpoint origin changed. Re-enter the API key before continuing."
+        )
+        raise JumpToMain(ValueError("Mistral endpoint origin changed"))
 
     api_key = ensure_cached_mistral_api_key(envars)
     if not api_key or is_placeholder_api_key(api_key):

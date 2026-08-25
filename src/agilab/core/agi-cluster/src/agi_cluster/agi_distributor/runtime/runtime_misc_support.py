@@ -17,19 +17,48 @@ import urllib.request
 import warnings
 from datetime import timedelta
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Callable, List, Optional, cast
+from typing import Any, BinaryIO, Callable, List, Optional, cast
 
 # NOTE: The capacity-model manifest is an *integrity* control, not an
 # authenticity/signing control. It is an unsigned sha256 co-located with the
 # model file, so it only detects accidental corruption or truncation of a
 # pickle the operator already trusts on disk. It cannot prove *who* produced
 # the model. Loading is additionally constrained to a trusted root, rejects
-# shared-group/world-writable files on POSIX, and verifies Windows owner SID
-# identity. These controls reduce the pickle-planting surface but do not prove
-# who produced the model. Do not treat manifest verification alone as a defense
-# against a tampered model.
+# unsafe owners or writable paths from the trusted root down on POSIX, and
+# verifies Windows owner SID identity plus broad-principal DACL grants. The
+# model is hashed and deserialized from one no-follow descriptor. These controls
+# reduce the pickle-planting surface but do not prove who produced the model. Do
+# not treat manifest verification alone as a defense against a tampered model.
 CAPACITY_MODEL_MANIFEST_SCHEMA = "agilab.capacity_model_manifest.v1"
 CAPACITY_MODEL_HASH_ALGORITHM = "sha256"
+_WINDOWS_PRIVILEGED_TRUSTED_SIDS = frozenset(
+    {
+        "s-1-5-18",  # LocalSystem, the Windows equivalent of trusted uid 0
+        "s-1-5-32-544",  # BUILTIN\\Administrators, privileged local root group
+    }
+)
+# OWNER RIGHTS is a special principal representing the object's current owner.
+# Trust it only after the owner SID has matched the current process token.
+_WINDOWS_OWNER_RIGHTS_SID = "s-1-3-4"
+# File/directory write rights, DELETE, WRITE_DAC, WRITE_OWNER, MAXIMUM_ALLOWED,
+# GENERIC_ALL, and GENERIC_WRITE. These values are stable Win32 ACCESS_MASK bits
+# and intentionally avoid importing pywin32 on non-Windows platforms.
+_WINDOWS_UNSAFE_CAPACITY_ACCESS_MASK = (
+    0x00000002
+    | 0x00000004
+    | 0x00000010
+    | 0x00000040
+    | 0x00000100
+    | 0x00010000
+    | 0x00040000
+    | 0x00080000
+    | 0x02000000
+    | 0x10000000
+    | 0x40000000
+)
+_WINDOWS_ACCESS_ALLOWED_ACE_TYPE = 0
+_WINDOWS_ACCESS_ALLOWED_OBJECT_ACE_TYPE = 5
+_WINDOWS_UNSUPPORTED_ACCESS_ALLOWED_ACE_TYPES = frozenset({4, 9, 11})
 _CAPACITY_LOAD_EXCEPTIONS = (
     AttributeError,
     EOFError,
@@ -231,7 +260,12 @@ def load_capacity_predictor(
             retrain_fn()
         return None
 
-    trust_error = _capacity_model_trust_error(path, trusted_root)
+    path, root = _capacity_path_and_root(path, trusted_root)
+    trust_error = _capacity_file_trust_error(
+        path,
+        root,
+        label="model file",
+    )
     if trust_error is not None:
         if log is not None:
             log.warning(
@@ -242,20 +276,54 @@ def load_capacity_predictor(
         if retrain_fn is not None:
             retrain_fn()
         return None
-    manifest_error = _capacity_model_manifest_error(path)
-    if manifest_error is not None:
+    model_stream, model_stat, open_error = _open_trusted_capacity_file(
+        path,
+        root,
+        label="model file",
+    )
+    if open_error is not None or model_stream is None or model_stat is None:
         if log is not None:
             log.warning(
-                "Refusing to load unverified capacity model from %s: %s",
+                "Refusing to load untrusted capacity model from %s: %s",
                 path,
-                manifest_error,
+                open_error or "cannot open model file safely",
             )
         if retrain_fn is not None:
             retrain_fn()
         return None
 
-    try:
-        with open(path.resolve(strict=False), "rb") as stream:
+    manifest_path = capacity_model_manifest_path(path)
+    with model_stream:
+        manifest_stream, _manifest_stat, manifest_open_error = (
+            _open_trusted_capacity_file(
+                manifest_path,
+                root,
+                label="model manifest",
+            )
+        )
+        if manifest_open_error is not None or manifest_stream is None:
+            manifest_error = manifest_open_error or "cannot open model manifest safely"
+        else:
+            with manifest_stream:
+                manifest_error = _capacity_model_manifest_stream_error(
+                    path,
+                    model_stream,
+                    model_stat,
+                    manifest_stream,
+                )
+
+        if manifest_error is not None:
+            if log is not None:
+                log.warning(
+                    "Refusing to load unverified capacity model from %s: %s",
+                    path,
+                    manifest_error,
+                )
+            if retrain_fn is not None:
+                retrain_fn()
+            return None
+
+        try:
             inconsistent_version_warning = _sklearn_inconsistent_version_warning()
             with warnings.catch_warnings():
                 if inconsistent_version_warning is not None:
@@ -263,13 +331,13 @@ def load_capacity_predictor(
                         "ignore",
                         category=inconsistent_version_warning,
                     )
-                return load_fn(stream)
-    except _CAPACITY_LOAD_EXCEPTIONS as exc:
-        if log is not None:
-            log.warning("Failed to load capacity model from %s: %s", path, exc)
-        if retrain_fn is not None:
-            retrain_fn()
-        return None
+                return load_fn(model_stream)
+        except _CAPACITY_LOAD_EXCEPTIONS as exc:
+            if log is not None:
+                log.warning("Failed to load capacity model from %s: %s", path, exc)
+            if retrain_fn is not None:
+                retrain_fn()
+            return None
 
 
 def _posix_group_is_user_private(stat_result: os.stat_result) -> bool:
@@ -286,14 +354,16 @@ def _posix_group_is_user_private(stat_result: os.stat_result) -> bool:
 
         euid = os.geteuid()
         user_record = pwd.getpwuid(euid)
-        # Group matches the user's own primary group.
-        if stat_result.st_gid == user_record.pw_gid:
-            return True
         group_record = grp.getgrgid(stat_result.st_gid)
-        members = set(group_record.gr_mem)
-        members.discard(user_record.pw_name)
-        # Private group: only the owning user (already excluded) is a member.
-        return not members
+        primary_members = {
+            record.pw_name
+            for record in pwd.getpwall()
+            if record.pw_gid == stat_result.st_gid
+        }
+        members = primary_members | set(group_record.gr_mem)
+        # A private group must be provably usable by this user and nobody else.
+        # ``gr_mem`` omits primary-group memberships, so both NSS views matter.
+        return members == {user_record.pw_name}
     except (ImportError, KeyError, OSError, AttributeError):
         # Cannot verify group membership; treat as shared (not private).
         return False
@@ -361,13 +431,99 @@ def _windows_capacity_model_identities(
     return owner_sid_text, trusted_sids, owner_label
 
 
+def _windows_capacity_model_dacl_grants(
+    model_path: Path,
+) -> tuple[tuple[str, int], ...]:
+    """Return access-allowed DACL grants as normalized SID/mask pairs."""
+
+    try:
+        import win32security
+    except ImportError as exc:
+        raise RuntimeError(
+            "pywin32 is required to verify capacity model ACLs on Windows"
+        ) from exc
+
+    security_descriptor = win32security.GetFileSecurity(
+        str(model_path),
+        win32security.DACL_SECURITY_INFORMATION,
+    )
+    dacl = security_descriptor.GetSecurityDescriptorDacl()
+    if dacl is None:
+        raise OSError("security descriptor has a null DACL")
+    if not dacl.IsValid():
+        raise OSError("security descriptor has an invalid DACL")
+
+    grants: list[tuple[str, int]] = []
+    for index in range(dacl.GetAceCount()):
+        ace = dacl.GetAce(index)
+        if not isinstance(ace, tuple) or len(ace) < 3:
+            raise OSError(f"DACL ACE {index} has an unsupported shape")
+        header = ace[0]
+        if not isinstance(header, tuple) or not header:
+            raise OSError(f"DACL ACE {index} has an unsupported header")
+        ace_type = int(header[0])
+        if ace_type == _WINDOWS_ACCESS_ALLOWED_ACE_TYPE:
+            sid_index = 2
+        elif ace_type == _WINDOWS_ACCESS_ALLOWED_OBJECT_ACE_TYPE:
+            if len(ace) < 5:
+                raise OSError(f"DACL object ACE {index} has an unsupported shape")
+            sid_index = 4
+        elif ace_type in _WINDOWS_UNSUPPORTED_ACCESS_ALLOWED_ACE_TYPES:
+            raise OSError(f"DACL access-allowed ACE type {ace_type} is unsupported")
+        else:
+            continue
+        grants.append(
+            (
+                win32security.ConvertSidToStringSid(ace[sid_index]),
+                int(ace[1]),
+            )
+        )
+    return tuple(grants)
+
+
+def _windows_capacity_model_dacl_error(
+    model_path: Path,
+    *,
+    trusted_sids: tuple[str, ...],
+    grants_fn: Callable[[Path], tuple[tuple[str, int], ...]] | None = None,
+    label: str = "model file",
+) -> str | None:
+    """Reject unsafe grants outside the token and root-equivalent principals."""
+
+    grant_provider = grants_fn or _windows_capacity_model_dacl_grants
+    try:
+        normalized_trusted_sids = _WINDOWS_PRIVILEGED_TRUSTED_SIDS | {
+            sid.casefold() for sid in trusted_sids if sid
+        }
+        grants = grant_provider(model_path)
+        for trustee_sid, access_mask in grants:
+            if not isinstance(trustee_sid, str) or not isinstance(access_mask, int):
+                raise ValueError("DACL grant has an invalid SID or access mask")
+            if (
+                trustee_sid.casefold() not in normalized_trusted_sids
+                and access_mask & _WINDOWS_UNSAFE_CAPACITY_ACCESS_MASK
+            ):
+                return (
+                    f"{label} grants unsafe write/delete access to untrusted Windows "
+                    f"principal {trustee_sid}"
+                )
+    except Exception as exc:
+        # Defensive third-party boundary: pywin32 and injected providers can
+        # raise different exception types. Any incomplete ACL evaluation must
+        # refuse pickle deserialization.
+        return f"cannot verify {label} ACL on Windows: {exc}"
+    return None
+
+
 def _windows_capacity_model_owner_error(
     model_path: Path,
     *,
     identities_fn: Callable[[Path], tuple[str, tuple[str, ...], str | None]]
     | None = None,
+    acl_grants_fn: Callable[[Path], tuple[tuple[str, int], ...]] | None = None,
+    label: str = "model file",
 ) -> str | None:
-    """Return a fail-closed error unless the owner matches the process token."""
+    """Return a fail-closed error unless owner and DACL are trusted."""
 
     identity_provider = identities_fn or _windows_capacity_model_identities
     try:
@@ -375,39 +531,176 @@ def _windows_capacity_model_owner_error(
     except Exception as exc:
         # pywin32 raises several exception types across versions. This boundary
         # must turn every lookup failure into refusal to deserialize the pickle.
-        return f"cannot verify model file ownership on Windows: {exc}"
+        return f"cannot verify {label} ownership on Windows: {exc}"
 
     normalized_trusted_sids = {sid.casefold() for sid in trusted_sids if sid}
     if not owner_sid or not normalized_trusted_sids:
-        return "cannot verify model file ownership on Windows: an owner SID is missing"
+        return f"cannot verify {label} ownership on Windows: an owner SID is missing"
     if owner_sid.casefold() not in normalized_trusted_sids:
         owner = owner_label or owner_sid
-        return f"model file is owned by {owner}, not the current Windows token"
+        return f"{label} is owned by {owner}, not the current Windows token"
+    return _windows_capacity_model_dacl_error(
+        model_path,
+        trusted_sids=tuple(
+            normalized_trusted_sids | {_WINDOWS_OWNER_RIGHTS_SID}
+        ),
+        grants_fn=acl_grants_fn,
+        label=label,
+    )
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _capacity_path_and_root(model_path: Path, trusted_root: Path) -> tuple[Path, Path]:
+    requested_root = Path(
+        os.path.abspath(os.fspath(Path(trusted_root).expanduser()))
+    )
+    root = requested_root.resolve(strict=False)
+    requested_path = Path(
+        os.path.abspath(os.fspath(Path(model_path).expanduser()))
+    )
+    if requested_path.is_relative_to(requested_root):
+        requested_path = root / requested_path.relative_to(requested_root)
+    return requested_path, root
+
+
+def _trusted_posix_owner_ids() -> set[int]:
+    return {0, os.geteuid()}
+
+
+def _posix_capacity_entry_error(
+    stat_result: os.stat_result,
+    *,
+    label: str,
+) -> str | None:
+    if stat_result.st_uid not in _trusted_posix_owner_ids():
+        return (
+            f"{label} is owned by uid {stat_result.st_uid}, "
+            "not the current user or root"
+        )
+    mode = stat_result.st_mode
+    if mode & stat.S_IWOTH:
+        return f"{label} is world-writable"
+    if mode & stat.S_IWGRP and not _posix_group_is_user_private(stat_result):
+        return f"{label} is group-writable by a shared group"
     return None
 
 
-def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | None:
-    path = Path(model_path).expanduser().resolve(strict=False)
-    root = Path(trusted_root).expanduser().resolve(strict=False)
+def _capacity_entry_error(
+    path: Path,
+    stat_result: os.stat_result,
+    *,
+    label: str,
+) -> str | None:
+    if _is_windows():
+        return _windows_capacity_model_owner_error(path, label=label)
+    return _posix_capacity_entry_error(stat_result, label=label)
+
+
+def _capacity_file_trust_error(
+    model_path: Path,
+    trusted_root: Path,
+    *,
+    label: str,
+) -> str | None:
+    path = Path(model_path)
+    root = Path(trusted_root)
     if not path.is_relative_to(root):
         return f"path is outside trusted resource root {root}"
 
+    relative_path = path.relative_to(root)
+    current = root
+    ancestor_paths = [root]
+    for part in relative_path.parts[:-1]:
+        current /= part
+        ancestor_paths.append(current)
+
+    for ancestor in ancestor_paths:
+        try:
+            ancestor_stat = ancestor.stat(follow_symlinks=False)
+        except OSError as exc:
+            return f"cannot stat trusted ancestor {ancestor}: {exc}"
+        if stat.S_ISLNK(ancestor_stat.st_mode):
+            return f"trusted ancestor is a symlink: {ancestor}"
+        if not stat.S_ISDIR(ancestor_stat.st_mode):
+            return f"trusted ancestor is not a directory: {ancestor}"
+        ancestor_error = _capacity_entry_error(
+            ancestor,
+            ancestor_stat,
+            label=f"trusted ancestor {ancestor}",
+        )
+        if ancestor_error is not None:
+            return ancestor_error
+
     try:
-        stat_result = path.stat()
+        stat_result = path.stat(follow_symlinks=False)
+    except FileNotFoundError:
+        if label == "model manifest":
+            return f"model manifest is missing: {path}"
+        return f"{label} is missing: {path}"
     except OSError as exc:
-        return f"cannot stat model file: {exc}"
-    mode = stat_result.st_mode
+        return f"cannot stat {label}: {exc}"
+    if stat.S_ISLNK(stat_result.st_mode):
+        return f"{label} is a symlink"
+    if not stat.S_ISREG(stat_result.st_mode):
+        return f"{label} is not a regular file"
+    return _capacity_entry_error(path, stat_result, label=label)
 
-    if os.name == "nt":
-        # POSIX permission bits are not authoritative on Windows. Compare the
-        # native file-owner SID with the token user/default-owner SIDs instead.
-        return _windows_capacity_model_owner_error(path)
 
-    if mode & stat.S_IWOTH:
-        return "model file is world-writable"
-    if mode & stat.S_IWGRP and not _posix_group_is_user_private(stat_result):
-        return "model file is group-writable by a shared group"
-    return None
+def _capacity_model_trust_error(model_path: Path, trusted_root: Path) -> str | None:
+    path, root = _capacity_path_and_root(model_path, trusted_root)
+    return _capacity_file_trust_error(path, root, label="model file")
+
+
+def _open_trusted_capacity_file(
+    path: Path,
+    trusted_root: Path,
+    *,
+    label: str,
+) -> tuple[BinaryIO | None, os.stat_result | None, str | None]:
+    trust_error = _capacity_file_trust_error(
+        path,
+        trusted_root,
+        label=label,
+    )
+    if trust_error is not None:
+        return None, None, trust_error
+
+    flags = os.O_RDONLY
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    flags |= getattr(os, "O_BINARY", 0)
+    fd: int | None = None
+    stream: BinaryIO | None = None
+    try:
+        fd = os.open(path, flags)
+        stream = os.fdopen(fd, "rb")
+        fd = None
+        descriptor_stat = os.fstat(stream.fileno())
+        path_stat = path.stat(follow_symlinks=False)
+        if not os.path.samestat(descriptor_stat, path_stat):
+            stream.close()
+            return None, None, f"{label} changed while it was being opened"
+        if not stat.S_ISREG(descriptor_stat.st_mode):
+            stream.close()
+            return None, None, f"{label} is not a regular file"
+        descriptor_error = _capacity_entry_error(
+            path,
+            descriptor_stat,
+            label=label,
+        )
+        if descriptor_error is not None:
+            stream.close()
+            return None, None, descriptor_error
+        return stream, descriptor_stat, None
+    except (OSError, ValueError) as exc:
+        if stream is not None:
+            stream.close()
+        elif fd is not None:
+            os.close(fd)
+        return None, None, f"cannot open {label} safely: {exc}"
 
 
 def capacity_model_manifest_path(model_path: Path) -> Path:
@@ -416,11 +709,19 @@ def capacity_model_manifest_path(model_path: Path) -> Path:
 
 
 def _capacity_model_sha256(model_path: Path) -> str:
-    digest = hashlib.sha256()
     with open(Path(model_path).resolve(strict=False), "rb") as stream:
+        return _capacity_model_sha256_stream(stream)
+
+
+def _capacity_model_sha256_stream(stream: BinaryIO) -> str:
+    digest = hashlib.sha256()
+    stream.seek(0)
+    try:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
-    return digest.hexdigest()
+        return digest.hexdigest()
+    finally:
+        stream.seek(0)
 
 
 def write_capacity_model_manifest(model_path: Path) -> Path:
@@ -441,17 +742,20 @@ def write_capacity_model_manifest(model_path: Path) -> Path:
     return manifest_path
 
 
-def _capacity_model_manifest_error(model_path: Path) -> str | None:
-    path = Path(model_path).expanduser().resolve(strict=False)
-    manifest_path = capacity_model_manifest_path(path)
-    if not manifest_path.is_file():
-        return f"model manifest is missing: {manifest_path}"
-
+def _capacity_model_manifest_stream_error(
+    model_path: Path,
+    model_stream: BinaryIO,
+    model_stat: os.stat_result,
+    manifest_stream: BinaryIO,
+) -> str | None:
+    path = Path(model_path)
     try:
-        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        payload = json.loads(manifest_stream.read().decode("utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         return f"model manifest is unreadable: {exc}"
 
+    if not isinstance(payload, dict):
+        return "model manifest schema mismatch"
     if payload.get("schema") != CAPACITY_MODEL_MANIFEST_SCHEMA:
         return "model manifest schema mismatch"
     if payload.get("model_file") != path.name:
@@ -459,19 +763,49 @@ def _capacity_model_manifest_error(model_path: Path) -> str | None:
     if payload.get("algorithm") != CAPACITY_MODEL_HASH_ALGORITHM:
         return "model manifest algorithm mismatch"
 
-    try:
-        size_bytes = path.stat().st_size
-    except OSError as exc:
-        return f"cannot stat model file for manifest verification: {exc}"
-    if payload.get("size_bytes") != size_bytes:
+    if payload.get("size_bytes") != model_stat.st_size:
         return "model manifest size mismatch"
 
     expected_digest = payload.get("digest_sha256")
     if not isinstance(expected_digest, str) or not expected_digest:
         return "model manifest digest missing"
-    if _capacity_model_sha256(path) != expected_digest:
+    try:
+        actual_digest = _capacity_model_sha256_stream(model_stream)
+    except OSError as exc:
+        return f"cannot hash model file for manifest verification: {exc}"
+    if actual_digest != expected_digest:
         return "model manifest sha256 mismatch"
     return None
+
+
+def _capacity_model_manifest_error(model_path: Path) -> str | None:
+    requested_path = Path(model_path).expanduser()
+    path, root = _capacity_path_and_root(requested_path, requested_path.parent)
+    model_stream, model_stat, model_error = _open_trusted_capacity_file(
+        path,
+        root,
+        label="model file",
+    )
+    if model_error is not None or model_stream is None or model_stat is None:
+        return model_error or "cannot open model file safely"
+
+    with model_stream:
+        manifest_stream, _manifest_stat, manifest_error = (
+            _open_trusted_capacity_file(
+                capacity_model_manifest_path(path),
+                root,
+                label="model manifest",
+            )
+        )
+        if manifest_error is not None or manifest_stream is None:
+            return manifest_error or "cannot open model manifest safely"
+        with manifest_stream:
+            return _capacity_model_manifest_stream_error(
+                path,
+                model_stream,
+                model_stat,
+                manifest_stream,
+            )
 
 
 def bootstrap_capacity_predictor(

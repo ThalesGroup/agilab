@@ -256,8 +256,13 @@ def test_ci_security_hygiene_uses_required_supply_chain_artifacts() -> None:
     assert "--profile base" in scan_step
     assert "--output-dir test-results/supply-chain" in scan_step
     assert "--run" in scan_step
+    assert "uv --preview-features extra-build-dependencies run" in security_step
     assert "--pip-audit-json test-results/supply-chain/base/pip-audit.json" in security_step
     assert "--sbom-json test-results/supply-chain/base/sbom-cyclonedx.json" in security_step
+    assert (
+        "--scan-requirements test-results/supply-chain/base/requirements.txt"
+        in security_step
+    )
     assert "--require-scan-artifacts" in security_step
     assert text.index("Generate base supply-chain evidence") < text.index(
         "Validate security hygiene report"
@@ -598,4 +603,6 @@ def test_dev_extra_installs_ruff_for_local_linting() -> None:
         if dependency.startswith("ruff>=")
     ]
 
-    assert ruff_dependencies == ["ruff>=0.15.14,<0.16"]
+    # Exact version bounds belong to dependency-policy tests. This contract only
+    # requires the local lint tool to remain present exactly once.
+    assert len(ruff_dependencies) == 1

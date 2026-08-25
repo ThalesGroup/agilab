@@ -9,6 +9,18 @@ import agi_env.data_archive_support as data_archive_support
 from agi_env.data_archive_support import unzip_data
 
 
+class _QuotaMetadataMixin:
+    def list(self):
+        return [
+            SimpleNamespace(
+                filename="dataset/data.bin",
+                uncompressed=1,
+                compressed=1,
+                is_directory=False,
+            )
+        ]
+
+
 def test_unzip_data_warns_when_archive_missing(tmp_path: Path):
     logger = mock.Mock()
 
@@ -115,7 +127,7 @@ def test_unzip_data_raises_runtime_error_on_extract_failure(tmp_path: Path):
     bad7z_file = data_archive_support.PY7ZR_BAD7Z_FILE
     assert bad7z_file is not None
 
-    class _BrokenSevenZip:
+    class _BrokenSevenZip(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -196,7 +208,7 @@ def test_force_refresh_partial_extract_preserves_live_dataset(tmp_path: Path):
     marker = dataset / "old.marker"
     marker.write_text("keep", encoding="utf-8")
 
-    class _PartialArchive:
+    class _PartialArchive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -249,7 +261,7 @@ def test_force_refresh_swap_failure_rolls_back_live_dataset(
     marker = dataset / "old.marker"
     marker.write_text("keep", encoding="utf-8")
 
-    class _Archive:
+    class _Archive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -435,12 +447,91 @@ def test_py7zr_package_compatibility_restores_missing_top_level_exports():
     assert fake_py7zr.Bad7zFile is _Bad7zFile
 
 
+def _quota_member(
+    name: str,
+    *,
+    uncompressed: int,
+    compressed: int,
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        filename=name,
+        file_size=uncompressed,
+        compress_size=compressed,
+        is_dir=lambda: False,
+    )
+
+
+@pytest.mark.parametrize(
+    ("members", "limits", "message"),
+    [
+        (
+            [_quota_member("one", uncompressed=1, compressed=1)] * 2,
+            {"max_members": 1},
+            "members",
+        ),
+        (
+            [_quota_member("large", uncompressed=11, compressed=10)],
+            {"max_member_bytes": 10},
+            "per-member limit",
+        ),
+        (
+            [
+                _quota_member("one", uncompressed=6, compressed=6),
+                _quota_member("two", uncompressed=6, compressed=6),
+            ],
+            {"max_total_bytes": 10},
+            "in total",
+        ),
+        (
+            [_quota_member("bomb", uncompressed=1_000, compressed=1)],
+            {"max_compression_ratio": 100.0},
+            "compression ratio",
+        ),
+    ],
+)
+def test_archive_extraction_quota_rejects_resource_exhaustion(
+    tmp_path: Path,
+    members: list[SimpleNamespace],
+    limits: dict[str, int | float],
+    message: str,
+) -> None:
+    archive = SimpleNamespace(infolist=lambda: members)
+
+    with pytest.raises(ValueError, match=message):
+        data_archive_support.validate_archive_extraction_quota(
+            archive,
+            tmp_path,
+            min_free_bytes=0,
+            **limits,
+        )
+
+
+def test_archive_extraction_quota_reserves_disk_space(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = SimpleNamespace(
+        infolist=lambda: [_quota_member("data", uncompressed=6, compressed=6)]
+    )
+    monkeypatch.setattr(
+        data_archive_support.shutil,
+        "disk_usage",
+        lambda _path: SimpleNamespace(free=10),
+    )
+
+    with pytest.raises(ValueError, match="free bytes"):
+        data_archive_support.validate_archive_extraction_quota(
+            archive,
+            tmp_path,
+            min_free_bytes=5,
+        )
+
+
 def test_unzip_data_propagates_unexpected_extract_bug(tmp_path: Path):
     archive = tmp_path / "demo.7z"
     archive.write_bytes(b"7z")
     logger = mock.Mock()
 
-    class _BrokenSevenZip:
+    class _BrokenSevenZip(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -605,7 +696,7 @@ def test_unzip_data_existing_dataset_refresh_and_success_paths(tmp_path: Path):
     extracted: list[Path] = []
     removed: list[tuple[Path, object]] = []
 
-    class _Archive:
+    class _Archive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -685,7 +776,7 @@ def test_unzip_data_refresh_handles_missing_permission_and_dataset_dir_failures(
         if onerror is not None:
             onerror(lambda *_args: None, "missing", (FileNotFoundError, FileNotFoundError("gone"), None))
 
-    class _Archive:
+    class _Archive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -771,7 +862,7 @@ def test_unzip_data_refresh_handles_direct_filenotfound_and_staging_dir_failure(
     dataset.mkdir(parents=True)
     extracted = []
 
-    class _Archive:
+    class _Archive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -846,7 +937,7 @@ def test_unzip_data_refresh_onerror_raises_non_missing_exception(tmp_path: Path)
         if onerror is not None:
             onerror(lambda *_args: None, "locked", (PermissionError, PermissionError("denied"), None))
 
-    class _Archive:
+    class _Archive(_QuotaMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 

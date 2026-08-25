@@ -519,6 +519,12 @@ def test_import_project_action_preserves_existing_project_after_partial_extract(
         def namelist(self):
             return ["new.txt"]
 
+        def infolist(self):
+            member = zipfile.ZipInfo("new.txt")
+            member.file_size = len(b"partial")
+            member.compress_size = member.file_size
+            return [member]
+
         def extractall(self, path):
             path = Path(path)
             path.mkdir(parents=True)

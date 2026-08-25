@@ -64,6 +64,26 @@ jobs:
           python tools/ci_tool_lock_integrity.py \
             --requirements-dir .github/requirements
 
+      - name: Clean-install CI lock auditor
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-lock-audit.txt
+
+      - name: Audit locked CI release tools
+        run: |
+          set -euo pipefail
+          for requirements in \
+            .github/requirements/ci-lock-audit.txt \
+            .github/requirements/ci-publish.txt \
+            .github/requirements/ci-pypi-web.txt \
+            .github/requirements/ci-hf-release.txt
+          do
+            pip-audit \
+              --requirement "$requirements" \
+              --no-deps \
+              --disable-pip
+          done
+
       - name: Clean-install publishing lock
         uses: ./.github/actions/setup-locked-python-tools
         with:

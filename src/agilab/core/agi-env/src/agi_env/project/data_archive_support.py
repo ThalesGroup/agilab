@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import shutil
 import tempfile
 import traceback
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -15,6 +16,12 @@ from agi_env.shares.share_runtime_support import resolve_share_path
 
 STAMP_WRITE_EXCEPTIONS = (OSError,)
 SIZE_PROBE_EXCEPTIONS = (OSError,)
+
+ARCHIVE_MAX_MEMBERS = 10_000
+ARCHIVE_MAX_MEMBER_BYTES = 2 * 1024**3
+ARCHIVE_MAX_TOTAL_BYTES = 8 * 1024**3
+ARCHIVE_MAX_COMPRESSION_RATIO = 200.0
+ARCHIVE_MIN_FREE_BYTES = 256 * 1024**2
 
 
 def _load_py7zr_exceptions_module() -> Any | None:
@@ -196,6 +203,125 @@ def validate_archive_members_stay_within_dest(archive: Any, dest: Path) -> None:
     _validate_archive_members_stay_within_dest(archive, dest)
 
 
+def _archive_member_metadata(archive: Any) -> list[Any]:
+    for method_name in ("infolist", "list"):
+        list_members = getattr(archive, method_name, None)
+        if callable(list_members):
+            return list(list_members())
+    raise ValueError(
+        "Archive extraction refused because member size metadata is unavailable."
+    )
+
+
+def _archive_member_size(member: Any, *names: str) -> int | None:
+    for name in names:
+        value = getattr(member, name, None)
+        if value is None:
+            continue
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Archive member has invalid {name} metadata.") from exc
+        if parsed < 0:
+            raise ValueError(f"Archive member has negative {name} metadata.")
+        return parsed
+    return None
+
+
+def _archive_member_is_directory(member: Any) -> bool:
+    is_dir = getattr(member, "is_dir", None)
+    if callable(is_dir):
+        return bool(is_dir())
+    return bool(getattr(member, "is_directory", False))
+
+
+def _archive_member_display_name(member: Any) -> str:
+    return str(getattr(member, "filename", getattr(member, "name", "<unknown>")))
+
+
+def _existing_disk_usage_path(dest: Path) -> Path:
+    probe = dest.resolve(strict=False)
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    return probe
+
+
+def validate_archive_extraction_quota(
+    archive: Any,
+    dest: Path,
+    *,
+    archive_size_bytes: int | None = None,
+    max_members: int = ARCHIVE_MAX_MEMBERS,
+    max_member_bytes: int = ARCHIVE_MAX_MEMBER_BYTES,
+    max_total_bytes: int = ARCHIVE_MAX_TOTAL_BYTES,
+    max_compression_ratio: float = ARCHIVE_MAX_COMPRESSION_RATIO,
+    min_free_bytes: int = ARCHIVE_MIN_FREE_BYTES,
+) -> None:
+    """Reject archives that exceed bounded extraction and disk quotas."""
+
+    members = _archive_member_metadata(archive)
+    if len(members) > max_members:
+        raise ValueError(
+            f"Archive contains {len(members)} members; limit is {max_members}."
+        )
+
+    total_uncompressed = 0
+    total_compressed = 0
+    has_compressed_metadata = False
+    for member in members:
+        if _archive_member_is_directory(member):
+            continue
+        member_name = _archive_member_display_name(member)
+        uncompressed = _archive_member_size(member, "file_size", "uncompressed")
+        if uncompressed is None:
+            raise ValueError(
+                f"Archive member {member_name!r} has no uncompressed-size metadata."
+            )
+        if uncompressed > max_member_bytes:
+            raise ValueError(
+                f"Archive member {member_name!r} expands to {uncompressed} bytes; "
+                f"per-member limit is {max_member_bytes}."
+            )
+        total_uncompressed += uncompressed
+        if total_uncompressed > max_total_bytes:
+            raise ValueError(
+                f"Archive expands to more than {max_total_bytes} bytes in total."
+            )
+
+        compressed = _archive_member_size(member, "compress_size", "compressed")
+        if compressed is not None:
+            has_compressed_metadata = True
+            total_compressed += compressed
+            if hasattr(member, "compress_size") and uncompressed:
+                if compressed == 0 or uncompressed / compressed > max_compression_ratio:
+                    raise ValueError(
+                        f"Archive member {member_name!r} exceeds the allowed "
+                        f"compression ratio of {max_compression_ratio:g}:1."
+                    )
+
+    compressed_basis = archive_size_bytes
+    if compressed_basis is None and has_compressed_metadata:
+        compressed_basis = total_compressed
+    if total_uncompressed:
+        if compressed_basis is None:
+            raise ValueError(
+                "Archive extraction refused because compressed-size metadata is unavailable."
+            )
+        if compressed_basis <= 0 or total_uncompressed / compressed_basis > max_compression_ratio:
+            raise ValueError(
+                "Archive exceeds the allowed overall compression ratio of "
+                f"{max_compression_ratio:g}:1."
+            )
+
+    free_bytes = shutil.disk_usage(_existing_disk_usage_path(dest)).free
+    required_bytes = total_uncompressed + min_free_bytes
+    if required_bytes > free_bytes:
+        raise ValueError(
+            "Archive extraction requires "
+            f"{required_bytes} free bytes including reserve; only {free_bytes} are available."
+        )
+
+
 def _write_dataset_stamp(archive_path: Path, stamp_path: Path) -> None:
     try:
         stamp_path.write_text(str(archive_path), encoding="utf-8")
@@ -344,6 +470,11 @@ def unzip_data(
                     "(this can take a moment; please wait)."
                 )
             _validate_archive_members_stay_within_dest(archive, staging_root)
+            validate_archive_extraction_quota(
+                archive,
+                staging_root,
+                archive_size_bytes=archive_path.stat().st_size,
+            )
             archive.extractall(path=staging_root)
 
         try:

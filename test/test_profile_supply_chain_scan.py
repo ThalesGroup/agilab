@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+import tomllib
 
 
 MODULE_PATH = Path("tools/profile_supply_chain_scan.py").resolve()
@@ -52,8 +53,51 @@ def test_cli_prints_all_profile_scan_plan(tmp_path: Path, capsys) -> None:
     assert profiles["agents"]["extras"] == ["agents"]
     assert profiles["examples"]["extras"] == ["examples"]
     assert profiles["dev"]["extras"] == ["dev"]
+    assert profiles["core"]["extras"] == ["core"]
+    assert profiles["viz"]["extras"] == ["viz"]
+    assert profiles["bridges"]["extras"] == ["bridges"]
+    assert profiles["notebook"]["extras"] == ["notebook"]
+    assert profiles["proof"]["extras"] == ["proof"]
+    assert profiles["packaged-projects"]["extras"] == []
     assert any("pip-audit" in command for command in profiles["ui"]["commands"][1])
     assert any("cyclonedx-py" in command for command in profiles["ui"]["commands"][2])
+
+
+def test_scanner_covers_every_root_optional_extra() -> None:
+    module = _load_module()
+    root = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    assert set(module.ROOT_OPTIONAL_EXTRAS) == set(
+        root["project"]["optional-dependencies"]
+    )
+    for profile in ("ui", "proof"):
+        assert "cryptography>=50.0.0,<51" in root["project"]["optional-dependencies"][profile]
+    assert "mlflow-skinny>=3.14,<4" in root["project"]["optional-dependencies"]["mlflow"]
+    assert "override-dependencies" not in root["tool"]["uv"]
+
+
+def test_packaged_projects_profile_collects_embedded_dependencies(tmp_path: Path) -> None:
+    module = _load_module()
+    scan = module.build_profile_scan(module.PACKAGED_PROJECTS_PROFILE, output_root=tmp_path)
+
+    assert any(path.endswith("weather_forecast_project/pyproject.toml") for path in scan.source_manifests)
+    assert any("weather_forecast_worker/pyproject.toml" in path for path in scan.source_manifests)
+    assert list(scan.commands[0])[:5] == [
+        "uv",
+        "--preview-features",
+        "extra-build-dependencies",
+        "pip",
+        "compile",
+    ]
+
+    destination = Path(scan.input_requirements)
+    module.write_packaged_project_requirements(
+        destination,
+        (module.REPO_ROOT / path for path in scan.source_manifests),
+    )
+    requirements = destination.read_text(encoding="utf-8")
+    assert "skforecast>=0.19,<0.20" in requirements
+    assert "torch>=2.8.0,<3" in requirements
 
 
 def test_write_pip_audit_requirements_removes_local_editables(tmp_path: Path) -> None:
@@ -85,14 +129,8 @@ def test_write_pip_audit_requirements_removes_local_editables(tmp_path: Path) ->
     assert "--hash=sha256:abc" in text
 
 
-def test_acknowledged_vulnerabilities_are_ignored_with_rationale():
+def test_current_profiles_have_no_stale_global_vulnerability_ignores(tmp_path: Path) -> None:
     module = _load_module()
-    assert module.ACKNOWLEDGED_VULNERABILITIES, "expected at least one acknowledged advisory"
-    for vuln_id, rationale in module.ACKNOWLEDGED_VULNERABILITIES.items():
-        assert vuln_id.startswith(("GHSA-", "PYSEC-"))
-        assert rationale.strip(), f"{vuln_id} needs a written rationale"
-    plan = module.build_profile_scan("local-llm", output_root=__import__("pathlib").Path("/tmp/scan"))
+    plan = module.build_profile_scan("local-llm", output_root=tmp_path)
     audit_cmd = next(cmd for cmd in plan.commands if "pip-audit" in cmd)
-    for vuln_id in module.ACKNOWLEDGED_VULNERABILITIES:
-        assert "--ignore-vuln" in audit_cmd
-        assert vuln_id in audit_cmd
+    assert "--ignore-vuln" not in audit_cmd

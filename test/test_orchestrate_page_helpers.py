@@ -18,6 +18,8 @@ import pytest
 from streamlit.errors import StreamlitAPIException
 from streamlit.testing.v1 import AppTest
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class _CaptureCodeSink:
     def __init__(self) -> None:
@@ -2697,9 +2699,7 @@ def test_cluster_app_args_env_rejects_invalid_form_output_without_persisting(
     workers_data_path,
 ):
     module = _load_orchestrate_module()
-    form_path = Path(
-        "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py"
-    )
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/minimal_app_project/src/app_args_form.py"
     settings_path = tmp_path / "minimal_app_project" / "app_settings.toml"
     settings_path.parent.mkdir()
     shutil.copyfile(form_path.parent / "app_settings.toml", settings_path)

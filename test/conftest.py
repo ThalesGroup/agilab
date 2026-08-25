@@ -229,7 +229,13 @@ def run_page_app_test(monkeypatch, tmp_path):
             monkeypatch.setenv("OPENAI_API_KEY", "dummy")
             monkeypatch.setenv("IS_SOURCE_ENV", "1")
             monkeypatch.setenv("AGILAB_ACTIVE_APP", str(project_dir))
-            app_test = AppTest.from_file(page_path, default_timeout=timeout)
+            resolved_page_path = Path(page_path)
+            if not resolved_page_path.is_absolute():
+                resolved_page_path = REPO_ROOT / resolved_page_path
+            app_test = AppTest.from_file(
+                str(resolved_page_path.resolve()),
+                default_timeout=timeout,
+            )
             app_test.run()
         return app_test
 

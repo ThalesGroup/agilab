@@ -13,6 +13,8 @@ import tomllib
 import types
 from types import SimpleNamespace
 
+import pytest
+
 
 def _import_pipeline_run_controls():
     repo_root = Path(__file__).resolve().parents[1]
@@ -144,6 +146,17 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
     assert placeholder.codes[-1].endswith("line one\n")
     assert placeholder.code_kwargs[-1]["height"] == module.PIPELINE_RUN_LOG_HEIGHT
 
+    secret = "sink-super-secret-value"
+    module._push_run_log(
+        "page",
+        f"OPENAI_API_KEY={secret}\nAuthorization: Bearer {secret}",
+        placeholder,
+    )
+    assert secret not in "\n".join(fake_st.session_state["page__run_logs"])
+    assert secret not in log_file.read_text(encoding="utf-8")
+    assert secret not in placeholder.codes[-1]
+    assert "<redacted>" in placeholder.codes[-1]
+
     prepared, error = module._prepare_run_log_file("page", env, "bad prefix !")
     assert error is None
     assert prepared is not None
@@ -155,6 +168,42 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
     assert prepared is None
     assert error
     assert "broken__run_log_file" not in fake_st.session_state
+
+
+def test_stage_subprocess_redacts_stdout_stderr_and_failures(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    secret = "stage-super-secret-value"
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout=f"OPENAI_API_KEY={secret}\n",
+            stderr=f"Authorization: Bearer {secret}\n",
+            returncode=0,
+        ),
+    )
+    output = module._run_stage_subprocess(
+        ["python", "stage.py"], cwd=tmp_path, extra_env={}
+    )
+    assert secret not in output
+    assert output.count("<redacted>") == 2
+
+    monkeypatch.setattr(
+        module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout="",
+            stderr=f"TOKEN={secret}\n",
+            returncode=1,
+        ),
+    )
+    with pytest.raises(RuntimeError) as exc_info:
+        module._run_stage_subprocess(
+            ["python", "stage.py"], cwd=tmp_path, extra_env={}
+        )
+    assert secret not in str(exc_info.value)
+    assert "<redacted>" in str(exc_info.value)
 
 
 def test_pipeline_run_controls_lock_helpers_cover_owner_and_lifecycle_edges(tmp_path, monkeypatch):
@@ -209,6 +258,30 @@ def test_pipeline_run_controls_lock_helpers_cover_owner_and_lifecycle_edges(tmp_
     assert direct_lock.exists()
     assert module._read_pipeline_lock_payload(direct_lock) == {}
     assert module._clear_pipeline_run_lock(env, "page", reason="already gone") is True
+
+
+def test_pipeline_lock_payload_read_retries_transient_heartbeat_rewrite(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    lock_path = tmp_path / "pipeline-run.lock"
+    expected = {"token": "holder", "heartbeat_at": 123.0}
+    lock_path.write_text(json.dumps(expected), encoding="utf-8")
+    real_json_load = module.json.load
+    attempts = 0
+    sleeps = []
+
+    def _flaky_json_load(stream):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise json.JSONDecodeError("transient heartbeat rewrite", "", 0)
+        return real_json_load(stream)
+
+    monkeypatch.setattr(module.json, "load", _flaky_json_load)
+    monkeypatch.setattr(module.time, "sleep", sleeps.append)
+
+    assert module._read_pipeline_lock_payload(lock_path) == expected
+    assert attempts == 2
+    assert sleeps == [0.001]
 
 
 def test_pipeline_run_controls_acquire_refresh_release_and_busy_lock(tmp_path, monkeypatch):

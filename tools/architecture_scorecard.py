@@ -213,7 +213,9 @@ def _check_capacity_model_trust_boundary(repo_root: Path) -> dict[str, Any]:
                 "_capacity_model_manifest_error",
                 "write_capacity_model_manifest",
                 "trusted_root=env.resources_path",
-                "model file is world-writable",
+                "is world-writable",
+                "is group-writable by a shared group",
+                "grants unsafe write/delete access to untrusted Windows",
                 "Refusing to load unverified capacity model",
             ],
             "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/capacity_support.py": [

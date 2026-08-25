@@ -5,6 +5,8 @@ from types import SimpleNamespace
 
 from streamlit.testing.v1 import AppTest
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 def _make_env(
     tmp_path: Path,
@@ -48,7 +50,10 @@ def _make_env(
 
 def test_execution_pandas_form_renders_and_persists_args(tmp_path: Path) -> None:
     env = _make_env(tmp_path, app_name="execution_pandas_project", data_out="execution_pandas/results")
-    at = AppTest.from_file("src/agilab/apps/builtin/execution_pandas_project/src/app_args_form.py", default_timeout=20)
+    at = AppTest.from_file(
+        str(REPO_ROOT / "src/agilab/apps/builtin/execution_pandas_project/src/app_args_form.py"),
+        default_timeout=20,
+    )
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
 
@@ -95,7 +100,10 @@ def test_execution_pandas_form_disables_process_executor_on_windows(
         data_out="execution_pandas/results",
         pool_executor="process",
     )
-    at = AppTest.from_file("src/agilab/apps/builtin/execution_pandas_project/src/app_args_form.py", default_timeout=20)
+    at = AppTest.from_file(
+        str(REPO_ROOT / "src/agilab/apps/builtin/execution_pandas_project/src/app_args_form.py"),
+        default_timeout=20,
+    )
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
 
@@ -113,7 +121,10 @@ def test_execution_pandas_form_disables_process_executor_on_windows(
 
 def test_execution_polars_form_renders_and_persists_args(tmp_path: Path) -> None:
     env = _make_env(tmp_path, app_name="execution_polars_project", data_out="execution_polars/results")
-    at = AppTest.from_file("src/agilab/apps/builtin/execution_polars_project/src/app_args_form.py", default_timeout=20)
+    at = AppTest.from_file(
+        str(REPO_ROOT / "src/agilab/apps/builtin/execution_polars_project/src/app_args_form.py"),
+        default_timeout=20,
+    )
     at.session_state["env"] = env
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
 

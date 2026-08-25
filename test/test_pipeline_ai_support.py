@@ -104,9 +104,11 @@ def test_ollama_available_models_parses_models_and_removes_duplicates(monkeypatc
     }
 
     monkeypatch.setattr(
-        pipeline_ai_support.urllib.request,
-        "urlopen",
-        lambda *_args, **_kwargs: _FakeURLOpenResponse(json.dumps(models_payload)),
+        pipeline_ai_support,
+        "build_same_origin_llm_opener",
+        lambda **_kwargs: SimpleNamespace(
+            open=lambda *_args, **_kwargs: _FakeURLOpenResponse(json.dumps(models_payload))
+        ),
     )
 
     models = pipeline_ai_support._ollama_available_models("http://127.0.0.1:11434")
@@ -269,7 +271,11 @@ def test_ollama_generate_parses_generate_response_and_forwards_payload(monkeypat
         captured["data"] = request.data.decode("utf-8")
         return _FakeURLOpenResponse('{"response":"ok"}')
 
-    monkeypatch.setattr(pipeline_ai_support.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        pipeline_ai_support,
+        "build_same_origin_llm_opener",
+        lambda **_kwargs: SimpleNamespace(open=fake_urlopen),
+    )
 
     text = pipeline_ai_support._ollama_generate(
         endpoint="http://127.0.0.1:11434",

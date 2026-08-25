@@ -11,8 +11,10 @@ import pandas as pd
 from streamlit.testing.v1 import AppTest
 
 
-PAGE_PATH = (
-    "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PAGE_PATH = str(
+    REPO_ROOT
+    / "src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py"
 )
 
 

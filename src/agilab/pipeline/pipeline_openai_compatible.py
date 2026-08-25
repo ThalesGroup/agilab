@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from agilab.security.llm_endpoint_policy import validate_llm_endpoint
+
 OPENAI_COMPAT_PROVIDER = "openai-compatible"
 OPENAI_COMPAT_BASE_URL_ENV = "AGILAB_LLM_BASE_URL"
 OPENAI_COMPAT_API_KEY_ENV = "AGILAB_LLM_API_KEY"
@@ -72,7 +74,10 @@ def _optional_positive_int(envars: Dict[str, str], name: str) -> Optional[int]:
 
 def resolve_openai_compatible_settings(envars: Dict[str, str]) -> OpenAICompatibleSettings:
     """Resolve settings for vLLM and other OpenAI-compatible Chat Completions servers."""
-    base_url = normalize_openai_compatible_base_url(_env_value(envars, OPENAI_COMPAT_BASE_URL_ENV))
+    base_url = validate_llm_endpoint(
+        normalize_openai_compatible_base_url(_env_value(envars, OPENAI_COMPAT_BASE_URL_ENV)),
+        envars=envars,
+    )
     api_key = _env_value(envars, OPENAI_COMPAT_API_KEY_ENV, DEFAULT_OPENAI_COMPAT_API_KEY)
     model = _env_value(envars, OPENAI_COMPAT_MODEL_ENV, DEFAULT_OPENAI_COMPAT_MODEL)
     if not model:

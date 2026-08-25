@@ -4,6 +4,9 @@ import asyncio
 import io
 import json
 import os
+import pickle
+import stat
+import sys
 import urllib.error
 import warnings
 from pathlib import Path
@@ -423,7 +426,7 @@ def test_capacity_model_manifest_error_reports_all_validation_failures(monkeypat
         return original_stat(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "stat", _raise_for_model)
-    assert "cannot stat model file for manifest verification" in (
+    assert "cannot stat model file" in (
         runtime_misc_support._capacity_model_manifest_error(model_path)
     )
     assert "cannot stat model file" in runtime_misc_support._capacity_model_trust_error(
@@ -510,6 +513,7 @@ def test_windows_capacity_model_owner_error_accepts_matching_sid(tmp_path):
             ("S-1-5-21-1000",),
             "DOMAIN\\runner",
         ),
+        acl_grants_fn=lambda _path: (("S-1-5-21-1000", 0x10000000),),
     )
 
     assert error is None
@@ -542,9 +546,258 @@ def test_windows_capacity_model_owner_error_accepts_token_default_owner(tmp_path
             ("S-1-5-21-1000", "S-1-5-32-544"),
             "BUILTIN\\Administrators",
         ),
+        acl_grants_fn=lambda _path: (),
     )
 
     assert error is None
+
+
+@pytest.mark.parametrize(
+    "trustee_sid",
+    ("S-1-1-0", "S-1-5-11", "S-1-5-32-545"),
+)
+@pytest.mark.parametrize(
+    "access_mask",
+    (0x00000002, 0x00010000, 0x00040000, 0x00080000),
+)
+def test_windows_capacity_model_owner_error_rejects_broad_write_dacl(
+    tmp_path, trustee_sid, access_mask
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: ((trustee_sid, access_mask),),
+    )
+
+    assert error == (
+        "model file grants unsafe write/delete access to untrusted Windows "
+        f"principal {trustee_sid}"
+    )
+
+
+@pytest.mark.parametrize(
+    "access_mask",
+    (0x00000002, 0x00010000, 0x00040000, 0x00080000),
+)
+def test_windows_capacity_model_owner_error_rejects_untrusted_user_write_dacl(
+    tmp_path, access_mask
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+    trustee_sid = "S-1-5-21-2000"
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: ((trustee_sid, access_mask),),
+    )
+
+    assert error == (
+        "model file grants unsafe write/delete access to untrusted Windows "
+        f"principal {trustee_sid}"
+    )
+
+
+def test_windows_capacity_model_owner_error_allows_untrusted_read_only_dacl(tmp_path):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: (("S-1-5-21-2000", 0x00000001),),
+    )
+
+    assert error is None
+
+
+@pytest.mark.parametrize("trustee_sid", ("S-1-5-18", "S-1-5-32-544"))
+def test_windows_capacity_model_owner_error_allows_privileged_system_write_dacl(
+    tmp_path, trustee_sid
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: ((trustee_sid, 0x10000000),),
+    )
+
+    assert error is None
+
+
+def test_windows_capacity_model_owner_error_allows_verified_owner_rights_write_dacl(
+    tmp_path,
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=lambda _path: (("S-1-3-4", 0x10000000),),
+    )
+
+    assert error is None
+
+
+def test_windows_capacity_model_owner_error_rejects_owner_rights_for_untrusted_owner(
+    tmp_path,
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-2000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\other",
+        ),
+        acl_grants_fn=lambda _path: (("S-1-3-4", 0x10000000),),
+    )
+
+    assert error == "model file is owned by DOMAIN\\other, not the current Windows token"
+
+
+def test_windows_capacity_model_owner_error_fails_closed_on_dacl_lookup_error(
+    tmp_path,
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+
+    def _raise_lookup(_path):
+        raise OSError("ACL access denied")
+
+    error = runtime_misc_support._windows_capacity_model_owner_error(
+        model_path,
+        identities_fn=lambda _path: (
+            "S-1-5-21-1000",
+            ("S-1-5-21-1000",),
+            "DOMAIN\\runner",
+        ),
+        acl_grants_fn=_raise_lookup,
+    )
+
+    assert error == "cannot verify model file ACL on Windows: ACL access denied"
+
+
+def test_windows_capacity_model_dacl_grants_requests_and_parses_dacl(
+    tmp_path, monkeypatch
+):
+    model_path = tmp_path / "balancer_model.pkl"
+    model_path.write_bytes(b"pickle-bytes")
+    calls = {}
+
+    class _FakeDacl:
+        @staticmethod
+        def IsValid():
+            return True
+
+        @staticmethod
+        def GetAceCount():
+            return 1
+
+        @staticmethod
+        def GetAce(_index):
+            return ((0, 0), 0x00000002, "S-1-1-0")
+
+    class _FakeSecurityDescriptor:
+        @staticmethod
+        def GetSecurityDescriptorDacl():
+            return _FakeDacl()
+
+    def _get_file_security(path, information):
+        calls.update(path=path, information=information)
+        return _FakeSecurityDescriptor()
+
+    fake_win32security = SimpleNamespace(
+        DACL_SECURITY_INFORMATION=0x00000004,
+        GetFileSecurity=_get_file_security,
+        ConvertSidToStringSid=lambda sid: sid,
+    )
+    monkeypatch.setitem(sys.modules, "win32security", fake_win32security)
+
+    assert runtime_misc_support._windows_capacity_model_dacl_grants(model_path) == (
+        ("S-1-1-0", 0x00000002),
+    )
+    assert calls == {
+        "path": str(model_path),
+        "information": fake_win32security.DACL_SECURITY_INFORMATION,
+    }
+
+
+def test_capacity_file_trust_checks_windows_security_for_ancestors_and_entries(
+    tmp_path, monkeypatch
+):
+    trusted_root = tmp_path / "resources"
+    model_dir = trusted_root / "models"
+    model_dir.mkdir(parents=True)
+    model_path = model_dir / "balancer_model.pkl"
+    manifest_path = runtime_misc_support.capacity_model_manifest_path(model_path)
+    model_path.write_bytes(b"pickle-bytes")
+    manifest_path.write_text("{}", encoding="utf-8")
+    checked = []
+
+    def _check_security(path, *, label, **_kwargs):
+        checked.append((path, label))
+        return None
+
+    monkeypatch.setattr(runtime_misc_support, "_is_windows", lambda: True)
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_windows_capacity_model_owner_error",
+        _check_security,
+    )
+
+    assert (
+        runtime_misc_support._capacity_file_trust_error(
+            model_path,
+            trusted_root,
+            label="model file",
+        )
+        is None
+    )
+    assert (
+        runtime_misc_support._capacity_file_trust_error(
+            manifest_path,
+            trusted_root,
+            label="model manifest",
+        )
+        is None
+    )
+    assert checked == [
+        (trusted_root, f"trusted ancestor {trusted_root}"),
+        (model_dir, f"trusted ancestor {model_dir}"),
+        (model_path, "model file"),
+        (trusted_root, f"trusted ancestor {trusted_root}"),
+        (model_dir, f"trusted ancestor {model_dir}"),
+        (manifest_path, "model manifest"),
+    ]
 
 
 def test_windows_capacity_model_owner_error_fails_closed_on_lookup_error(tmp_path):
@@ -579,11 +832,13 @@ def test_load_capacity_predictor_rejects_windows_owner_mismatch(
     runtime_misc_support.write_capacity_model_manifest(model_path)
     calls = {"load": 0, "retrain": 0}
 
-    monkeypatch.setattr(runtime_misc_support, "os", SimpleNamespace(name="nt"))
+    monkeypatch.setattr(runtime_misc_support, "_is_windows", lambda: True)
     monkeypatch.setattr(
         runtime_misc_support,
         "_windows_capacity_model_owner_error",
-        lambda _path: "model file owner SID does not match the current Windows user",
+        lambda _path, **_kwargs: (
+            "model file owner SID does not match the current Windows user"
+        ),
     )
 
     loaded = runtime_misc_support.load_capacity_predictor(
@@ -617,6 +872,54 @@ def test_load_capacity_predictor_rejects_world_writable_trusted_model(tmp_path):
 
     assert loaded is None
     assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX account database semantics")
+def test_posix_group_is_user_private_rejects_shared_primary_gid(monkeypatch):
+    current_user = SimpleNamespace(pw_name="runner", pw_gid=1000)
+    other_user = SimpleNamespace(pw_name="other", pw_gid=1000)
+    monkeypatch.setattr(runtime_misc_support.os, "geteuid", lambda: 1000)
+    monkeypatch.setitem(
+        sys.modules,
+        "pwd",
+        SimpleNamespace(
+            getpwuid=lambda _uid: current_user,
+            getpwall=lambda: (current_user, other_user),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "grp",
+        SimpleNamespace(getgrgid=lambda _gid: SimpleNamespace(gr_mem=[])),
+    )
+
+    assert not runtime_misc_support._posix_group_is_user_private(
+        SimpleNamespace(st_gid=1000)
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX account database semantics")
+def test_posix_group_is_user_private_allows_proven_single_user_group(monkeypatch):
+    current_user = SimpleNamespace(pw_name="runner", pw_gid=1000)
+    unrelated_user = SimpleNamespace(pw_name="other", pw_gid=2000)
+    monkeypatch.setattr(runtime_misc_support.os, "geteuid", lambda: 1000)
+    monkeypatch.setitem(
+        sys.modules,
+        "pwd",
+        SimpleNamespace(
+            getpwuid=lambda _uid: current_user,
+            getpwall=lambda: (current_user, unrelated_user),
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "grp",
+        SimpleNamespace(getgrgid=lambda _gid: SimpleNamespace(gr_mem=["runner"])),
+    )
+
+    assert runtime_misc_support._posix_group_is_user_private(
+        SimpleNamespace(st_gid=1000)
+    )
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX group-write semantics")
@@ -696,6 +999,139 @@ def test_load_capacity_predictor_allows_group_writable_user_private_group(
 
     assert loaded == "ok"
     assert calls["load"] == 1
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX replace-while-open semantics")
+def test_load_capacity_predictor_hashes_and_loads_from_same_descriptor(
+    tmp_path, monkeypatch
+):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(pickle.dumps({"source": "verified"}))
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+    replacement_path = model_path.with_name("replacement.pkl")
+    replacement_path.write_bytes(pickle.dumps({"source": "swapped"}))
+    descriptor_ids = []
+    original_hash = runtime_misc_support._capacity_model_sha256_stream
+
+    def _hash_then_swap(stream):
+        descriptor_stat = os.fstat(stream.fileno())
+        descriptor_ids.append((descriptor_stat.st_dev, descriptor_stat.st_ino))
+        digest = original_hash(stream)
+        replacement_path.replace(model_path)
+        return digest
+
+    def _load_same_stream(stream):
+        descriptor_stat = os.fstat(stream.fileno())
+        descriptor_ids.append((descriptor_stat.st_dev, descriptor_stat.st_ino))
+        return pickle.load(stream)
+
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_capacity_model_sha256_stream",
+        _hash_then_swap,
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=_load_same_stream,
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded == {"source": "verified"}
+    assert pickle.loads(model_path.read_bytes()) == {"source": "swapped"}
+    assert descriptor_ids[0] == descriptor_ids[1]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX symlink semantics")
+def test_load_capacity_predictor_rejects_symlink_model(tmp_path):
+    resources = tmp_path / "resources"
+    resources.mkdir()
+    target_path = resources / "target.pkl"
+    target_path.write_bytes(pickle.dumps({"trusted": False}))
+    model_path = resources / "balancer_model.pkl"
+    model_path.symlink_to(target_path.name)
+    calls = {"load": 0, "retrain": 0}
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        trusted_root=resources,
+    )
+
+    assert loaded is None
+    assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX symlink semantics")
+def test_load_capacity_predictor_rejects_symlink_manifest(tmp_path):
+    resources = tmp_path / "resources"
+    resources.mkdir()
+    model_path = resources / "balancer_model.pkl"
+    model_path.write_bytes(pickle.dumps({"trusted": True}))
+    manifest_path = runtime_misc_support.write_capacity_model_manifest(model_path)
+    target_manifest = manifest_path.with_name("manifest-target.json")
+    manifest_path.replace(target_manifest)
+    manifest_path.symlink_to(target_manifest.name)
+    calls = {"load": 0, "retrain": 0}
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        trusted_root=resources,
+    )
+
+    assert loaded is None
+    assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics")
+def test_load_capacity_predictor_rejects_writable_parent_inside_trusted_root(
+    tmp_path,
+):
+    resources = tmp_path / "resources"
+    model_dir = resources / "models"
+    model_dir.mkdir(parents=True)
+    model_path = model_dir / "balancer_model.pkl"
+    model_path.write_bytes(pickle.dumps({"trusted": False}))
+    runtime_misc_support.write_capacity_model_manifest(model_path)
+    model_dir.chmod(0o777)
+    calls = {"load": 0, "retrain": 0}
+
+    try:
+        loaded = runtime_misc_support.load_capacity_predictor(
+            model_path,
+            load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+            retrain_fn=lambda: calls.__setitem__(
+                "retrain", calls["retrain"] + 1
+            ),
+            trusted_root=resources,
+        )
+    finally:
+        model_dir.chmod(0o700)
+
+    assert loaded is None
+    assert calls == {"load": 0, "retrain": 1}
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX ownership semantics")
+def test_posix_capacity_entry_rejects_foreign_owner(monkeypatch):
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_trusted_posix_owner_ids",
+        lambda: {0, 1000},
+    )
+    foreign_stat = SimpleNamespace(
+        st_uid=2000,
+        st_mode=stat.S_IFREG | 0o600,
+    )
+
+    assert runtime_misc_support._posix_capacity_entry_error(
+        foreign_stat,
+        label="model file",
+    ) == "model file is owned by uid 2000, not the current user or root"
 
 
 def test_bootstrap_capacity_predictor_sets_paths_and_logs_missing_model(tmp_path):

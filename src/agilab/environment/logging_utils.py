@@ -14,9 +14,20 @@ _ELLIPSIS = "..."
 _SECRET_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
     (
         re.compile(
+            r"(?im)\b([A-Z][A-Z0-9_]*(?:API[_-]?KEY|TOKEN|PASSWORD|SECRET|CREDENTIALS?)[A-Z0-9_]*)"
+            r"\s*=\s*(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s;]+)"
+        ),
+        r"\1=<redacted>",
+    ),
+    (
+        re.compile(
             r"(?i)\b(api[_-]?key|token|password|secret|authorization)\s*=\s*([^\s;]+)"
         ),
         r"\1=<redacted>",
+    ),
+    (
+        re.compile(r"(?i)\b(authorization)\s*:\s*(?:bearer|basic)\s+[^\s,;]+"),
+        r"\1: <redacted>",
     ),
     (re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{16,}\b"), "<redacted-token>"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b"), "<redacted-token>"),

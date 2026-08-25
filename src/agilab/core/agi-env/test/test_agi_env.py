@@ -2154,6 +2154,18 @@ def test_read_gitignore_and_check_internet_cover_success_and_failure(tmp_path: P
     assert mock_logger.error.called
 
 
+class _SafeSevenZipMetadataMixin:
+    def list(self):
+        return [
+            SimpleNamespace(
+                filename="dataset/payload.txt",
+                uncompressed=2,
+                compressed=2,
+                is_directory=False,
+            )
+        ]
+
+
 def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.app_data_rel = "demo"
@@ -2189,7 +2201,7 @@ def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(t
         removed.append(Path(path))
         original_rmtree(path)
 
-    class _FakeSevenZip:
+    class _FakeSevenZip(_SafeSevenZipMetadataMixin):
         def __init__(self, path, mode="r"):
             assert Path(path) == archive
             assert mode == "r"
@@ -2265,7 +2277,7 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
     dataset = refresh_env.agi_share_path_abs / "dataset" / "demo" / "dataset"
     dataset.mkdir(parents=True)
 
-    class _FakeSevenZip:
+    class _FakeSevenZip(_SafeSevenZipMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -2298,7 +2310,7 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
     bad7z_file = data_archive_support.PY7ZR_BAD7Z_FILE
     assert bad7z_file is not None
 
-    class _BrokenSevenZip:
+    class _BrokenSevenZip(_SafeSevenZipMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 
@@ -2328,7 +2340,7 @@ def test_unzip_data_propagates_unexpected_extraction_bug(tmp_path: Path, monkeyp
     archive.write_bytes(b"7z")
     monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
 
-    class _BrokenSevenZip:
+    class _BrokenSevenZip(_SafeSevenZipMetadataMixin):
         def __init__(self, *_args, **_kwargs):
             pass
 

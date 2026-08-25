@@ -26,8 +26,8 @@ from package_split_contract import (  # noqa: E402
     is_self_extra_alias,
 )
 
-from agilab.app_management.app_template_registry import (
-    discover_app_templates,  # noqa: E402
+from agilab.app_management.app_template_registry import (  # noqa: E402
+    discover_app_templates,
 )
 
 
@@ -391,8 +391,8 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
         "streamlit",
         "tomli_w",
     } <= _optional_dependency_names(pyproject, "ui")
-    assert {"mlflow"} <= _optional_dependency_names(pyproject, "mlflow") <= {
-        "mlflow",
+    assert {"mlflow-skinny"} <= _optional_dependency_names(pyproject, "mlflow") <= {
+        "mlflow-skinny",
         "idna",
         "starlette",
     }
