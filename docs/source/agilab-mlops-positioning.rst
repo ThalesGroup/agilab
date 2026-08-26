@@ -351,11 +351,13 @@ between research experiments and engineering validation:
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
-That supports a ``Strategic potential`` score of ``4.2 / 5``. It is not scored
-higher yet because future app/template reducer adoption discipline and broader
-fresh-install validation are still roadmap work. The public scorecard in
-:doc:`strategic-potential` defines the evidence required before maintainers
-should move that score to ``4.3 / 5`` or higher.
+That supports a ``Strategic potential`` score of ``4.3 / 5``. The current
+release gate, packaged-example maturity contract, release proof, and live
+Hugging Face smoke align the public GitHub, PyPI, docs, and demo state required
+for that threshold. It is not scored at ``4.5 / 5`` because that level still
+requires two attached external fresh-machine proofs, live multi-app operator UI
+evidence, and credentialed operator-gated connector validation. The public
+scorecard in :doc:`strategic-potential` keeps those boundaries explicit.
 
 Together, the current public category scores round to an overall public
 evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,

@@ -29,7 +29,12 @@ KPI_COMPONENT_SCORES = {
 }
 OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(len(KPI_COMPONENT_SCORES))
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
-STRATEGIC_POTENTIAL_SCORE = "4.2 / 5"
+STRATEGIC_POTENTIAL_SCORE = "4.3 / 5"
+STRATEGIC_POTENTIAL_SCORE_BASIS = (
+    "The 4.3 threshold is supported by passing release and packaged-example gates "
+    "plus aligned GitHub, PyPI, docs, and Hugging Face release evidence. The 4.5 "
+    "external fresh-machine and credentialed-connector threshold is not yet met."
+)
 README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
 README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"
 TEMPLATE_ONLY_BUILTIN_APPS = {
@@ -2526,6 +2531,7 @@ def build_score_snapshot() -> dict[str, Any]:
                 for name, score in KPI_COMPONENT_SCORES.items()
             },
             "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
+            "strategic_potential_score_basis": STRATEGIC_POTENTIAL_SCORE_BASIS,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },
@@ -2677,6 +2683,7 @@ def build_bundle(
                 for name, score in KPI_COMPONENT_SCORES.items()
             },
             "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
+            "strategic_potential_score_basis": STRATEGIC_POTENTIAL_SCORE_BASIS,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },
