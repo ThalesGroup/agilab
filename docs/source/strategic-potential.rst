@@ -26,11 +26,18 @@ monitor, or standalone certification layer.
 Current score
 -------------
 
-AGILAB currently supports a ``Strategic potential`` score of ``4.2 / 5``.
+AGILAB currently supports a ``Strategic potential`` score of ``4.3 / 5``.
 
 That score reflects bridge-layer value: reducing friction between exploratory
 AI work and engineering-grade validation. Future score updates should be based
 on new public evidence, not stronger wording.
+
+The ``4.3 / 5`` threshold is supported by the passing release gate and
+packaged-example maturity contract, plus release proof that aligns GitHub,
+PyPI, the public docs, and the live Hugging Face demo. The score remains below
+``4.5 / 5`` because two attached external fresh-machine proofs, live multi-app
+operator UI evidence, and credentialed operator-gated connector validation are
+not all established yet.
 
 Score movement rule
 -------------------
@@ -186,7 +193,7 @@ evidence closes a listed gap.
    * - Target score
      - Required proof
      - Still not claimed
-   * - ``4.3 / 5``
+   * - ``4.3 / 5`` (current)
      - Final release gate passes with network checks included; packaged
        examples pass the external-beta maturity contract; public docs, PyPI,
        GitHub release, and Hugging Face demo point to the same release state.

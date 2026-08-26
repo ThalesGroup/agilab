@@ -46,10 +46,17 @@ def test_build_bundle_passes_static_public_evidence_contracts() -> None:
     assert bundle["status"] == "pass"
     assert bundle["summary"]["hf_smoke_executed"] is False
     assert bundle["summary"]["score_components"] == {
-        name: f"{score:.1f} / 5"
-        for name, score in module.KPI_COMPONENT_SCORES.items()
+        "Ease of adoption": "4.0 / 5",
+        "Research experimentation": "4.0 / 5",
+        "Engineering prototyping": "4.0 / 5",
+        "Production readiness": "3.2 / 5",
     }
-    assert bundle["summary"]["strategic_potential_score"] == module.STRATEGIC_POTENTIAL_SCORE
+    assert bundle["supported_score"] == "3.8 / 5"
+    assert bundle["summary"]["strategic_potential_score"] == "4.3 / 5"
+    assert (
+        bundle["summary"]["strategic_potential_score_basis"]
+        == module.STRATEGIC_POTENTIAL_SCORE_BASIS
+    )
     assert bundle["summary"]["score_formula"] == module._score_formula()
     assert (
         f"Strategic potential is tracked separately at {module.STRATEGIC_POTENTIAL_SCORE}"
