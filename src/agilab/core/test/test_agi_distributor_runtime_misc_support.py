@@ -282,6 +282,38 @@ def test_load_capacity_predictor_rejects_missing_trusted_root_by_default(tmp_pat
     assert "without a trusted resource root" in calls["warnings"][0][0]
 
 
+def test_load_capacity_predictor_retrains_when_trusted_open_fails(
+    monkeypatch, tmp_path
+):
+    model_path = tmp_path / "resources" / "balancer_model.pkl"
+    model_path.parent.mkdir()
+    model_path.write_bytes(b"pickle-bytes")
+    calls = {"load": 0, "retrain": 0, "warnings": []}
+    log = SimpleNamespace(
+        warning=lambda message, path, reason: calls["warnings"].append(
+            (message, path, reason)
+        )
+    )
+    monkeypatch.setattr(
+        runtime_misc_support,
+        "_open_trusted_capacity_file",
+        lambda *_args, **_kwargs: (None, None, "descriptor verification failed"),
+    )
+
+    loaded = runtime_misc_support.load_capacity_predictor(
+        model_path,
+        load_fn=lambda _stream: calls.__setitem__("load", calls["load"] + 1),
+        retrain_fn=lambda: calls.__setitem__("retrain", calls["retrain"] + 1),
+        log=log,
+        trusted_root=model_path.parent,
+    )
+
+    assert loaded is None
+    assert calls["load"] == 0
+    assert calls["retrain"] == 1
+    assert calls["warnings"][0][2] == "descriptor verification failed"
+
+
 def test_load_capacity_predictor_returns_signed_trusted_value(tmp_path):
     model_path = tmp_path / "resources" / "balancer_model.pkl"
     model_path.parent.mkdir()
@@ -918,6 +950,30 @@ def test_posix_group_is_user_private_allows_proven_single_user_group(monkeypatch
     )
 
     assert runtime_misc_support._posix_group_is_user_private(
+        SimpleNamespace(st_gid=1000)
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX account database semantics")
+def test_posix_group_is_user_private_fails_closed_on_lookup_error(monkeypatch):
+    current_user = SimpleNamespace(pw_name="runner", pw_gid=1000)
+
+    def fail_group_lookup(_gid):
+        raise OSError("group database unavailable")
+
+    monkeypatch.setattr(runtime_misc_support.os, "geteuid", lambda: 1000)
+    monkeypatch.setitem(
+        sys.modules,
+        "pwd",
+        SimpleNamespace(getpwuid=lambda _uid: current_user, getpwall=lambda: ()),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "grp",
+        SimpleNamespace(getgrgid=fail_group_lookup),
+    )
+
+    assert not runtime_misc_support._posix_group_is_user_private(
         SimpleNamespace(st_gid=1000)
     )
 
