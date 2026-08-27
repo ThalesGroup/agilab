@@ -1,0 +1,72 @@
+{
+  "kind": "agilab.tokki_agent_efficiency_tasks.v1",
+  "tasks": [
+    {
+      "id": "dispatcher-work-size-gate",
+      "title": "Keep understated chunk hints out of the exponential dispatcher path",
+      "base_commit": "adf8c597b5e4b852bc301e1adb9cf7bbb8fb3a7c",
+      "reference_fix_commit": "880dca59533566b60aea228caeab0427dee63d33",
+      "prompt": "WorkDispatcher.make_chunks can choose its exponential optimal partitioner from a caller-provided chunk hint even when the real weight list is much larger. An understated hint such as 1 can therefore send a large workload into branch-and-bound instead of the bounded fastest heuristic. Repair the selection boundary so actual work size controls the algorithm choice while preserving validation and the small-workload optimal behavior.",
+      "hidden_test_paths": [
+        "src/agilab/core/test/test_work_dispatcher.py"
+      ],
+      "verification_commands": [
+        [
+          "{python}",
+          "-m",
+          "pytest",
+          "-q",
+          "src/agilab/core/test/test_work_dispatcher.py::test_make_chunks_understated_nchunk2_cannot_trigger_exponential_hang"
+        ]
+      ],
+      "agent_timeout_seconds": 1200,
+      "verification_timeout_seconds": 30
+    },
+    {
+      "id": "ui-robot-scenario-watchdog",
+      "title": "Bound a wedged UI-robot scenario and reap its process tree",
+      "base_commit": "e277d7a987dbf15468346857aef9ed4a302ee2a0",
+      "reference_fix_commit": "7f2fa87b46f7a3f4356df29560f84552cb37504a",
+      "prompt": "The ui-robot matrix can hang forever when one scenario wedges. Add a per-scenario wall-clock watchdog with a safe 900-second default. A timed-out scenario must fail with useful diagnostics, terminate and reap its whole child process group, and leave the other matrix semantics intact. Expose the bound through the existing command-line/configuration surface without turning it into an opt-in safety check.",
+      "hidden_test_paths": [
+        "test/test_agilab_widget_robot_matrix.py"
+      ],
+      "verification_commands": [
+        [
+          "{python}",
+          "-m",
+          "pytest",
+          "-q",
+          "test/test_agilab_widget_robot_matrix.py::test_streaming_runner_terminates_a_silent_wedged_child",
+          "test/test_agilab_widget_robot_matrix.py::test_streaming_runner_reaps_grandchildren_on_timeout",
+          "test/test_agilab_widget_robot_matrix.py::test_streaming_runner_without_timeout_still_completes",
+          "test/test_agilab_widget_robot_matrix.py::test_scenario_timeout_option_is_plumbed_from_cli"
+        ]
+      ],
+      "agent_timeout_seconds": 1800,
+      "verification_timeout_seconds": 180
+    },
+    {
+      "id": "windows-owner-rights-acl",
+      "title": "Accept owner-bound Windows OWNER RIGHTS without weakening DACL checks",
+      "base_commit": "becff5b461ece70181c1cfc025af8820a289d98c",
+      "reference_fix_commit": "c3a5edeccdb42f6862e20c62fd5979918615e2e2",
+      "prompt": "The capacity-model Windows DACL validator rejects writable OWNER RIGHTS entries (SID S-1-3-4) even after it has independently verified the object's owner SID. Treat OWNER RIGHTS as representing that already-verified owner, but only inside that owner-bound check: an owner mismatch or an unrelated writable trustee must still fail closed. Preserve the existing POSIX behavior.",
+      "hidden_test_paths": [
+        "src/agilab/core/test/test_agi_distributor_runtime_misc_support.py"
+      ],
+      "verification_commands": [
+        [
+          "{python}",
+          "-m",
+          "pytest",
+          "-q",
+          "src/agilab/core/test/test_agi_distributor_runtime_misc_support.py::test_windows_capacity_model_owner_error_allows_verified_owner_rights_write_dacl",
+          "src/agilab/core/test/test_agi_distributor_runtime_misc_support.py::test_windows_capacity_model_owner_error_rejects_owner_rights_for_untrusted_owner"
+        ]
+      ],
+      "agent_timeout_seconds": 1200,
+      "verification_timeout_seconds": 180
+    }
+  ]
+}
