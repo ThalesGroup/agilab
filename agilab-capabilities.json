@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-27T14:18:26Z",
+  "generated_at_utc": "2026-08-27T14:55:36Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2427,20 +2427,20 @@
     {
       "schema": "agilab.tokki_agent_efficiency_benchmark.v1",
       "sources": [
-        "tools/benchmark_tokki_agent_efficiency.py"
+        "tools/benchmarks/benchmark_tokki_agent_efficiency.py"
       ]
     },
     {
       "schema": "agilab.tokki_agent_efficiency_result.v1",
       "sources": [
-        "tools/benchmark_tokki_agent_efficiency.py"
+        "tools/benchmarks/benchmark_tokki_agent_efficiency.py"
       ]
     },
     {
       "schema": "agilab.tokki_agent_efficiency_tasks.v1",
       "sources": [
-        "tools/benchmark_tokki_agent_efficiency.py",
-        "tools/tokki_agent_efficiency_tasks.json"
+        "tools/benchmarks/benchmark_tokki_agent_efficiency.py",
+        "tools/benchmarks/tokki_agent_efficiency_tasks.json"
       ]
     },
     {

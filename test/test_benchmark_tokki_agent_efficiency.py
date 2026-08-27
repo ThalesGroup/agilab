@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import benchmark_tokki_agent_efficiency as benchmark
+from tools.benchmarks import benchmark_tokki_agent_efficiency as benchmark
 
 
 def _result(

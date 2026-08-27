@@ -24,8 +24,8 @@ import tempfile
 import time
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_TASKS_PATH = REPO_ROOT / "tools/tokki_agent_efficiency_tasks.json"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_TASKS_PATH = Path(__file__).with_name("tokki_agent_efficiency_tasks.json")
 DEFAULT_REPORT_ROOT = REPO_ROOT / "reports/tokki-agent-efficiency"
 TASK_KIND = "agilab.tokki_agent_efficiency_tasks.v1"
 RESULT_KIND = "agilab.tokki_agent_efficiency_result.v1"
@@ -1454,9 +1454,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  python tools/benchmark_tokki_agent_efficiency.py check --verify-reference
-  python tools/benchmark_tokki_agent_efficiency.py run --model MODEL_ID --task dispatcher-work-size-gate --attempts 1
-  python tools/benchmark_tokki_agent_efficiency.py run --model MODEL_ID --reasoning-effort high --attempts 3
+  python tools/benchmarks/benchmark_tokki_agent_efficiency.py check --verify-reference
+  python tools/benchmarks/benchmark_tokki_agent_efficiency.py run --model MODEL_ID --task dispatcher-work-size-gate --attempts 1
+  python tools/benchmarks/benchmark_tokki_agent_efficiency.py run --model MODEL_ID --reasoning-effort high --attempts 3
 
 Live runs must start from an unrelated human shell after every Codex or Claude
 provider exits. Results are claim-eligible only with all task pairs, structured
