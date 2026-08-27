@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -42,7 +43,7 @@ def _usage(total: int) -> dict[str, int]:
     }
 
 
-def test_public_task_contract_is_sha_pinned_and_direct() -> None:
+def test_public_task_contract_is_sha_pinned() -> None:
     tasks = benchmark.load_tasks(benchmark.DEFAULT_TASKS_PATH)
 
     assert [task.task_id for task in tasks] == [
@@ -51,11 +52,45 @@ def test_public_task_contract_is_sha_pinned_and_direct() -> None:
         "windows-owner-rights-acl",
     ]
     for task in tasks:
+        assert benchmark.SHA_PATTERN.fullmatch(task.base_commit)
+        assert benchmark.SHA_PATTERN.fullmatch(task.reference_fix_commit)
+        assert task.base_commit != task.reference_fix_commit
+        assert task.hidden_test_paths
+
+
+def test_public_task_contract_matches_history_when_available() -> None:
+    tasks = benchmark.load_tasks(benchmark.DEFAULT_TASKS_PATH)
+    missing_commits = [
+        commit
+        for task in tasks
+        for commit in (task.base_commit, task.reference_fix_commit)
+        if subprocess.run(
+            ["git", "cat-file", "-e", f"{commit}^{{commit}}"],
+            cwd=benchmark.REPO_ROOT,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+        != 0
+    ]
+    if missing_commits:
+        pytest.skip("checkout omits the pinned historical benchmark commits")
+
+    for task in tasks:
         proof = benchmark.validate_task_provenance(benchmark.REPO_ROOT, task)
         assert proof["base_commit"] == task.base_commit
         assert proof["reference_fix_commit"] == task.reference_fix_commit
         assert proof["hidden_test_patch_bytes"] > 0
         assert proof["reference_product_paths"]
+
+
+def test_task_provenance_fails_closed_when_history_is_missing(tmp_path: Path) -> None:
+    repository = tmp_path / "shallow-checkout"
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    task = benchmark.load_tasks(benchmark.DEFAULT_TASKS_PATH)[0]
+
+    with pytest.raises(benchmark.BenchmarkError, match="full clone or fetch"):
+        benchmark.validate_task_provenance(repository, task)
 
 
 def test_task_loader_rejects_path_traversal(tmp_path: Path) -> None:

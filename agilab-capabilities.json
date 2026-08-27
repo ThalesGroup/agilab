@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-07-31T16:31:52Z",
+  "generated_at_utc": "2026-08-27T14:18:26Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 36,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 238,
+    "evidence_schema_count": 241,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2422,6 +2422,25 @@
       "schema": "agilab.tescia_diagnostic.summary.v1",
       "sources": [
         "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+      ]
+    },
+    {
+      "schema": "agilab.tokki_agent_efficiency_benchmark.v1",
+      "sources": [
+        "tools/benchmark_tokki_agent_efficiency.py"
+      ]
+    },
+    {
+      "schema": "agilab.tokki_agent_efficiency_result.v1",
+      "sources": [
+        "tools/benchmark_tokki_agent_efficiency.py"
+      ]
+    },
+    {
+      "schema": "agilab.tokki_agent_efficiency_tasks.v1",
+      "sources": [
+        "tools/benchmark_tokki_agent_efficiency.py",
+        "tools/tokki_agent_efficiency_tasks.json"
       ]
     },
     {

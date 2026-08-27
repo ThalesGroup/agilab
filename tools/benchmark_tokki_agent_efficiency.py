@@ -334,11 +334,33 @@ def _git_bytes(repo_root: Path, *arguments: str) -> bytes:
     return completed.stdout
 
 
+def _require_historical_commit(
+    repo_root: Path,
+    task: TaskSpec,
+    commit: str,
+    label: str,
+) -> None:
+    result = _capture(("git", "cat-file", "-e", f"{commit}^{{commit}}"), cwd=repo_root)
+    if result.returncode == 0:
+        return
+    detail = result.stderr.strip() or "Git object is not present"
+    raise BenchmarkError(
+        f"{task.task_id}: required {label} commit {commit} is unavailable in this "
+        f"checkout; use a full clone or fetch that commit before running the "
+        f"benchmark ({detail})"
+    )
+
+
 def validate_task_provenance(repo_root: Path, task: TaskSpec) -> dict[str, object]:
     """Prove that the hidden tests belong to the task's direct reference fix."""
 
-    for commit in (task.base_commit, task.reference_fix_commit):
-        _git_text(repo_root, "cat-file", "-e", f"{commit}^{{commit}}")
+    _require_historical_commit(repo_root, task, task.base_commit, "base")
+    _require_historical_commit(
+        repo_root,
+        task,
+        task.reference_fix_commit,
+        "reference-fix",
+    )
     parent = _git_text(repo_root, "rev-parse", f"{task.reference_fix_commit}^").strip()
     if parent != task.base_commit:
         raise BenchmarkError(
