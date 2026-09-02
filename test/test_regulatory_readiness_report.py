@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -73,7 +74,7 @@ def test_report_can_reach_ready_for_review_with_hashable_evidence(tmp_path: Path
         run_manifest=run_manifest,
         evidence_dirs=[tmp_path],
         system_description="AI system that screens job applicants by analysing CVs.",
-        source_review_date="2026-05-31",
+        source_review_date=datetime.now(timezone.utc).date().isoformat(),
     )
 
     assert report["status"] == "ready-for-review"
