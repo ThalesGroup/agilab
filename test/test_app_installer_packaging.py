@@ -1451,6 +1451,40 @@ def test_app_project_payload_copy_excludes_parallel_coverage_artifacts(tmp_path:
     assert not (payload_root / ".coverage.worker.123").exists()
 
 
+def test_app_project_payload_copy_excludes_symlinks(
+    tmp_path: Path, monkeypatch
+) -> None:
+    support = _load_app_project_build_support()
+    source_agilab_root = tmp_path / "source" / "agilab"
+    project_name = "example_project"
+    project_root = source_agilab_root / "apps" / "builtin" / project_name
+    project_root.mkdir(parents=True)
+    (project_root / "README.md").write_text("safe payload\n", encoding="utf-8")
+
+    external_root = tmp_path / "external"
+    external_root.mkdir()
+    (external_root / "private.txt").write_text("do not package\n", encoding="utf-8")
+    try:
+        (project_root / "external-link").symlink_to(
+            external_root, target_is_directory=True
+        )
+        (project_root / ".venv").symlink_to(
+            tmp_path / "missing-venv", target_is_directory=True
+        )
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source_agilab_root)
+
+    support.copy_app_project_payload(project_name, tmp_path / "target")
+
+    payload_root = tmp_path / "target" / project_name
+    assert (payload_root / "README.md").read_text(encoding="utf-8") == "safe payload\n"
+    assert not (payload_root / "external-link").exists()
+    assert not (payload_root / "external-link").is_symlink()
+    assert not (payload_root / ".venv").is_symlink()
+
+
 def test_agi_apps_umbrella_bundles_only_the_base_minimal_app_template() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
     package_data = pyproject["tool"]["setuptools"]["package-data"]
