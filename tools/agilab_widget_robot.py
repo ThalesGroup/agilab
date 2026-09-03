@@ -797,11 +797,35 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     el.getAttribute("data-testid") === "data-grid-canvas" &&
     Boolean(el.closest("[data-testid='stDataFrame'], [data-testid='stDataEditor']"))
   );
+  const elementContext = (el) => {
+    const container = el.closest("[data-testid]");
+    const baseweb = el.closest("[data-baseweb]");
+    const inputType = el instanceof HTMLInputElement ? el.type : el.getAttribute("type");
+    const containerTestId = container && container !== el ? container.getAttribute("data-testid") : "";
+    const pairs = [
+      ["tag", el.tagName],
+      ["type", inputType],
+      ["id", el.getAttribute("id")],
+      ["name", el.getAttribute("name")],
+      ["role", el.getAttribute("role")],
+      ["testid", el.getAttribute("data-testid")],
+      ["container-testid", containerTestId],
+      ["baseweb", baseweb ? baseweb.getAttribute("data-baseweb") : ""],
+    ];
+    return {
+      summary: pairs.filter(([, value]) => clean(value)).map(([key, value]) => `${key}=${clean(value)}`).join(" "),
+      input_type: clean(inputType),
+      container_testid: clean(containerTestId),
+    };
+  };
   const push = (kind, el, detail) => {
+    const context = elementContext(el);
     issues.push({
       kind,
       label: clean(labelFor(el) || el.getAttribute("data-testid") || el.tagName).slice(0, 120),
-      detail: clean(detail).slice(0, 260),
+      detail: clean(context.summary ? `${detail}; ${context.summary}` : detail).slice(0, 260),
+      input_type: context.input_type,
+      container_testid: context.container_testid,
       framework_owned: frameworkDataGridCanvas(el),
     });
   };
@@ -5819,6 +5843,12 @@ def _ignored_accessibility_issue_reason(issue: Mapping[str, Any]) -> str | None:
         "stNumberInputStepUp",
     }:
         return "Streamlit internal control"
+    if (
+        kind == "missing_accessible_name"
+        and issue.get("input_type") == "date"
+        and issue.get("container_testid") == "hidden-dateinput-container"
+    ):
+        return "Streamlit hidden native date input"
     if kind == "heading_level_jump" and label == "Runtime diagnostics":
         return "settings diagnostics subheading hierarchy"
     return None

@@ -882,6 +882,10 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                     <div data-testid="stSelectbox">
                       <input class="actual-tiny framework-tiny-input">
                     </div>
+                    <div data-testid="hidden-dateinput-container">
+                      <input type="date">
+                    </div>
+                    <input type="date" class="unnamed-date-input">
                     <button class="off-left">Off left</button>
                     <div data-testid="stDataFrame">
                       <canvas
@@ -1009,6 +1013,45 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
         if issue.get("kind") == "missing_accessible_name"
         and issue.get("label") == "data-grid-canvas"
     ]
+    unnamed_input_details = [
+        str(issue.get("detail") or "")
+        for issue in accessibility_issues
+        if issue.get("kind") == "missing_accessible_name"
+        and issue.get("label") == "INPUT"
+    ]
+    assert any("tag=INPUT type=text" in detail for detail in unnamed_input_details)
+    assert any("container-testid=stSelectbox" in detail for detail in unnamed_input_details)
+    assert all("value=" not in detail for detail in unnamed_input_details)
+    hidden_date_issue = next(
+        issue
+        for issue in accessibility_issues
+        if issue.get("container_testid") == "hidden-dateinput-container"
+    )
+    assert hidden_date_issue.get("input_type") == "date"
+    assert (
+        module._accessibility_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[hidden_date_issue],
+        ).status
+        == "interacted"
+    )
+    unnamed_date_issue = next(
+        issue
+        for issue in accessibility_issues
+        if issue.get("input_type") == "date"
+        and not issue.get("container_testid")
+    )
+    assert (
+        module._accessibility_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[unnamed_date_issue],
+        ).status
+        == "failed"
+    )
     assert {issue.get("framework_owned") for issue in data_grid_issues} == {False, True}
     framework_grid_issue = next(
         issue for issue in data_grid_issues if issue.get("framework_owned") is True
