@@ -3,6 +3,7 @@
   "cases": [
     {
       "case_id": "cluster_share_sshfs",
+      "learning_track": "agilab_diagnostics",
       "title": "Diagnose a remote cluster-share failure",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -97,6 +98,7 @@
     },
     {
       "case_id": "pipeline_dag_stale_preview",
+      "learning_track": "agilab_diagnostics",
       "title": "Explain a stale WORKFLOW DAG preview",
       "difficulty": "intro",
       "topic_tags": [
@@ -184,6 +186,7 @@
     },
     {
       "case_id": "math_2026_cycle4_5e_coverage",
+      "learning_track": "mathematics_2026",
       "title": "Audit a 5e diagnostic exercise against the 2026 cycle 4 program",
       "difficulty": "intro",
       "topic_tags": [
@@ -271,6 +274,7 @@
     },
     {
       "case_id": "math_2026_seconde_gt_coverage",
+      "learning_track": "mathematics_2026",
       "title": "Audit a seconde GT sheet against the 2026 program",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -360,6 +364,7 @@
     },
     {
       "case_id": "math_2026_premiere_es_coverage",
+      "learning_track": "mathematics_2026",
       "title": "Audit premiere general mathematics integrated in scientific education",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -446,6 +451,7 @@
     },
     {
       "case_id": "math_2026_premiere_specialite_coverage",
+      "learning_track": "mathematics_2026",
       "title": "Audit premiere generale specialite mathematics coverage",
       "difficulty": "advanced",
       "topic_tags": [
@@ -535,6 +541,7 @@
     },
     {
       "case_id": "math_2026_premiere_technologique_coverage",
+      "learning_track": "mathematics_2026",
       "title": "Audit premiere technologique mathematics coverage",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -622,6 +629,7 @@
     },
     {
       "case_id": "math_2026_cycle4_5e_practice_round",
+      "learning_track": "mathematics_2026",
       "title": "Second-pass 5e coverage practice",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -709,6 +717,7 @@
     },
     {
       "case_id": "math_2026_seconde_gt_practice_round",
+      "learning_track": "mathematics_2026",
       "title": "Second-pass seconde GT coverage practice",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -798,6 +807,7 @@
     },
     {
       "case_id": "math_2026_premiere_es_practice_round",
+      "learning_track": "mathematics_2026",
       "title": "Second-pass premiere ES integrated mathematics practice",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -884,6 +894,7 @@
     },
     {
       "case_id": "math_2026_premiere_specialite_practice_round",
+      "learning_track": "mathematics_2026",
       "title": "Second-pass premiere specialite mathematics practice",
       "difficulty": "advanced",
       "topic_tags": [
@@ -973,6 +984,7 @@
     },
     {
       "case_id": "math_2026_premiere_technologique_practice_round",
+      "learning_track": "mathematics_2026",
       "title": "Second-pass premiere technologique mathematics practice",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -1060,6 +1072,7 @@
     },
     {
       "case_id": "data_scientist_2026_python_pandas_modernization",
+      "learning_track": "data_science_2026",
       "title": "Modernize a legacy Python and pandas interview answer",
       "difficulty": "intro",
       "topic_tags": [
@@ -1161,6 +1174,7 @@
     },
     {
       "case_id": "data_scientist_2026_model_evaluation_leakage",
+      "learning_track": "data_science_2026",
       "title": "Evaluate an imbalanced model without leakage",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -1256,6 +1270,7 @@
     },
     {
       "case_id": "data_scientist_2026_scaling_feature_pipeline",
+      "learning_track": "data_science_2026",
       "title": "Choose the right scaling path for a feature pipeline",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -1351,6 +1366,7 @@
     },
     {
       "case_id": "data_scientist_2026_genai_rag_governance",
+      "learning_track": "data_science_2026",
       "title": "Evaluate a RAG assistant with evidence and risk gates",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1460,6 +1476,7 @@
     },
     {
       "case_id": "data_scientist_2026_inference_optimization",
+      "learning_track": "data_science_2026",
       "title": "Compress and deploy a neural model without losing the evidence trail",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1556,6 +1573,7 @@
     },
     {
       "case_id": "data_scientist_2026_retrieval_layer_design",
+      "learning_track": "data_science_2026",
       "title": "Design the retrieval layer before adding agents",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1659,6 +1677,7 @@
     },
     {
       "case_id": "data_scientist_2026_agent_memory_schema",
+      "learning_track": "data_science_2026",
       "title": "Make agent memory useful instead of noisy",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1762,6 +1781,7 @@
     },
     {
       "case_id": "data_scientist_2026_llm_evaluation_methods",
+      "learning_track": "data_science_2026",
       "title": "Evaluate generated answers beyond a leaderboard score",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1865,6 +1885,20 @@
     },
     {
       "case_id": "data_scientist_2026_conformal_drift_uncertainty",
+      "learning_track": "data_science_2026",
+      "decision_policy": {
+        "schema": "agilab.tescia_diagnostic.decision_policy.v1",
+        "observations": {
+          "drift_score": 0.31,
+          "empirical_coverage": 0.82
+        },
+        "thresholds": {
+          "maximum_drift_score": 0.2,
+          "minimum_empirical_coverage": 0.9
+        },
+        "normal_action": "serve_prediction_with_monitoring",
+        "fallback_action": "abstain_and_route_to_human_review"
+      },
       "title": "Handle uncertainty and drift in production predictions",
       "difficulty": "advanced",
       "topic_tags": [
@@ -1879,7 +1913,7 @@
       "student_prompt": "A demand-forecasting model looks strong in cross-validation but fails on a new region. Diagnose the uncertainty and distribution-shift gap.",
       "symptom": "The candidate reports mean cross-validation error and a bootstrap confidence interval, then promises the same reliability in a new region without a calibration set, conformal coverage check, covariate-shift monitor, or retraining policy.",
       "proposed_diagnosis": "The model is reliable because the average validation score and confidence interval are acceptable.",
-      "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, and define recalibration or retraining triggers.",
+      "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, define recalibration or retraining triggers, and abstain deterministically when coverage or drift gates fail.",
       "plain_repro": "Split data by time and region, compute conformal interval coverage on a held-out calibration and deployment-like slice, then track feature drift, label drift when labels arrive, and coverage degradation after rollout.",
       "weak_assumptions": [
         "A confidence interval on average error gives each prediction a valid uncertainty set.",
@@ -1910,12 +1944,18 @@
           "description": "There is no policy for recalibration, retraining, or rollback when drift and coverage degrade.",
           "confidence": 0.86,
           "relevance": 0.86
+        },
+        {
+          "id": "no_deterministic_fallback",
+          "description": "The serving path has no deterministic abstention or human-review action when drift or empirical coverage crosses its gate.",
+          "confidence": 0.93,
+          "relevance": 0.95
         }
       ],
       "candidate_fixes": [
         {
           "id": "calibrate_conformal_and_monitor_shift",
-          "summary": "Use deployment-like validation, conformal coverage checks, segment-level metrics, drift monitors, and explicit recalibration or retraining triggers.",
+          "summary": "Use deployment-like validation, conformal coverage checks, segment-level metrics, drift monitors, explicit recalibration triggers, and deterministic abstention to human review when a gate fails.",
           "expected_impact": 0.91,
           "blast_radius": 0.34,
           "reversibility": 0.82
@@ -1946,27 +1986,36 @@
           "description": "Replay a degraded-coverage period and verify the recalibration or retraining trigger fires.",
           "automated": true,
           "discriminator": true
+        },
+        {
+          "id": "fallback_policy_replay",
+          "description": "Replay both sides of the drift and coverage thresholds and assert the normal or abstention action is deterministic.",
+          "automated": true,
+          "discriminator": true
         }
       ],
       "student_answer": {
         "diagnosis": "The validation summary does not prove prediction reliability under regional shift.",
-        "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, and define recalibration or retraining triggers.",
+        "root_cause": "The answer confuses average predictive performance with calibrated uncertainty under deployment shift; a current plan should keep a representative calibration set, report conformal prediction coverage where exchangeability is plausible, monitor covariate and label drift, compare train-test discordance, define recalibration or retraining triggers, and abstain deterministically when coverage or drift gates fail.",
         "evidence_ids": [
           "train_test_region_discordance",
           "no_calibration_coverage_check",
-          "no_recalibration_trigger"
+          "no_recalibration_trigger",
+          "no_deterministic_fallback"
         ],
         "selected_fix_id": "calibrate_conformal_and_monitor_shift",
         "regression_test_ids": [
           "segment_coverage_report",
           "drift_monitor_thresholds",
-          "recalibration_policy_replay"
+          "recalibration_policy_replay",
+          "fallback_policy_replay"
         ],
         "confidence": 0.88
       }
     },
     {
       "case_id": "data_scientist_2026_token_inference_cost_stack",
+      "learning_track": "data_science_2026",
       "title": "Reduce LLM serving cost with measured quality gates",
       "difficulty": "advanced",
       "topic_tags": [
@@ -2070,6 +2119,7 @@
     },
     {
       "case_id": "data_scientist_2026_data_centric_limited_labels",
+      "learning_track": "data_science_2026",
       "title": "Improve a limited-label model with data-centric evidence",
       "difficulty": "intermediate",
       "topic_tags": [
@@ -2173,6 +2223,7 @@
     },
     {
       "case_id": "data_scientist_2026_open_weight_llm_architecture_review",
+      "learning_track": "data_science_2026",
       "title": "Review an open-weight LLM release like an engineer",
       "difficulty": "advanced",
       "topic_tags": [

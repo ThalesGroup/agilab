@@ -39,7 +39,9 @@ def _as_bool(value: Any, *, default: bool = False) -> bool:
 
 
 def _safe_slug(value: str) -> str:
-    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value.strip())
+    cleaned = "".join(
+        ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value.strip()
+    )
     cleaned = "_".join(part for part in cleaned.split("_") if part)
     return cleaned or "submission"
 
@@ -53,7 +55,9 @@ def anonymized_student_ref(
 ) -> str:
     """Return a deterministic non-reversible student reference for teacher artifacts."""
 
-    raw = f"{class_id.strip()}:{session_id.strip()}:{student_id.strip()}".encode("utf-8")
+    raw = f"{class_id.strip()}:{session_id.strip()}:{student_id.strip()}".encode(
+        "utf-8"
+    )
     return "student_" + hashlib.sha256(raw).hexdigest()[: max(6, length)]
 
 
@@ -77,7 +81,9 @@ def load_classroom_payload(path: str | Path | None = None) -> dict[str, Any]:
     source = Path(path) if path is not None else default_classroom_payload_path()
     payload = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(payload, Mapping):
-        raise ValueError(f"TeSciA classroom submissions must be a JSON object: {source}")
+        raise ValueError(
+            f"TeSciA classroom submissions must be a JSON object: {source}"
+        )
     return validate_classroom_payload(payload)
 
 
@@ -85,7 +91,9 @@ def validate_classroom_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Validate a classroom submission batch without requiring the case bank."""
 
     if payload.get("schema") != CLASSROOM_SCHEMA:
-        raise ValueError(f"Classroom submissions must declare schema {CLASSROOM_SCHEMA!r}.")
+        raise ValueError(
+            f"Classroom submissions must declare schema {CLASSROOM_SCHEMA!r}."
+        )
 
     classroom = dict(_as_mapping(payload.get("classroom")))
     class_id = _as_string(classroom.get("class_id"))
@@ -97,7 +105,9 @@ def validate_classroom_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 
     submissions = payload.get("submissions")
     if not isinstance(submissions, list) or not submissions:
-        raise ValueError("Classroom submissions must include a non-empty submissions list.")
+        raise ValueError(
+            "Classroom submissions must include a non-empty submissions list."
+        )
 
     normalized: list[dict[str, Any]] = []
     seen_submission_ids: set[str] = set()
@@ -112,8 +122,12 @@ def validate_classroom_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         if not case_id:
             raise ValueError(f"Classroom submission #{index} must declare case_id.")
         if not isinstance(answer, Mapping):
-            raise ValueError(f"Classroom submission #{index} must declare answer as an object.")
-        submission_id = _as_string(submission.get("submission_id")) or f"{student_id}_{case_id}"
+            raise ValueError(
+                f"Classroom submission #{index} must declare answer as an object."
+            )
+        submission_id = (
+            _as_string(submission.get("submission_id")) or f"{student_id}_{case_id}"
+        )
         if submission_id in seen_submission_ids:
             raise ValueError(f"Duplicate classroom submission_id: {submission_id}")
         seen_submission_ids.add(submission_id)
@@ -139,7 +153,9 @@ def validate_classroom_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "classroom": {
             "class_id": class_id,
             "session_id": session_id,
-            "anonymize_student": _as_bool(classroom.get("anonymize_student"), default=True),
+            "anonymize_student": _as_bool(
+                classroom.get("anonymize_student"), default=True
+            ),
         },
         "submissions": normalized,
     }
@@ -180,7 +196,9 @@ def expand_classroom_submissions(
     for submission in validated["submissions"]:
         exercise_id = str(submission["case_id"])
         if exercise_id not in by_id:
-            raise ValueError(f"Classroom submission references unknown case_id: {exercise_id}")
+            raise ValueError(
+                f"Classroom submission references unknown case_id: {exercise_id}"
+            )
         base_case = dict(by_id[exercise_id])
         class_id = str(submission["class_id"])
         session_id = str(submission["session_id"])
@@ -210,7 +228,9 @@ def expand_classroom_submissions(
                 base_case["display_name"] = str(submission["display_name"])
         expanded.append(base_case)
 
-    return validate_case_payload({"schema": "agilab.tescia_diagnostic.cases.v1", "cases": expanded})["cases"]
+    return validate_case_payload(
+        {"schema": "agilab.tescia_diagnostic.cases.v1", "cases": expanded}
+    )["cases"]
 
 
 def _report_classroom(report: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -232,15 +252,23 @@ def classroom_progress_row(report: Mapping[str, Any]) -> dict[str, Any]:
         "submitted_at": _as_string(classroom.get("submitted_at")),
         "title": _as_string(catalog.get("title")),
         "difficulty": _as_string(catalog.get("difficulty")),
-        "curriculum_ids": ",".join(str(item) for item in _as_list(catalog.get("curriculum_ids"))),
+        "learning_track": _as_string(catalog.get("learning_track")),
+        "learning_track_label": _as_string(catalog.get("learning_track_label")),
+        "curriculum_ids": ",".join(
+            str(item) for item in _as_list(catalog.get("curriculum_ids"))
+        ),
         "student_score": float(report.get("student_score", 0.0)),
         "score_band": _as_string(self_eval.get("score_band")),
         "feedback_count": len(feedback),
-        "needs_attention": bool(float(report.get("student_score", 0.0)) < 70.0 or len(feedback) > 1),
+        "needs_attention": bool(
+            float(report.get("student_score", 0.0)) < 70.0 or len(feedback) > 1
+        ),
         "root_cause_score": float(scores.get("root_cause", 0.0) or 0.0),
         "evidence_selection_score": float(scores.get("evidence_selection", 0.0) or 0.0),
         "fix_selection_score": float(scores.get("fix_selection", 0.0) or 0.0),
-        "regression_selection_score": float(scores.get("regression_selection", 0.0) or 0.0),
+        "regression_selection_score": float(
+            scores.get("regression_selection", 0.0) or 0.0
+        ),
     }
 
 
@@ -248,7 +276,9 @@ def _average(values: Sequence[float]) -> float:
     return round(sum(values) / len(values), 1) if values else 0.0
 
 
-def _aggregate_rows(rows: Sequence[dict[str, Any]], *, key: str) -> list[dict[str, Any]]:
+def _aggregate_rows(
+    rows: Sequence[dict[str, Any]], *, key: str
+) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         for raw_key in str(row.get(key, "")).split(","):
@@ -263,7 +293,9 @@ def _aggregate_rows(rows: Sequence[dict[str, Any]], *, key: str) -> list[dict[st
                 key: item_key,
                 "submission_count": len(item_rows),
                 "average_score": _average(scores),
-                "needs_attention_count": sum(1 for row in item_rows if bool(row["needs_attention"])),
+                "needs_attention_count": sum(
+                    1 for row in item_rows if bool(row["needs_attention"])
+                ),
             }
         )
     return result
@@ -293,14 +325,21 @@ def _aggregate_student_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, An
                 "student_ref": student_ref,
                 "submission_count": len(item_rows),
                 "average_score": _average(scores),
-                "needs_attention_count": sum(1 for row in item_rows if bool(row["needs_attention"])),
+                "needs_attention_count": sum(
+                    1 for row in item_rows if bool(row["needs_attention"])
+                ),
                 "weakest_exercise_id": min(
                     item_rows,
-                    key=lambda row: (float(row["student_score"]), str(row.get("exercise_id", ""))),
+                    key=lambda row: (
+                        float(row["student_score"]),
+                        str(row.get("exercise_id", "")),
+                    ),
                 )["exercise_id"],
             }
         )
-    return sorted(result, key=lambda row: (float(row["average_score"]), row["student_ref"]))
+    return sorted(
+        result, key=lambda row: (float(row["average_score"]), row["student_ref"])
+    )
 
 
 def _intervention_priority(*, average_score: float, needs_attention_count: int) -> str:
@@ -423,24 +462,41 @@ def _normalize_progress_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "submitted_at": _as_string(row.get("submitted_at")),
         "title": _as_string(row.get("title")),
         "difficulty": _as_string(row.get("difficulty")),
+        "learning_track": _as_string(row.get("learning_track")),
+        "learning_track_label": _as_string(row.get("learning_track_label")),
         "curriculum_ids": _as_string(row.get("curriculum_ids")),
         "student_score": float(row.get("student_score", 0.0) or 0.0),
         "score_band": _as_string(row.get("score_band")),
         "feedback_count": int(row.get("feedback_count", 0) or 0),
         "needs_attention": _as_bool(row.get("needs_attention")),
         "root_cause_score": float(row.get("root_cause_score", 0.0) or 0.0),
-        "evidence_selection_score": float(row.get("evidence_selection_score", 0.0) or 0.0),
+        "evidence_selection_score": float(
+            row.get("evidence_selection_score", 0.0) or 0.0
+        ),
         "fix_selection_score": float(row.get("fix_selection_score", 0.0) or 0.0),
-        "regression_selection_score": float(row.get("regression_selection_score", 0.0) or 0.0),
+        "regression_selection_score": float(
+            row.get("regression_selection_score", 0.0) or 0.0
+        ),
     }
 
 
-def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+def build_classroom_run_report_from_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
     """Build a teacher-facing aggregate from classroom progress rows."""
 
     rows = sorted(
-        (_normalize_progress_row(row) for row in rows if _as_string(row.get("student_ref"))),
-        key=lambda row: (row["class_id"], row["session_id"], row["student_ref"], row["exercise_id"]),
+        (
+            _normalize_progress_row(row)
+            for row in rows
+            if _as_string(row.get("student_ref"))
+        ),
+        key=lambda row: (
+            row["class_id"],
+            row["session_id"],
+            row["student_ref"],
+            row["exercise_id"],
+        ),
     )
     score_values = [float(row["student_score"]) for row in rows]
     band_counts = Counter(str(row["score_band"]) for row in rows)
@@ -457,15 +513,29 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
     student_rows = _aggregate_student_rows(rows)
     case_rows = _aggregate_rows(rows, key="exercise_id")
     curriculum_rows = _aggregate_rows(rows, key="curriculum_ids")
+    track_rows = _aggregate_rows(rows, key="learning_track")
+    labels_by_track = {
+        str(row.get("learning_track", "")): str(row.get("learning_track_label", ""))
+        for row in rows
+        if str(row.get("learning_track", ""))
+    }
+    for track_row in track_rows:
+        track_row["learning_track_label"] = labels_by_track.get(
+            str(track_row["learning_track"]), ""
+        )
     intervention_rows = _intervention_actions_from_aggregates(
         student_rows=student_rows,
         curriculum_rows=curriculum_rows,
         exercise_rows=case_rows,
     )
-    unique_students = sorted({str(row["student_ref"]) for row in rows if row["student_ref"]})
+    unique_students = sorted(
+        {str(row["student_ref"]) for row in rows if row["student_ref"]}
+    )
     class_ids = sorted({str(row["class_id"]) for row in rows if row["class_id"]})
     session_ids = sorted({str(row["session_id"]) for row in rows if row["session_id"]})
-    latest_submitted_at = max((row["submitted_at"] for row in rows if row["submitted_at"]), default="")
+    latest_submitted_at = max(
+        (row["submitted_at"] for row in rows if row["submitted_at"]), default=""
+    )
     return {
         "schema": CLASSROOM_RUN_REPORT_SCHEMA,
         "class_ids": class_ids,
@@ -481,17 +551,22 @@ def build_classroom_run_report_from_rows(rows: Sequence[Mapping[str, Any]]) -> d
         "student_rows": student_rows,
         "case_rows": case_rows,
         "curriculum_rows": curriculum_rows,
+        "track_rows": track_rows,
         "intervention_rows": intervention_rows,
         "live_status": {
             "status": "attention_needed" if needs_attention else "on_track",
             "latest_submitted_at": latest_submitted_at,
             "lowest_score": min(score_values) if score_values else 0.0,
-            "ready_for_next_round": bool(rows) and not needs_attention and _average(score_values) >= 70.0,
+            "ready_for_next_round": bool(rows)
+            and not needs_attention
+            and _average(score_values) >= 70.0,
         },
         "cluster_execution": {
             "parallel_unit": "classroom submission",
             "submission_count": len(rows),
-            "recommended_worker_count": min(max(len(unique_students), 1), max(len(rows), 1), 32),
+            "recommended_worker_count": min(
+                max(len(unique_students), 1), max(len(rows), 1), 32
+            ),
         },
     }
 
@@ -553,7 +628,10 @@ def write_classroom_artifacts(
 ) -> dict[str, Path]:
     """Write teacher-facing classroom JSON/CSV artifacts."""
 
-    if isinstance(reports_or_report, Mapping) and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA:
+    if (
+        isinstance(reports_or_report, Mapping)
+        and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA
+    ):
         report = dict(reports_or_report)
     elif isinstance(reports_or_report, Mapping):
         report = build_classroom_run_report([reports_or_report])
@@ -570,15 +648,21 @@ def write_classroom_artifacts(
         "needs_attention": root / "classroom_needs_attention.csv",
         "students": root / "classroom_students.csv",
         "curriculum": root / "classroom_curriculum.csv",
+        "tracks": root / "classroom_learning_tracks.csv",
         "interventions": root / "classroom_interventions.csv",
     }
-    paths["report"].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    paths["teacher_summary"].write_text(classroom_report_to_markdown(report), encoding="utf-8")
+    paths["report"].write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    paths["teacher_summary"].write_text(
+        classroom_report_to_markdown(report), encoding="utf-8"
+    )
     _write_csv(paths["progress"], report["progress_rows"])
     _write_csv(paths["heatmap"], report["heatmap_rows"])
     _write_csv(paths["needs_attention"], report["needs_attention_rows"])
     _write_csv(paths["students"], report["student_rows"])
     _write_csv(paths["curriculum"], report["curriculum_rows"])
+    _write_csv(paths["tracks"], report["track_rows"])
     _write_csv(paths["interventions"], report["intervention_rows"])
     return paths
 
@@ -592,7 +676,10 @@ def write_classroom_partial_artifacts(
 ) -> dict[str, Path]:
     """Write a partial classroom report while a distributed run is still progressing."""
 
-    if isinstance(reports_or_report, Mapping) and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA:
+    if (
+        isinstance(reports_or_report, Mapping)
+        and reports_or_report.get("schema") == CLASSROOM_RUN_REPORT_SCHEMA
+    ):
         report = dict(reports_or_report)
     elif isinstance(reports_or_report, Mapping):
         report = build_classroom_run_report([reports_or_report])
@@ -611,12 +698,16 @@ def write_classroom_partial_artifacts(
         "report": root / f"{stem}.json",
         "progress": root / f"{stem}_progress.csv",
     }
-    paths["report"].write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    paths["report"].write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     _write_csv(paths["progress"], report["progress_rows"])
     return paths
 
 
-def _markdown_table(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> list[str]:
+def _markdown_table(
+    rows: Sequence[Mapping[str, Any]], columns: Sequence[str]
+) -> list[str]:
     if not rows:
         return ["No rows."]
     lines = [
@@ -624,23 +715,55 @@ def _markdown_table(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -
         "| " + " | ".join("---" for _ in columns) + " |",
     ]
     for row in rows:
-        lines.append("| " + " | ".join(str(row.get(column, "")) for column in columns) + " |")
+        lines.append(
+            "| " + " | ".join(str(row.get(column, "")) for column in columns) + " |"
+        )
     return lines
 
 
 def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
     """Render a printable teacher summary for one classroom run."""
 
-    class_ids = ", ".join(str(item) for item in _as_list(report.get("class_ids"))) or "unknown"
-    session_ids = ", ".join(str(item) for item in _as_list(report.get("session_ids"))) or "unknown"
+    class_ids = (
+        ", ".join(str(item) for item in _as_list(report.get("class_ids"))) or "unknown"
+    )
+    session_ids = (
+        ", ".join(str(item) for item in _as_list(report.get("session_ids")))
+        or "unknown"
+    )
     band_counts = _as_mapping(report.get("score_band_counts"))
     curriculum_rows = sorted(
-        [dict(row) for row in _as_list(report.get("curriculum_rows")) if isinstance(row, Mapping)],
-        key=lambda row: (float(row.get("average_score", 0.0) or 0.0), str(row.get("curriculum_ids", ""))),
+        [
+            dict(row)
+            for row in _as_list(report.get("curriculum_rows"))
+            if isinstance(row, Mapping)
+        ],
+        key=lambda row: (
+            float(row.get("average_score", 0.0) or 0.0),
+            str(row.get("curriculum_ids", "")),
+        ),
+    )
+    track_rows = sorted(
+        [
+            dict(row)
+            for row in _as_list(report.get("track_rows"))
+            if isinstance(row, Mapping)
+        ],
+        key=lambda row: (
+            float(row.get("average_score", 0.0) or 0.0),
+            str(row.get("learning_track", "")),
+        ),
     )
     case_rows = sorted(
-        [dict(row) for row in _as_list(report.get("case_rows")) if isinstance(row, Mapping)],
-        key=lambda row: (float(row.get("average_score", 0.0) or 0.0), str(row.get("exercise_id", ""))),
+        [
+            dict(row)
+            for row in _as_list(report.get("case_rows"))
+            if isinstance(row, Mapping)
+        ],
+        key=lambda row: (
+            float(row.get("average_score", 0.0) or 0.0),
+            str(row.get("exercise_id", "")),
+        ),
     )
     intervention_rows = [
         dict(row)
@@ -673,6 +796,18 @@ def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
     lines.extend(
         [
             "",
+            "## Learning Path Progress",
+            "",
+            *_markdown_table(
+                track_rows,
+                [
+                    "learning_track_label",
+                    "submission_count",
+                    "average_score",
+                    "needs_attention_count",
+                ],
+            ),
+            "",
             "## Needs Attention",
             "",
             *_markdown_table(
@@ -691,7 +826,12 @@ def classroom_report_to_markdown(report: Mapping[str, Any]) -> str:
             "",
             *_markdown_table(
                 curriculum_rows[:8],
-                ["curriculum_ids", "submission_count", "average_score", "needs_attention_count"],
+                [
+                    "curriculum_ids",
+                    "submission_count",
+                    "average_score",
+                    "needs_attention_count",
+                ],
             ),
             "",
             "## Suggested Next Exercise Ids",

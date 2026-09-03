@@ -27,14 +27,18 @@ SKIP_NAMES = {"README.md", ".DS_Store"}
 TOKKI_LIST_TIMEOUT_SECONDS = 120
 
 
-def reject_top_level_skill_symlinks(root: Path) -> None:
-    """Fail before external installer links can pollute repo skill roots."""
-    symlinks = sorted(path.name for path in root.iterdir() if path.is_symlink())
+def reject_skill_symlinks(root: Path) -> None:
+    """Fail before linked content can pollute repo-managed skill mirrors."""
+    symlinks = [Path(".")] if root.is_symlink() else []
+    if root.is_dir() and not root.is_symlink():
+        symlinks.extend(
+            sorted(path.relative_to(root) for path in root.rglob("*") if path.is_symlink())
+        )
     if not symlinks:
         return
     raise SystemExit(
-        f"Refusing top-level symlinked skill entries in {root}: "
-        f"{', '.join(symlinks)}. Install external skills outside the repo "
+        f"Refusing symlinked skill entries in {root}: "
+        f"{', '.join(str(path) for path in symlinks)}. Install external skills outside the repo "
         "(for Streamlit, use `streamlit skills --global`) and keep "
         "repo-managed skills as real directories."
     )
@@ -49,10 +53,8 @@ def iter_skill_dirs(root: Path) -> list[Path]:
 
 
 def iter_skill_files(skill_dir: Path) -> list[Path]:
-    # Follow directory symlinks so the check sees the same tree that
-    # sync_skill's copytree(symlinks=False) materializes into the mirror.
     files: list[Path] = []
-    for dirpath, dirnames, filenames in os.walk(skill_dir, followlinks=True):
+    for dirpath, dirnames, filenames in os.walk(skill_dir, followlinks=False):
         dirnames[:] = [name for name in dirnames if name not in SKIP_NAMES]
         for name in filenames:
             if name in SKIP_NAMES:
@@ -66,6 +68,7 @@ def _is_executable(path: Path) -> bool:
 
 
 def sync_skill(source: Path, destination_root: Path) -> Path:
+    reject_skill_symlinks(source)
     destination = destination_root / source.name
     if destination.exists():
         shutil.rmtree(destination)
@@ -73,7 +76,13 @@ def sync_skill(source: Path, destination_root: Path) -> Path:
         source,
         destination,
         ignore=shutil.ignore_patterns(*SKIP_NAMES),
+        symlinks=True,
     )
+    try:
+        reject_skill_symlinks(destination)
+    except SystemExit:
+        shutil.rmtree(destination)
+        raise
     return destination
 
 
@@ -250,7 +259,7 @@ def main(argv: list[str]) -> int:
 
     for skills_root in (CLAUDE_ROOT, PROJECT_AGENT_SKILLS_ROOT):
         if skills_root.exists() or skills_root.is_symlink():
-            reject_top_level_skill_symlinks(skills_root)
+            reject_skill_symlinks(skills_root)
     skill_dirs = iter_skill_dirs(CLAUDE_ROOT)
     if args.skills:
         selected = set(args.skills)

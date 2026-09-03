@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from ipaddress import ip_address
 import json
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from .diagnostic import CASE_SCHEMA, validate_case_payload
@@ -22,6 +24,48 @@ HttpPostJson = Callable[[str, Mapping[str, Any], float], Mapping[str, Any]]
 
 class DiagnosticCaseGenerationError(RuntimeError):
     """Raised when standalone AI cannot produce valid diagnostic case JSON."""
+
+
+def _validate_local_endpoint(url: str) -> str:
+    cleaned = url.strip()
+    try:
+        parsed = urlsplit(cleaned)
+        parsed.port
+    except ValueError as exc:
+        raise DiagnosticCaseGenerationError(
+            "Standalone AI endpoint must be a valid loopback HTTP(S) URL."
+        ) from exc
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise DiagnosticCaseGenerationError(
+            "Standalone AI endpoint must be a loopback HTTP(S) URL without credentials."
+        )
+    try:
+        is_loopback = ip_address(parsed.hostname).is_loopback
+    except ValueError:
+        is_loopback = parsed.hostname.lower() == "localhost"
+    if not is_loopback:
+        raise DiagnosticCaseGenerationError(
+            "Standalone AI endpoint must use a loopback host such as 127.0.0.1 or localhost."
+        )
+    return cleaned
+
+
+def _validate_json_filename(filename: str) -> str:
+    cleaned = filename.strip()
+    if (
+        not cleaned
+        or not cleaned.endswith(".json")
+        or any(separator in cleaned for separator in ("/", "\\", ":"))
+    ):
+        raise DiagnosticCaseGenerationError(
+            "Generated cases filename must be a JSON filename without directories."
+        )
+    return cleaned
 
 
 def build_generation_prompt(*, topic: str, case_count: int) -> str:
@@ -98,7 +142,10 @@ Constraints:
 """
 
 
-def _post_json(url: str, payload: Mapping[str, Any], timeout_s: float) -> Mapping[str, Any]:
+def _post_json(
+    url: str, payload: Mapping[str, Any], timeout_s: float
+) -> Mapping[str, Any]:
+    url = _validate_local_endpoint(url)
     data = json.dumps(payload).encode("utf-8")
     request = Request(
         url,
@@ -107,7 +154,7 @@ def _post_json(url: str, payload: Mapping[str, Any], timeout_s: float) -> Mappin
         method="POST",
     )
     try:
-        with urlopen(request, timeout=timeout_s) as response:  # noqa: S310 - user-configured local endpoint.
+        with urlopen(request, timeout=timeout_s) as response:  # noqa: S310 - validated loopback endpoint.
             body = response.read().decode("utf-8")
     except (OSError, URLError, TimeoutError) as exc:
         raise DiagnosticCaseGenerationError(
@@ -153,7 +200,9 @@ def _ollama_text(response: Mapping[str, Any]) -> str:
     text = response.get("response")
     if isinstance(text, str):
         return text
-    raise DiagnosticCaseGenerationError("Ollama response did not contain a response string.")
+    raise DiagnosticCaseGenerationError(
+        "Ollama response did not contain a response string."
+    )
 
 
 def _extract_json_object(text: str) -> Mapping[str, Any]:
@@ -166,17 +215,23 @@ def _extract_json_object(text: str) -> Mapping[str, Any]:
         start = stripped.find("{")
         end = stripped.rfind("}")
         if start < 0 or end <= start:
-            raise DiagnosticCaseGenerationError("Standalone AI did not return a JSON object.")
+            raise DiagnosticCaseGenerationError(
+                "Standalone AI did not return a JSON object."
+            )
         try:
             payload = json.loads(stripped[start : end + 1])
         except json.JSONDecodeError as exc:
-            raise DiagnosticCaseGenerationError("Standalone AI returned malformed JSON.") from exc
+            raise DiagnosticCaseGenerationError(
+                "Standalone AI returned malformed JSON."
+            ) from exc
     if not isinstance(payload, Mapping):
         raise DiagnosticCaseGenerationError("Standalone AI JSON must be an object.")
     return payload
 
 
-def validate_generated_cases(payload: Mapping[str, Any], *, expected_case_count: int | None = None) -> dict[str, Any]:
+def validate_generated_cases(
+    payload: Mapping[str, Any], *, expected_case_count: int | None = None
+) -> dict[str, Any]:
     """Validate generated case JSON and return a normalized dict."""
 
     try:
@@ -227,11 +282,19 @@ def generate_cases_with_engine(
     prompt = build_generation_prompt(topic=topic, case_count=case_count)
     if provider_normalized == "gpt-oss":
         url = endpoint.strip() or DEFAULT_GPT_OSS_ENDPOINT
-        response = post_json(url, _gpt_oss_payload(model=model, prompt=prompt, temperature=temperature), timeout_s)
+        response = post_json(
+            url,
+            _gpt_oss_payload(model=model, prompt=prompt, temperature=temperature),
+            timeout_s,
+        )
         text = _gpt_oss_text(response)
     else:
         url = _ollama_generate_url(endpoint)
-        response = post_json(url, _ollama_payload(model=model, prompt=prompt, temperature=temperature), timeout_s)
+        response = post_json(
+            url,
+            _ollama_payload(model=model, prompt=prompt, temperature=temperature),
+            timeout_s,
+        )
         text = _ollama_text(response)
     return validate_generated_cases(
         _extract_json_object(text),
@@ -254,6 +317,7 @@ def generate_case_file(
 ) -> Path:
     """Generate diagnostic cases and write them as a validated JSON file."""
 
+    filename = _validate_json_filename(filename)
     output_path = Path(output_dir) / filename
     payload = generate_cases_with_engine(
         provider=provider,
@@ -266,7 +330,9 @@ def generate_case_file(
         post_json=post_json,
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return output_path
 
 

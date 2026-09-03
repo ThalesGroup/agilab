@@ -19,7 +19,9 @@ class TesciaDiagnosticArgs(BaseModel):
 
     data_in: Path = Field(default_factory=lambda: Path("tescia_diagnostic/cases"))
     data_out: Path = Field(default_factory=lambda: Path("tescia_diagnostic/reports"))
-    submission_inbox: Path = Field(default_factory=lambda: Path("tescia_diagnostic/submissions"))
+    submission_inbox: Path = Field(
+        default_factory=lambda: Path("tescia_diagnostic/submissions")
+    )
     include_submission_inbox: bool = True
     files: str = "*.json"
     nfile: int = Field(default=1, ge=1, le=50)
@@ -40,8 +42,12 @@ class TesciaDiagnosticArgs(BaseModel):
     @model_validator(mode="after")
     def _validate_file_glob(self) -> "TesciaDiagnosticArgs":
         self.files = self.files.strip() or "*.json"
-        if not self.files.endswith(".json"):
-            raise ValueError("files must select JSON diagnostic case files")
+        if not self.files.endswith(".json") or any(
+            separator in self.files for separator in ("/", "\\", ":")
+        ):
+            raise ValueError(
+                "files must select JSON diagnostic case files without directories"
+            )
         self.generated_cases_filename = self.generated_cases_filename.strip()
         if (
             not self.generated_cases_filename
@@ -49,17 +55,25 @@ class TesciaDiagnosticArgs(BaseModel):
             or "\\" in self.generated_cases_filename
             or not self.generated_cases_filename.endswith(".json")
         ):
-            raise ValueError("generated_cases_filename must be a JSON filename without directories")
+            raise ValueError(
+                "generated_cases_filename must be a JSON filename without directories"
+            )
         self.ai_endpoint = self.ai_endpoint.strip()
         self.ai_model = self.ai_model.strip()
         self.ai_topic = self.ai_topic.strip()
         if self.case_source == "standalone_ai":
             if not self.ai_endpoint:
-                raise ValueError("ai_endpoint is required when case_source is standalone_ai")
+                raise ValueError(
+                    "ai_endpoint is required when case_source is standalone_ai"
+                )
             if not self.ai_model:
-                raise ValueError("ai_model is required when case_source is standalone_ai")
+                raise ValueError(
+                    "ai_model is required when case_source is standalone_ai"
+                )
             if not self.ai_topic:
-                raise ValueError("ai_topic is required when case_source is standalone_ai")
+                raise ValueError(
+                    "ai_topic is required when case_source is standalone_ai"
+                )
         return self
 
 
@@ -89,7 +103,9 @@ ArgsModel = TesciaDiagnosticArgs
 ArgsOverrides = TesciaDiagnosticArgsTD
 
 
-def load_args(settings_path: str | Path, *, section: str = "args") -> TesciaDiagnosticArgs:
+def load_args(
+    settings_path: str | Path, *, section: str = "args"
+) -> TesciaDiagnosticArgs:
     return load_model_from_toml(TesciaDiagnosticArgs, settings_path, section=section)
 
 
@@ -107,7 +123,9 @@ def dump_args(
     section: str = "args",
     create_missing: bool = True,
 ) -> None:
-    dump_model_to_toml(args, settings_path, section=section, create_missing=create_missing)
+    dump_model_to_toml(
+        args, settings_path, section=section, create_missing=create_missing
+    )
 
 
 def ensure_defaults(args: TesciaDiagnosticArgs, **_: Any) -> TesciaDiagnosticArgs:
