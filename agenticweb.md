@@ -1,7 +1,7 @@
 ---
 agenticweb: "1"
 description: "AGILAB is an open-source AI/ML workbench for reproducible experiments, notebook-to-app workflows, run evidence, proof capsules, and local agent evidence review."
-updated: "2026-08-27"
+updated: "2026-09-03"
 organization:
   name: "AGILAB"
   website: "https://thalesgroup.github.io/agilab"

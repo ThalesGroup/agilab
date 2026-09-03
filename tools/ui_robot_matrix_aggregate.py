@@ -231,7 +231,9 @@ def discover_shard_summary_paths(root: Path) -> dict[str, Path]:
         if not (shard_dir / "exit-code.txt").is_file():
             continue
         shard = _shard_from_summary_path(summary_path)
-        summaries.setdefault(shard, summary_path)
+        current = summaries.get(shard)
+        if current is None or _artifact_attempt(summary_path) > _artifact_attempt(current):
+            summaries[shard] = summary_path
     return summaries
 
 
@@ -247,8 +249,21 @@ def discover_shard_manifests(root: Path) -> dict[str, tuple[Path, dict[str, Any]
         shard = str(payload.get("shard") or "").strip()
         if not shard:
             continue
-        manifests.setdefault(shard, (manifest_path, payload))
+        current = manifests.get(shard)
+        if current is None or _artifact_attempt(manifest_path) > _artifact_attempt(current[0]):
+            manifests[shard] = (manifest_path, payload)
     return manifests
+
+
+def _artifact_attempt(path: Path) -> int:
+    """Return the workflow-run attempt encoded in an artifact directory."""
+    for parent in path.parents:
+        if not parent.name.startswith("ui-robot-matrix-"):
+            continue
+        _stem, separator, attempt = parent.name.rpartition("-")
+        if separator and attempt.isdigit():
+            return int(attempt)
+    return 0
 
 
 def _trend_ok(trend_report: Mapping[str, Any]) -> bool:

@@ -41,12 +41,16 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
     selected_fix = report.get("selected_fix", {})
     if not isinstance(selected_fix, Mapping):
         selected_fix = {}
+    decision = report.get("decision", {})
+    if not isinstance(decision, Mapping):
+        decision = {}
 
     title = str(catalog.get("title") or report.get("case_id") or "TeSciA correction")
     lines = [
         f"# {title}",
         "",
         f"- Case id: `{report.get('case_id', '')}`",
+        f"- Learning path: `{catalog.get('learning_track_label', '')}`",
         f"- Difficulty: `{catalog.get('difficulty', '')}`",
         f"- Student score: `{report.get('student_score', 0.0)}`",
         f"- Score band: `{self_eval.get('score_band', 'not_submitted')}`",
@@ -71,9 +75,18 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
         f"- Expected evidence ids: `{', '.join(str(item) for item in _as_list(expected.get('evidence_ids')))}`",
         f"- Expected regression test ids: `{', '.join(str(item) for item in _as_list(expected.get('regression_test_ids')))}`",
         "",
+        "## Deterministic Decision Guard",
+        "",
+        f"- Status: `{decision.get('status', 'not_configured')}`",
+        f"- Action: `{decision.get('action', '')}`",
+        f"- Triggers: `{', '.join(str(item) for item in _as_list(decision.get('triggers')))}`",
+        "",
         "## Weak Assumptions",
         "",
-        _bullet_lines(_as_list(report.get("weak_assumptions")), fallback="No weak assumptions recorded."),
+        _bullet_lines(
+            _as_list(report.get("weak_assumptions")),
+            fallback="No weak assumptions recorded.",
+        ),
         "",
         "## Regression Plan",
         "",
@@ -92,7 +105,9 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
 
 def write_correction_sheet(report: Mapping[str, Any], output_dir: str | Path) -> Path:
     case_id = str(report.get("case_id") or "tescia_case").strip() or "tescia_case"
-    safe_stem = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in case_id)
+    safe_stem = "".join(
+        ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in case_id
+    )
     output_path = Path(output_dir) / f"{safe_stem}_correction.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(diagnostic_report_to_markdown(report), encoding="utf-8")
