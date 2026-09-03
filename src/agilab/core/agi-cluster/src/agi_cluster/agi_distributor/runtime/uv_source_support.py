@@ -3,7 +3,7 @@ import os
 import posixpath
 import shutil
 from pathlib import Path, PurePosixPath
-from typing import Any, Optional, Set
+from typing import Any, Callable, Optional, Set
 
 import tomlkit
 
@@ -183,9 +183,60 @@ def rewrite_uv_sources_paths_for_copied_pyproject(
             log.info("Rewrote uv source '%s' path: %s -> %s", name, old or "<unset>", new)
 
 
+def _is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def _require_no_linked_uv_source(
+    source_root: Path,
+    *,
+    ignore: Callable[[str, list[str]], set[str]] | None = None,
+) -> None:
+    linked: list[Path] = []
+    if _is_link_like(source_root):
+        linked.append(source_root)
+    elif source_root.is_dir():
+        for directory, dirnames, filenames in os.walk(source_root, followlinks=False):
+            names = [*dirnames, *filenames]
+            ignored = ignore(directory, names) if ignore is not None else set()
+            included_dirs = [name for name in dirnames if name not in ignored]
+            included_files = [name for name in filenames if name not in ignored]
+            directory_path = Path(directory)
+            for name in [*included_dirs, *included_files]:
+                path = directory_path / name
+                if _is_link_like(path):
+                    linked.append(path)
+            dirnames[:] = [
+                name
+                for name in included_dirs
+                if not _is_link_like(directory_path / name)
+            ]
+    if linked:
+        formatted = ", ".join(str(path) for path in sorted(linked))
+        raise ValueError(f"uv source tree contains symlinks or junctions: {formatted}")
+
+
 def copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
     """Copy a local uv source dependency into a self-contained staging area."""
-    if dest_path.exists():
+    ignore = shutil.ignore_patterns(
+        ".venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        "build",
+        "dist",
+    )
+    _require_no_linked_uv_source(src_path, ignore=ignore if src_path.is_dir() else None)
+
+    if _is_link_like(dest_path):
+        if dest_path.is_dir() and not dest_path.is_symlink():
+            dest_path.rmdir()
+        else:
+            dest_path.unlink()
+    elif dest_path.exists():
         if dest_path.is_dir():
             shutil.rmtree(dest_path, ignore_errors=True)
         else:
@@ -195,18 +246,24 @@ def copy_uv_source_tree(src_path: Path, dest_path: Path) -> None:
                 pass
 
     if src_path.is_dir():
-        ignore = shutil.ignore_patterns(
-            ".venv",
-            "__pycache__",
-            ".pytest_cache",
-            ".mypy_cache",
-            "build",
-            "dist",
+        shutil.copytree(
+            src_path,
+            dest_path,
+            ignore=ignore,
+            dirs_exist_ok=True,
+            symlinks=True,
         )
-        shutil.copytree(src_path, dest_path, ignore=ignore, dirs_exist_ok=True)
     else:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_path, dest_path)
+        shutil.copy2(src_path, dest_path, follow_symlinks=False)
+    try:
+        _require_no_linked_uv_source(dest_path)
+    except ValueError:
+        if dest_path.is_dir() and not _is_link_like(dest_path):
+            shutil.rmtree(dest_path, ignore_errors=True)
+        elif dest_path.exists() or _is_link_like(dest_path):
+            dest_path.unlink(missing_ok=True)
+        raise
 
 
 def _stage_uv_source_dependency(

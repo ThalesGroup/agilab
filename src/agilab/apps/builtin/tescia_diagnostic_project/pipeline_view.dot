@@ -1,0 +1,11 @@
+digraph tescia_diagnostic_project {
+  rankdir=LR;
+  node [shape=box, style="rounded"];
+
+  classify_cases [label="Classify learner cases"];
+  score_evidence [label="Score evidence + decision guard"];
+  export_feedback [label="Export learner + classroom evidence"];
+
+  classify_cases -> score_evidence;
+  score_evidence -> export_feedback;
+}

@@ -53,11 +53,15 @@ class TesciaDiagnostic(BaseWorker):
         self._generate_case_file_fn = _generate_case_file_fn
         # Inputs may be pre-existing datasets under the cluster share root;
         # fall back to it when nothing exists under the workflow data root.
-        resolve_input = getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+        resolve_input = (
+            getattr(env, "resolve_share_input_path", None) or env.resolve_share_path
+        )
         try:
             self.args.data_in = resolve_input(self.args.data_in)
             self.args.data_out = env.resolve_share_path(self.args.data_out)
-            self.args.submission_inbox = env.resolve_share_path(self.args.submission_inbox)
+            self.args.submission_inbox = env.resolve_share_path(
+                self.args.submission_inbox
+            )
         except ValueError as exc:
             raise ValueError(
                 f"Invalid TeSciA diagnostic data_in/data_out/submission_inbox path: {exc}"
@@ -76,13 +80,17 @@ class TesciaDiagnostic(BaseWorker):
                 label="data_out",
             )
             if reset_path.exists():
-                shutil.rmtree(reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror)
+                shutil.rmtree(
+                    reset_path, ignore_errors=True, onerror=WorkDispatcher._onerror
+                )
         self.data_out.mkdir(parents=True, exist_ok=True)
         self.analysis_artifact_dir.mkdir(parents=True, exist_ok=True)
 
     @property
     def analysis_artifact_dir(self) -> Path:
-        export_root = Path(getattr(self.env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+        export_root = Path(
+            getattr(self.env, "AGILAB_EXPORT_ABS", Path.home() / "export")
+        )
         return export_root / self.env.target / "tescia_diagnostic"
 
     def _sample_dataset_source(self) -> Path:
@@ -98,7 +106,9 @@ class TesciaDiagnostic(BaseWorker):
         if self.args.case_source == "bundled_classroom":
             sample = self._classroom_dataset_source()
             if not sample.is_file():
-                raise FileNotFoundError(f"Bundled TeSciA classroom submissions missing: {sample}")
+                raise FileNotFoundError(
+                    f"Bundled TeSciA classroom submissions missing: {sample}"
+                )
             destination = data_in / sample.name
             if not destination.is_file():
                 shutil.copy2(sample, destination)
@@ -110,7 +120,9 @@ class TesciaDiagnostic(BaseWorker):
             return
         sample = self._sample_dataset_source()
         if not sample.is_file():
-            raise FileNotFoundError(f"Bundled TeSciA diagnostic cases missing: {sample}")
+            raise FileNotFoundError(
+                f"Bundled TeSciA diagnostic cases missing: {sample}"
+            )
         destination = data_in / sample.name
         shutil.copy2(sample, destination)
         logger.info("Seeded TeSciA diagnostic cases at %s", destination)
@@ -157,7 +169,9 @@ class TesciaDiagnostic(BaseWorker):
         section: str = "args",
         create_missing: bool = True,
     ) -> None:
-        dump_args(self.args, settings_path, section=section, create_missing=create_missing)
+        dump_args(
+            self.args, settings_path, section=section, create_missing=create_missing
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return self.args.model_dump(mode="json")
@@ -190,7 +204,9 @@ class TesciaDiagnostic(BaseWorker):
                 f"No diagnostic case file found in {self.args.data_in} with pattern {file_pattern!r}"
             )
 
-        weights = [(str(path), max(int(path.stat().st_size // 1024), 1)) for path in files]
+        weights = [
+            (str(path), max(int(path.stat().st_size // 1024), 1)) for path in files
+        ]
         if len(weights) == 1:
             worker_chunks = [[weights[0]]]
         else:
@@ -207,9 +223,15 @@ class TesciaDiagnostic(BaseWorker):
         for chunk in worker_chunks:
             file_batch = [file_path for file_path, _ in chunk]
             total_size_kb = sum(size_kb for _, size_kb in chunk)
-            batch_label = Path(file_batch[0]).name if len(file_batch) == 1 else f"{len(file_batch)} files"
+            batch_label = (
+                Path(file_batch[0]).name
+                if len(file_batch) == 1
+                else f"{len(file_batch)} files"
+            )
             work_plan.append([file_batch])
-            metadata.append([{"diagnostic_file": batch_label, "size_kb": total_size_kb}])
+            metadata.append(
+                [{"diagnostic_file": batch_label, "size_kb": total_size_kb}]
+            )
 
         return work_plan, metadata, "diagnostic_file", "size_kb", "KB"
 

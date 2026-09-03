@@ -20,7 +20,9 @@ def load_math_program_2026(path: str | Path | None = None) -> dict[str, Any]:
     source = Path(path) if path is not None else default_curriculum_path()
     payload = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise ValueError(f"Math curriculum coverage file must contain a JSON object: {source}")
+        raise ValueError(
+            f"Math curriculum coverage file must contain a JSON object: {source}"
+        )
     validate_math_program_2026(payload)
     return payload
 
@@ -65,7 +67,9 @@ def required_min_cases_per_id(curriculum: Mapping[str, Any]) -> int:
 
 def validate_math_program_2026(curriculum: Mapping[str, Any]) -> None:
     if curriculum.get("schema") != CURRICULUM_SCHEMA:
-        raise ValueError(f"Math curriculum coverage must declare schema {CURRICULUM_SCHEMA!r}.")
+        raise ValueError(
+            f"Math curriculum coverage must declare schema {CURRICULUM_SCHEMA!r}."
+        )
     sources = curriculum.get("sources")
     if not isinstance(sources, list) or not sources:
         raise ValueError("Math curriculum coverage must declare non-empty sources.")
@@ -78,7 +82,9 @@ def validate_math_program_2026(curriculum: Mapping[str, Any]) -> None:
     if not isinstance(required, list) or not required:
         raise ValueError("Math curriculum coverage must declare required_program_ids.")
     if required_min_cases_per_id(curriculum) < 1:
-        raise ValueError("Math curriculum coverage required_min_cases_per_id must be at least 1.")
+        raise ValueError(
+            "Math curriculum coverage required_min_cases_per_id must be at least 1."
+        )
     seen: set[str] = set()
     for item in required:
         if not isinstance(item, Mapping):
@@ -90,7 +96,9 @@ def validate_math_program_2026(curriculum: Mapping[str, Any]) -> None:
             raise ValueError(f"Duplicate curriculum id: {program_id}")
         seen.add(program_id)
         if str(item.get("source_id", "")).strip() not in source_ids:
-            raise ValueError(f"Curriculum id {program_id!r} references an unknown source_id.")
+            raise ValueError(
+                f"Curriculum id {program_id!r} references an unknown source_id."
+            )
         for field in ("track", "level", "domain", "effective_school_year"):
             if not str(item.get(field, "")).strip():
                 raise ValueError(f"Curriculum id {program_id!r} is missing {field}.")
@@ -108,7 +116,10 @@ def validate_case_curriculum_ids(
             if curriculum_id not in known:
                 unknown.append(f"{case_id}:{curriculum_id}")
     if unknown:
-        raise ValueError("Cases reference unknown 2026 math curriculum ids: " + ", ".join(sorted(unknown)))
+        raise ValueError(
+            "Cases reference unknown 2026 math curriculum ids: "
+            + ", ".join(sorted(unknown))
+        )
 
 
 def build_math_program_2026_coverage_report(
@@ -142,7 +153,9 @@ def build_math_program_2026_coverage_report(
         "required_count": len(required),
         "required_min_cases_per_id": min_cases,
         "covered_count": len(required - set(missing)),
-        "coverage_ratio": round((len(required) - len(missing)) / len(required), 4) if required else 0.0,
+        "coverage_ratio": round((len(required) - len(missing)) / len(required), 4)
+        if required
+        else 0.0,
         "quality_passed": not missing and not undercovered,
         "missing_curriculum_ids": missing,
         "undercovered_curriculum_ids": undercovered,
@@ -164,7 +177,9 @@ def require_complete_math_program_2026_coverage(
         raise ValueError("Missing 2026 math curriculum coverage: " + ", ".join(missing))
     undercovered = report["undercovered_curriculum_ids"]
     if undercovered:
-        raise ValueError("Undercovered 2026 math curriculum ids: " + ", ".join(undercovered))
+        raise ValueError(
+            "Undercovered 2026 math curriculum ids: " + ", ".join(undercovered)
+        )
     return report
 
 
