@@ -6,6 +6,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "hf_space_release_sync.py"
@@ -18,6 +20,28 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _write_stage_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    for app in (
+        "flight_telemetry_project",
+        "weather_forecast_project",
+        "pytorch_playground_project",
+    ):
+        (repo / "src/agilab/apps/builtin" / app).mkdir(parents=True)
+    (repo / "src/agilab/apps/private_project").mkdir(parents=True)
+    for page in ("view_maps", "view_forecast_analysis", "view_release_decision"):
+        (repo / "src/agilab/apps-pages" / page).mkdir(parents=True)
+    (repo / "docker").mkdir()
+    (repo / "src/agilab/main_page.py").write_text("print('ok')\n", encoding="utf-8")
+    (repo / "src/agilab/apps/private_project/secret.txt").write_text(
+        "private\n", encoding="utf-8"
+    )
+    (repo / "pyproject.toml").write_text("[project]\nname='agilab'\n", encoding="utf-8")
+    (repo / "uv_config.toml").write_text("", encoding="utf-8")
+    (repo / "docker/install.sh").write_text("#!/usr/bin/env sh\n", encoding="utf-8")
+    return repo
 
 
 def test_runtime_url_matches_hf_space_subdomain() -> None:
@@ -215,23 +239,9 @@ def test_advanced_profile_excludes_retired_weather_clone() -> None:
 
 def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path: Path) -> None:
     module = _load_module()
-    repo = tmp_path / "repo"
+    repo = _write_stage_repo(tmp_path)
     stage = tmp_path / "stage"
     stage.mkdir()
-
-    (repo / "src/agilab/apps/builtin/flight_telemetry_project").mkdir(parents=True)
-    (repo / "src/agilab/apps/builtin/weather_forecast_project").mkdir(parents=True)
-    (repo / "src/agilab/apps/builtin/pytorch_playground_project").mkdir(parents=True)
-    (repo / "src/agilab/apps/private_project").mkdir(parents=True)
-    for page in ("view_maps", "view_forecast_analysis", "view_release_decision"):
-        (repo / "src/agilab/apps-pages" / page).mkdir(parents=True)
-    (repo / "src/agilab").mkdir(parents=True, exist_ok=True)
-    (repo / "docker").mkdir()
-    (repo / "src/agilab/main_page.py").write_text("print('ok')\n", encoding="utf-8")
-    (repo / "src/agilab/apps/private_project/secret.txt").write_text("private\n", encoding="utf-8")
-    (repo / "pyproject.toml").write_text("[project]\nname='agilab'\n", encoding="utf-8")
-    (repo / "uv_config.toml").write_text("", encoding="utf-8")
-    (repo / "docker/install.sh").write_text("#!/usr/bin/env sh\n", encoding="utf-8")
 
     summary = module.stage_space_tree(repo, stage, profile="first-proof")
 
@@ -244,6 +254,48 @@ def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path:
     assert (stage / "src/agilab/apps/builtin/flight_telemetry_project").is_dir()
     assert (stage / "src/agilab/apps/builtin/weather_forecast_project").is_dir()
     assert (stage / "src/agilab/apps/builtin/pytorch_playground_project").is_dir()
+
+
+def test_stage_space_tree_rejects_included_symlink_before_stage_mutation(tmp_path: Path) -> None:
+    module = _load_module()
+    repo = _write_stage_repo(tmp_path)
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    sentinel = stage / "sentinel.txt"
+    sentinel.write_text("keep\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("private payload\n", encoding="utf-8")
+    linked = repo / "src/agilab/apps/builtin/flight_telemetry_project/external.txt"
+    try:
+        linked.symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+
+    with pytest.raises(RuntimeError, match="source tree contains symlinks"):
+        module.stage_space_tree(repo, stage, profile="first-proof")
+
+    assert sentinel.read_text(encoding="utf-8") == "keep\n"
+    assert not (stage / "src").exists()
+
+
+def test_stage_space_tree_ignores_excluded_app_symlink(tmp_path: Path) -> None:
+    module = _load_module()
+    repo = _write_stage_repo(tmp_path)
+    external_app = tmp_path / "external-app"
+    external_app.mkdir()
+    (external_app / "private.txt").write_text("private\n", encoding="utf-8")
+    try:
+        (repo / "src/agilab/apps/installed_project").symlink_to(
+            external_app, target_is_directory=True
+        )
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+    stage = tmp_path / "stage"
+    stage.mkdir()
+
+    module.stage_space_tree(repo, stage, profile="first-proof")
+
+    assert not (stage / "src/agilab/apps/installed_project").exists()
 
 
 def test_hosted_smoke_receives_profile(monkeypatch, tmp_path: Path) -> None:

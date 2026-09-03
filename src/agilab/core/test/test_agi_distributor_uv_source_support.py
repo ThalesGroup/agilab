@@ -438,6 +438,48 @@ def test_copy_uv_source_tree_replaces_existing_file_destination(tmp_path):
     assert destination.read_text(encoding="utf-8") == "VALUE = 1\n"
 
 
+def test_copy_uv_source_tree_rejects_symlink_before_destination_mutation(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "payload.txt").write_text("payload\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("private payload\n", encoding="utf-8")
+    try:
+        (source / "external.txt").symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+    destination = tmp_path / "destination"
+    destination.mkdir()
+    sentinel = destination / "sentinel.txt"
+    sentinel.write_text("keep\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="uv source tree contains symlinks"):
+        uv_source_support.copy_uv_source_tree(source, destination)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep\n"
+    assert not (destination / "external.txt").exists()
+
+
+def test_copy_uv_source_tree_ignores_virtualenv_symlinks(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "payload.txt").write_text("payload\n", encoding="utf-8")
+    virtualenv = source / ".venv"
+    virtualenv.mkdir()
+    outside = tmp_path / "python"
+    outside.write_text("binary placeholder\n", encoding="utf-8")
+    try:
+        (virtualenv / "python").symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+    destination = tmp_path / "destination"
+
+    uv_source_support.copy_uv_source_tree(source, destination)
+
+    assert (destination / "payload.txt").read_text(encoding="utf-8") == "payload\n"
+    assert not (destination / ".venv").exists()
+
+
 def test_missing_uv_source_paths_reports_unresolved_entries(tmp_path):
     pyproject = tmp_path / "pyproject.toml"
     (tmp_path / "_uv_sources" / "ok").mkdir(parents=True, exist_ok=True)
