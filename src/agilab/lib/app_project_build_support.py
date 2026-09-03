@@ -125,6 +125,9 @@ def _ignore_payload_artifacts(directory: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
         path = Path(directory) / name
+        if path.is_symlink():
+            ignored.add(name)
+            continue
         if path.is_dir() and (name in _EXCLUDED_PAYLOAD_DIRS or name.endswith(".egg-info")):
             ignored.add(name)
             continue

@@ -327,12 +327,51 @@ def _history_rewrite(args: argparse.Namespace) -> int:
     return 0
 
 
+def _is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def _require_no_linked_entries(path: Path, *, label: str) -> None:
+    linked = [path] if _is_link_like(path) else []
+    if path.is_dir() and not _is_link_like(path):
+        linked.extend(candidate for candidate in path.rglob("*") if _is_link_like(candidate))
+    if linked:
+        formatted = ", ".join(str(candidate) for candidate in sorted(linked))
+        raise ValueError(f"{label} contains a symlink or junction: {formatted}")
+
+
+def _validate_preserve_path(repo: Path, preserve_dir: Path, rel: Path) -> tuple[Path, Path]:
+    if rel.is_absolute() or not rel.parts or ".." in rel.parts:
+        raise ValueError(f"preserve path must be a confined relative path: {rel}")
+
+    repo_root = repo.resolve()
+    preserve_root = preserve_dir.resolve(strict=False)
+    target = repo_root / rel
+    snapshot = preserve_root / rel
+    for label, root, candidate in (
+        ("preserve path", repo_root, target),
+        ("preserve snapshot", preserve_root, snapshot),
+    ):
+        current = root
+        for part in candidate.relative_to(root).parts:
+            current /= part
+            if _is_link_like(current):
+                raise ValueError(f"{label} contains a symlink or junction: {current}")
+        resolved = candidate.resolve(strict=False)
+        if resolved == root or not resolved.is_relative_to(root):
+            raise ValueError(f"{label} escapes its root: {rel}")
+    return target, snapshot
+
+
 def _copy_preserved(src: Path, dst: Path) -> None:
     if src.is_dir():
-        shutil.copytree(src, dst, dirs_exist_ok=True)
+        shutil.copytree(src, dst, dirs_exist_ok=True, symlinks=True)
         return
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    shutil.copy2(src, dst, follow_symlinks=False)
 
 
 def _realign_local(args: argparse.Namespace) -> int:
@@ -343,6 +382,9 @@ def _realign_local(args: argparse.Namespace) -> int:
         if args.preserve_dir
         else Path(tempfile.mkdtemp(prefix=f"{repo.name}-preserve-"))
     )
+    validated_paths = [
+        (rel, *_validate_preserve_path(repo, preserve_dir, rel)) for rel in preserve_paths
+    ]
 
     print("Local realign plan")
     print("------------------")
@@ -360,22 +402,27 @@ def _realign_local(args: argparse.Namespace) -> int:
     preserved: list[tuple[Path, Path]] = []
     preserve_dir.mkdir(parents=True, exist_ok=True)
 
-    for rel in preserve_paths:
-        target = (repo / rel).resolve()
+    for rel, target, snapshot in validated_paths:
         if not target.exists():
             print(f"skip missing preserve path: {rel}")
             continue
-        snapshot = preserve_dir / rel
+        _require_no_linked_entries(target, label=f"preserve path {rel}")
+        if snapshot.exists():
+            _require_no_linked_entries(snapshot, label=f"preserve snapshot {rel}")
         snapshot.parent.mkdir(parents=True, exist_ok=True)
         _copy_preserved(target, snapshot)
-        preserved.append((snapshot, repo / rel))
+        _require_no_linked_entries(snapshot, label=f"preserve snapshot {rel}")
+        preserved.append((snapshot, rel))
 
     if args.fetch:
         _git(repo, "fetch", args.remote_name, "--prune", "--tags")
 
     _git(repo, "reset", "--hard", args.target_ref)
 
-    for snapshot, target in preserved:
+    for snapshot, rel in preserved:
+        target, _snapshot = _validate_preserve_path(repo, preserve_dir, rel)
+        if target.exists():
+            _require_no_linked_entries(target, label=f"restore target {rel}")
         _copy_preserved(snapshot, target)
 
     if args.gc:
