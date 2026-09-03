@@ -558,7 +558,12 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert "- plan_ui_robot_matrix" in text
     assert "- ui-robot-matrix" in text
     assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1" in text
-    assert "pattern: ui-robot-matrix-*-${{ github.run_attempt }}" in text
+    assert "actions: read" in text
+    assert "github-token: ${{ github.token }}" in text
+    assert "repository: ${{ github.repository }}" in text
+    assert "run-id: ${{ github.run_id }}" in text
+    assert "pattern: ui-robot-matrix-*\n" in text
+    assert "pattern: ui-robot-matrix-*-${{ github.run_attempt }}" not in text
     assert "uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py" in text
     assert '--expected-shards "${EXPECTED_SHARDS}"' in text
     assert '--expected-apps "${EXPECTED_APPS}"' in text

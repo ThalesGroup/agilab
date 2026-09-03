@@ -19,8 +19,8 @@ def _load_module():
     return module
 
 
-def _shard_result_dir(root: Path, shard: str) -> Path:
-    return root / f"ui-robot-matrix-{shard}-1" / "test-results" / "ui-robot-matrix" / shard
+def _shard_result_dir(root: Path, shard: str, *, attempt: int = 1) -> Path:
+    return root / f"ui-robot-matrix-{shard}-{attempt}" / "test-results" / "ui-robot-matrix" / shard
 
 
 def _shard_screenshot_dir(root: Path, shard: str) -> Path:
@@ -37,8 +37,9 @@ def _write_shard(
     retry_artifacts: bool = False,
     apps: list[str] | None = None,
     app_count: int | None = None,
+    attempt: int = 1,
 ) -> Path:
-    shard_root = _shard_result_dir(root, shard)
+    shard_root = _shard_result_dir(root, shard, attempt=attempt)
     shard_root.mkdir(parents=True)
     summary = {
         "schema": "agilab.widget_robot_matrix.v1",
@@ -382,6 +383,40 @@ def test_discovery_skips_summaries_without_exit_code_and_bad_failure_manifests(t
 
     assert summaries == {"core": shard_root / "summary.json"}
     assert list(bundles) == ["core-scenario"]
+
+
+def test_discovery_prefers_latest_rerun_attempt_per_shard(tmp_path: Path) -> None:
+    module = _load_module()
+    core = _write_shard(tmp_path, "core", attempt=1)
+    quality_initial = _write_shard(
+        tmp_path,
+        "quality",
+        success=False,
+        failed_count=1,
+        exit_code="1",
+        attempt=1,
+    )
+    quality_retry = _write_shard(tmp_path, "quality", attempt=2)
+    for shard, result_dir in (
+        ("core", core),
+        ("quality", quality_initial),
+        ("quality", quality_retry),
+    ):
+        module.write_shard_manifest(
+            result_dir=result_dir,
+            screenshot_dir=result_dir / "screenshots",
+            shard=shard,
+        )
+
+    summaries = module.discover_shard_summary_paths(tmp_path)
+    manifests = module.discover_shard_manifests(tmp_path)
+
+    assert summaries == {
+        "core": core / "summary.json",
+        "quality": quality_retry / "summary.json",
+    }
+    assert manifests["core"][0] == core / module.SHARD_MANIFEST_FILENAME
+    assert manifests["quality"][0] == quality_retry / module.SHARD_MANIFEST_FILENAME
 
 
 def test_discovery_helpers_ignore_invalid_inputs(tmp_path: Path) -> None:

@@ -19,6 +19,7 @@ on:
     - cron: "43 2 * * 3"
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -324,7 +325,10 @@ jobs:
       - name: Download UI robot shard artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          pattern: ui-robot-matrix-*-${{ github.run_attempt }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+          pattern: ui-robot-matrix-*
           path: test-results/ui-robot-matrix-artifacts
 
       - name: Aggregate UI robot matrix shards
