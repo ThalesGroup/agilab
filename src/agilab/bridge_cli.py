@@ -6,6 +6,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import platform
 import re
 import shlex
@@ -566,8 +567,8 @@ def _export_quarto_report_loaded(
     return payload
 
 
-def _copy_project_tree(project_path: Path, destination: Path) -> None:
-    ignore = shutil.ignore_patterns(
+def _project_copy_ignore() -> Callable[[str, list[str]], set[str]]:
+    return shutil.ignore_patterns(
         ".git",
         ".mypy_cache",
         ".pytest_cache",
@@ -578,12 +579,70 @@ def _copy_project_tree(project_path: Path, destination: Path) -> None:
         "dist",
         "*.pyc",
     )
-    shutil.copytree(project_path, destination, ignore=ignore)
+
+
+def _is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def _linked_tree_entries(
+    root: Path,
+    *,
+    ignore: Callable[[str, list[str]], set[str]] | None = None,
+) -> list[Path]:
+    linked: list[Path] = []
+    if _is_link_like(root):
+        return [root]
+    if not root.is_dir():
+        return linked
+    for directory, dirnames, filenames in os.walk(root, followlinks=False):
+        names = [*dirnames, *filenames]
+        ignored = ignore(directory, names) if ignore is not None else set()
+        included_dirs = [name for name in dirnames if name not in ignored]
+        included_files = [name for name in filenames if name not in ignored]
+        directory_path = Path(directory)
+        for name in [*included_dirs, *included_files]:
+            path = directory_path / name
+            if _is_link_like(path):
+                linked.append(path)
+        dirnames[:] = [
+            name for name in included_dirs if not _is_link_like(directory_path / name)
+        ]
+    return sorted(linked)
+
+
+def _require_no_linked_inputs(
+    root: Path,
+    *,
+    label: str,
+    ignore: Callable[[str, list[str]], set[str]] | None = None,
+) -> None:
+    linked = _linked_tree_entries(root, ignore=ignore)
+    if linked:
+        formatted = ", ".join(str(path) for path in linked)
+        raise RuntimeError(
+            f"Cannot export Hugging Face Space: {label} contains symlink or junction entries: "
+            f"{formatted}"
+        )
+
+
+def _copy_project_tree(project_path: Path, destination: Path) -> None:
+    shutil.copytree(
+        project_path,
+        destination,
+        ignore=_project_copy_ignore(),
+        symlinks=True,
+    )
+    _require_no_linked_inputs(destination, label="staged project")
 
 
 def _secret_findings(root: Path) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    for path in sorted(root.rglob("*")):
+    paths = [root] if root.is_file() else sorted(root.rglob("*"))
+    for path in paths:
         if not path.is_file() or (
             path.suffix.lower() not in _TEXT_EXTENSIONS
             and path.name.lower() not in _TEXT_EXTENSIONS
@@ -619,14 +678,34 @@ def export_hf_space(
     evidence_path: Path | None = None,
     force: bool = False,
 ) -> dict[str, Any]:
-    project = project_path.expanduser().resolve(strict=False)
-    if not project.is_dir():
-        raise FileNotFoundError(f"Project path does not exist: {project}")
+    project_source = project_path.expanduser()
+    if not project_source.is_dir():
+        raise FileNotFoundError(f"Project path does not exist: {project_source}")
+    _require_no_linked_inputs(
+        project_source,
+        label="project",
+        ignore=_project_copy_ignore(),
+    )
+    project = project_source.resolve(strict=False)
     findings = _secret_findings(project)
     if findings:
         raise RuntimeError(
             f"Cannot export Hugging Face Space with secret-like project inputs: {findings[0]}"
         )
+
+    evidence: Path | None = None
+    if evidence_path is not None:
+        evidence_source = evidence_path.expanduser()
+        if not evidence_source.is_dir() and not evidence_source.is_file():
+            raise FileNotFoundError(f"Evidence path does not exist: {evidence_source}")
+        _require_no_linked_inputs(evidence_source, label="evidence")
+        evidence = evidence_source.resolve(strict=False)
+        evidence_findings = _secret_findings(evidence)
+        if evidence_findings:
+            raise RuntimeError(
+                "Cannot export Hugging Face Space with secret-like evidence inputs: "
+                f"{evidence_findings[0]}"
+            )
 
     output = output_dir.expanduser().resolve(strict=False)
     project_dest = output / "agilab_project"
@@ -640,16 +719,18 @@ def export_hf_space(
     _copy_project_tree(project, project_dest)
 
     evidence_dest = None
-    if evidence_path is not None:
-        evidence = evidence_path.expanduser().resolve(strict=False)
+    if evidence is not None:
         evidence_dest = output / "evidence"
         if evidence_dest.exists():
             shutil.rmtree(evidence_dest)
         if evidence.is_dir():
-            shutil.copytree(evidence, evidence_dest)
+            shutil.copytree(evidence, evidence_dest, symlinks=True)
+            _require_no_linked_inputs(evidence_dest, label="staged evidence")
         elif evidence.is_file():
             evidence_dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(evidence, evidence_dest / evidence.name)
+            copied_evidence = evidence_dest / evidence.name
+            shutil.copy2(evidence, copied_evidence, follow_symlinks=False)
+            _require_no_linked_inputs(copied_evidence, label="staged evidence")
 
     (output / "requirements.txt").write_text("agilab[ui]\n", encoding="utf-8")
     (output / "Dockerfile").write_text(

@@ -241,7 +241,7 @@ def test_top_level_symlinked_skill_is_rejected_before_mirror_mutation(
 
     with pytest.raises(
         SystemExit,
-        match=r"Refusing top-level symlinked skill entries.*streamlit skills --global",
+        match=r"Refusing symlinked skill entries.*streamlit skills --global",
     ):
         module.main(args)
 
@@ -249,20 +249,28 @@ def test_top_level_symlinked_skill_is_rejected_before_mirror_mutation(
     assert (mirror_skill / "SKILL.md").read_bytes() == mirror_before
 
 
-def test_check_passes_for_symlinked_directory_content_after_sync(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+def test_nested_symlinked_skill_content_is_rejected_before_mirror_mutation(
+    tmp_path, monkeypatch, args
+) -> None:
     module = _load_module()
     claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
     _tokki_absent(module, monkeypatch)
     skill_dir = _write_skill(claude_root, "alpha")
+    mirror_skill = _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = (mirror_skill / "SKILL.md").read_bytes()
     shared = tmp_path / "shared"
     shared.mkdir()
     (shared / "inner.md").write_text("shared content\n", encoding="utf-8")
-    (skill_dir / "linkdir").symlink_to(shared, target_is_directory=True)
+    try:
+        (skill_dir / "linkdir").symlink_to(shared, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
 
-    assert module.main(["--skills", "alpha"]) == 0
-    assert (codex_root / "alpha" / "linkdir" / "inner.md").is_file()
-    assert not (codex_root / "alpha" / "linkdir").is_symlink()
-    assert module.main(["--check"]) == 0
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*alpha/linkdir"):
+        module.main(args)
+
+    assert (mirror_skill / "SKILL.md").read_bytes() == mirror_before
 
 
 def test_check_mode_flags_executable_bit_drift(tmp_path, monkeypatch, capsys) -> None:

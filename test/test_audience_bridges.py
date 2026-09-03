@@ -187,6 +187,82 @@ def test_hf_space_export_edges_and_secret_scan(tmp_path: Path) -> None:
     assert (output / "evidence" / "nested.txt").is_file()
 
 
+def test_hf_space_export_rejects_project_symlink_before_output_mutation(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Project\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("private payload\n", encoding="utf-8")
+    try:
+        (project / "external.txt").symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+    output = tmp_path / "hf-output"
+    output.mkdir()
+    sentinel = output / "sentinel.txt"
+    sentinel.write_text("keep\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        bridge_cli.export_hf_space(project, output, force=True)
+
+    assert sentinel.read_text(encoding="utf-8") == "keep\n"
+    assert not (output / "agilab_project").exists()
+
+
+def test_hf_space_export_rejects_unsafe_evidence_before_output_mutation(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Project\n", encoding="utf-8")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("private payload\n", encoding="utf-8")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    try:
+        (evidence / "external.txt").symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+    output = tmp_path / "hf-output"
+
+    with pytest.raises(RuntimeError, match="symlink"):
+        bridge_cli.export_hf_space(project, output, evidence_path=evidence, force=True)
+
+    assert not output.exists()
+
+
+def test_hf_space_export_scans_evidence_for_secrets_before_output_mutation(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Project\n", encoding="utf-8")
+    evidence = tmp_path / "evidence.env"
+    evidence.write_text("HF_TOKEN=private-value\n", encoding="utf-8")
+    output = tmp_path / "hf-output"
+
+    with pytest.raises(RuntimeError, match="secret-like evidence inputs"):
+        bridge_cli.export_hf_space(project, output, evidence_path=evidence, force=True)
+
+    assert not output.exists()
+
+
+def test_hf_space_export_ignores_virtualenv_symlinks(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Project\n", encoding="utf-8")
+    virtualenv = project / ".venv"
+    virtualenv.mkdir()
+    outside = tmp_path / "python"
+    outside.write_text("binary placeholder\n", encoding="utf-8")
+    try:
+        (virtualenv / "python").symlink_to(outside)
+    except OSError as error:
+        pytest.skip(f"file symlinks unavailable: {error}")
+    output = tmp_path / "hf-output"
+
+    bridge_cli.export_hf_space(project, output)
+
+    assert (output / "agilab_project/README.md").is_file()
+    assert not (output / "agilab_project/.venv").exists()
+
+
 def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path)
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))

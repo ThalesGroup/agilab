@@ -15,7 +15,7 @@ import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -367,8 +367,37 @@ def require_profile_dirs(repo_root: Path, profile: str, apps: Sequence[str], pag
         raise RuntimeError(f"profile {profile!r} references missing entries: {', '.join(missing)}")
 
 
-def require_no_symlinked_sources(source_root: Path) -> None:
-    symlinks = [str(path) for path in source_root.rglob("*") if path.is_symlink()]
+def _is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def require_no_symlinked_sources(
+    source_root: Path,
+    *,
+    ignore: Callable[[str, list[str]], set[str]] | None = None,
+) -> None:
+    symlinks: list[str] = []
+    if _is_link_like(source_root):
+        symlinks.append(str(source_root))
+    elif source_root.is_dir():
+        for directory, dirnames, filenames in os.walk(source_root, followlinks=False):
+            names = [*dirnames, *filenames]
+            ignored = ignore(directory, names) if ignore is not None else set()
+            included_dirs = [name for name in dirnames if name not in ignored]
+            included_files = [name for name in filenames if name not in ignored]
+            directory_path = Path(directory)
+            for name in [*included_dirs, *included_files]:
+                path = directory_path / name
+                if _is_link_like(path):
+                    symlinks.append(str(path))
+            dirnames[:] = [
+                name
+                for name in included_dirs
+                if not _is_link_like(directory_path / name)
+            ]
     if symlinks:
         formatted = "\n  - ".join(sorted(symlinks))
         raise RuntimeError(f"refusing HF deploy: source tree contains symlinks\n  - {formatted}")
@@ -436,9 +465,16 @@ def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[
     if not (repo_root / "src/agilab/main_page.py").is_file():
         raise RuntimeError(f"not an AGILAB checkout: {repo_root}")
     require_profile_dirs(repo_root, profile, apps, pages)
+    copy_ignore_fn = copy_ignore_for_profile(repo_root, apps, pages)
+    require_no_symlinked_sources(repo_root / "src", ignore=copy_ignore_fn)
 
     write_profile_assets(stage_dir, profile, apps, pages)
-    shutil.copytree(repo_root / "src", stage_dir / "src", ignore=copy_ignore_for_profile(repo_root, apps, pages))
+    shutil.copytree(
+        repo_root / "src",
+        stage_dir / "src",
+        ignore=copy_ignore_fn,
+        symlinks=True,
+    )
     shutil.copy2(repo_root / "pyproject.toml", stage_dir / "pyproject.toml")
     shutil.copy2(repo_root / "uv_config.toml", stage_dir / "uv_config.toml")
     (stage_dir / "docker").mkdir()
