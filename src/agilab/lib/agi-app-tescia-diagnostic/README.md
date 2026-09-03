@@ -12,6 +12,8 @@ student-facing metadata and optional submitted answers that are graded with a
 deterministic rubric.
 For classroom use, a submission batch can reference exercise ids and expand
 into independent scoring rows for local or cluster execution.
+The example teaches evidence-based diagnostic reasoning; it does not process
+acoustic, vibration, or telemetry signals.
 
 ## Purpose
 
@@ -30,6 +32,16 @@ scaling decisions, RAG retrieval design, agent memory, LLM evaluation,
 uncertainty and drift, data-centric limited-label strategy, open-weight model
 review, and inference or token-cost optimization are scored with the same
 evidence-backed rubric.
+
+The bundled catalog is organized into three explicit learner paths:
+
+- **AGILAB diagnostics**: 2 support and workflow cases.
+- **Mathematics 2026**: 10 curriculum-audit and practice cases.
+- **Data science 2026**: 12 modern ML and AI-engineering cases.
+
+ANALYSIS uses the selected path for its catalog and self-check. Custom or locally
+generated cases fall back to **General diagnostics** when they do not declare a
+supported path.
 Classroom batches export anonymized teacher artifacts: progress, heatmap,
 needs-attention, per-student, curriculum-level, intervention-plan CSV files,
 and a printable teacher summary.
@@ -84,6 +96,9 @@ The app writes diagnostic reports, summary CSV files, reducer summaries, and a
 regression plan are supported by evidence. With a submitted answer, the report
 also exports a score band and targeted feedback for missing evidence, fix, or
 regression-test selections.
+Cases can also declare a versioned deterministic decision policy. The bundled
+uncertainty-and-drift exercise records observed drift and coverage, thresholds,
+the selected action, and the triggers that force abstention to human review.
 The worker also writes printable correction sheets and
 `math_program_2026_coverage.json` so a catalog can prove whether every declared
 2026 top-level mathematics curriculum id meets the minimum exercise count.
@@ -96,6 +111,7 @@ For classroom batches it also writes:
 - `classroom/classroom_needs_attention.csv`
 - `classroom/classroom_students.csv`
 - `classroom/classroom_curriculum.csv`
+- `classroom/classroom_learning_tracks.csv`
 - `classroom/classroom_interventions.csv`
 
 During live or distributed runs, workers can also publish partial progress under
@@ -118,6 +134,11 @@ goldens, trusts a leaderboard without task-specific evaluation, ignores
 uncertainty and drift, or accepts token/inference savings without a target
 quality and latency gate.
 
+In the uncertainty-and-drift case, move `drift_score` and
+`empirical_coverage` across their thresholds. The report must select
+`serve_prediction_with_monitoring` only when both gates pass and otherwise use
+`abstain_and_route_to_human_review`.
+
 For mathematics-program coverage, add or remove a `curriculum_ids` entry and
 run the focused TeSciA tests. Missing required ids, undercovered ids, and
 invented ids fail the coverage contract.
@@ -133,6 +154,8 @@ bundled sample when `Read submission inbox` is enabled.
 This is a repeatable diagnostic example. It does not execute remediation
 commands, replace incident management, or silently trust model-generated
 content.
+
+It is not an acoustic, vibration, or telemetry signal-processing application.
 
 The mathematics-program coverage is a domain-level audit contract, not a full
 official exercise bank.

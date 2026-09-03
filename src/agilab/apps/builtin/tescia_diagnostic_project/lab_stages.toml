@@ -4,8 +4,8 @@ version = 1
 
 [[tescia_diagnostic]]
 id = "load_exercise_cases"
-D = "Load exercise cases"
-Q = "Load and validate the bundled deterministic TeSciA diagnostic case bank."
+D = "Classify learner cases"
+Q = "Load, validate, and assign the bundled cases to explicit learner paths."
 M = "deterministic"
 C = '''
 import json
@@ -26,8 +26,8 @@ produces = ["tescia_diagnostic_workflow/validated_cases.json"]
 
 [[tescia_diagnostic]]
 id = "evaluate_answer"
-D = "Evaluate the answer"
-Q = "Compare symptoms, evidence, assumptions, candidate fixes, and learner choices."
+D = "Score evidence and apply decision guard"
+Q = "Compare evidence and learner choices, then apply any deterministic drift fallback."
 M = "deterministic"
 C = '''
 import json
@@ -59,8 +59,8 @@ produces = ["tescia_diagnostic_workflow/diagnostic_reports.json"]
 
 [[tescia_diagnostic]]
 id = "export_classroom_feedback"
-D = "Export classroom feedback"
-Q = "Write scores, better-fix recommendations, correction sheets, and classroom progress artifacts."
+D = "Export learner and classroom evidence"
+Q = "Write scores, decision actions, correction sheets, and progress by learner path."
 M = "deterministic"
 C = '''
 import json
@@ -94,6 +94,7 @@ consumes = ["tescia_diagnostic_workflow/diagnostic_reports.json"]
 produces = [
   "tescia_diagnostic/reports/classroom_run_report.json",
   "tescia_diagnostic/reports/classroom_teacher_summary.md",
+  "tescia_diagnostic/reports/classroom_learning_tracks.csv",
   "tescia_diagnostic/reports/correction_sheets/correction_sheets_index.md",
   "tescia_diagnostic/reports/diagnostic_reports.json",
 ]
