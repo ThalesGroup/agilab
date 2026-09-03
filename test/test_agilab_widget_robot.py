@@ -1009,6 +1009,15 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
         if issue.get("kind") == "missing_accessible_name"
         and issue.get("label") == "data-grid-canvas"
     ]
+    unnamed_input_details = [
+        str(issue.get("detail") or "")
+        for issue in accessibility_issues
+        if issue.get("kind") == "missing_accessible_name"
+        and issue.get("label") == "INPUT"
+    ]
+    assert any("tag=INPUT type=text" in detail for detail in unnamed_input_details)
+    assert any("container-testid=stSelectbox" in detail for detail in unnamed_input_details)
+    assert all("value=" not in detail for detail in unnamed_input_details)
     assert {issue.get("framework_owned") for issue in data_grid_issues} == {False, True}
     framework_grid_issue = next(
         issue for issue in data_grid_issues if issue.get("framework_owned") is True

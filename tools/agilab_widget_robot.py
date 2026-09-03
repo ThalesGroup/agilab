@@ -797,11 +797,27 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     el.getAttribute("data-testid") === "data-grid-canvas" &&
     Boolean(el.closest("[data-testid='stDataFrame'], [data-testid='stDataEditor']"))
   );
+  const elementContext = (el) => {
+    const container = el.closest("[data-testid]");
+    const baseweb = el.closest("[data-baseweb]");
+    const pairs = [
+      ["tag", el.tagName],
+      ["type", el instanceof HTMLInputElement ? el.type : el.getAttribute("type")],
+      ["id", el.getAttribute("id")],
+      ["name", el.getAttribute("name")],
+      ["role", el.getAttribute("role")],
+      ["testid", el.getAttribute("data-testid")],
+      ["container-testid", container && container !== el ? container.getAttribute("data-testid") : ""],
+      ["baseweb", baseweb ? baseweb.getAttribute("data-baseweb") : ""],
+    ];
+    return pairs.filter(([, value]) => clean(value)).map(([key, value]) => `${key}=${clean(value)}`).join(" ");
+  };
   const push = (kind, el, detail) => {
+    const context = elementContext(el);
     issues.push({
       kind,
       label: clean(labelFor(el) || el.getAttribute("data-testid") || el.tagName).slice(0, 120),
-      detail: clean(detail).slice(0, 260),
+      detail: clean(context ? `${detail}; ${context}` : detail).slice(0, 260),
       framework_owned: frameworkDataGridCanvas(el),
     });
   };
