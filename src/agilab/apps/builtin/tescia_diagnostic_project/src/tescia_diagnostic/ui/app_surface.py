@@ -15,8 +15,10 @@ _APP_SRC = Path(__file__).resolve().parents[2]
 if str(_APP_SRC) not in sys.path:
     sys.path.insert(0, str(_APP_SRC))
 
-from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
-from tescia_diagnostic.classroom import (
+from tescia_diagnostic.curriculum import (  # noqa: E402
+    build_math_program_2026_coverage_report,
+)
+from tescia_diagnostic.classroom import (  # noqa: E402
     CLASSROOM_RUN_REPORT_SCHEMA,
     classroom_report_to_markdown,
     default_classroom_payload_path,
@@ -26,8 +28,9 @@ from tescia_diagnostic.classroom import (
     score_classroom_submissions,
     validate_classroom_payload,
 )
-from tescia_diagnostic.diagnostic import diagnose_case, validate_case_payload
-from tescia_diagnostic.exports import diagnostic_report_to_markdown
+from tescia_diagnostic.diagnostic import diagnose_case, validate_case_payload  # noqa: E402
+from tescia_diagnostic.domain.learning import available_learning_tracks  # noqa: E402
+from tescia_diagnostic.exports import diagnostic_report_to_markdown  # noqa: E402
 
 
 def _cache_data(func):
@@ -77,18 +80,26 @@ def cached_load_cases(path: str = "", mtime_ns: int = 0) -> list[dict[str, Any]]
 
 
 @_cache_data
-def cached_classroom_preview_report(case_bank_path: str = "", case_bank_mtime_ns: int = 0) -> dict[str, Any]:
+def cached_classroom_preview_report(
+    case_bank_path: str = "", case_bank_mtime_ns: int = 0
+) -> dict[str, Any]:
     _ = case_bank_mtime_ns
-    return score_classroom_submissions(load_classroom_preview_payload(), case_bank=load_cases(case_bank_path or None))
+    return score_classroom_submissions(
+        load_classroom_preview_payload(), case_bank=load_cases(case_bank_path or None)
+    )
 
 
 def load_classroom_preview_payload(path: str | Path | None = None) -> dict[str, Any]:
     return load_classroom_payload(path or bundled_classroom_payload_path())
 
 
-def classroom_preview_report(cases: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
+def classroom_preview_report(
+    cases: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     case_bank = [dict(case) for case in cases] if cases is not None else load_cases()
-    return score_classroom_submissions(load_classroom_preview_payload(), case_bank=case_bank)
+    return score_classroom_submissions(
+        load_classroom_preview_payload(), case_bank=case_bank
+    )
 
 
 def _resolve_active_app_path(active_app: Path | None = None) -> Path | None:
@@ -110,8 +121,12 @@ def _load_runtime_env_and_args(active_app_path: Path):
     from agi_env import AgiEnv
     from tescia_diagnostic import app_args
 
-    env = getattr(AgiEnv, "for_app", AgiEnv)(apps_path=active_app_path.parent, app=active_app_path.name, verbose=0)
-    args_model = app_args.ensure_defaults(app_args.load_args(env.app_settings_file), env=env)
+    env = getattr(AgiEnv, "for_app", AgiEnv)(
+        apps_path=active_app_path.parent, app=active_app_path.name, verbose=0
+    )
+    args_model = app_args.ensure_defaults(
+        app_args.load_args(env.app_settings_file), env=env
+    )
     return env, args_model
 
 
@@ -151,16 +166,22 @@ def classroom_artifact_dirs(
             runtime_args = args_model
 
     if runtime_env is not None:
-        export_root = Path(getattr(runtime_env, "AGILAB_EXPORT_ABS", Path.home() / "export"))
+        export_root = Path(
+            getattr(runtime_env, "AGILAB_EXPORT_ABS", Path.home() / "export")
+        )
         for target in (
             str(getattr(runtime_env, "target", "") or ""),
             str(getattr(runtime_env, "app", "") or ""),
             active_app_path.name if active_app_path is not None else "",
         ):
             if target:
-                _append_unique_path(paths, export_root / target / "tescia_diagnostic" / "classroom")
+                _append_unique_path(
+                    paths, export_root / target / "tescia_diagnostic" / "classroom"
+                )
 
-        data_out = Path(str(getattr(runtime_args, "data_out", "tescia_diagnostic/reports")))
+        data_out = Path(
+            str(getattr(runtime_args, "data_out", "tescia_diagnostic/reports"))
+        )
         if not data_out.is_absolute():
             resolve_share_path = getattr(runtime_env, "resolve_share_path", None)
             if callable(resolve_share_path):
@@ -168,9 +189,18 @@ def classroom_artifact_dirs(
         _append_unique_path(paths, data_out / "classroom")
 
     if active_app_path is not None:
-        for target in (active_app_path.name, active_app_path.name.removesuffix("_project"), "tescia_diagnostic"):
-            _append_unique_path(paths, Path.home() / "export" / target / "tescia_diagnostic" / "classroom")
-        _append_unique_path(paths, active_app_path / "tescia_diagnostic" / "reports" / "classroom")
+        for target in (
+            active_app_path.name,
+            active_app_path.name.removesuffix("_project"),
+            "tescia_diagnostic",
+        ):
+            _append_unique_path(
+                paths,
+                Path.home() / "export" / target / "tescia_diagnostic" / "classroom",
+            )
+        _append_unique_path(
+            paths, active_app_path / "tescia_diagnostic" / "reports" / "classroom"
+        )
     return paths
 
 
@@ -221,7 +251,9 @@ def classroom_display_report(
     report_path = latest_classroom_report_path(artifact_dirs)
     if report_path is not None:
         return (
-            cached_load_classroom_run_report(str(report_path), _file_mtime_ns(report_path)),
+            cached_load_classroom_run_report(
+                str(report_path), _file_mtime_ns(report_path)
+            ),
             {"source": "last_run", "path": str(report_path)},
         )
     partial_paths = latest_classroom_partial_report_paths(artifact_dirs)
@@ -251,7 +283,9 @@ def classroom_display_report(
             },
         )
     if cases is None:
-        report = cached_classroom_preview_report(str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path()))
+        report = cached_classroom_preview_report(
+            str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path())
+        )
     else:
         report = classroom_preview_report(cases)
     return report, {"source": "sample", "path": str(bundled_classroom_payload_path())}
@@ -270,7 +304,9 @@ def classroom_submission_inbox_dir(
         runtime_env, runtime_args = _runtime_context(active_app_path)
     if runtime_env is None or runtime_args is None:
         return None
-    inbox = Path(str(getattr(runtime_args, "submission_inbox", "tescia_diagnostic/submissions")))
+    inbox = Path(
+        str(getattr(runtime_args, "submission_inbox", "tescia_diagnostic/submissions"))
+    )
     if inbox.is_absolute():
         return inbox
     resolver = getattr(runtime_env, "resolve_share_path", None)
@@ -293,12 +329,16 @@ def _upload_bytes(upload: Any) -> bytes:
 
 def _safe_upload_stem(name: str) -> str:
     raw_stem = Path(name or "classroom_submissions").stem
-    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in raw_stem.strip())
+    cleaned = "".join(
+        ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in raw_stem.strip()
+    )
     cleaned = "_".join(part for part in cleaned.split("_") if part)
     return cleaned or "classroom_submissions"
 
 
-def save_classroom_uploads(uploaded_files: Sequence[Any], inbox_dir: Path) -> list[Path]:
+def save_classroom_uploads(
+    uploaded_files: Sequence[Any], inbox_dir: Path
+) -> list[Path]:
     inbox_dir.mkdir(parents=True, exist_ok=True)
     saved: list[Path] = []
     for upload in uploaded_files:
@@ -309,7 +349,9 @@ def save_classroom_uploads(uploaded_files: Sequence[Any], inbox_dir: Path) -> li
         validated = validate_classroom_payload(payload)
         name = str(getattr(upload, "name", "") or "classroom_submissions.json")
         destination = inbox_dir / f"{_safe_upload_stem(name)}.json"
-        destination.write_text(json.dumps(validated, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        destination.write_text(
+            json.dumps(validated, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
         saved.append(destination)
     return saved
 
@@ -324,19 +366,28 @@ def classroom_heatmap_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [dict(row) for row in rows] if isinstance(rows, list) else []
 
 
+def classroom_track_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = report.get("track_rows")
+    return [dict(row) for row in rows] if isinstance(rows, list) else []
+
+
 def classroom_intervention_rows(report: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows = report.get("intervention_rows")
     return [dict(row) for row in rows] if isinstance(rows, list) else []
 
 
-def classroom_submission_template(cases: Sequence[Mapping[str, Any]] | None = None) -> dict[str, Any]:
+def classroom_submission_template(
+    cases: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, Any]:
     case_bank = [dict(case) for case in cases] if cases is not None else load_cases()
     submissions = load_classroom_preview_payload()
     return {
         "schema": submissions["schema"],
         "classroom": submissions["classroom"],
         "submissions": submissions["submissions"],
-        "submission_count": len(expand_classroom_submissions(submissions, case_bank=case_bank)),
+        "submission_count": len(
+            expand_classroom_submissions(submissions, case_bank=case_bank)
+        ),
     }
 
 
@@ -356,6 +407,8 @@ def catalog_rows(cases: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "title": str(catalog.get("title", "")),
                 "difficulty": str(catalog.get("difficulty", "")),
                 "learner_level": str(catalog.get("learner_level", "")),
+                "learning_track": str(catalog.get("learning_track", "")),
+                "learning_track_label": str(catalog.get("learning_track_label", "")),
                 "estimated_minutes": int(catalog.get("estimated_minutes", 0) or 0),
                 "curriculum_count": len(curriculum_ids),
                 "curriculum_ids": ", ".join(str(item) for item in curriculum_ids),
@@ -369,7 +422,12 @@ def available_filters(cases: Sequence[Mapping[str, Any]]) -> dict[str, list[str]
     rows = catalog_rows(cases)
     return {
         "difficulty": sorted({row["difficulty"] for row in rows if row["difficulty"]}),
-        "learner_level": sorted({row["learner_level"] for row in rows if row["learner_level"]}),
+        "learner_level": sorted(
+            {row["learner_level"] for row in rows if row["learner_level"]}
+        ),
+        "learning_track": [
+            str(track["id"]) for track in available_learning_tracks(cases)
+        ],
         "curriculum_id": sorted(
             {
                 item.strip()
@@ -387,6 +445,7 @@ def filter_cases(
     difficulty: str = "",
     learner_level: str = "",
     curriculum_id: str = "",
+    learning_track: str = "",
 ) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for case in cases:
@@ -400,6 +459,8 @@ def filter_cases(
         if difficulty and catalog.get("difficulty") != difficulty:
             continue
         if learner_level and catalog.get("learner_level") != learner_level:
+            continue
+        if learning_track and catalog.get("learning_track") != learning_track:
             continue
         if curriculum_id and curriculum_id not in curriculum_ids:
             continue
@@ -433,8 +494,13 @@ def build_student_answer(
     }
 
 
-def score_student_submission(case: Mapping[str, Any], answer: Mapping[str, Any]) -> dict[str, Any]:
-    payload = {"schema": "agilab.tescia_diagnostic.cases.v1", "cases": [{**dict(case), "student_answer": dict(answer)}]}
+def score_student_submission(
+    case: Mapping[str, Any], answer: Mapping[str, Any]
+) -> dict[str, Any]:
+    payload = {
+        "schema": "agilab.tescia_diagnostic.cases.v1",
+        "cases": [{**dict(case), "student_answer": dict(answer)}],
+    }
     validated = validate_case_payload(payload)["cases"][0]
     return diagnose_case(validated)
 
@@ -469,8 +535,18 @@ def build_teacher_draft(
         "plain_repro": "Compare the student answer with the teacher draft rubric.",
         "weak_assumptions": ["The exercise is complete without checking the rubric."],
         "evidence": [
-            {"id": "rubric_match", "description": "The answer matches the rubric.", "confidence": 0.9, "relevance": 0.9},
-            {"id": "curriculum_alignment", "description": "The exercise maps to declared curriculum ids.", "confidence": 0.9, "relevance": 0.9},
+            {
+                "id": "rubric_match",
+                "description": "The answer matches the rubric.",
+                "confidence": 0.9,
+                "relevance": 0.9,
+            },
+            {
+                "id": "curriculum_alignment",
+                "description": "The exercise maps to declared curriculum ids.",
+                "confidence": 0.9,
+                "relevance": 0.9,
+            },
         ],
         "candidate_fixes": [
             {
@@ -489,7 +565,12 @@ def build_teacher_draft(
             },
         ],
         "regression_tests": [
-            {"id": "rubric_ids_valid", "description": "Validate rubric ids.", "automated": True, "discriminator": True},
+            {
+                "id": "rubric_ids_valid",
+                "description": "Validate rubric ids.",
+                "automated": True,
+                "discriminator": True,
+            },
             {
                 "id": "curriculum_ids_valid",
                 "description": "Validate curriculum ids against the 2026 contract.",
@@ -519,7 +600,9 @@ def _render_configure_surface() -> None:
     runpy.run_path(str(_APP_SRC / "app_args_form.py"), run_name="__main__")
 
 
-def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs: Any) -> None:
+def render(
+    *, mode: str = "analysis", active_app: Path | None = None, **_kwargs: Any
+) -> None:
     surface_mode = str(mode or "analysis").lower()
     if surface_mode == "configure":
         _render_configure_surface()
@@ -532,12 +615,42 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
     if surface_mode == "full":
         _safe_page_config()
     st.title("TeSciA")
+    st.caption(
+        "Evidence-based diagnostic reasoning and deterministic self-evaluation. "
+        "This teaching example does not process acoustic, vibration, or telemetry signals."
+    )
 
     active_app_path = _resolve_active_app_path(active_app)
     runtime_env, runtime_args = _runtime_context(active_app_path)
-    cases = cached_load_cases(str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path()))
+    cases = cached_load_cases(
+        str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path())
+    )
     coverage = build_math_program_2026_coverage_report(cases)
     filters = available_filters(cases)
+    learning_tracks = available_learning_tracks(cases)
+    track_labels = {
+        "all": "All paths",
+        **{track["id"]: track["label"] for track in learning_tracks},
+    }
+    selected_track = st.segmented_control(
+        "Learning path",
+        list(track_labels),
+        default="all",
+        required=True,
+        format_func=track_labels.__getitem__,
+        key="tescia_learning_track",
+        width="stretch",
+    )
+    selected_track_id = str(selected_track or "all")
+    selected_track_filter = "" if selected_track_id == "all" else selected_track_id
+    selected_track_cases = filter_cases(cases, learning_track=selected_track_filter)
+    if selected_track_id == "all":
+        st.caption("The Catalog and Self-check tabs show every learner path.")
+    else:
+        track = next(
+            item for item in learning_tracks if item["id"] == selected_track_id
+        )
+        st.caption(f"For {track['audience']}: {' '.join(track['outcomes'])}")
 
     classroom_report, classroom_source = classroom_display_report(
         cases,
@@ -557,11 +670,23 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
 
     with catalog_tab:
         c1, c2, c3 = st.columns([1, 1, 2])
-        difficulty = c1.selectbox("Difficulty", _select_options(filters["difficulty"]), key="tescia_catalog_difficulty")
-        learner_level = c2.selectbox("Level", _select_options(filters["learner_level"]), key="tescia_catalog_level")
-        curriculum_id = c3.selectbox("Curriculum id", _select_options(filters["curriculum_id"]), key="tescia_catalog_curriculum")
+        difficulty = c1.selectbox(
+            "Difficulty",
+            _select_options(filters["difficulty"]),
+            key="tescia_catalog_difficulty",
+        )
+        learner_level = c2.selectbox(
+            "Level",
+            _select_options(filters["learner_level"]),
+            key="tescia_catalog_level",
+        )
+        curriculum_id = c3.selectbox(
+            "Curriculum id",
+            _select_options(filters["curriculum_id"]),
+            key="tescia_catalog_curriculum",
+        )
         filtered = filter_cases(
-            cases,
+            selected_track_cases,
             difficulty=difficulty,
             learner_level=learner_level,
             curriculum_id=curriculum_id,
@@ -569,7 +694,7 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
         st.dataframe(catalog_rows(filtered), width="stretch", hide_index=True)
 
     with answer_tab:
-        case_ids = [str(case["case_id"]) for case in cases]
+        case_ids = [str(case["case_id"]) for case in selected_track_cases]
         selected_id = st.selectbox("Exercise", case_ids, key="tescia_answer_case")
         case = next(case for case in cases if case["case_id"] == selected_id)
         report = diagnose_case(case)
@@ -599,7 +724,9 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             ),
             regression_test_ids=st.text_input(
                 "Regression test ids",
-                value=",".join(case.get("student_answer", {}).get("regression_test_ids", [])),
+                value=",".join(
+                    case.get("student_answer", {}).get("regression_test_ids", [])
+                ),
                 key=f"tescia_answer_regression_{selected_id}",
             ),
             confidence=st.slider(
@@ -610,7 +737,12 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 key=f"tescia_answer_confidence_{selected_id}",
             ),
         )
-        if st.button("Evaluate answer", type="primary", width="stretch", key="tescia_answer_evaluate"):
+        if st.button(
+            "Evaluate answer",
+            type="primary",
+            width="stretch",
+            key="tescia_answer_evaluate",
+        ):
             try:
                 scored = score_student_submission(case, answer)
             except ValueError as exc:
@@ -619,6 +751,22 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 evaluation = scored["self_evaluation"]
                 st.metric("Student score", scored["student_score"])
                 st.write(evaluation["feedback"])
+                decision = scored.get("decision", {})
+                if (
+                    isinstance(decision, Mapping)
+                    and decision.get("status") == "fallback"
+                ):
+                    st.warning(
+                        "Deterministic decision guard: "
+                        f"`{decision.get('action', '')}` "
+                        f"({', '.join(str(item) for item in decision.get('triggers', []))})."
+                    )
+                elif (
+                    isinstance(decision, Mapping) and decision.get("status") == "normal"
+                ):
+                    st.success(
+                        f"Deterministic decision guard: `{decision.get('action', '')}`."
+                    )
                 st.download_button(
                     "Download correction sheet",
                     diagnostic_report_to_markdown(scored),
@@ -631,14 +779,20 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
     with classroom_tab:
         actions, refresh_options = st.columns([1.2, 2.0])
         with actions:
-            if st.button("Refresh classroom artifacts", key="tescia_classroom_refresh", width="stretch"):
+            if st.button(
+                "Refresh classroom artifacts",
+                key="tescia_classroom_refresh",
+                width="stretch",
+            ):
                 try:
                     st.cache_data.clear()
                 except Exception:
                     pass
                 st.rerun()
         with refresh_options:
-            live_refresh = st.checkbox("Live refresh", key="tescia_classroom_live_refresh")
+            live_refresh = st.checkbox(
+                "Live refresh", key="tescia_classroom_live_refresh"
+            )
             refresh_seconds = st.number_input(
                 "Refresh seconds",
                 min_value=2,
@@ -650,28 +804,44 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
             )
         with st.expander("Submission inbox", expanded=False):
             if classroom_inbox_dir is None:
-                st.caption("Open TeSciA from an active project to enable classroom JSON intake.")
+                st.caption(
+                    "Open TeSciA from an active project to enable classroom JSON intake."
+                )
             else:
-                st.caption(f"RUN reads uploaded classroom batches from `{classroom_inbox_dir}`.")
+                st.caption(
+                    f"RUN reads uploaded classroom batches from `{classroom_inbox_dir}`."
+                )
                 uploads = st.file_uploader(
                     "Add classroom batch JSON",
                     type=["json"],
                     accept_multiple_files=True,
                     key="tescia_classroom_uploads",
                 )
-                if st.button("Save classroom uploads", key="tescia_save_classroom_uploads", width="stretch"):
+                if st.button(
+                    "Save classroom uploads",
+                    key="tescia_save_classroom_uploads",
+                    width="stretch",
+                ):
                     try:
-                        saved_paths = save_classroom_uploads(list(uploads or []), classroom_inbox_dir)
+                        saved_paths = save_classroom_uploads(
+                            list(uploads or []), classroom_inbox_dir
+                        )
                     except Exception as exc:
                         st.error(f"Unable to save classroom upload: {exc}")
                     else:
                         if saved_paths:
-                            st.success(f"Saved {len(saved_paths)} classroom batch file(s). Run AGILAB to score them.")
+                            st.success(
+                                f"Saved {len(saved_paths)} classroom batch file(s). Run AGILAB to score them."
+                            )
                         else:
-                            st.info("Select at least one classroom JSON file before saving.")
+                            st.info(
+                                "Select at least one classroom JSON file before saving."
+                            )
 
         if classroom_source["source"] == "last_run":
-            st.caption(f"Showing latest classroom run artifact: `{classroom_source['path']}`")
+            st.caption(
+                f"Showing latest classroom run artifact: `{classroom_source['path']}`"
+            )
         elif classroom_source["source"] == "partial":
             st.caption(
                 "Showing partial classroom progress from "
@@ -679,15 +849,29 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
                 f"latest `{classroom_source['path']}`."
             )
         else:
-            st.info("No classroom run artifact found yet; showing the bundled classroom sample preview.")
+            st.info(
+                "No classroom run artifact found yet; showing the bundled classroom sample preview."
+            )
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Submissions", classroom_report["submission_count"])
         m2.metric("Students", classroom_report["unique_student_count"])
         m3.metric("Average score", classroom_report["average_score"])
         m4.metric("Needs attention", classroom_report["needs_attention_count"])
-        st.dataframe(classroom_progress_rows(classroom_report), width="stretch", hide_index=True)
-        st.dataframe(classroom_heatmap_rows(classroom_report), width="stretch", hide_index=True)
-        st.dataframe(classroom_intervention_rows(classroom_report), width="stretch", hide_index=True)
+        st.dataframe(
+            classroom_progress_rows(classroom_report), width="stretch", hide_index=True
+        )
+        st.dataframe(
+            classroom_heatmap_rows(classroom_report), width="stretch", hide_index=True
+        )
+        st.markdown("**Learning path progress**")
+        st.dataframe(
+            classroom_track_rows(classroom_report), width="stretch", hide_index=True
+        )
+        st.dataframe(
+            classroom_intervention_rows(classroom_report),
+            width="stretch",
+            hide_index=True,
+        )
         st.download_button(
             "Download teacher summary",
             classroom_report_to_markdown(classroom_report),
@@ -710,15 +894,21 @@ def render(*, mode: str = "analysis", active_app: Path | None = None, **_kwargs:
 
     with authoring_tab:
         curriculum_options = filters["curriculum_id"]
-        selected_curriculum = st.multiselect("Curriculum ids", curriculum_options, key="tescia_author_curriculum")
+        selected_curriculum = st.multiselect(
+            "Curriculum ids", curriculum_options, key="tescia_author_curriculum"
+        )
         try:
             draft = build_teacher_draft(
                 case_id=st.text_input("Case id", key="tescia_author_case_id"),
                 title=st.text_input("Title", key="tescia_author_title"),
                 curriculum_ids=selected_curriculum,
                 prompt=st.text_area("Student prompt", key="tescia_author_prompt"),
-                root_cause=st.text_area("Reference root cause", key="tescia_author_root_cause"),
-                selected_fix_id=st.text_input("Reference fix id", key="tescia_author_fix"),
+                root_cause=st.text_area(
+                    "Reference root cause", key="tescia_author_root_cause"
+                ),
+                selected_fix_id=st.text_input(
+                    "Reference fix id", key="tescia_author_fix"
+                ),
             )
         except ValueError as exc:
             st.info(str(exc))
