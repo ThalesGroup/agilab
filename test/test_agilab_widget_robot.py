@@ -885,6 +885,7 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                     <div data-testid="hidden-dateinput-container">
                       <input type="date">
                     </div>
+                    <input type="date" class="unnamed-date-input">
                     <button class="off-left">Off left</button>
                     <div data-testid="stDataFrame">
                       <canvas
@@ -1035,6 +1036,21 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
             issues=[hidden_date_issue],
         ).status
         == "interacted"
+    )
+    unnamed_date_issue = next(
+        issue
+        for issue in accessibility_issues
+        if issue.get("input_type") == "date"
+        and not issue.get("container_testid")
+    )
+    assert (
+        module._accessibility_result_probe(
+            app_name="test_app",
+            display="PROJECT",
+            url=page.url,
+            issues=[unnamed_date_issue],
+        ).status
+        == "failed"
     )
     assert {issue.get("framework_owned") for issue in data_grid_issues} == {False, True}
     framework_grid_issue = next(
