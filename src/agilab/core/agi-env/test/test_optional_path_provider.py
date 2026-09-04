@@ -30,6 +30,7 @@ def test_resolve_optional_path_uses_named_provider_and_expands_user(
     tmp_path: Path, monkeypatch
 ):
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
     entry_points = _SelectableEntryPoints(
         (
             _FakeEntryPoint("other", "demo:other", lambda: "/ignored"),
