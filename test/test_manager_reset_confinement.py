@@ -1,19 +1,22 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 
+BUILD_SUPPORT_ROOT = Path("src/agilab/lib").resolve()
+sys.path.insert(0, str(BUILD_SUPPORT_ROOT))
+
+from app_project_build_support import copy_app_project_payload  # noqa: E402
+
+
 MANAGER_PATHS = (
     Path(
         "src/agilab/apps/builtin/flight_telemetry_project/src/"
         "flight_telemetry/flight_telemetry.py"
-    ),
-    Path(
-        "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/"
-        "project/flight_telemetry_project/src/flight_telemetry/flight_telemetry.py"
     ),
     Path(
         "src/agilab/apps/builtin/minimal_app_project/src/minimal_app/minimal_app.py"
@@ -42,6 +45,12 @@ MANAGER_PATHS = (
 )
 
 
+def _generated_project(tmp_path: Path, project_name: str) -> Path:
+    payload_root = tmp_path / "project"
+    copy_app_project_payload(project_name, payload_root)
+    return payload_root / project_name
+
+
 @pytest.mark.parametrize("manager_path", MANAGER_PATHS, ids=lambda path: path.parent.name)
 def test_manager_data_out_reset_uses_shared_confinement_guard(
     manager_path: Path,
@@ -53,21 +62,24 @@ def test_manager_data_out_reset_uses_shared_confinement_guard(
     assert "shutil.rmtree(self.data_out" not in source
 
 
-def test_flight_telemetry_manager_mirror_stays_in_lockstep() -> None:
-    builtin, packaged = MANAGER_PATHS[:2]
+def test_flight_telemetry_manager_mirror_stays_in_lockstep(tmp_path: Path) -> None:
+    builtin = MANAGER_PATHS[0]
+    packaged = (
+        _generated_project(tmp_path, "flight_telemetry_project")
+        / "src/flight_telemetry/flight_telemetry.py"
+    )
 
     assert builtin.read_bytes() == packaged.read_bytes()
 
 
-def test_uav_relay_worker_mirror_stays_in_lockstep() -> None:
+def test_uav_relay_worker_mirror_stays_in_lockstep(tmp_path: Path) -> None:
     builtin = Path(
         "src/agilab/apps/builtin/uav_relay_queue_project/src/"
         "uav_relay_queue_worker/uav_relay_queue_worker.py"
     )
-    packaged = Path(
-        "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/"
-        "project/uav_relay_queue_project/src/uav_relay_queue_worker/"
-        "uav_relay_queue_worker.py"
+    packaged = (
+        _generated_project(tmp_path, "uav_relay_queue_project")
+        / "src/uav_relay_queue_worker/uav_relay_queue_worker.py"
     )
 
     assert builtin.read_bytes() == packaged.read_bytes()

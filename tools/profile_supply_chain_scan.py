@@ -12,9 +12,15 @@ import tomllib
 from typing import Iterable, Sequence
 
 try:
-    from tools.package_split_contract import APP_PROJECT_PACKAGE_SPECS
+    from tools.package_split_contract import (
+        APP_PROJECT_PACKAGE_SPECS,
+        app_project_name_for_package,
+    )
 except ModuleNotFoundError:  # Direct execution via ``python tools/...``.
-    from package_split_contract import APP_PROJECT_PACKAGE_SPECS
+    from package_split_contract import (
+        APP_PROJECT_PACKAGE_SPECS,
+        app_project_name_for_package,
+    )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGED_PROJECTS_PROFILE = "packaged-projects"
@@ -64,8 +70,14 @@ def _profile_output_dir(output_root: Path, profile: str) -> Path:
 def packaged_project_manifests(repo_root: Path = REPO_ROOT) -> tuple[Path, ...]:
     manifests: set[Path] = set()
     for _package_name, project in APP_PROJECT_PACKAGE_SPECS:
-        package_root = repo_root / project
-        manifests.update(package_root.glob("src/*/project/**/pyproject.toml"))
+        project_name = app_project_name_for_package(repo_root, project)
+        if project_name is None:
+            raise ValueError(f"{repo_root / project}: missing app project provider metadata")
+        builtin_root = repo_root / "src/agilab/apps/builtin" / project_name
+        project_manifests = set(builtin_root.glob("**/pyproject.toml"))
+        if not project_manifests:
+            raise ValueError(f"{builtin_root}: no canonical project manifests found")
+        manifests.update(project_manifests)
     return tuple(sorted(manifests))
 
 

@@ -19,6 +19,7 @@ try:
         PACKAGE_NAMES,
         PROMOTED_APP_PROJECT_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
+        app_project_name_for_package,
     )
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     from tools.package_split_contract import (
@@ -27,6 +28,7 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
         PACKAGE_NAMES,
         PROMOTED_APP_PROJECT_PACKAGE_NAMES,
         UMBRELLA_PACKAGE_CONTRACT,
+        app_project_name_for_package,
     )
 
 
@@ -84,11 +86,9 @@ def _builtin_app_aliases(repo_root: Path) -> dict[str, str]:
     for package in PACKAGE_CONTRACTS:
         if package.role != "app-project":
             continue
-        package_root = repo_root / package.project
-        project_root = package_root / "src"
-        for project_path in sorted(project_root.glob("*/project/*_project")):
-            if project_path.is_dir():
-                aliases[f"{builtin_root}/{project_path.name}"] = package.name
+        project_name = app_project_name_for_package(repo_root, package.project)
+        if project_name:
+            aliases[f"{builtin_root}/{project_name}"] = package.name
     return aliases
 
 

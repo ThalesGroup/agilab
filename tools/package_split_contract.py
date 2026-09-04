@@ -8,6 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+_APP_PROJECT_NAME_RE = re.compile(
+    r'^PROJECT_NAME\s*=\s*["\']([^"\']+)["\']\s*$',
+    re.MULTILINE,
+)
+
+
 @dataclass(frozen=True)
 class PackageContract:
     name: str
@@ -259,6 +265,32 @@ def package_by_name(name: str) -> PackageContract:
 
 def project_path(repo_root: Path, package: PackageContract) -> Path:
     return repo_root if package.project == "." else repo_root / package.project
+
+
+def app_project_name_for_package(repo_root: Path, package_path: str) -> str | None:
+    """Return the canonical built-in project name for an app package.
+
+    App package payload directories are generated only while building a wheel, so
+    source-checkout tooling must use the tracked provider metadata.  The payload
+    lookup remains as a compatibility fallback for older or installed layouts.
+    """
+
+    package_root = repo_root / package_path
+    for provider in sorted(package_root.glob("src/*/__init__.py")):
+        match = _APP_PROJECT_NAME_RE.search(provider.read_text(encoding="utf-8"))
+        if match:
+            project_name = match.group(1)
+            if (
+                project_name.endswith("_project")
+                and "/" not in project_name
+                and "\\" not in project_name
+            ):
+                return project_name
+
+    for project_root in sorted(package_root.glob("src/*/project/*_project")):
+        if project_root.is_dir():
+            return project_root.name
+    return None
 
 
 def pyproject_path(repo_root: Path, package: PackageContract) -> Path:

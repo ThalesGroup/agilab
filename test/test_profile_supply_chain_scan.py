@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 import tomllib
 
+import pytest
+
 
 MODULE_PATH = Path("tools/profile_supply_chain_scan.py").resolve()
 
@@ -76,10 +78,11 @@ def test_scanner_covers_every_root_optional_extra() -> None:
     assert "override-dependencies" not in root["tool"]["uv"]
 
 
-def test_packaged_projects_profile_collects_embedded_dependencies(tmp_path: Path) -> None:
+def test_packaged_projects_profile_collects_build_source_dependencies(tmp_path: Path) -> None:
     module = _load_module()
     scan = module.build_profile_scan(module.PACKAGED_PROJECTS_PROFILE, output_root=tmp_path)
 
+    assert all(path.startswith("src/agilab/apps/builtin/") for path in scan.source_manifests)
     assert any(path.endswith("weather_forecast_project/pyproject.toml") for path in scan.source_manifests)
     assert any("weather_forecast_worker/pyproject.toml" in path for path in scan.source_manifests)
     assert list(scan.commands[0])[:5] == [
@@ -98,6 +101,55 @@ def test_packaged_projects_profile_collects_embedded_dependencies(tmp_path: Path
     requirements = destination.read_text(encoding="utf-8")
     assert "skforecast>=0.19,<0.20" in requirements
     assert "torch>=2.8.0,<3" in requirements
+
+
+def test_packaged_project_manifests_ignore_stale_generated_payload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    package_path = "src/agilab/lib/agi-app-weather-forecast"
+    monkeypatch.setattr(
+        module,
+        "APP_PROJECT_PACKAGE_SPECS",
+        (("agi-app-weather-forecast", package_path),),
+    )
+    package_root = tmp_path / package_path
+    provider = package_root / "src/agi_app_weather_forecast/__init__.py"
+    provider.parent.mkdir(parents=True)
+    provider.write_text('PROJECT_NAME = "weather_forecast_project"\n', encoding="utf-8")
+
+    canonical = (
+        tmp_path
+        / "src/agilab/apps/builtin/weather_forecast_project/pyproject.toml"
+    )
+    canonical.parent.mkdir(parents=True)
+    canonical.write_text("[project]\nname = 'weather-forecast'\n", encoding="utf-8")
+
+    stale = (
+        package_root
+        / "src/agi_app_weather_forecast/project/stale_project/pyproject.toml"
+    )
+    stale.parent.mkdir(parents=True)
+    stale.write_text("[project]\nname = 'stale'\n", encoding="utf-8")
+
+    assert module.packaged_project_manifests(tmp_path) == (canonical,)
+
+
+def test_packaged_project_manifests_fail_closed_without_provider_metadata(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_module()
+    package_path = "src/agilab/lib/agi-app-weather-forecast"
+    monkeypatch.setattr(
+        module,
+        "APP_PROJECT_PACKAGE_SPECS",
+        (("agi-app-weather-forecast", package_path),),
+    )
+
+    with pytest.raises(ValueError, match="missing app project provider metadata"):
+        module.packaged_project_manifests(tmp_path)
 
 
 def test_write_pip_audit_requirements_removes_local_editables(tmp_path: Path) -> None:

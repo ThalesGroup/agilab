@@ -4,6 +4,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -196,6 +197,37 @@ def test_release_plan_maps_builtin_app_changes_to_promoted_app_package() -> None
     )
 
     assert seeds == ["agi-app-pytorch-playground"]
+
+
+@pytest.mark.parametrize("with_stale_payload", [False, True], ids=["clean", "polluted"])
+def test_builtin_app_aliases_use_provider_metadata(
+    tmp_path: Path,
+    monkeypatch,
+    with_stale_payload: bool,
+) -> None:
+    module = _load_module()
+    package_root = tmp_path / "src/agilab/lib/agi-app-example"
+    provider = package_root / "src/agi_app_example/__init__.py"
+    provider.parent.mkdir(parents=True)
+    provider.write_text('PROJECT_NAME = "canonical_project"\n', encoding="utf-8")
+    if with_stale_payload:
+        (provider.parent / "project/stale_project").mkdir(parents=True)
+
+    monkeypatch.setattr(
+        module,
+        "PACKAGE_CONTRACTS",
+        (
+            SimpleNamespace(
+                name="agi-app-example",
+                project="src/agilab/lib/agi-app-example",
+                role="app-project",
+            ),
+        ),
+    )
+
+    assert module._builtin_app_aliases(tmp_path) == {
+        "src/agilab/apps/builtin/canonical_project": "agi-app-example"
+    }
 
 
 def test_release_plan_expands_changed_app_to_exact_pin_dependents() -> None:
