@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import importlib.util
 from pathlib import Path
 import shutil
 import sys
@@ -21,46 +22,26 @@ APP_ARGS_FORM_ROOT = REPO_ROOT / "src/agilab"
 APP_ARGS_FORM_PATTERNS = (
     "apps/builtin/*_project/src/app_args_form.py",
     "apps/templates/*_template/src/app_args_form.py",
-    "lib/agi-app-*/src/*/project/*_project/src/app_args_form.py",
+)
+APP_PROJECT_BUILD_SUPPORT = REPO_ROOT / "src/agilab/lib/app_project_build_support.py"
+PACKAGED_PROJECTS = (
+    "flight_telemetry_project",
+    "mission_decision_project",
+    "pytorch_playground_project",
+    "uav_relay_queue_project",
+    "weather_forecast_project",
 )
 
-PACKAGED_FORM_PAIRS = (
-    (
-        REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py",
-        REPO_ROOT / (
-            "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/"
-            "project/flight_telemetry_project/src/app_args_form.py"
-        ),
-    ),
-    (
-        REPO_ROOT / "src/agilab/apps/builtin/mission_decision_project/src/app_args_form.py",
-        REPO_ROOT / (
-            "src/agilab/lib/agi-app-mission-decision/src/agi_app_mission_decision/"
-            "project/mission_decision_project/src/app_args_form.py"
-        ),
-    ),
-    (
-        REPO_ROOT / "src/agilab/apps/builtin/pytorch_playground_project/src/app_args_form.py",
-        REPO_ROOT / (
-            "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/"
-            "project/pytorch_playground_project/src/app_args_form.py"
-        ),
-    ),
-    (
-        REPO_ROOT / "src/agilab/apps/builtin/uav_relay_queue_project/src/app_args_form.py",
-        REPO_ROOT / (
-            "src/agilab/lib/agi-app-uav-relay-queue/src/agi_app_uav_relay_queue/"
-            "project/uav_relay_queue_project/src/app_args_form.py"
-        ),
-    ),
-    (
-        REPO_ROOT / "src/agilab/apps/builtin/weather_forecast_project/src/app_args_form.py",
-        REPO_ROOT / (
-            "src/agilab/lib/agi-app-weather-forecast/src/agi_app_weather_forecast/"
-            "project/weather_forecast_project/src/app_args_form.py"
-        ),
-    ),
-)
+
+def _load_app_project_build_support():
+    module_name = "app_args_form_build_support_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, APP_PROJECT_BUILD_SUPPORT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 class _BuiltinFormEnv(SimpleNamespace):
@@ -187,8 +168,13 @@ def test_template_forms_accept_public_and_private_env_session_keys() -> None:
         assert 'st.session_state.get("env") or st.session_state.get("_env")' in source
 
 
-def test_packaged_app_args_forms_match_builtin_sources() -> None:
-    for source_path, packaged_path in PACKAGED_FORM_PAIRS:
+def test_generated_packaged_app_args_forms_match_builtin_sources(tmp_path: Path) -> None:
+    support = _load_app_project_build_support()
+    for project_name in PACKAGED_PROJECTS:
+        changed = support.copy_app_project_payload(project_name, tmp_path)
+        assert changed
+        source_path = REPO_ROOT / "src/agilab/apps/builtin" / project_name / "src/app_args_form.py"
+        packaged_path = tmp_path / project_name / "src/app_args_form.py"
         assert source_path.read_text(encoding="utf-8") == packaged_path.read_text(encoding="utf-8")
 
 

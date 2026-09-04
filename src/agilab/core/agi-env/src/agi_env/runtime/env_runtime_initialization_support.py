@@ -16,7 +16,7 @@ def initialize_app_runtime(
     environ: Mapping[str, str],
     default_account: str,
     read_agilab_path_fn: Callable[[], str | Path | None],
-    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    optional_pages_bundles_root_fn: Callable[[], Path | None],
     ensure_dir_fn: Callable[[str | Path], Path],
     logger,
 ) -> None:
@@ -79,7 +79,7 @@ def initialize_app_runtime(
         envars,
         agilab_pck=env.agilab_pck,
         read_agilab_path_fn=read_agilab_path_fn,
-        optional_agi_pages_bundles_root_fn=optional_agi_pages_bundles_root_fn,
+        optional_pages_bundles_root_fn=optional_pages_bundles_root_fn,
     )
     if not env.AGILAB_PAGES_ABS.exists():
         if logger:
@@ -93,7 +93,7 @@ def _resolve_pages_root(
     *,
     agilab_pck: Path,
     read_agilab_path_fn: Callable[[], str | Path | None],
-    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    optional_pages_bundles_root_fn: Callable[[], Path | None],
 ) -> Path:
     pages_override = clean_envar_value(envars, "AGI_PAGES_DIR")
     if pages_override:
@@ -110,8 +110,8 @@ def _resolve_pages_root(
         for suffix in ("apps-pages", "agilab/apps-pages"):
             candidates.append(repo_hint / suffix)
 
-    agi_pages_root = optional_agi_pages_bundles_root_fn()
-    if agi_pages_root is not None:
-        candidates.append(agi_pages_root)
+    pages_root = optional_pages_bundles_root_fn()
+    if pages_root is not None:
+        candidates.append(pages_root)
 
     return next((candidate.resolve() for candidate in candidates if candidate and candidate.exists()), candidates[0])

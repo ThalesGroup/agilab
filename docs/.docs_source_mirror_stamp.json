@@ -14,9 +14,9 @@
     "data/ui_robot_evidence.json": "18c47a02a0122f6de1dbcffbdee31b6ed4eb53223d0dcb44b9a64bdc07e0dbac",
     "release-proof.rst": "44237e6e21591932e0518ccf8696ebfaffeea8ffd101c2bd4012e492ce585065"
   },
-  "source_digest_sha256": "fe28cdebc46e90b4ffb6063cfac8607a92ab3f5e625959df2c7fbd128c6fd5f2",
+  "source_digest_sha256": "6d98bf9749bf8d945b5f51a856427c14c7c65b5b30290820eddb2807959b7d66",
   "source_hint": "../thales_agilab/docs/source",
   "source_status": "verified",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "fe28cdebc46e90b4ffb6063cfac8607a92ab3f5e625959df2c7fbd128c6fd5f2"
+  "target_digest_sha256": "6d98bf9749bf8d945b5f51a856427c14c7c65b5b30290820eddb2807959b7d66"
 }

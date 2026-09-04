@@ -5,7 +5,7 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest import mock
 
 import agi_env.agi_env as agi_env_module
@@ -86,38 +86,18 @@ def test_agi_env_import_honours_call_pdb_override_and_color_scheme(monkeypatch):
     }
 
 
-def test_optional_agi_pages_bundles_root_handles_runtime_shapes(tmp_path: Path, monkeypatch):
-    original_find_spec = importlib.util.find_spec
-
-    def _find_spec(name, *args, **kwargs):
-        if name == "agi_pages":
-            return object()
-        return original_find_spec(name, *args, **kwargs)
-
-    monkeypatch.setattr(agi_env_module.importlib.util, "find_spec", _find_spec)
-    real_import = builtins.__import__
-
-    def _fail_agi_pages_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "agi_pages":
-            raise ImportError("optional package failed to import")
-        return real_import(name, globals, locals, fromlist, level)
-
-    monkeypatch.setattr(builtins, "__import__", _fail_agi_pages_import)
-    assert agi_env_module._optional_agi_pages_bundles_root() is None
-
-    monkeypatch.setattr(builtins, "__import__", real_import)
-    fake_pages = ModuleType("agi_pages")
-    monkeypatch.setitem(sys.modules, "agi_pages", fake_pages)
-
-    fake_pages.bundles_root = tmp_path / "not-callable"  # type: ignore[attr-defined]
-    assert agi_env_module._optional_agi_pages_bundles_root() is None
-
-    fake_pages.bundles_root = lambda: (_ for _ in ()).throw(RuntimeError("probe failed"))  # type: ignore[attr-defined]
-    assert agi_env_module._optional_agi_pages_bundles_root() is None
-
+def test_optional_pages_bundles_root_delegates_to_generic_provider(tmp_path: Path, monkeypatch):
     bundles_root = tmp_path / "bundles"
-    fake_pages.bundles_root = lambda: bundles_root  # type: ignore[attr-defined]
-    assert agi_env_module._optional_agi_pages_bundles_root() == bundles_root
+    requested: list[str] = []
+
+    def _resolve_optional_path(name: str) -> Path:
+        requested.append(name)
+        return bundles_root
+
+    monkeypatch.setattr(agi_env_module, "resolve_optional_path", _resolve_optional_path)
+
+    assert agi_env_module._optional_pages_bundles_root() == bundles_root
+    assert requested == ["pages"]
 
 
 def test_signature_value_handles_unresolvable_paths_and_repr(monkeypatch, tmp_path: Path):

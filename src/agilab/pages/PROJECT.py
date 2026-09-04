@@ -9,7 +9,7 @@ from types import ModuleType
 
 import streamlit as st
 
-from agilab.ui_public_bind_guard import enforce_public_bind_policy_or_stop
+from agilab.security.ui_public_bind_guard import enforce_public_bind_policy_or_stop
 
 enforce_public_bind_policy_or_stop(st)
 

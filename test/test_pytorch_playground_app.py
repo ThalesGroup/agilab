@@ -30,10 +30,7 @@ APP_ARGS_FORM_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project/sr
 INIT_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/__init__.py")
 README_PATH = Path("src/agilab/lib/agi-app-pytorch-playground/README.md")
 PROJECT_PATH = Path("src/agilab/apps/builtin/pytorch_playground_project")
-PACKAGE_PROJECT_PATH = Path(
-    "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project"
-)
-PACKAGE_APP_SURFACE_PATH = PACKAGE_PROJECT_PATH / "src/pytorch_playground/app_surface.py"
+APP_PROJECT_BUILD_SUPPORT = Path("src/agilab/lib/app_project_build_support.py")
 PROJECT_SRC = PROJECT_PATH / "src"
 EXPECTED_SOURCE_PAYLOAD_DIFFS = {Path("pytorch_playground_worker/pyproject.toml")}
 RUN_BUTTON_KEY = "pytorch_playground:refresh_evidence:pytorch_playground_project"
@@ -51,6 +48,26 @@ def _load_module():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_app_project_build_support():
+    module_name = "pytorch_playground_app_project_build_support_test_module"
+    sys.modules.pop(module_name, None)
+    spec = importlib.util.spec_from_file_location(module_name, APP_PROJECT_BUILD_SUPPORT)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture(scope="module")
+def package_project_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    payload_root = tmp_path_factory.mktemp("pytorch-playground-payload")
+    support = _load_app_project_build_support()
+    changed = support.copy_app_project_payload("pytorch_playground_project", payload_root)
+    assert changed
+    return payload_root / "pytorch_playground_project"
 
 
 def _load_app_args_form_module():
@@ -112,10 +129,10 @@ for name in modules:
     assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
-def test_pytorch_playground_modules_are_classified_or_entrypoints():
+def test_pytorch_playground_modules_are_classified_or_entrypoints(package_project_path: Path):
     for package_root in (
         PROJECT_SRC / "pytorch_playground",
-        PACKAGE_PROJECT_PATH / "src/pytorch_playground",
+        package_project_path / "src/pytorch_playground",
     ):
         assert (package_root / "__init__.py").is_file()
         for section in ("compat", "domain", "runtime", "ui"):
@@ -140,10 +157,10 @@ def test_pytorch_playground_modules_are_classified_or_entrypoints():
         _assert_pytorch_legacy_module_identity(package_root.parent, legacy_modules)
 
 
-def test_pytorch_playground_public_exports_are_unique() -> None:
+def test_pytorch_playground_public_exports_are_unique(package_project_path: Path) -> None:
     for init_path in (
         PROJECT_SRC / "pytorch_playground" / "__init__.py",
-        PACKAGE_PROJECT_PATH / "src" / "pytorch_playground" / "__init__.py",
+        package_project_path / "src" / "pytorch_playground" / "__init__.py",
     ):
         tree = ast.parse(init_path.read_text(encoding="utf-8"))
         all_values = [
@@ -160,10 +177,10 @@ def test_pytorch_playground_public_exports_are_unique() -> None:
         assert "PYTORCH_PLAYGROUND_REDUCE_CONTRACT" in public_exports
 
 
-def test_pytorch_playground_compat_shim_uses_explicit_source_read() -> None:
+def test_pytorch_playground_compat_shim_uses_explicit_source_read(package_project_path: Path) -> None:
     for shim_path in (
         PROJECT_SRC / "pytorch_playground" / "compat" / "module_shim.py",
-        PACKAGE_PROJECT_PATH / "src" / "pytorch_playground" / "compat" / "module_shim.py",
+        package_project_path / "src" / "pytorch_playground" / "compat" / "module_shim.py",
     ):
         source = shim_path.read_text(encoding="utf-8")
         assert "Path(spec.origin).read_text" in source
@@ -330,8 +347,9 @@ def test_app_surface_main_passes_project_path_without_argv(monkeypatch):
     assert calls == [{"mode": "full", "active_app": module._APP_PROJECT}]
 
 
-def test_app_surface_entrypoint_calls_main_once_and_run_button_has_key():
-    for path in (APP_SURFACE_PATH, PACKAGE_APP_SURFACE_PATH):
+def test_app_surface_entrypoint_calls_main_once_and_run_button_has_key(package_project_path: Path):
+    package_app_surface_path = package_project_path / "src/pytorch_playground/app_surface.py"
+    for path in (APP_SURFACE_PATH, package_app_surface_path):
         assert _target_module_from_pytorch_shim(path) == "pytorch_playground.ui.app_surface"
         target_path = path.parent / "ui" / "app_surface.py"
         source = target_path.read_text(encoding="utf-8")
@@ -3533,11 +3551,11 @@ def test_pytorch_playground_app_settings_default_to_single_worker() -> None:
     assert settings["app_surface"]["title"] == "PyTorch Playground"
 
 
-def test_pytorch_playground_hides_distribution_preview_by_contract() -> None:
+def test_pytorch_playground_hides_distribution_preview_by_contract(package_project_path: Path) -> None:
     import tomllib
 
     source_pyproject = tomllib.loads((PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
-    payload_pyproject = tomllib.loads((PACKAGE_PROJECT_PATH / "pyproject.toml").read_text(encoding="utf-8"))
+    payload_pyproject = tomllib.loads((package_project_path / "pyproject.toml").read_text(encoding="utf-8"))
 
     assert source_pyproject["tool"]["agilab"]["app"]["distribution_preview"] is False
     assert source_pyproject["tool"]["agilab"]["app"]["service_mode"] is False
@@ -4022,9 +4040,9 @@ def test_pytorch_playground_app_args_form_remaining_edge_paths(
     ) in sidebar_fake.events
 
 
-def test_pytorch_playground_source_and_packaged_payload_stay_aligned() -> None:
+def test_pytorch_playground_source_and_packaged_payload_stay_aligned(package_project_path: Path) -> None:
     source_root = PROJECT_PATH / "src"
-    payload_root = PACKAGE_PROJECT_PATH / "src"
+    payload_root = package_project_path / "src"
     source_files = _runtime_payload_files(source_root)
     payload_files = _runtime_payload_files(payload_root)
 

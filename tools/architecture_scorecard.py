@@ -4,8 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import ast
+from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
+import tomllib
 from typing import Any, Mapping, Sequence
 
 
@@ -17,6 +21,56 @@ SCORE_SCOPE = (
     "Excellent evidence-first workbench architecture; hardened shared/team use is go "
     "when explicit gates pass; multi-tenant production use remains outside the current score."
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ArchitectureLayerContract:
+    """Allowed first-party dependencies for one independently published layer."""
+
+    distribution: str
+    import_root: str
+    project: str
+    allowed_internal_dependencies: frozenset[str]
+
+
+ARCHITECTURE_LAYER_CONTRACTS: tuple[ArchitectureLayerContract, ...] = (
+    ArchitectureLayerContract("agi-env", "agi_env", "src/agilab/core/agi-env", frozenset()),
+    ArchitectureLayerContract(
+        "agi-node",
+        "agi_node",
+        "src/agilab/core/agi-node",
+        frozenset({"agi-env"}),
+    ),
+    ArchitectureLayerContract(
+        "agi-cluster",
+        "agi_cluster",
+        "src/agilab/core/agi-cluster",
+        frozenset({"agi-env", "agi-node"}),
+    ),
+    ArchitectureLayerContract(
+        "agi-core",
+        "agi_core",
+        "src/agilab/core/agi-core",
+        frozenset({"agi-env", "agi-node", "agi-cluster"}),
+    ),
+    ArchitectureLayerContract(
+        "agi-gui",
+        "agi_gui",
+        "src/agilab/lib/agi-gui",
+        frozenset({"agi-env"}),
+    ),
+    ArchitectureLayerContract(
+        "agi-pages",
+        "agi_pages",
+        "src/agilab/lib/agi-pages",
+        frozenset({"agi-gui"}),
+    ),
+)
+INTERNAL_IMPORT_DISTRIBUTIONS: dict[str, str] = {
+    contract.import_root: contract.distribution for contract in ARCHITECTURE_LAYER_CONTRACTS
+}
+_REQUIREMENT_NAME_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)")
+_DYNAMIC_IMPORT_CALLS = frozenset({"find_spec", "import_module"})
 
 
 def _read_text(path: Path) -> str:
@@ -80,8 +134,131 @@ def _token_check(
     )
 
 
+def _canonicalize_distribution_name(value: str) -> str:
+    return re.sub(r"[-_.]+", "-", value).lower()
+
+
+def _declared_internal_dependencies(pyproject_path: Path) -> set[str]:
+    data = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+    requirements = data.get("project", {}).get("dependencies", ())
+    declared: set[str] = set()
+    for requirement in requirements if isinstance(requirements, list) else ():
+        if not isinstance(requirement, str):
+            continue
+        match = _REQUIREMENT_NAME_RE.match(requirement)
+        if match:
+            name = _canonicalize_distribution_name(match.group(1))
+            if name in INTERNAL_IMPORT_DISTRIBUTIONS.values():
+                declared.add(name)
+    return declared
+
+
+def _literal_imports(path: Path) -> list[tuple[str, int]]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    imports: list[tuple[str, int]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imports.extend((alias.name, node.lineno) for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append((node.module, node.lineno))
+        elif (
+            isinstance(node, ast.Call)
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        ):
+            call_name = (
+                node.func.id
+                if isinstance(node.func, ast.Name)
+                else node.func.attr
+                if isinstance(node.func, ast.Attribute)
+                else ""
+            )
+            if call_name in _DYNAMIC_IMPORT_CALLS:
+                imports.append((node.args[0].value, node.lineno))
+    return imports
+
+
+def _architecture_import_boundary_violations(repo_root: Path) -> list[dict[str, Any]]:
+    """Return disallowed or undeclared imports across published architecture layers."""
+
+    violations: list[dict[str, Any]] = []
+    for contract in ARCHITECTURE_LAYER_CONTRACTS:
+        project_root = repo_root / contract.project
+        pyproject_path = project_root / "pyproject.toml"
+        try:
+            declared = _declared_internal_dependencies(pyproject_path)
+        except Exception as exc:
+            violations.append(
+                {
+                    "distribution": contract.distribution,
+                    "path": str(pyproject_path.relative_to(repo_root)),
+                    "reason": "invalid package manifest",
+                    "error": str(exc),
+                }
+            )
+            continue
+
+        for dependency in sorted(declared - contract.allowed_internal_dependencies):
+            violations.append(
+                {
+                    "distribution": contract.distribution,
+                    "path": str(pyproject_path.relative_to(repo_root)),
+                    "imported_distribution": dependency,
+                    "reason": "disallowed declared dependency",
+                }
+            )
+
+        source_root = project_root / "src" / contract.import_root
+        if not source_root.is_dir():
+            violations.append(
+                {
+                    "distribution": contract.distribution,
+                    "path": str(source_root.relative_to(repo_root)),
+                    "reason": "missing package source root",
+                }
+            )
+            continue
+        for path in sorted(source_root.rglob("*.py")):
+            try:
+                imports = _literal_imports(path)
+            except (OSError, SyntaxError, UnicodeError) as exc:
+                violations.append(
+                    {
+                        "distribution": contract.distribution,
+                        "path": str(path.relative_to(repo_root)),
+                        "reason": "unreadable Python import surface",
+                        "error": str(exc),
+                    }
+                )
+                continue
+            for imported_module, lineno in imports:
+                imported_distribution = INTERNAL_IMPORT_DISTRIBUTIONS.get(
+                    imported_module.split(".", 1)[0]
+                )
+                if not imported_distribution or imported_distribution == contract.distribution:
+                    continue
+                if imported_distribution not in contract.allowed_internal_dependencies:
+                    reason = "disallowed layer import"
+                elif imported_distribution not in declared:
+                    reason = "undeclared internal import"
+                else:
+                    continue
+                violations.append(
+                    {
+                        "distribution": contract.distribution,
+                        "path": str(path.relative_to(repo_root)),
+                        "line": lineno,
+                        "imported_module": imported_module,
+                        "imported_distribution": imported_distribution,
+                        "reason": reason,
+                    }
+                )
+    return violations
+
+
 def _check_plane_boundaries(repo_root: Path) -> dict[str, Any]:
-    return _token_check(
+    result = _token_check(
         repo_root,
         check_id="architecture_plane_boundaries",
         label="Control/payload/evidence plane boundaries",
@@ -102,6 +279,23 @@ def _check_plane_boundaries(repo_root: Path) -> dict[str, Any]:
             ],
         },
     )
+    import_violations = _architecture_import_boundary_violations(repo_root)
+    result["details"]["import_violations"] = import_violations
+    result["evidence"].extend(
+        [
+            "tools/architecture_scorecard.py",
+            *(f"{contract.project}/pyproject.toml" for contract in ARCHITECTURE_LAYER_CONTRACTS),
+        ]
+    )
+    if import_violations:
+        result["status"] = "fail"
+        result["summary"] = "published package imports violate the executable layer contract"
+    elif result["status"] == "pass":
+        result["summary"] = (
+            "architecture docs describe the control, payload, and evidence planes, and published "
+            "package imports respect the executable dependency direction"
+        )
+    return result
 
 
 def _check_runtime_guardrails(repo_root: Path) -> dict[str, Any]:

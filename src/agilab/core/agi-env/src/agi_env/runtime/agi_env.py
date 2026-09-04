@@ -89,6 +89,7 @@ from agi_env.runtime.installation_support import (
     read_agilab_installation_marker,
 )
 from agi_env.runtime.runtime_bootstrap_support import parse_int_env_value
+from agi_env.runtime.optional_path_provider import resolve_optional_path
 from agi_env.runtime.worker_runtime_support import configure_worker_runtime
 from agi_env.runtime.windows_link_support import (
     create_junction_windows as _create_junction_windows,
@@ -188,22 +189,10 @@ logger = AgiLogger.get_logger(__name__)
 _LOGGING_MODULE = logging
 
 
-def _optional_agi_pages_bundles_root() -> Path | None:
-    """Return the optional agi-pages bundle root without making it a hard dependency."""
+def _optional_pages_bundles_root() -> Path | None:
+    """Return the optional page-bundle root through the generic provider protocol."""
 
-    if importlib.util.find_spec("agi_pages") is None:
-        return None
-    try:
-        import agi_pages
-    except (ImportError, AttributeError, TypeError, OSError):
-        return None
-    bundles_root = getattr(agi_pages, "bundles_root", None)
-    if not callable(bundles_root):
-        return None
-    try:
-        return Path(bundles_root()).expanduser()
-    except (TypeError, OSError, RuntimeError):
-        return None
+    return resolve_optional_path("pages")
 
 
 def _ensure_dir(path: str | Path) -> Path:
@@ -501,7 +490,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             python_variante=python_variante,
             init_signature=init_signature,
             load_dotenv_values_fn=_load_dotenv_values,
-            optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
+            optional_pages_bundles_root_fn=_optional_pages_bundles_root,
             ensure_dir_fn=_ensure_dir,
             module_logger=logger,
         )
@@ -1076,7 +1065,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             environ=os.environ,
             default_account=getpass.getuser(),
             read_agilab_path_fn=self.read_agilab_path,
-            optional_agi_pages_bundles_root_fn=_optional_agi_pages_bundles_root,
+            optional_pages_bundles_root_fn=_optional_pages_bundles_root,
             ensure_dir_fn=_ensure_dir,
             logger=self.logger,
         )

@@ -139,7 +139,7 @@ def scope_for_path(path: str) -> str:
             if index + 1 < len(parts):
                 return f"app:{parts[index + 1]}"
         if package.startswith("agi-app-"):
-            return f"package:{package}"
+            return _app_hint_scope(package) or f"package:{package}"
         if package.startswith("agi-page-"):
             return f"page:{package}"
         return f"lib:{package}"
