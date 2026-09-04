@@ -567,6 +567,8 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert "uv --preview-features extra-build-dependencies run python tools/ui_robot_matrix_aggregate.py" in text
     assert '--expected-shards "${EXPECTED_SHARDS}"' in text
     assert '--expected-apps "${EXPECTED_APPS}"' in text
+    assert "MATRIX_RESULT: ${{ needs.ui-robot-matrix.result }}" in text
+    assert '--upstream-result "${MATRIX_RESULT}"' in text
     assert "--output test-results/ui-robot-matrix-aggregate/aggregate.json" in text
     assert "--summary-markdown test-results/ui-robot-matrix-aggregate/summary.md" in text
     assert "ui-robot-matrix-aggregate-${{ github.run_attempt }}" in text

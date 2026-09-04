@@ -434,8 +434,10 @@ def build_aggregate(
     *,
     expected_shards: Sequence[str] = DEFAULT_EXPECTED_SHARDS,
     expected_apps: Sequence[str] = (),
+    upstream_result: str = "success",
 ) -> dict[str, Any]:
     root = root.resolve(strict=False)
+    upstream_result = str(upstream_result).strip().lower() or "unknown"
     expected_app_inventory = sorted(
         set(str(app).strip() for app in expected_apps if str(app).strip())
     )
@@ -527,7 +529,8 @@ def build_aggregate(
         float(trend["total_duration_seconds"]) / max(1, int(trend["page_count"]))
     )
     success = (
-        bool(shards)
+        upstream_result == "success"
+        and bool(shards)
         and not missing_shards
         and not failed_shards
         and bool(trend["success"])
@@ -560,6 +563,7 @@ def build_aggregate(
         "schema": SCHEMA,
         "generated_at": utc_now_iso(),
         "success": success,
+        "upstream_result": upstream_result,
         "root": root.as_posix(),
         "expected_shards": list(expected_shards),
         "expected_apps": expected_app_inventory,
@@ -592,6 +596,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         "## UI robot matrix aggregate",
         "",
         f"- Status: `{status}`",
+        f"- Upstream matrix: `{report.get('upstream_result', 'unknown')}`",
         f"- Shards: `{summary.get('shard_count', 0)}/{summary.get('expected_shard_count', 0)}`",
         f"- Apps: `{summary.get('app_count', 0)}`",
         f"- Pages: `{summary.get('page_count', 0)}`",
@@ -687,6 +692,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--expected-shards", default=",".join(DEFAULT_EXPECTED_SHARDS))
     parser.add_argument("--expected-apps", default="")
+    parser.add_argument("--upstream-result", default="success")
     parser.add_argument(
         "--output",
         type=Path,
@@ -723,6 +729,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.root,
         expected_shards=_parse_expected_shards(args.expected_shards),
         expected_apps=_parse_expected_apps(args.expected_apps),
+        upstream_result=args.upstream_result,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(

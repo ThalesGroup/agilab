@@ -273,6 +273,25 @@ def test_nested_symlinked_skill_content_is_rejected_before_mirror_mutation(
     assert (mirror_skill / "SKILL.md").read_bytes() == mirror_before
 
 
+def test_nested_junction_backed_skill_content_is_rejected(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    skill_root = tmp_path / "alpha"
+    junction = skill_root / "junction"
+    junction.mkdir(parents=True)
+    original_is_link_like = module._is_link_like
+    monkeypatch.setattr(
+        module,
+        "_is_link_like",
+        lambda path: path == junction or original_is_link_like(path),
+    )
+
+    with pytest.raises(
+        SystemExit,
+        match=r"Refusing symlinked skill entries.*including junctions.*junction",
+    ):
+        module.reject_skill_symlinks(skill_root)
+
+
 def test_check_mode_flags_executable_bit_drift(tmp_path, monkeypatch, capsys) -> None:
     module = _load_module()
     claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)

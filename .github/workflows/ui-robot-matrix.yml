@@ -335,6 +335,7 @@ jobs:
         env:
           EXPECTED_APPS: ${{ needs.plan_ui_robot_matrix.outputs.expected_apps }}
           EXPECTED_SHARDS: ${{ needs.plan_ui_robot_matrix.outputs.expected_shards }}
+          MATRIX_RESULT: ${{ needs.ui-robot-matrix.result }}
         run: |
           if [ -z "${EXPECTED_APPS}" ] || [ -z "${EXPECTED_SHARDS}" ]; then
             echo "UI robot matrix plan outputs are missing" >&2
@@ -346,6 +347,7 @@ jobs:
             --root test-results/ui-robot-matrix-artifacts \
             --expected-shards "${EXPECTED_SHARDS}" \
             --expected-apps "${EXPECTED_APPS}" \
+            --upstream-result "${MATRIX_RESULT}" \
             --output test-results/ui-robot-matrix-aggregate/aggregate.json \
             --summary-markdown test-results/ui-robot-matrix-aggregate/summary.md \
             | tee test-results/ui-robot-matrix-aggregate/aggregate.txt

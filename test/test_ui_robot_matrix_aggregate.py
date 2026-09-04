@@ -419,6 +419,18 @@ def test_discovery_prefers_latest_rerun_attempt_per_shard(tmp_path: Path) -> Non
     assert manifests["quality"][0] == quality_retry / module.SHARD_MANIFEST_FILENAME
 
 
+def test_aggregate_fails_when_current_matrix_failed_despite_complete_artifacts(tmp_path: Path) -> None:
+    module = _load_module()
+    for shard in module.DEFAULT_EXPECTED_SHARDS:
+        _write_shard(tmp_path, shard)
+
+    report = module.build_aggregate(tmp_path, upstream_result="failure")
+
+    assert report["upstream_result"] == "failure"
+    assert report["success"] is False
+    assert "Upstream matrix: `failure`" in module.render_markdown(report)
+
+
 def test_discovery_helpers_ignore_invalid_inputs(tmp_path: Path) -> None:
     module = _load_module()
     bad_manifest = tmp_path / "bad" / "manifest.json"

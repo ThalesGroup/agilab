@@ -121,11 +121,24 @@ def app_project_spec(project_name: str) -> dict[str, str]:
     raise KeyError(project_name)
 
 
+def _is_link_like(path: Path) -> bool:
+    """Return whether ``path`` can redirect traversal outside the payload tree."""
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
+def _require_unlinked_tree_root(path: Path, *, label: str) -> None:
+    if _is_link_like(path):
+        raise ValueError(f"{label} must not be a symlink or junction: {path}")
+
+
 def _ignore_payload_artifacts(directory: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
         path = Path(directory) / name
-        if path.is_symlink():
+        if _is_link_like(path):
             ignored.add(name)
             continue
         if path.is_dir() and (name in _EXCLUDED_PAYLOAD_DIRS or name.endswith(".egg-info")):
@@ -177,6 +190,7 @@ def copy_app_project_payload(project_name: str, target_root: Path) -> list[Path]
     source_root = repo_agilab_root() / "apps" / "builtin" / project_name
     if not source_root.exists():
         return []
+    _require_unlinked_tree_root(source_root, label="App project payload root")
     target_root.mkdir(parents=True, exist_ok=True)
     destination = target_root / project_name
     if destination.exists():
@@ -193,6 +207,7 @@ def copy_agi_apps_umbrella_payload(target_root: Path) -> None:
     apps_target_root = target_root / "agilab" / "apps"
     examples_target_root = target_root / "agilab" / "examples"
 
+    _require_unlinked_tree_root(apps_source_root, label="Apps payload root")
     apps_target_root.mkdir(parents=True, exist_ok=True)
     for file_name in ("README.md", "install.py"):
         source = apps_source_root / file_name
@@ -204,6 +219,7 @@ def copy_agi_apps_umbrella_payload(target_root: Path) -> None:
         source = apps_source_root / "builtin" / project_name
         if not source.exists():
             continue
+        _require_unlinked_tree_root(source, label=f"Built-in app payload root {project_name}")
         destination = builtin_target_root / project_name
         if destination.exists():
             shutil.rmtree(destination)
@@ -211,6 +227,7 @@ def copy_agi_apps_umbrella_payload(target_root: Path) -> None:
         _sanitize_pyprojects(destination)
 
     if examples_source_root.exists():
+        _require_unlinked_tree_root(examples_source_root, label="Examples payload root")
         if examples_target_root.exists():
             shutil.rmtree(examples_target_root)
         shutil.copytree(
