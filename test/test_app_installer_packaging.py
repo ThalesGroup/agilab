@@ -1485,6 +1485,36 @@ def test_app_project_payload_copy_excludes_symlinks(
     assert not (payload_root / ".venv").is_symlink()
 
 
+def test_app_project_payload_copy_rejects_symlinked_root(tmp_path: Path, monkeypatch) -> None:
+    support = _load_app_project_build_support()
+    project_name = "linked_project"
+    source_agilab_root = tmp_path / "source" / "agilab"
+    project_root = source_agilab_root / "apps" / "builtin" / project_name
+    external_root = tmp_path / "external-project"
+    external_root.mkdir(parents=True)
+    (external_root / "README.md").write_text("outside payload\n", encoding="utf-8")
+    project_root.parent.mkdir(parents=True)
+    try:
+        project_root.symlink_to(external_root, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source_agilab_root)
+    target_root = tmp_path / "target"
+
+    with pytest.raises(ValueError, match="must not be a symlink or junction"):
+        support.copy_app_project_payload(project_name, target_root)
+
+    assert not target_root.exists()
+
+
+def test_app_project_payload_link_check_recognizes_junctions(tmp_path: Path, monkeypatch) -> None:
+    support = _load_app_project_build_support()
+    monkeypatch.setattr(Path, "is_junction", lambda self: self == tmp_path, raising=False)
+
+    assert support._is_link_like(tmp_path) is True
+
+
 def test_agi_apps_umbrella_bundles_only_the_base_minimal_app_template() -> None:
     pyproject = tomllib.loads(AGI_APPS_PYPROJECT.read_text(encoding="utf-8"))
     package_data = pyproject["tool"]["setuptools"]["package-data"]
@@ -1523,6 +1553,60 @@ def test_agi_apps_umbrella_copy_keeps_only_minimal_app_builtin_payload(tmp_path:
     assert not (builtin_root / "minimal_app_project" / "uv.lock").exists()
     assert not list((builtin_root / "minimal_app_project").rglob("*.pyx"))
     assert not list((builtin_root / "minimal_app_project").rglob("*.c"))
+
+
+@pytest.mark.parametrize("file_name", ["README.md", "install.py"])
+def test_agi_apps_umbrella_copy_rejects_linked_root_files(
+    tmp_path: Path, monkeypatch, file_name: str
+) -> None:
+    support = _load_app_project_build_support()
+    source_agilab_root = tmp_path / "source" / "agilab"
+    apps_root = source_agilab_root / "apps"
+    apps_root.mkdir(parents=True)
+    external = tmp_path / "external.txt"
+    external.write_text("do not package\n", encoding="utf-8")
+    try:
+        (apps_root / file_name).symlink_to(external)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"file symlinks are unavailable: {exc}")
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source_agilab_root)
+
+    with pytest.raises(ValueError, match="stable regular file"):
+        support.copy_agi_apps_umbrella_payload(tmp_path / "target")
+
+    assert not (tmp_path / "target" / "agilab" / "apps" / file_name).exists()
+
+
+def test_agi_apps_umbrella_copy_rejects_source_swap_before_open(
+    tmp_path: Path, monkeypatch
+) -> None:
+    support = _load_app_project_build_support()
+    source_agilab_root = tmp_path / "source" / "agilab"
+    apps_root = source_agilab_root / "apps"
+    apps_root.mkdir(parents=True)
+    source = apps_root / "README.md"
+    source.write_text("safe payload\n", encoding="utf-8")
+    external = tmp_path / "external.txt"
+    external.write_text("do not package\n", encoding="utf-8")
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source_agilab_root)
+    real_open = support.os.open
+    swapped = False
+
+    def swap_before_open(path, flags, *args):
+        nonlocal swapped
+        if not swapped and Path(path) == source:
+            source.unlink()
+            source.symlink_to(external)
+            swapped = True
+        return real_open(path, flags, *args)
+
+    monkeypatch.setattr(support.os, "open", swap_before_open)
+
+    with pytest.raises(ValueError, match="stable regular file"):
+        support.copy_agi_apps_umbrella_payload(tmp_path / "target")
+
+    assert swapped is True
+    assert not (tmp_path / "target" / "agilab" / "apps" / "README.md").exists()
 
 
 def test_agilab_apps_init_exposes_builtin_namespace_without_stale_docstring_code() -> None:

@@ -27,18 +27,31 @@ SKIP_NAMES = {"README.md", ".DS_Store"}
 TOKKI_LIST_TIMEOUT_SECONDS = 120
 
 
+def _is_link_like(path: Path) -> bool:
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction is not None and is_junction())
+
+
 def reject_skill_symlinks(root: Path) -> None:
     """Fail before linked content can pollute repo-managed skill mirrors."""
-    symlinks = [Path(".")] if root.is_symlink() else []
-    if root.is_dir() and not root.is_symlink():
-        symlinks.extend(
-            sorted(path.relative_to(root) for path in root.rglob("*") if path.is_symlink())
-        )
-    if not symlinks:
+    linked_paths = [Path(".")] if _is_link_like(root) else []
+    if root.is_dir() and not linked_paths:
+        for directory, dirnames, filenames in os.walk(root, followlinks=False):
+            dirnames.sort()
+            filenames.sort()
+            directory_path = Path(directory)
+            for name in (*dirnames, *filenames):
+                path = directory_path / name
+                if _is_link_like(path):
+                    linked_paths.append(path.relative_to(root))
+            dirnames[:] = [name for name in dirnames if not _is_link_like(directory_path / name)]
+    if not linked_paths:
         return
     raise SystemExit(
-        f"Refusing symlinked skill entries in {root}: "
-        f"{', '.join(str(path) for path in symlinks)}. Install external skills outside the repo "
+        f"Refusing symlinked skill entries in {root} (including junctions): "
+        f"{', '.join(str(path) for path in sorted(linked_paths))}. Install external skills outside the repo "
         "(for Streamlit, use `streamlit skills --global`) and keep "
         "repo-managed skills as real directories."
     )

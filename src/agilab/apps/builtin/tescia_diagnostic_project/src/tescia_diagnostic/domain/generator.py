@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .diagnostic import CASE_SCHEMA, validate_case_payload
 
@@ -140,6 +140,29 @@ Constraints:
   TeSciA accepts student_answer later when a learner submits their response.
 - Prefer concrete AGILAB diagnostics over generic software advice.
 """
+
+
+class _LoopbackRedirectHandler(HTTPRedirectHandler):
+    """Revalidate every redirect before urllib opens the next endpoint."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> Request | None:
+        _validate_local_endpoint(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def urlopen(request: Request, *, timeout: float) -> Any:
+    """Open a validated local request while keeping redirects loopback-only."""
+    return build_opener(ProxyHandler({}), _LoopbackRedirectHandler()).open(
+        request, timeout=timeout
+    )
 
 
 def _post_json(

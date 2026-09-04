@@ -8,7 +8,9 @@ import os
 import runpy
 import subprocess
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 import tomllib
 from types import SimpleNamespace
 
@@ -709,6 +711,69 @@ def test_tescia_generator_rejects_non_loopback_endpoints(
         generator._post_json(endpoint, {"x": 1}, 1.0)
 
     assert opened == []
+
+
+def test_standalone_post_rejects_non_loopback_redirect(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    from tescia_diagnostic import generator
+
+    class RedirectHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            self.send_response(302)
+            self.send_header("Location", "http://192.0.2.1/blocked")
+            self.end_headers()
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        endpoint = f"http://127.0.0.1:{server.server_port}/redirect"
+        with pytest.raises(generator.DiagnosticCaseGenerationError, match="loopback"):
+            generator._post_json(endpoint, {"x": 1}, 1.0)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_standalone_post_bypasses_environment_proxy_for_loopback(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+
+    from tescia_diagnostic import generator
+
+    class LocalHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            length = int(self.headers.get("Content-Length", "0"))
+            self.rfile.read(length)
+            body = b'{"source": "loopback"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, _format: str, *_args: object) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), LocalHandler)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("http_proxy", "http://127.0.0.1:9")
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    try:
+        endpoint = f"http://127.0.0.1:{server.server_port}/generate"
+        assert generator._post_json(endpoint, {"prompt": "local"}, 1.0) == {
+            "source": "loopback"
+        }
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
 
 
 def test_tescia_app_args_reject_invalid_generation_config(monkeypatch) -> None:
