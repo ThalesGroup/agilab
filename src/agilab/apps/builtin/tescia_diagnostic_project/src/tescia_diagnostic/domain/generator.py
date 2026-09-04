@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 from .diagnostic import CASE_SCHEMA, validate_case_payload
 
@@ -160,7 +160,9 @@ class _LoopbackRedirectHandler(HTTPRedirectHandler):
 
 def urlopen(request: Request, *, timeout: float) -> Any:
     """Open a validated local request while keeping redirects loopback-only."""
-    return build_opener(_LoopbackRedirectHandler()).open(request, timeout=timeout)
+    return build_opener(ProxyHandler({}), _LoopbackRedirectHandler()).open(
+        request, timeout=timeout
+    )
 
 
 def _post_json(

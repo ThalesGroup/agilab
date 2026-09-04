@@ -147,7 +147,7 @@ def test_build_aggregate_summarizes_all_shards(tmp_path: Path) -> None:
     for shard in ("core", "state", "quality", "layout"):
         _write_shard(tmp_path, shard)
 
-    report = module.build_aggregate(tmp_path)
+    report = module.build_aggregate(tmp_path, upstream_result="success")
     markdown = module.render_markdown(report)
 
     assert report["schema"] == module.SCHEMA
@@ -162,6 +162,18 @@ def test_build_aggregate_summarizes_all_shards(tmp_path: Path) -> None:
     assert report["summary"]["failure_artifact_retry_count"] == 0
     assert report["summary"]["trend"]["failed_page_count"] == 0
     assert "| core | PASS |" in markdown
+
+
+def test_build_aggregate_without_upstream_evidence_fails_closed(tmp_path: Path) -> None:
+    module = _load_module()
+    for shard in module.DEFAULT_EXPECTED_SHARDS:
+        _write_shard(tmp_path, shard)
+
+    report = module.build_aggregate(tmp_path)
+
+    assert report["upstream_result"] == "unknown"
+    assert report["success"] is False
+    assert module._build_parser().parse_args([]).upstream_result == "unknown"
 
 
 def test_build_aggregate_unions_partitioned_app_inventory(tmp_path: Path) -> None:
@@ -179,6 +191,7 @@ def test_build_aggregate_unions_partitioned_app_inventory(tmp_path: Path) -> Non
 
     report = module.build_aggregate(
         tmp_path,
+        upstream_result="success",
         expected_shards=("core-01", "core-02"),
         expected_apps=(
             "data_quality_gate_project",
@@ -211,6 +224,7 @@ def test_build_aggregate_fails_closed_on_malformed_shard_inventory(tmp_path: Pat
 
     report = module.build_aggregate(
         tmp_path,
+        upstream_result="success",
         expected_shards=("core-01",),
         expected_apps=("data_quality_gate_project", "flight_telemetry_project"),
     )
@@ -233,6 +247,7 @@ def test_build_aggregate_fails_when_expected_inventory_is_unproven(tmp_path: Pat
 
     report = module.build_aggregate(
         tmp_path,
+        upstream_result="success",
         expected_shards=("core-01", "state-01"),
         expected_apps=("data_quality_gate_project", "flight_telemetry_project"),
     )
@@ -251,7 +266,7 @@ def test_build_aggregate_includes_extra_shards_after_expected_shards(tmp_path: P
     for shard in ("core", "state", "quality", "layout", "experimental"):
         _write_shard(tmp_path, shard)
 
-    report = module.build_aggregate(tmp_path)
+    report = module.build_aggregate(tmp_path, upstream_result="success")
 
     assert report["success"] is True
     assert report["extra_shards"] == ["experimental"]
@@ -290,7 +305,9 @@ def test_build_aggregate_uses_shard_manifest_discovery(tmp_path: Path, monkeypat
         raise AssertionError(f"legacy summary discovery should not run for {root}")
 
     monkeypatch.setattr(module, "discover_shard_summary_paths", fail_summary_discovery)
-    report = module.build_aggregate(tmp_path, expected_shards=("core",))
+    report = module.build_aggregate(
+        tmp_path, expected_shards=("core",), upstream_result="success"
+    )
 
     assert manifest["schema"] == module.SHARD_MANIFEST_SCHEMA
     assert manifest["screenshot_count"] == 1
@@ -317,7 +334,9 @@ def test_manifest_discovery_reports_shard_with_missing_summary_as_failed(tmp_pat
         raise AssertionError(f"legacy summary discovery should not run for {root}")
 
     monkeypatch.setattr(module, "discover_shard_summary_paths", fail_summary_discovery)
-    report = module.build_aggregate(tmp_path, expected_shards=("core",))
+    report = module.build_aggregate(
+        tmp_path, expected_shards=("core",), upstream_result="success"
+    )
 
     assert report["success"] is False
     assert report["failed_shards"] == ["core"]
@@ -331,7 +350,7 @@ def test_build_aggregate_reports_missing_and_failed_shards(tmp_path: Path) -> No
     _write_shard(tmp_path, "core")
     _write_shard(tmp_path, "state", success=False, failed_count=1, exit_code="1", retry_artifacts=True)
 
-    report = module.build_aggregate(tmp_path)
+    report = module.build_aggregate(tmp_path, upstream_result="success")
 
     assert report["success"] is False
     assert report["missing_shards"] == ["quality", "layout"]
@@ -360,7 +379,7 @@ def test_build_aggregate_marks_missing_trend_or_nonzero_exit_as_failed(tmp_path:
     _write_shard(tmp_path, "quality")
     _write_shard(tmp_path, "layout")
 
-    report = module.build_aggregate(tmp_path)
+    report = module.build_aggregate(tmp_path, upstream_result="success")
 
     assert report["success"] is False
     assert report["failed_shards"] == ["core", "state"]
@@ -517,7 +536,9 @@ def test_render_markdown_includes_failure_replay_command(tmp_path: Path) -> None
     _write_shard(tmp_path, "quality")
     _write_shard(tmp_path, "layout")
 
-    markdown = module.render_markdown(module.build_aggregate(tmp_path))
+    markdown = module.render_markdown(
+        module.build_aggregate(tmp_path, upstream_result="success")
+    )
 
     assert "Bundle: `" in markdown
     assert (
@@ -615,7 +636,9 @@ def test_render_markdown_reports_missing_shards_and_empty_samples(tmp_path: Path
     module = _load_module()
     _write_shard(tmp_path, "core")
 
-    markdown = module.render_markdown(module.build_aggregate(tmp_path))
+    markdown = module.render_markdown(
+        module.build_aggregate(tmp_path, upstream_result="success")
+    )
 
     assert "### Missing Shards" in markdown
     assert "`state`" in markdown
@@ -637,6 +660,8 @@ def test_main_writes_json_and_markdown(tmp_path: Path, capsys) -> None:
             str(output),
             "--summary-markdown",
             str(markdown),
+            "--upstream-result",
+            "success",
             "--compact",
         ]
     )
@@ -726,6 +751,8 @@ def test_module_entrypoint_writes_compact_aggregate(tmp_path: Path, monkeypatch,
             str(tmp_path / "artifacts"),
             "--expected-shards",
             "core",
+            "--upstream-result",
+            "success",
             "--output",
             str(output),
             "--compact",

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
+import stat
 from pathlib import Path
 
 
@@ -134,6 +136,30 @@ def _require_unlinked_tree_root(path: Path, *, label: str) -> None:
         raise ValueError(f"{label} must not be a symlink or junction: {path}")
 
 
+def _copy_stable_regular_file(source: Path, destination: Path, *, label: str) -> None:
+    try:
+        path_stat = source.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ValueError(f"{label} must be a stable regular file: {source}") from exc
+    if not stat.S_ISREG(path_stat.st_mode):
+        raise ValueError(f"{label} must be a stable regular file: {source}")
+
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(source, flags)
+    except OSError as exc:
+        raise ValueError(f"{label} must be a stable regular file: {source}") from exc
+    with os.fdopen(descriptor, "rb") as source_handle:
+        opened_stat = os.fstat(source_handle.fileno())
+        if not stat.S_ISREG(opened_stat.st_mode) or not os.path.samestat(
+            path_stat, opened_stat
+        ):
+            raise ValueError(f"{label} changed before it could be copied: {source}")
+        with destination.open("wb") as destination_handle:
+            shutil.copyfileobj(source_handle, destination_handle)
+    destination.chmod(stat.S_IMODE(opened_stat.st_mode))
+
+
 def _ignore_payload_artifacts(directory: str, names: list[str]) -> set[str]:
     ignored: set[str] = set()
     for name in names:
@@ -212,7 +238,11 @@ def copy_agi_apps_umbrella_payload(target_root: Path) -> None:
     for file_name in ("README.md", "install.py"):
         source = apps_source_root / file_name
         if source.exists():
-            shutil.copy2(source, apps_target_root / file_name)
+            _copy_stable_regular_file(
+                source,
+                apps_target_root / file_name,
+                label="App payload file",
+            )
 
     builtin_target_root = apps_target_root / "builtin"
     for project_name in BASE_BUILTIN_TEMPLATE_PROJECTS:

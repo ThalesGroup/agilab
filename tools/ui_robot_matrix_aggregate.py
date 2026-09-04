@@ -434,7 +434,7 @@ def build_aggregate(
     *,
     expected_shards: Sequence[str] = DEFAULT_EXPECTED_SHARDS,
     expected_apps: Sequence[str] = (),
-    upstream_result: str = "success",
+    upstream_result: str = "unknown",
 ) -> dict[str, Any]:
     root = root.resolve(strict=False)
     upstream_result = str(upstream_result).strip().lower() or "unknown"
@@ -692,7 +692,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--expected-shards", default=",".join(DEFAULT_EXPECTED_SHARDS))
     parser.add_argument("--expected-apps", default="")
-    parser.add_argument("--upstream-result", default="success")
+    parser.add_argument("--upstream-result", default="unknown")
     parser.add_argument(
         "--output",
         type=Path,
