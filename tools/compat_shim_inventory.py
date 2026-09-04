@@ -12,7 +12,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 COMPAT_SHIM_BASELINE = {
-    "max_count": 256,
+    "max_count": 250,
     "owner": "AGILAB maintainers",
     "removal_milestone": "2027.01 compatibility cleanup",
     "rationale": (
