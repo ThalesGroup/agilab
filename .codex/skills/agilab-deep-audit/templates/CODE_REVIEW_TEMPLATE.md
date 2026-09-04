@@ -1,9 +1,9 @@
 # AGILAB - Detailed Code Review
 
-> Reviewer: `<agent or reviewer>`  
-> Date: `YYYY-MM-DD`  
-> Branch/commit: `<branch>` / `<commit>`  
-> Scope: `<files, workflows, docs, public artifacts, and sampled periphery>`  
+> Reviewer: `<agent or reviewer>`<br>
+> Date: `YYYY-MM-DD`<br>
+> Branch/commit: `<branch>` / `<commit>`<br>
+> Scope: `<files, workflows, docs, public artifacts, and sampled periphery>`
 > Limits: `<what was not inspected or remains inferred>`
 
 ## Executive summary
