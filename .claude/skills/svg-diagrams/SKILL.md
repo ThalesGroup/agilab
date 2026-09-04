@@ -1,10 +1,10 @@
 ---
 name: svg-diagrams
-description: Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow.
+description: Create a simple standalone repo-native SVG or directly edit its boxes, text, and connectors. Use for one-off architecture sketches and explanatory visuals; use svg-diagram-tuning for repair of an existing crowded figure, scientific-svg-figures for publication-grade technical figures, and advanced-svg-system-design for a reusable multi-figure visual system.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: Author robust SVG diagrams
-  updated: 2026-04-09
+  updated: 2026-09-04
 ---
 
 # SVG diagrams
@@ -17,6 +17,7 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 2. Treat every text block as width-constrained even though plain SVG does not enforce it.
 3. Wrap text manually with `<tspan>` lines before considering the SVG done.
 4. Re-read the final SVG and check every box for text overflow, clipping, and crowding.
+5. Run `scripts/check_svg_markers.py` from this skill directory when the SVG uses arrow markers.
 
 ## Hard rules
 
@@ -28,6 +29,15 @@ Use this skill when creating or editing standalone SVG assets in the repo.
 - Increase canvas height instead of compressing text vertically.
 - Do not rely on justification, auto-wrap, or renderer-specific behavior.
 - Avoid `foreignObject` unless the user explicitly wants HTML-in-SVG behavior.
+
+## Arrow-marker contract
+
+- Declare `markerUnits` on every `<marker>`; never depend on the SVG default.
+- Prefer `markerUnits="userSpaceOnUse"` when arrowhead size must remain stable as connector stroke widths change.
+- Use explicit `markerUnits="strokeWidth"` only when proportional arrowhead scaling is deliberate.
+- Give each marker a stable `id`, and verify every `url(#...)` marker reference resolves in the same SVG.
+- Recalculate connector endpoints after moving a block. Keep arrowheads outside text and stop the line at the target boundary.
+- Validate markers with `python3 .codex/skills/svg-diagrams/scripts/check_svg_markers.py path/to/figure.svg` when using the Codex mirror, or the equivalent `.claude/skills/...` path from the canonical tree.
 
 ## Practical wrapping heuristics
 

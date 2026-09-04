@@ -1,11 +1,11 @@
 {
-  "generated_at_utc": "2026-07-27T15:06:58Z",
+  "generated_at_utc": "2026-09-04T10:29:41Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
     {
       "name": "advanced-svg-system-design",
-      "description": "Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure.",
+      "description": "Design a reusable SVG visual language across multiple related figures. Use when a project needs shared component geometry, connector rules, stable IDs, multi-diagram consistency, and export contracts for web, slides, docs, or reports; use svg-diagrams for a simple new one-off, svg-diagram-tuning for one existing figure repair, and scientific-svg-figures for one publication-grade technical figure.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": null,
       "path": ".codex/skills/advanced-svg-system-design/SKILL.md",
@@ -229,7 +229,7 @@
     },
     {
       "name": "scientific-svg-figures",
-      "description": "Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter.",
+      "description": "Create or substantially redesign one publication-grade scientific or technical SVG for reports, slides, README/docs, or DOCX/PDF workflows. Use for architecture, methodology or training-loop, pipeline, comparison, result-summary, timeline, and annotated-system figures whose deterministic cross-medium layout is part of the deliverable; use svg-diagrams for a simple one-off, svg-diagram-tuning for a small repair, and advanced-svg-system-design for a reusable figure family.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": "2026-04-15",
       "path": ".codex/skills/scientific-svg-figures/SKILL.md",
@@ -253,7 +253,7 @@
     },
     {
       "name": "svg-diagram-tuning",
-      "description": "Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.",
+      "description": "Repair one existing SVG without redesigning its meaning. Use for targeted readability defects such as cropped text, crowded blocks, stale connector anchors, unclear arrows, or overlapping labels; use svg-diagrams to create a simple new figure, scientific-svg-figures for substantial publication-grade figure work, and advanced-svg-system-design for a reusable figure family.",
       "license": "BSD-3-Clause (see repo LICENSE)",
       "updated": null,
       "path": ".codex/skills/svg-diagram-tuning/SKILL.md",
@@ -261,9 +261,9 @@
     },
     {
       "name": "svg-diagrams",
-      "description": "Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow.",
+      "description": "Create a simple standalone repo-native SVG or directly edit its boxes, text, and connectors. Use for one-off architecture sketches and explanatory visuals; use svg-diagram-tuning for repair of an existing crowded figure, scientific-svg-figures for publication-grade technical figures, and advanced-svg-system-design for a reusable multi-figure visual system.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-04-09",
+      "updated": "2026-09-04",
       "path": ".codex/skills/svg-diagrams/SKILL.md",
       "body_preview": "# SVG diagrams\nUse this skill when creating or editing standalone SVG assets in the repo.\n## Default workflow\n1. Start from a fixed `viewBox` and explicit box geometry."
     }

@@ -1,6 +1,6 @@
 ---
 name: advanced-svg-system-design
-description: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure.
+description: Design a reusable SVG visual language across multiple related figures. Use when a project needs shared component geometry, connector rules, stable IDs, multi-diagram consistency, and export contracts for web, slides, docs, or reports; use svg-diagrams for a simple new one-off, svg-diagram-tuning for one existing figure repair, and scientific-svg-figures for one publication-grade technical figure.
 license: BSD-3-Clause (see repo LICENSE)
 ---
 
@@ -80,11 +80,16 @@ not just one strong technical diagram.
 - Do not convert all text to outlines unless the delivery contract truly requires it.
 - Do not rely on editor-specific effects that break in plain browser rendering.
 - Keep numeric sizing intentional: shared padding, corner radius, stroke widths, and arrowhead scale.
+- Standardize marker geometry and declare `markerUnits` explicitly across the
+  figure family. Prefer `userSpaceOnUse` for stable arrowhead size; document any
+  intentional `strokeWidth` scaling.
 - When reflowing one card, re-evaluate the whole row or column for symmetry.
 
 ## Validation
 
 - Check XML validity when editing raw SVG.
+- Run the sibling `svg-diagrams/scripts/check_svg_markers.py` checker across the
+  source SVG set whenever markers are used.
 - Compare at least two renderers when the output is public-facing.
 - Verify the placed size inside the real target:
   - README/browser page

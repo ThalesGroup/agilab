@@ -15,7 +15,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
 
 ## Skills
 
-- advanced-svg-system-design: Design SVG systems for advanced external projects. Use this skill when the user needs a reusable SVG visual language, multi-diagram consistency, export-safe assets for web/slides/docs, or an editable source-of-truth beyond simple cleanup of one existing figure. (.claude/skills/advanced-svg-system-design/SKILL.md)
+- advanced-svg-system-design: Design a reusable SVG visual language across multiple related figures. Use when a project needs shared component geometry, connector rules, stable IDs, multi-diagram consistency, and export contracts for web, slides, docs, or reports; use svg-diagrams for a simple new one-off, svg-diagram-tuning for one existing figure repair, and scientific-svg-figures for one publication-grade technical figure. (.claude/skills/advanced-svg-system-design/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   preview: # Advanced SVG System Design ## Overview Use this skill when a project needs more than SVG cleanup. Focus on building a durable diagram system: layout rules, reusable components,
 - agilab-code-statistics: Generate fast, reproducible AGILAB code statistics. Use when the user asks for code stats, LOC, file counts, language breakdowns, test/docs/source ratios, churn summaries, or a concise repository size/code footprint report without running builds. (.claude/skills/agilab-code-statistics/SKILL.md)
@@ -121,7 +121,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
 - report-qa-docx: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery. (.claude/skills/report-qa-docx/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   preview: # Report QA DOCX ## Overview Use this skill for a pragmatic QA pass on report-style DOCX files. Focus on structural defects, wording drift, and figure/caption consistency.
-- scientific-svg-figures: Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter. (.claude/skills/scientific-svg-figures/SKILL.md)
+- scientific-svg-figures: Create or substantially redesign one publication-grade scientific or technical SVG for reports, slides, README/docs, or DOCX/PDF workflows. Use for architecture, methodology or training-loop, pipeline, comparison, result-summary, timeline, and annotated-system figures whose deterministic cross-medium layout is part of the deliverable; use svg-diagrams for a simple one-off, svg-diagram-tuning for a small repair, and advanced-svg-system-design for a reusable figure family. (.claude/skills/scientific-svg-figures/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   updated: 2026-04-15
   preview: # Scientific SVG Figures Use this skill for technical figures that must explain a system, method, experiment, or result clearly at publication size. If the request is only a tiny readability fix on one existing SVG, use `svg-diagram-tuning` instead. If the work is about a whole reusable visual language across many diagrams, use `advanced-svg-system-design`. ## Quick Start
@@ -131,10 +131,10 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
 - slides-docx-align: Align a slide deck with a DOCX report while preserving each artifact’s role. Use this skill when a user wants missing report figures inserted into slides, terminology synchronized across report and deck, or extra slides added without overwriting the current summary version. (.claude/skills/slides-docx-align/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   preview: # Slides DOCX Align ## Overview Use this skill when a report and a slide deck have drifted apart. Keep the deck usable while making the report and slides say the same thing.
-- svg-diagram-tuning: Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch. (.claude/skills/svg-diagram-tuning/SKILL.md)
+- svg-diagram-tuning: Repair one existing SVG without redesigning its meaning. Use for targeted readability defects such as cropped text, crowded blocks, stale connector anchors, unclear arrows, or overlapping labels; use svg-diagrams to create a simple new figure, scientific-svg-figures for substantial publication-grade figure work, and advanced-svg-system-design for a reusable figure family. (.claude/skills/svg-diagram-tuning/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   preview: # SVG Diagram Tuning ## Overview Use this skill to improve an existing SVG diagram without changing its meaning. Focus on readability first: text, spacing, arrows, and visual hierarchy.
-- svg-diagrams: Create or edit repo-native SVG diagrams, architecture sketches, and explanatory visuals. Use this when the agent must produce standalone SVG assets and text must stay inside boxes without overflow. (.claude/skills/svg-diagrams/SKILL.md)
+- svg-diagrams: Create a simple standalone repo-native SVG or directly edit its boxes, text, and connectors. Use for one-off architecture sketches and explanatory visuals; use svg-diagram-tuning for repair of an existing crowded figure, scientific-svg-figures for publication-grade technical figures, and advanced-svg-system-design for a reusable multi-figure visual system. (.claude/skills/svg-diagrams/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-04-09
+  updated: 2026-09-04
   preview: # SVG diagrams Use this skill when creating or editing standalone SVG assets in the repo. ## Default workflow 1. Start from a fixed `viewBox` and explicit box geometry.

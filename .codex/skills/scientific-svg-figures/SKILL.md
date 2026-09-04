@@ -1,6 +1,6 @@
 ---
 name: scientific-svg-figures
-description: Create or substantially refine publication-grade scientific and technical SVG figures for reports, slides, README/docs, and DOCX/PDF workflows. Use when the agent needs an editable SVG source of truth for architecture diagrams, methodology/training-loop figures, pipeline/workflow views, comparison grids, result-summary panels, timelines, or annotated system figures where deterministic layout, manual text wrapping, cross-medium readability, and export-safe geometry matter.
+description: Create or substantially redesign one publication-grade scientific or technical SVG for reports, slides, README/docs, or DOCX/PDF workflows. Use for architecture, methodology or training-loop, pipeline, comparison, result-summary, timeline, and annotated-system figures whose deterministic cross-medium layout is part of the deliverable; use svg-diagrams for a simple one-off, svg-diagram-tuning for a small repair, and advanced-svg-system-design for a reusable figure family.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   updated: 2026-04-15
@@ -86,6 +86,9 @@ Do not place long text first and then improvise boxes around it.
 - Reserve explicit gutters for arrows and legends.
 - Prefer semantic labels over decorative styling.
 - Keep connector routing orthogonal unless a diagonal adds meaning.
+- Declare `markerUnits` on every marker. Prefer `userSpaceOnUse` for stable
+  publication geometry; use explicit `strokeWidth` only for intentional
+  proportional scaling.
 - Use stable `id` values on major groups when the figure is non-trivial.
 - Prefer widening panels before shrinking text.
 - Keep repeated sibling blocks aligned by bottoms, centers, or shared gutters.
@@ -127,6 +130,8 @@ Do not place long text first and then improvise boxes around it.
 Before finishing, verify:
 
 - the SVG parses cleanly as XML
+- the sibling `svg-diagrams/scripts/check_svg_markers.py` checker passes when
+  markers are present
 - no text crosses a box edge
 - titles, notes, and body text follow a consistent rhythm
 - arrows still point to the right semantic targets after resizing

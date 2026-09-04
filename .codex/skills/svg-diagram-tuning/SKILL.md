@@ -1,6 +1,6 @@
 ---
 name: svg-diagram-tuning
-description: Refine SVG diagrams for readability in documents and slides. Use this skill when a user wants text resized, blocks widened, arrows rerouted, overlapping labels fixed, or an existing figure made easier to edit and export without redesigning it from scratch.
+description: Repair one existing SVG without redesigning its meaning. Use for targeted readability defects such as cropped text, crowded blocks, stale connector anchors, unclear arrows, or overlapping labels; use svg-diagrams to create a simple new figure, scientific-svg-figures for substantial publication-grade figure work, and advanced-svg-system-design for a reusable figure family.
 license: BSD-3-Clause (see repo LICENSE)
 ---
 
@@ -71,6 +71,9 @@ blob/raw page:
   manual wraps while its siblings use balanced semantic phrases.
 - After moving or resizing blocks, recalculate arrow anchors from the final geometry.
   Do not leave connector coordinates inherited from an older layout.
+- Declare `markerUnits` on every `<marker>` instead of relying on the SVG default.
+  Prefer `userSpaceOnUse` for stable arrowhead size; retain explicit `strokeWidth`
+  only when proportional scaling is intentional.
 - For repeated connectors, keep arrow placement symmetric across the row or column so
   the figure reads as intentional rather than hand-adjusted.
 - Center connectors on the geometry they are meant to describe. A vertical flow arrow
@@ -144,6 +147,9 @@ blob/raw page:
 ## AGILAB Validation
 
 - Parse the SVG locally with Python XML tooling if needed.
+- Run the sibling `svg-diagrams/scripts/check_svg_markers.py` checker when the
+  figure uses arrow markers; from the Codex mirror, use
+  `python3 .codex/skills/svg-diagrams/scripts/check_svg_markers.py path/to/figure.svg`.
 - Before replying, perform a semantic sweep of:
   - all card titles
   - all card bodies/notes
