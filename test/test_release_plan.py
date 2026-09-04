@@ -205,7 +205,7 @@ def test_release_plan_expands_changed_app_to_exact_pin_dependents() -> None:
         REPO_ROOT,
         "unused",
         changed_paths=[
-            "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/app_surface.py",
+            "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/app_surface.py",
         ],
     )
 

@@ -423,7 +423,7 @@ def test_init_envars_app_honours_relative_mlflow_and_pages_overrides(tmp_path: P
     assert env.AGILAB_PAGES_ABS == tmp_path / "custom-pages"
 
 
-def test_init_envars_app_uses_optional_agi_pages_provider(tmp_path: Path, monkeypatch):
+def test_init_envars_app_uses_optional_pages_provider(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.home_abs = tmp_path / "home"
     env.home_abs.mkdir()
@@ -431,10 +431,10 @@ def test_init_envars_app_uses_optional_agi_pages_provider(tmp_path: Path, monkey
     env.agilab_pck = tmp_path / "pkg"
     env.agilab_pck.mkdir()
     env.read_agilab_path = lambda: None
-    pages_root = tmp_path / "installed-agi-pages"
+    pages_root = tmp_path / "installed-pages"
     pages_root.mkdir()
     monkeypatch.setattr(AgiEnv, "logger", mock.Mock(), raising=False)
-    monkeypatch.setattr(agi_env_module, "_optional_agi_pages_bundles_root", lambda: pages_root)
+    monkeypatch.setattr(agi_env_module, "_optional_pages_bundles_root", lambda: pages_root)
 
     env.init_envars_app({"MLFLOW_TRACKING_DIR": "mlruns"})
 
@@ -1140,7 +1140,7 @@ def test_reinit_failure_leaves_singleton_uninitialized(monkeypatch):
             python_variante="",
             init_signature=("new", "signature"),
             load_dotenv_values_fn=lambda *a, **k: {},
-            optional_agi_pages_bundles_root_fn=lambda: None,
+            optional_pages_bundles_root_fn=lambda: None,
             ensure_dir_fn=lambda p: Path(p),
             module_logger=mock.Mock(),
         )

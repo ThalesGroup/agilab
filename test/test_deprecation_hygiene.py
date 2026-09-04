@@ -16,8 +16,6 @@ RUNTIME_WARNING_SOURCES = (
     "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/agi_distributor.py",
     "src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry/flight_telemetry.py",
     "src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/flight_telemetry_worker.py",
-    "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/src/flight_telemetry/flight_telemetry.py",
-    "src/agilab/lib/agi-app-flight-telemetry/src/agi_app_flight_telemetry/project/flight_telemetry_project/src/flight_telemetry_worker/flight_telemetry_worker.py",
 )
 
 

@@ -74,7 +74,7 @@ def initialize_agi_env_instance(
     python_variante: str,
     init_signature: tuple,
     load_dotenv_values_fn: Callable,
-    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    optional_pages_bundles_root_fn: Callable[[], Path | None],
     ensure_dir_fn: Callable[[str | Path], Path],
     module_logger,
 ) -> None:
@@ -144,7 +144,7 @@ def initialize_agi_env_instance(
         env,
         env_cls=env_cls,
         envars=envars,
-        optional_agi_pages_bundles_root_fn=optional_agi_pages_bundles_root_fn,
+        optional_pages_bundles_root_fn=optional_pages_bundles_root_fn,
         ensure_dir_fn=ensure_dir_fn,
     )
 
@@ -450,7 +450,7 @@ def _configure_non_worker_runtime(
     *,
     env_cls,
     envars,
-    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    optional_pages_bundles_root_fn: Callable[[], Path | None],
     ensure_dir_fn: Callable[[str | Path], Path],
 ) -> None:
     _resolve_worker_base_class(env, env_cls=env_cls)
@@ -459,7 +459,7 @@ def _configure_non_worker_runtime(
     _finalize_non_worker_runtime(
         env,
         env_cls=env_cls,
-        optional_agi_pages_bundles_root_fn=optional_agi_pages_bundles_root_fn,
+        optional_pages_bundles_root_fn=optional_pages_bundles_root_fn,
         ensure_dir_fn=ensure_dir_fn,
     )
 
@@ -635,7 +635,7 @@ def _finalize_non_worker_runtime(
     env,
     *,
     env_cls,
-    optional_agi_pages_bundles_root_fn: Callable[[], Path | None],
+    optional_pages_bundles_root_fn: Callable[[], Path | None],
     ensure_dir_fn: Callable[[str | Path], Path],
 ) -> None:
     ensure_dir_fn(env.app_src)

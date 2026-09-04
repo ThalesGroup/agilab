@@ -15,6 +15,7 @@ dist/
 build/
 .build*
 __pycache__/
+src/agilab/lib/agi-app-*/src/agi_app_*/project/
 .mypy_cache/
 __pypackages__/
 ._*

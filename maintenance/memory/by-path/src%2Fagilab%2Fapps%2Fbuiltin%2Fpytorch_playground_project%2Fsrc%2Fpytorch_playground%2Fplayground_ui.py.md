@@ -17,7 +17,8 @@ Avoid hiding the two framework handoffs behind a single ambiguous snippet area.
 The generic ORCHESTRATE run snippet is not the framework reuse code; the app UI
 must make that distinction obvious to a new user.
 
-When this source changes, keep the packaged PyPI payload mirror under
-`src/agilab/lib/agi-app-pytorch-playground/.../playground_ui.py` aligned and run
-`test/test_pytorch_playground_app.py`, which checks both UI snippets and source /
-package payload parity.
+When this source changes, keep the package build hook in
+`src/agilab/lib/agi-app-pytorch-playground/setup.py` generating the payload from
+the canonical built-in project. Do not reintroduce a tracked package mirror. Run
+`test/test_pytorch_playground_app.py`, which checks both UI snippets and generated
+package-payload parity.

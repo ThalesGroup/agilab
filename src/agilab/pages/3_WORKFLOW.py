@@ -1646,7 +1646,7 @@ def _stages_file_validation_issues(
     """Return cheap static validation issues for a stages file (cached on mtime)."""
     del mtime_ns
     try:
-        from agilab.workflow_validation import validate_lab_stages_file
+        from agilab.workflow.workflow_validation import validate_lab_stages_file
     except ImportError:
         return []
     try:

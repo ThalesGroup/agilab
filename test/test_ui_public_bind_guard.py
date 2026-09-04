@@ -216,6 +216,11 @@ def test_direct_streamlit_pages_enforce_public_bind_guard():
             encoding="utf-8"
         )
 
-        assert "agilab.ui_public_bind_guard" in text
+        guard_module = (
+            "agilab.security.ui_public_bind_guard"
+            if page_name == "PROJECT.py"
+            else "agilab.ui_public_bind_guard"
+        )
+        assert guard_module in text
         assert "enforce_public_bind_policy_or_stop(" in text
         assert "st.config.get" not in text

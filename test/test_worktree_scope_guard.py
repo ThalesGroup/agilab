@@ -19,7 +19,7 @@ spec.loader.exec_module(scope_guard)
 def test_scope_for_path_groups_app_source_package_and_tests_together():
     paths = [
         "src/agilab/apps/builtin/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
-        "src/agilab/lib/agi-app-pytorch-playground/src/agi_app_pytorch_playground/project/pytorch_playground_project/src/pytorch_playground/playground_ui.py",
+        "src/agilab/lib/agi-app-pytorch-playground/setup.py",
         "test/test_pytorch_playground_app.py",
     ]
 

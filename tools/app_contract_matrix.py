@@ -344,7 +344,7 @@ def _app_payload_contract_errors(
     package_specs: Mapping[str, str],
     package_to_project: Mapping[str, str],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
-    """Return generated-payload hook errors and checked-in payload drift."""
+    """Return generated-payload hook errors and tracked payload mirrors."""
 
     try:
         build_support = _load_module(
@@ -368,7 +368,8 @@ def _app_payload_contract_errors(
         if isinstance(spec, dict)
     }
     contract_errors: dict[str, dict[str, Any]] = {}
-    drift_errors: dict[str, dict[str, Any]] = {}
+    tracking_errors: dict[str, dict[str, Any]] = {}
+    tracked_files = _tracked_repo_files(repo_root)
 
     if build_support_error:
         return (
@@ -417,6 +418,15 @@ def _app_payload_contract_errors(
             errors["package_data"] = list(package_data)
             errors["expected_package_data"] = "project/**/*"
 
+        if build_support and package_import and expected_project:
+            try:
+                generated_files = _generated_app_payload_index(build_support, expected_project)
+            except Exception as exc:
+                errors["generated_payload_error"] = str(exc)
+            else:
+                if not generated_files:
+                    errors["generated_payload_empty"] = True
+
         if errors:
             contract_errors[package] = {
                 "package_path": package_path,
@@ -424,26 +434,17 @@ def _app_payload_contract_errors(
                 **errors,
             }
 
-        if not build_support or not package_import or not expected_project:
+        if tracked_files is None or not package_import:
             continue
-        embedded_payload = package_root / "src" / package_import / "project" / expected_project
-        if not embedded_payload.exists():
-            continue
-        generated_files = _generated_app_payload_index(build_support, expected_project)
-        embedded_files = _payload_file_index(embedded_payload)
-        missing = sorted(set(generated_files) - set(embedded_files))
-        extra = sorted(set(embedded_files) - set(generated_files))
-        changed = sorted(
-            path
-            for path in set(generated_files) & set(embedded_files)
-            if generated_files[path] != embedded_files[path]
+        payload_root = package_root / "src" / package_import / "project"
+        payload_prefix = f"{_relative(repo_root, payload_root).rstrip('/')}/"
+        tracked_payload_files = sorted(
+            path for path in tracked_files if path.startswith(payload_prefix)
         )
-        if missing or extra or changed:
-            drift_errors[package] = {
-                "embedded_payload": _relative(repo_root, embedded_payload),
-                "missing_from_embedded": missing,
-                "extra_in_embedded": extra,
-                "changed": changed,
+        if tracked_payload_files:
+            tracking_errors[package] = {
+                "payload_root": _relative(repo_root, payload_root),
+                "tracked_files": tracked_payload_files,
             }
 
     missing_build_specs = sorted(set(package_specs) - set(build_specs))
@@ -456,7 +457,7 @@ def _app_payload_contract_errors(
                 "extra_build_support_distributions": extra_build_specs,
             },
         )
-    return contract_errors, drift_errors
+    return contract_errors, tracking_errors
 
 
 def _tracked_builtin_project_names(repo_root: Path) -> set[str] | None:
@@ -1268,7 +1269,7 @@ def _global_checks(
             details={"errors": package_mapping_errors, "package_to_project": package_to_project},
         )
     )
-    payload_contract_errors, payload_drift_errors = _app_payload_contract_errors(
+    payload_contract_errors, tracked_payload_errors = _app_payload_contract_errors(
         repo_root,
         package_specs,
         package_to_project,
@@ -1289,12 +1290,12 @@ def _global_checks(
     )
     checks.append(
         _check(
-            "checked_in_app_payloads_match_generated_payloads",
-            "Checked-in app payloads match generated payloads",
-            not payload_drift_errors,
-            "any checked-in embedded app payloads match the generated built-in source payload",
+            "app_package_payloads_are_build_only_artifacts",
+            "App package payloads are build-only artifacts",
+            not tracked_payload_errors,
+            "embedded app payloads are generated for wheel and sdist builds, not tracked as source",
             evidence=(str(APP_PROJECT_BUILD_SUPPORT_REL), "src/agilab/lib/agi-app-*"),
-            details={"errors": payload_drift_errors},
+            details={"errors": tracked_payload_errors},
         )
     )
     pytorch_package_path = package_specs.get(PYTORCH_PLAYGROUND_APP_PACKAGE)
@@ -1307,31 +1308,25 @@ def _global_checks(
     pytorch_payload_ok = (
         package_to_project.get(PYTORCH_PLAYGROUND_APP_PACKAGE) == PYTORCH_PLAYGROUND_PROJECT
         and PYTORCH_PLAYGROUND_APP_PACKAGE not in payload_contract_errors
-        and PYTORCH_PLAYGROUND_APP_PACKAGE not in payload_drift_errors
-        and bool(pytorch_embedded_payload)
-        and (repo_root / pytorch_embedded_payload).is_dir()
+        and PYTORCH_PLAYGROUND_APP_PACKAGE not in tracked_payload_errors
     )
     checks.append(
         _check(
             "pytorch_playground_payload_is_generated_from_builtin_source",
             "PyTorch playground payload is generated from built-in source",
             pytorch_payload_ok,
-            "the checked-in PyTorch app payload is a generated package snapshot of the built-in project",
+            "the PyTorch app payload is generated from the canonical built-in project during packaging",
             evidence=(
                 str(APP_PROJECT_BUILD_SUPPORT_REL),
                 str(BUILTIN_APPS_REL / PYTORCH_PLAYGROUND_PROJECT),
-                _relative(repo_root, repo_root / pytorch_embedded_payload) if pytorch_embedded_payload else "",
+                "src/agilab/lib/agi-app-pytorch-playground/setup.py",
             ),
             details={
                 "package": PYTORCH_PLAYGROUND_APP_PACKAGE,
                 "project": package_to_project.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
-                "embedded_payload": (
-                    _relative(repo_root, repo_root / pytorch_embedded_payload)
-                    if pytorch_embedded_payload
-                    else None
-                ),
+                "payload_root": str(pytorch_embedded_payload) if pytorch_embedded_payload else None,
                 "contract_error": payload_contract_errors.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
-                "drift_error": payload_drift_errors.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
+                "tracking_error": tracked_payload_errors.get(PYTORCH_PLAYGROUND_APP_PACKAGE),
             },
         )
     )

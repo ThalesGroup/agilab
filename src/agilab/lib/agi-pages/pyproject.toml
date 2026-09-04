@@ -36,6 +36,9 @@ keywords = [
 
 dependencies = ["agi-gui==2026.07.31"]
 
+[project.entry-points."agi_env.paths"]
+pages = "agi_pages:bundles_root"
+
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-pages"

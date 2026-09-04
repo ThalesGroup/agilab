@@ -45,6 +45,7 @@ def test_architecture_scorecard_passes_current_evidence() -> None:
     assert report["status"] == "pass"
     assert report["supported_score"] == "4.7 / 5"
     assert "not external certification" in report["summary"]["score_boundary"]
+    assert checks["architecture_plane_boundaries"]["details"]["import_violations"] == []
     assert checks["architecture_remote_execution_hardening"]["status"] == "pass"
     assert checks["architecture_capacity_model_trust_boundary"]["status"] == "pass"
     assert checks["architecture_hardening_gap_register"]["status"] == "pass"
@@ -56,6 +57,48 @@ def test_architecture_scorecard_passes_current_evidence() -> None:
     }
     gap_statuses = checks["architecture_hardening_gap_register"]["details"]["gap_statuses"]
     assert gap_statuses["capacity-model-signature"] == "shipped"
+
+
+def test_architecture_import_contract_rejects_dynamic_reverse_dependency(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_file_module("architecture_scorecard_import_contract", ARCHITECTURE_SCORECARD)
+    project_root = tmp_path / "src/agilab/core/agi-env"
+    source_root = project_root / "src/agi_env"
+    source_root.mkdir(parents=True)
+    (project_root / "pyproject.toml").write_text(
+        '[project]\nname = "agi-env"\ndependencies = []\n',
+        encoding="utf-8",
+    )
+    (source_root / "runtime.py").write_text(
+        'import importlib.util\nimportlib.util.find_spec("agi_pages")\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        module,
+        "ARCHITECTURE_LAYER_CONTRACTS",
+        (
+            module.ArchitectureLayerContract(
+                "agi-env",
+                "agi_env",
+                "src/agilab/core/agi-env",
+                frozenset(),
+            ),
+        ),
+    )
+
+    violations = module._architecture_import_boundary_violations(tmp_path)
+
+    assert violations == [
+        {
+            "distribution": "agi-env",
+            "path": "src/agilab/core/agi-env/src/agi_env/runtime.py",
+            "line": 2,
+            "imported_module": "agi_pages",
+            "imported_distribution": "agi-pages",
+            "reason": "disallowed layer import",
+        }
+    ]
 
 
 def test_architecture_scorecard_cli_writes_json(tmp_path: Path, capsys) -> None:

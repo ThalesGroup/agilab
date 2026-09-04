@@ -137,7 +137,7 @@ def test_app_contract_matrix_passes_current_repo():
     assert "page_bundle_specs_point_to_source_bundles" in check_ids
     assert "page_bundle_pyprojects_match_package_contract" in check_ids
     assert "app_packages_use_generated_payload_contract" in check_ids
-    assert "checked_in_app_payloads_match_generated_payloads" in check_ids
+    assert "app_package_payloads_are_build_only_artifacts" in check_ids
     assert "pytorch_playground_payload_is_generated_from_builtin_source" in check_ids
     assert "apps_pages_root_keeps_asset_bundle_shape" in check_ids
     assert "apps_pages_catalog_matches_page_contract" in check_ids
@@ -405,7 +405,7 @@ def test_app_contract_matrix_detects_page_bundle_pyproject_drift():
     ]["name"] == "agi-page-geospatial-map"
 
 
-def test_app_contract_matrix_detects_checked_in_payload_drift(tmp_path: Path, monkeypatch):
+def test_app_contract_matrix_rejects_tracked_generated_payloads(tmp_path: Path, monkeypatch):
     module = _load_module()
     package_root = tmp_path / "src/agilab/lib/agi-app-demo"
     package_import_root = package_root / "src/agi_app_demo"
@@ -457,17 +457,27 @@ def test_app_contract_matrix_detects_checked_in_payload_drift(tmp_path: Path, mo
         raise AssertionError(relative_path)
 
     monkeypatch.setattr(module, "_load_module", _fake_load_module)
+    tracked_payload = (
+        "src/agilab/lib/agi-app-demo/src/agi_app_demo/project/demo_project/value.txt"
+    )
+    monkeypatch.setattr(module, "_tracked_repo_files", lambda _repo_root: {tracked_payload})
 
-    contract_errors, drift_errors = module._app_payload_contract_errors(
+    contract_errors, tracking_errors = module._app_payload_contract_errors(
         tmp_path,
         {"agi-app-demo": "src/agilab/lib/agi-app-demo"},
         {"agi-app-demo": "demo_project"},
     )
 
     assert contract_errors == {}
-    assert drift_errors["agi-app-demo"]["changed"] == ["value.txt"]
-    assert ".coverage" not in drift_errors["agi-app-demo"]["missing_from_embedded"]
-    assert ".coverage.worker" not in drift_errors["agi-app-demo"]["missing_from_embedded"]
+    assert tracking_errors["agi-app-demo"]["tracked_files"] == [tracked_payload]
+
+    monkeypatch.setattr(module, "_tracked_repo_files", lambda _repo_root: set())
+    _contract_errors, tracking_errors = module._app_payload_contract_errors(
+        tmp_path,
+        {"agi-app-demo": "src/agilab/lib/agi-app-demo"},
+        {"agi-app-demo": "demo_project"},
+    )
+    assert tracking_errors == {}
 
 
 def test_app_contract_matrix_cli_writes_json_output(tmp_path: Path, capsys):

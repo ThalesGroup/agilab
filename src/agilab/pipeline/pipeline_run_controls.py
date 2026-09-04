@@ -25,6 +25,7 @@ from streamlit.errors import StreamlitAPIException
 from agi_env import AgiEnv
 from agi_env.snippet_contract import stale_snippet_cleanup_message
 from agi_gui.pagelib import run_lab, save_csv
+from agilab.pipeline.pipeline_run_state import PipelineRunState
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -2051,13 +2052,11 @@ def run_all_stages(
         pipeline_max_workers = max(1, int(pipeline_max_workers))
     except (TypeError, ValueError):
         pipeline_max_workers = 1
-    run_id = uuid.uuid4().hex
-    started_at = _utc_timestamp()
-    run_started = time.time()
-    manifest_stage_records: List[Dict[str, Any]] = []
-    skipped = 0
-    run_status = "running"
-    run_error = ""
+    run_state = PipelineRunState(
+        run_id=uuid.uuid4().hex,
+        started_at=_utc_timestamp(),
+        started_monotonic=time.time(),
+    )
     _push_run_log(index_page_str, "Run pipeline invoked.", log_placeholder)
     _push_run_log(
         index_page_str,
@@ -2125,7 +2124,6 @@ def run_all_stages(
     if lock_handle is None:
         return
 
-    executed = 0
     try:
         parent_run_name, parent_tags, parent_params, parent_text_artifacts = _mlflow_parent_payload(
             env,
@@ -2133,7 +2131,7 @@ def run_all_stages(
             stages_file,
             sequence,
             profile=pipeline_profile,
-            run_id=run_id,
+            run_id=run_state.run_id,
             max_workers=pipeline_max_workers,
             waves=waves,
             stage_ids=stage_ids_by_idx,
@@ -2147,7 +2145,7 @@ def run_all_stages(
                 env=env,
                 workflow_source=index_page_str,
                 profile=pipeline_profile,
-                run_id=run_id,
+                run_id=run_state.run_id,
                 sequence=sequence,
                 max_workers=pipeline_max_workers,
                 waves=waves,
@@ -2208,22 +2206,22 @@ def run_all_stages(
                             f"Wave {wave_number}: running {len(wave)} AGI stage(s) in parallel with max_workers={pipeline_max_workers}.",
                             log_placeholder,
                         )
-                        executed += _run_parallel_agi_wave(
+                        run_state.record_executed(_run_parallel_agi_wave(
                             stages=stages,
                             wave=wave,
                             profile=pipeline_profile,
                             env=env,
                             index_page=index_page_str,
                             stages_file=stages_file,
-                            run_id=run_id,
+                            run_id=run_state.run_id,
                             selected_map=selected_map,
                             engine_map=engine_map,
                             default_runtime=default_runtime,
                             target_base=target_base,
                             max_workers=pipeline_max_workers,
-                            manifest_stage_records=manifest_stage_records,
+                            manifest_stage_records=run_state.stage_records,
                             log_placeholder=log_placeholder,
-                        )
+                        ))
                         continue
                     if parallel_ineligibility:
                         _push_run_log(
@@ -2254,7 +2252,7 @@ def run_all_stages(
                             "outputs": _stage_output_records(entry, env=env, stages_file=stages_file),
                             "error": "",
                         }
-                        manifest_stage_records.append(stage_record)
+                        run_state.stage_records.append(stage_record)
                         if profile_override:
                             _push_run_log(
                                 index_page_str,
@@ -2264,7 +2262,7 @@ def run_all_stages(
                         if _stage_disabled(entry):
                             stage_record["status"] = "skipped_disabled"
                             stage_record["finished_at"] = _utc_timestamp()
-                            skipped += 1
+                            run_state.record_skipped()
                             _push_run_log(index_page_str, f"Stage {idx + 1}: skipped by automation profile.", log_placeholder)
                             continue
                         skip_current, output_records = _should_skip_current_outputs(
@@ -2276,7 +2274,7 @@ def run_all_stages(
                         if skip_current:
                             stage_record["status"] = "skipped_outputs_exist"
                             stage_record["finished_at"] = _utc_timestamp()
-                            skipped += 1
+                            run_state.record_skipped()
                             _push_run_log(
                                 index_page_str,
                                 f"Stage {idx + 1}: skipped because declared outputs already exist.",
@@ -2298,7 +2296,7 @@ def run_all_stages(
                         if not _pipeline_stages.is_runnable_stage(entry):
                             stage_record["status"] = "skipped_not_runnable"
                             stage_record["finished_at"] = _utc_timestamp()
-                            skipped += 1
+                            run_state.record_skipped()
                             continue
                         _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
                         stage_started = time.time()
@@ -2380,9 +2378,15 @@ def run_all_stages(
                             stage_env.update(
                                 {
                                     "AGILAB_PIPELINE_PROFILE": pipeline_profile,
-                                    "AGILAB_PIPELINE_RUN_ID": run_id,
+                                    "AGILAB_PIPELINE_RUN_ID": run_state.run_id,
                                     "AGILAB_PIPELINE_STAGE_INDEX": str(idx + 1),
-                                    "AGILAB_PIPELINE_MANIFEST": str(_pipeline_manifest_paths(env, index_page_str, run_id)[0]),
+                                    "AGILAB_PIPELINE_MANIFEST": str(
+                                        _pipeline_manifest_paths(
+                                            env,
+                                            index_page_str,
+                                            run_state.run_id,
+                                        )[0]
+                                    ),
                                 }
                             )
                             if stage_tracker:
@@ -2465,7 +2469,7 @@ def run_all_stages(
                                         "agilab.output_present": bool(preview),
                                     },
                                 )
-                            executed += 1
+                            run_state.record_executed()
                             stage_record["status"] = "completed"
                             stage_record["finished_at"] = _utc_timestamp()
                             stage_record["duration_seconds"] = max(time.time() - stage_started, 0.0)
@@ -2474,33 +2478,36 @@ def run_all_stages(
                                 env=env,
                                 stages_file=stages_file,
                             )
-            run_status = "completed"
+            run_state.complete()
             if pipeline_tracker:
                 pipeline_tracker.log_artifacts(
                     file_artifacts=[pipeline_log_artifact] if pipeline_log_artifact else [],
                     tags={"agilab.status": "completed"},
-                    metrics={"executed_stages": executed, "skipped_stages": skipped},
+                    metrics={
+                        "executed_stages": run_state.executed,
+                        "skipped_stages": run_state.skipped,
+                    },
                 )
 
-        if executed:
-            st.success(f"Executed {executed} stage{'s' if executed != 1 else ''}.")
-            _push_run_log(index_page_str, f"Run workflow completed: {executed} stage(s) executed.", log_placeholder)
+        if run_state.executed:
+            st.success(
+                f"Executed {run_state.executed} "
+                f"stage{'s' if run_state.executed != 1 else ''}."
+            )
+            _push_run_log(
+                index_page_str,
+                f"Run workflow completed: {run_state.executed} stage(s) executed.",
+                log_placeholder,
+            )
         else:
             st.info("No runnable code found in the stages.")
             _push_run_log(index_page_str, "Run workflow completed: no runnable code found.", log_placeholder)
     except BaseException as exc:
-        run_status = "failed"
-        run_error = _redact_stage_output(exc)
-        for stage_record in reversed(manifest_stage_records):
-            if stage_record.get("status") == "running":
-                stage_record["status"] = "failed"
-                stage_record["finished_at"] = _utc_timestamp()
-                stage_record["error"] = run_error
-                break
+        run_state.fail(_redact_stage_output(exc), finished_at=_utc_timestamp())
         if "waves" in locals():
             recorded = {
                 int(record.get("stage_index", 0)) - 1
-                for record in manifest_stage_records
+                for record in run_state.stage_records
                 if int(record.get("stage_index", 0) or 0) > 0
             }
             for wave in waves:
@@ -2508,7 +2515,7 @@ def run_all_stages(
                     if pending_idx in recorded:
                         continue
                     pending_entry, _override = _apply_stage_profile(stages[pending_idx], pipeline_profile)
-                    manifest_stage_records.append(
+                    run_state.stage_records.append(
                         {
                             "stage_index": pending_idx + 1,
                             "status": "skipped_after_failure",
@@ -2533,9 +2540,9 @@ def run_all_stages(
         manifest_path = _write_pipeline_automation_manifest(
             env=env,
             index_page=index_page_str,
-            run_id=run_id,
+            run_id=run_state.run_id,
             profile=pipeline_profile,
-            status=run_status,
+            status=run_state.status,
             lab_dir=lab_dir,
             stages_file=stages_file,
             sequence=sequence if "sequence" in locals() else [],
@@ -2543,15 +2550,13 @@ def run_all_stages(
             max_workers=pipeline_max_workers,
             stage_ids=stage_ids_by_idx if "stage_ids_by_idx" in locals() else {},
             stage_deps=stage_deps_by_idx if "stage_deps_by_idx" in locals() else {},
-            stages=manifest_stage_records,
-            started_at=started_at,
+            stages=run_state.stage_records,
+            started_at=run_state.started_at,
             finished_at=_utc_timestamp(),
-            duration_seconds=max(time.time() - run_started, 0.0)
-            if "run_started" in locals()
-            else None,
-            executed=executed,
-            skipped=skipped,
-            error=run_error,
+            duration_seconds=run_state.duration_seconds(time.time()),
+            executed=run_state.executed,
+            skipped=run_state.skipped,
+            error=run_state.error,
         )
         if manifest_path is not None:
             _push_run_log(index_page_str, f"Pipeline automation manifest: {manifest_path}", log_placeholder)
