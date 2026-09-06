@@ -60,6 +60,15 @@ The default input is
 JSON batch with classroom metadata and a `submissions` list containing
 `student_id`, `case_id`, and answer fields.
 
+Regression-test entries must be JSON objects. Their optional `automated` and
+`discriminator` flags must be JSON booleans (`true` or `false`), not strings or
+numbers. An omitted flag means `false`. Invalid entries are rejected before
+scoring so malformed data cannot inflate a learner's score.
+
+Custom mathematics curricula may set `required_min_cases_per_id` to a positive
+JSON integer. Omitting it keeps the default of one case per curriculum item;
+invalid values are rejected instead of silently lowering the coverage threshold.
+
 ## Expected Outputs
 
 The app writes per-case diagnostic reports, summary CSV files,
@@ -68,6 +77,13 @@ report, and classroom artifacts such as progress, heatmap, needs-attention,
 student, curriculum, learning-path, and intervention CSV files. Reports include
 `decision_status`, `decision_action`, and decision triggers when a case defines a
 deterministic guard.
+
+Lowercase alphanumeric case IDs with single `_` or `-` separators (up to 96
+characters) keep their existing artifact filenames. Other nonblank string IDs
+use a readable prefix and a stable SHA256 suffix so punctuation or letter-case
+differences do not cause reports to overwrite one another. Reports retain the
+original case ID, and rerunning the same case reuses its filename. Explicitly
+empty or whitespace-only IDs are rejected.
 
 ## Change One Thing
 

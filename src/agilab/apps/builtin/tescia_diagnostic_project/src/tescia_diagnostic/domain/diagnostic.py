@@ -295,6 +295,18 @@ def _validate_student_answer(case: Mapping[str, Any], *, case_id: str) -> None:
         )
 
 
+def _validate_regression_tests(tests: Sequence[Any], *, case_id: str) -> None:
+    for index, row in enumerate(tests):
+        location = f"Case {case_id!r} regression_tests[{index}]"
+        if not isinstance(row, Mapping):
+            raise ValueError(f"{location} must be an object.")
+        for field in ("automated", "discriminator"):
+            if field in row and not isinstance(row[field], bool):
+                raise ValueError(
+                    f"{location} field {field!r} must be a boolean when provided."
+                )
+
+
 def validate_case_payload(
     payload: Mapping[str, Any], *, expected_case_count: int | None = None
 ) -> dict[str, Any]:
@@ -342,6 +354,7 @@ def validate_case_payload(
             raise ValueError(
                 f"Case {case_id!r} must include at least two regression tests."
             )
+        _validate_regression_tests(tests, case_id=case_id)
         _validate_string_list(
             case.get("curriculum_ids"), field="curriculum_ids", case_id=case_id
         )
@@ -420,11 +433,8 @@ def evidence_quality(case: Mapping[str, Any]) -> float:
 
 
 def regression_coverage(case: Mapping[str, Any]) -> float:
-    tests = [
-        row
-        for row in _as_list(case.get("regression_tests"))
-        if isinstance(row, Mapping)
-    ]
+    tests = _as_list(case.get("regression_tests"))
+    _validate_regression_tests(tests, case_id=str(case.get("case_id", "")))
     if not tests:
         return 0.0
     discriminators = sum(1 for row in tests if bool(row.get("discriminator")))

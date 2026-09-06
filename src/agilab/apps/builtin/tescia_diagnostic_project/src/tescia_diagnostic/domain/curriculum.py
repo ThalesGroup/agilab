@@ -58,11 +58,12 @@ def curriculum_id_counts(cases: Sequence[Mapping[str, Any]]) -> dict[str, int]:
 
 
 def required_min_cases_per_id(curriculum: Mapping[str, Any]) -> int:
-    try:
-        value = int(curriculum.get("required_min_cases_per_id", 1))
-    except (TypeError, ValueError):
-        value = 1
-    return max(value, 1)
+    value = curriculum.get("required_min_cases_per_id", 1)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError(
+            "Math curriculum coverage required_min_cases_per_id must be a positive integer."
+        )
+    return value
 
 
 def validate_math_program_2026(curriculum: Mapping[str, Any]) -> None:
@@ -81,10 +82,7 @@ def validate_math_program_2026(curriculum: Mapping[str, Any]) -> None:
     required = curriculum.get("required_program_ids")
     if not isinstance(required, list) or not required:
         raise ValueError("Math curriculum coverage must declare required_program_ids.")
-    if required_min_cases_per_id(curriculum) < 1:
-        raise ValueError(
-            "Math curriculum coverage required_min_cases_per_id must be at least 1."
-        )
+    required_min_cases_per_id(curriculum)
     seen: set[str] = set()
     for item in required:
         if not isinstance(item, Mapping):
