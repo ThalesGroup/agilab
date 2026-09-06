@@ -34,6 +34,10 @@ Use this runbook whenever you:
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
   `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
+- **Direct Streamlit binds**: Pass `--server.address=127.0.0.1` for local source
+  launches. An unset Streamlit address binds all interfaces; runtime guards must
+  inspect the effective Streamlit configuration, including CLI overrides, rather
+  than treating `AGILAB_UI_HOST` or environment preferences as the actual bind.
 - **Command speed policy**: Use raw `rg`, `sed`, and small file reads for cheap local inspection where wrapper startup would dominate. Use `tokki run -- ...` for Git writes, pushes, merges, tests, builds, installs, network operations, long logs, slow/noisy commands, and any state-changing or policy-sensitive command.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated
   local validation loops and `./dev --print-only <shortcut>` when you need the

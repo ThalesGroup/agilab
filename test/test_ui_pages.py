@@ -27,6 +27,7 @@ APP_ARGS_FORM = "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_f
 DEFAULT_APPTEST_TIMEOUT = 20
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ENV_TEMPLATE_PATH = Path("src/agilab/core/agi-env/src/agi_env/resources/.agilab/.env")
+pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
 
 
 def _import_agilab_module(module_name: str):
@@ -1037,7 +1038,14 @@ def test_agilab_warm_query_cluster_failure_keeps_old_env_until_recovery(
     assert remembered_apps[-1] == target_project.resolve()
 
 
-def test_agilab_main_page_refuses_unprotected_public_bind(mock_ui_env):
+@pytest.mark.parametrize(
+    ("actual_host", "env_host"),
+    [("0.0.0.0", ""), (None, ""), ("0.0.0.0", "127.0.0.1"), (None, "127.0.0.1")],
+)
+def test_agilab_main_page_refuses_unprotected_public_bind(
+    mock_ui_env, streamlit_loopback_config, actual_host, env_host
+):
+    streamlit_loopback_config.set_option("server.address", actual_host)
     home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/main_page.py")
 
@@ -1045,7 +1053,8 @@ def test_agilab_main_page_refuses_unprotected_public_bind(mock_ui_env):
         os.environ,
         {
             "HOME": str(home_root),
-            "STREAMLIT_SERVER_ADDRESS": "0.0.0.0",
+            "AGILAB_UI_HOST": env_host,
+            "STREAMLIT_SERVER_ADDRESS": env_host,
             "AGILAB_PUBLIC_BIND_OK": "",
             "AGILAB_TLS_TERMINATED": "",
         },
