@@ -23,7 +23,9 @@ def test_compatibility_package_depends_on_the_canonical_release(monkeypatch):
     assert new["project"]["version"] in dependency.specifier
     assert "2026.12.1" in dependency.specifier
     assert "2027.0" not in dependency.specifier
-    assert "entry-points" not in old["project"]
+    assert set(old["project"]["entry-points"]["agilab.apps"]) == {
+        "tescia_diagnostic", "tescia_diagnostic_project"
+    }
     assert not (legacy / "setup.py").exists()
 
     monkeypatch.syspath_prepend(str(canonical / "src"))
@@ -36,9 +38,12 @@ def test_compatibility_package_depends_on_the_canonical_release(monkeypatch):
 
 
 def test_legacy_entry_points_use_the_canonical_runtime(monkeypatch):
-    from importlib.metadata import EntryPoint
+    from importlib.metadata import EntryPoint, EntryPoints
 
-    from agi_env.project.app_provider_registry import resolve_app_runtime_target
+    from agi_env.project.app_provider_registry import (
+        discover_installed_app_projects,
+        resolve_app_runtime_target,
+    )
 
     package = LIB / "agi-app-learning-assessment"
     manifest = tomllib.loads((package / "pyproject.toml").read_text())
@@ -56,3 +61,15 @@ def test_legacy_entry_points_use_the_canonical_runtime(monkeypatch):
         settings = tomllib.loads((root / "src/app_settings.toml").read_text())
         assert settings["app_surface"]["title"] == "Learning & Assessment"
     assert len(roots) == 1
+
+    legacy = LIB / "agi-app-tescia-diagnostic"
+    monkeypatch.syspath_prepend(str(legacy / "src"))
+    legacy_manifest = tomllib.loads((legacy / "pyproject.toml").read_text())
+    installed_entries = EntryPoints(
+        EntryPoint(name=name, value=value, group="agilab.apps")
+        for data in (manifest, legacy_manifest)
+        for name, value in data["project"]["entry-points"]["agilab.apps"].items()
+    )
+    projects = discover_installed_app_projects(entry_points_fn=lambda: installed_entries)
+    assert len(projects) == 1
+    assert projects[0].project_root in roots

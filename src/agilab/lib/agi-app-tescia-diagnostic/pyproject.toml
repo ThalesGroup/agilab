@@ -57,6 +57,10 @@ dev = [
     "pytest",
 ]
 
+[project.entry-points."agilab.apps"]
+tescia_diagnostic = "agi_app_tescia_diagnostic:project_root"
+tescia_diagnostic_project = "agi_app_tescia_diagnostic:project_root"
+
 [tool.uv.sources.agi-app-learning-assessment]
 path = "../agi-app-learning-assessment"
 editable = true
