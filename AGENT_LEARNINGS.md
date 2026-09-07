@@ -1,8 +1,7 @@
 # AGILAB Agent Learnings
 
-This file is the compact correction ledger for recurring AGILAB agent mistakes.
-It complements `AGENTS.md`, `AGENT_CONVENTIONS.md`, and repo-managed skills; it
-is not a scratchpad or task log.
+This compact correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md`,
+and repo-managed skills. It records recurring agent mistakes, not task logs.
 
 ## When to add a rule
 
@@ -18,15 +17,16 @@ is not a scratchpad or task log.
 
 ## Maintenance contract
 
-- Keep this file short enough to read before work; the target ceiling is 120
-  lines.
+- Keep this file short enough to read before work, at 120 lines or fewer.
 - Run `python3 tools/agent_instruction_contract.py --check` after editing this
   file or any root agent runbook.
-- Do not store credentials, private URLs, customer data, or session transcripts
-  here.
+- Do not store credentials, private URLs, customer data, or session transcripts here.
 
 ## Current rules
 
+- When adding or renaming evidence schemas, regenerate `agilab-capabilities.json`
+  with `uv run python tools/agilab_capabilities_manifest.py --apply`, then run its
+  `--check` and manifest tests. App-local schemas also feed this generated inventory.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
   badges into a rendered expander unless the user explicitly asks for removal.
