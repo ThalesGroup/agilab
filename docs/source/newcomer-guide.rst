@@ -10,8 +10,9 @@ want to prove notebook import first, use the landing page's
 no file to find or upload. Use PROJECT -> ``Create`` -> ``From notebook`` later
 when the notebook is on your machine.
 
-This page gives the mental model only. :doc:`quick-start` owns the exact
-commands. :doc:`newcomer-troubleshooting` owns the first-failure path.
+This page explains the main concepts. See :doc:`quick-start` for the exact
+commands and :doc:`newcomer-troubleshooting` for help troubleshooting your first
+run.
 
 Fast adoption ladder
 --------------------
