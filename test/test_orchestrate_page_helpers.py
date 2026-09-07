@@ -18,6 +18,8 @@ import pytest
 from streamlit.errors import StreamlitAPIException
 from streamlit.testing.v1 import AppTest
 
+pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
