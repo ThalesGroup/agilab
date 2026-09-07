@@ -35,29 +35,70 @@ def test_configured_streamlit_host_reads_direct_streamlit_config_when_env_is_emp
     )
 
 
-def test_configured_streamlit_host_uses_streamlit_address_env_and_ignores_broken_config():
+def test_configured_streamlit_host_uses_streamlit_address_env_for_launch():
     assert (
         configured_streamlit_host({"STREAMLIT_SERVER_ADDRESS": " 0.0.0.0 "})
         == "0.0.0.0"
     )
 
-    def _broken_config(_key: str):
-        raise RuntimeError("streamlit config unavailable")
 
+@pytest.mark.parametrize("env_key", ["AGILAB_UI_HOST", "STREAMLIT_SERVER_ADDRESS"])
+def test_effective_streamlit_config_takes_precedence_over_env_host(env_key):
     assert (
-        configured_streamlit_host({}, streamlit_config_getter=_broken_config)
-        == DEFAULT_STREAMLIT_HOST
+        configured_streamlit_host(
+            {env_key: "127.0.0.1"},
+            streamlit_config_getter=lambda key: "0.0.0.0",
+        )
+        == "0.0.0.0"
+    )
+    with pytest.raises(PublicBindPolicyError, match="0.0.0.0"):
+        enforce_public_bind_policy(
+            {env_key: "127.0.0.1"}, streamlit_config_getter=lambda key: "0.0.0.0"
+        )
+
+
+@pytest.mark.parametrize("host", [None, "", "  "])
+def test_unset_effective_streamlit_address_requires_public_controls(host):
+    with pytest.raises(PublicBindPolicyError, match="0.0.0.0"):
+        enforce_public_bind_policy({}, streamlit_config_getter=lambda key: host)
+    assert (
+        enforce_public_bind_policy(
+            {"AGILAB_PUBLIC_BIND_OK": "1", "AGILAB_TLS_TERMINATED": "1"},
+            streamlit_config_getter=lambda key: host,
+        )
+        == "0.0.0.0"
     )
 
 
-def test_env_host_takes_precedence_over_streamlit_config():
+def test_effective_streamlit_loopback_overrides_public_launch_preference():
     assert (
-        configured_streamlit_host(
-            {"AGILAB_UI_HOST": "127.0.0.1"},
-            streamlit_config_getter=lambda key: "0.0.0.0",
+        enforce_public_bind_policy(
+            {"AGILAB_UI_HOST": "0.0.0.0"},
+            streamlit_config_getter=lambda key: "127.0.0.1",
         )
         == "127.0.0.1"
     )
+
+
+def test_runtime_config_unavailable_fails_closed():
+    def broken_config(_key: str):
+        raise RuntimeError("private configuration detail")
+
+    with pytest.raises(PublicBindPolicyError, match="server.address") as caught:
+        enforce_public_bind_policy(
+            {"AGILAB_UI_HOST": "127.0.0.1"}, streamlit_config_getter=broken_config
+        )
+    assert "private configuration detail" not in str(caught.value)
+
+
+def test_explicit_empty_environment_ignores_inherited_bind_and_controls(monkeypatch):
+    monkeypatch.setenv("AGILAB_UI_HOST", "0.0.0.0")
+    monkeypatch.setenv("AGILAB_PUBLIC_BIND_OK", "1")
+    monkeypatch.setenv("AGILAB_TLS_TERMINATED", "1")
+    assert configured_streamlit_host({}) == DEFAULT_STREAMLIT_HOST
+    assert not public_bind_has_controls({})
+    with pytest.raises(PublicBindPolicyError):
+        enforce_public_bind_policy({}, streamlit_config_getter=lambda key: "0.0.0.0")
 
 
 def test_public_bind_requires_explicit_ok_and_auth_or_tls_indicator():
@@ -83,7 +124,9 @@ def test_non_loopback_interface_binds_are_refused_without_controls(host):
         enforce_public_bind_policy({"AGILAB_UI_HOST": host})
 
 
-@pytest.mark.parametrize("host", ["127.0.0.1", "127.0.1.1", "::1", "[::1]", "localhost"])
+@pytest.mark.parametrize(
+    "host", ["127.0.0.1", "127.0.1.1", "::1", "[::1]", "localhost"]
+)
 def test_loopback_binds_never_require_controls(host):
     assert enforce_public_bind_policy({"AGILAB_UI_HOST": host}) == host
 
@@ -135,23 +178,33 @@ def test_public_bind_guard_or_stop_reports_error_before_stopping():
     assert FakeStreamlit.stopped is True
 
 
-def test_public_bind_guard_or_stop_uses_streamlit_get_option_when_available():
+@pytest.mark.parametrize("actual_host", [None, "0.0.0.0"])
+def test_public_bind_guard_or_stop_uses_streamlit_get_option_when_available(
+    actual_host,
+):
     class FakeStreamlit:
         stopped = False
 
         @staticmethod
-        def get_option(key: str) -> str:
+        def get_option(key: str) -> str | None:
             assert key == "server.address"
-            return "0.0.0.0"
+            return actual_host
 
         @classmethod
         def stop(cls) -> None:
             cls.stopped = True
 
     with pytest.raises(PublicBindPolicyError, match="0.0.0.0"):
-        enforce_public_bind_policy_or_stop(FakeStreamlit, {})
+        enforce_public_bind_policy_or_stop(
+            FakeStreamlit, {"AGILAB_UI_HOST": "127.0.0.1"}
+        )
 
     assert FakeStreamlit.stopped is True
+
+
+def test_direct_entrypoint_without_config_getter_fails_closed():
+    with pytest.raises(PublicBindPolicyError, match="server.address"):
+        enforce_public_bind_policy_or_stop(object(), {"AGILAB_UI_HOST": "127.0.0.1"})
 
 
 def test_streamlit_config_getter_prefers_get_option_over_legacy_config_get():

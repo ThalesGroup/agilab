@@ -11,6 +11,9 @@ import pytest
 from streamlit.errors import StreamlitAPIException
 
 
+pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
+
+
 class _SessionState(dict):
     def __getattr__(self, name: str):
         try:
