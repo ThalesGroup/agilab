@@ -53,10 +53,8 @@ branching into cluster mode, external app repositories, or broader workflows.
 For release-level evidence, use :doc:`release-proof` for the currently
 published version, package proof, CI guardrails, and hosted demo status.
 
-The `latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07>`__ link is
-prepared for this source version. Until publication completes, use the
-verified release links in :doc:`release-proof`.
+Download published assets from the `latest public GitHub release
+<https://github.com/ThalesGroup/agilab/releases/latest>`__.
 
 This documentation then expands into architecture, service mode, API
 references, and example projects.
