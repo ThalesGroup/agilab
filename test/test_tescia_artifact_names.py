@@ -12,16 +12,16 @@ import pytest
 
 APP_SRC = (
     Path(__file__).resolve().parents[1]
-    / "src/agilab/apps/builtin/tescia_diagnostic_project/src"
+    / "src/agilab/apps/builtin/learning_assessment_project/src"
 )
-SAMPLE_CASES = APP_SRC / "tescia_diagnostic/sample_data/tescia_diagnostic_cases.json"
+SAMPLE_CASES = APP_SRC / "learning_assessment/sample_data/tescia_diagnostic_cases.json"
 
 
 @pytest.fixture
 def app_modules(monkeypatch):
     monkeypatch.syspath_prepend(str(APP_SRC))
-    from tescia_diagnostic import exports
-    from tescia_diagnostic_worker import tescia_diagnostic_worker as worker_module
+    from learning_assessment import exports
+    from learning_assessment_worker import learning_assessment_worker as worker_module
 
     return exports, worker_module
 
@@ -120,7 +120,7 @@ def test_worker_keeps_both_artifact_bundles_complete_on_retry(app_modules, tmp_p
         ),
         encoding="utf-8",
     )
-    worker = worker_module.TesciaDiagnosticWorker()
+    worker = worker_module.LearningAssessmentWorker()
     worker._worker_id = 0
     worker.data_out = tmp_path / "reports"
     worker.artifact_dir = tmp_path / "export"
@@ -145,7 +145,7 @@ def test_worker_keeps_both_artifact_bundles_complete_on_retry(app_modules, tmp_p
             assert len(rows) == 1
             summary_ids.add(rows[0]["case_id"])
         assert summary_ids == case_ids
-        with (root / "tescia_diagnostic_summary.csv").open(
+        with (root / "learning_assessment_summary.csv").open(
             newline="", encoding="utf-8"
         ) as stream:
             assert {row["case_id"] for row in csv.DictReader(stream)} == case_ids

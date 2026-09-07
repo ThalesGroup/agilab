@@ -52,7 +52,7 @@ APP_HINTS = {
     "multi_dag": "multi_app_dag_project",
     "pytorch_playground": "pytorch_playground_project",
     "sklearn_pipeline": "sklearn_pipeline_project",
-    "tescia_diagnostic": "tescia_diagnostic_project",
+    "learning_assessment": "learning_assessment_project",
     "uav_relay_queue": "uav_relay_queue_project",
     "uav_queue": "uav_queue_project",
     "weather_forecast": "weather_forecast_project",

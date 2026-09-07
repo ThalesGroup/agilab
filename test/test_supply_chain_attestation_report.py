@@ -157,7 +157,7 @@ def test_supply_chain_attestation_records_core_and_app_manifests(supply_chain_at
         "pytorch_playground_project",
         "r_runtime_bridge_project",
         "sklearn_pipeline_project",
-        "tescia_diagnostic_project",
+        "learning_assessment_project",
         "uav_queue_project",
         "uav_relay_queue_project",
         "weather_forecast_project",

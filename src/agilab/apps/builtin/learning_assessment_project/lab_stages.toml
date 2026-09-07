@@ -1,0 +1,100 @@
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1
+
+[[learning_assessment]]
+id = "load_exercise_cases"
+D = "Classify learner cases"
+Q = "Load, validate, and assign the bundled cases to explicit learner paths."
+M = "deterministic"
+C = '''
+import json
+from pathlib import Path
+from learning_assessment import CASE_SCHEMA, load_case_bank
+
+APP = "learning_assessment_project"
+data_out = "learning_assessment_workflow/validated_cases.json"
+validated_cases_path = Path(data_out)
+validated_cases_path.parent.mkdir(parents=True, exist_ok=True)
+validated_cases_path.write_text(
+    json.dumps({"schema": CASE_SCHEMA, "cases": load_case_bank()}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+produces = ["learning_assessment_workflow/validated_cases.json"]
+
+[[learning_assessment]]
+id = "evaluate_answer"
+D = "Score evidence and apply decision guard"
+Q = "Compare evidence and learner choices, then apply any deterministic drift fallback."
+M = "deterministic"
+C = '''
+import json
+from pathlib import Path
+from learning_assessment import diagnose_case
+
+data_in = "learning_assessment_workflow/validated_cases.json"
+data_out = "learning_assessment_workflow/diagnostic_reports.json"
+minimum_evidence_confidence = 0.65
+minimum_regression_coverage = 0.60
+cases_payload = json.loads(Path(data_in).read_text(encoding="utf-8"))
+reports = [
+    diagnose_case(
+        case,
+        minimum_evidence_confidence=minimum_evidence_confidence,
+        minimum_regression_coverage=minimum_regression_coverage,
+    )
+    for case in cases_payload["cases"]
+]
+Path(data_out).write_text(
+    json.dumps({"schema": "agilab.tescia_diagnostic.reports.v1", "reports": reports}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+depends_on = ["load_exercise_cases"]
+consumes = ["learning_assessment_workflow/validated_cases.json"]
+produces = ["learning_assessment_workflow/diagnostic_reports.json"]
+
+[[learning_assessment]]
+id = "export_classroom_feedback"
+D = "Export learner and classroom evidence"
+Q = "Write scores, decision actions, correction sheets, and progress by learner path."
+M = "deterministic"
+C = '''
+import json
+from pathlib import Path
+from learning_assessment import (
+    write_classroom_artifacts,
+    write_correction_index,
+    write_correction_sheet,
+)
+
+data_in = "learning_assessment_workflow/diagnostic_reports.json"
+data_out = "learning_assessment/reports"
+reports_payload = json.loads(Path(data_in).read_text(encoding="utf-8"))
+report_dir = Path(data_out)
+report_dir.mkdir(parents=True, exist_ok=True)
+write_classroom_artifacts(reports_payload["reports"], report_dir)
+correction_dir = report_dir / "correction_sheets"
+correction_paths = [
+    write_correction_sheet(report, correction_dir)
+    for report in reports_payload["reports"]
+]
+write_correction_index(correction_paths, correction_dir)
+(report_dir / "diagnostic_reports.json").write_text(
+    json.dumps(reports_payload, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+'''
+R = "agi.run"
+depends_on = ["evaluate_answer"]
+consumes = ["learning_assessment_workflow/diagnostic_reports.json"]
+produces = [
+  "learning_assessment/reports/classroom_run_report.json",
+  "learning_assessment/reports/classroom_teacher_summary.md",
+  "learning_assessment/reports/classroom_learning_tracks.csv",
+  "learning_assessment/reports/correction_sheets/correction_sheets_index.md",
+  "learning_assessment/reports/diagnostic_reports.json",
+]

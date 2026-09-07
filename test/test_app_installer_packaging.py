@@ -149,7 +149,7 @@ APP_PROJECT_BY_DISTRIBUTION = {
     "agi-app-sklearn-pipeline": "sklearn_pipeline_project",
     "agi-app-data-quality-gate": "data_quality_gate_project",
     "agi-app-pytorch-playground": "pytorch_playground_project",
-    "agi-app-tescia-diagnostic": "tescia_diagnostic_project",
+    "agi-app-learning-assessment": "learning_assessment_project",
     "agi-app-uav-queue": "uav_queue_project",
     "agi-app-uav-relay-queue": "uav_relay_queue_project",
 }

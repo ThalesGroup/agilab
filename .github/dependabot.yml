@@ -193,6 +193,17 @@ updates:
       - "python"
 
   - package-ecosystem: "pip"
+    directory: "/src/agilab/lib/agi-app-learning-assessment"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:55"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+
+  - package-ecosystem: "pip"
     directory: "/src/agilab/lib/agi-app-tescia-diagnostic"
     schedule:
       interval: "weekly"

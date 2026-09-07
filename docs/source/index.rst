@@ -9,7 +9,7 @@ MLflow when that integration is enabled. The notebook export is an ``agi-core``
 runtime handoff: you can continue to run the saved project and stage contract
 with only the stable core runtime, without depending on the AGILAB UI or
 distributed worker layer. That stable, production-grade core technology remains
-the smallest supported handoff surface.
+the minimal supported runtime for exported notebooks.
 
 If you are new to AGILab, choose one route first:
 
@@ -20,12 +20,12 @@ If you are new to AGILab, choose one route first:
 - **Use the API/notebook**: follow :doc:`notebook-quickstart` for the smaller
   ``AgiEnv`` / ``AGI.run(...)`` surface.
 
-The fastest adoption ladder is browser preview, one local first-proof lane,
-evidence manifest, then expansion into package mode, external apps, or cluster
-work.
+Start with a browser preview, then run and verify one local example and save its
+run manifest. From there, explore package mode, external apps, or cluster
+execution.
 
-Golden ML loop
---------------
+Recommended ML workflow
+-----------------------
 
 AGILAB's strongest workflow is deliberately evidence-first:
 

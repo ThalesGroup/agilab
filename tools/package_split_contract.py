@@ -40,7 +40,7 @@ APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
     ("agi-app-sklearn-pipeline", "src/agilab/lib/agi-app-sklearn-pipeline"),
     ("agi-app-data-quality-gate", "src/agilab/lib/agi-app-data-quality-gate"),
     ("agi-app-pytorch-playground", "src/agilab/lib/agi-app-pytorch-playground"),
-    ("agi-app-tescia-diagnostic", "src/agilab/lib/agi-app-tescia-diagnostic"),
+    ("agi-app-learning-assessment", "src/agilab/lib/agi-app-learning-assessment"),
     ("agi-app-uav-queue", "src/agilab/lib/agi-app-uav-queue"),
     ("agi-app-uav-relay-queue", "src/agilab/lib/agi-app-uav-relay-queue"),
 )
@@ -55,7 +55,7 @@ PROMOTED_APP_PROJECT_PACKAGE_NAMES: tuple[str, ...] = (
     "agi-app-sklearn-pipeline",
     "agi-app-data-quality-gate",
     "agi-app-pytorch-playground",
-    "agi-app-tescia-diagnostic",
+    "agi-app-learning-assessment",
     "agi-app-uav-relay-queue",
 )
 
@@ -150,6 +150,13 @@ PACKAGE_CONTRACTS: tuple[PackageContract, ...] = (
         for name, project in APP_PROJECT_PACKAGE_SPECS
     ),
     PackageContract(
+        name="agi-app-tescia-diagnostic",
+        role="app-compatibility",
+        project="src/agilab/lib/agi-app-tescia-diagnostic",
+        dist="src/agilab/lib/agi-app-tescia-diagnostic/dist",
+        pypi_environment="pypi-agi-app-tescia-diagnostic",
+    ),
+    PackageContract(
         name="agi-apps",
         role="app-umbrella",
         project="src/agilab/lib/agi-apps",
@@ -191,12 +198,12 @@ PAGE_PACKAGE_NAMES: tuple[str, ...] = tuple(
 APP_PACKAGE_NAMES: tuple[str, ...] = tuple(
     package.name
     for package in LIBRARY_PACKAGE_CONTRACTS
-    if package.role in {"app-project", "app-umbrella"}
+    if package.role in {"app-project", "app-compatibility", "app-umbrella"}
 )
 ASSET_PACKAGE_NAMES: tuple[str, ...] = tuple(
     package.name
     for package in LIBRARY_PACKAGE_CONTRACTS
-    if package.role in {"app-project", "page-bundle"}
+    if package.role in {"app-project", "app-compatibility", "page-bundle"}
 )
 BUNDLE_PACKAGE_NAMES: tuple[str, ...] = tuple(
     package.name

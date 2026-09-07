@@ -136,7 +136,7 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Save classroom uploads": (
         "trial-only",
         "writes classroom intake files; focused TeSciA tests cover upload handling without mutating generic robot state",
-        ("test/test_tescia_diagnostic_project.py",),
+        ("test/test_learning_assessment_project.py",),
     ),
     "Start GPT-OSS server": (
         "ignored",

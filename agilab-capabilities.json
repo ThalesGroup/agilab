@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-04T13:56:02Z",
+  "generated_at_utc": "2026-09-07T14:27:29Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.07.31"
+    "version": "2026.09.07"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -19,7 +19,7 @@
   "summary": {
     "cli_command_count": 13,
     "streamlit_page_count": 6,
-    "package_count": 36,
+    "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
     "evidence_schema_count": 243,
@@ -603,14 +603,14 @@
       "artifact_policy": "wheel+sdist"
     },
     {
-      "name": "agi-app-tescia-diagnostic",
+      "name": "agi-app-learning-assessment",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.07.31",
-      "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts",
-      "project": "src/agilab/lib/agi-app-tescia-diagnostic",
-      "pyproject": "src/agilab/lib/agi-app-tescia-diagnostic/pyproject.toml",
-      "pypi_environment": "pypi-agi-app-tescia-diagnostic",
+      "version": "2026.09.07",
+      "description": "AGILAB learning and assessment workflow with evidence scoring and regression-plan artifacts",
+      "project": "src/agilab/lib/agi-app-learning-assessment",
+      "pyproject": "src/agilab/lib/agi-app-learning-assessment/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-learning-assessment",
       "artifact_policy": "wheel+sdist"
     },
     {
@@ -636,10 +636,21 @@
       "artifact_policy": "wheel+sdist"
     },
     {
+      "name": "agi-app-tescia-diagnostic",
+      "role": "app-compatibility",
+      "status": "PyPI package",
+      "version": "2026.09.07",
+      "description": "Compatibility package for agi-app-learning-assessment (formerly TeSciA Diagnostic)",
+      "project": "src/agilab/lib/agi-app-tescia-diagnostic",
+      "pyproject": "src/agilab/lib/agi-app-tescia-diagnostic/pyproject.toml",
+      "pypi_environment": "pypi-agi-app-tescia-diagnostic",
+      "artifact_policy": "wheel+sdist"
+    },
+    {
       "name": "agi-apps",
       "role": "app-umbrella",
       "status": "PyPI package",
-      "version": "2026.07.31",
+      "version": "2026.09.07",
       "description": "AGILAB public app package umbrella and example assets",
       "project": "src/agilab/lib/agi-apps",
       "pyproject": "src/agilab/lib/agi-apps/pyproject.toml",
@@ -650,7 +661,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.07.31",
+      "version": "2026.09.07",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -690,6 +701,14 @@
       "source": "src/agilab/lib/agi-app-flight-telemetry",
       "version": "2026.07.31",
       "description": "AGILAB flight-telemetry ingestion demo with reusable dataframe and map-analysis outputs"
+    },
+    {
+      "project": "learning_assessment_project",
+      "package": "agi-app-learning-assessment",
+      "status": "PyPI app package",
+      "source": "src/agilab/lib/agi-app-learning-assessment",
+      "version": "2026.09.07",
+      "description": "AGILAB learning and assessment workflow with evidence scoring and regression-plan artifacts"
     },
     {
       "project": "minimal_app_project",
@@ -738,14 +757,6 @@
       "source": "src/agilab/lib/agi-app-sklearn-pipeline",
       "version": "2026.07.31",
       "description": "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
-    },
-    {
-      "project": "tescia_diagnostic_project",
-      "package": "agi-app-tescia-diagnostic",
-      "status": "PyPI app package",
-      "source": "src/agilab/lib/agi-app-tescia-diagnostic",
-      "version": "2026.07.31",
-      "description": "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
     },
     {
       "project": "uav_queue_project",
@@ -1664,9 +1675,9 @@
     {
       "schema": "agilab.lab_stages.v1",
       "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/lab_stages.toml",
         "src/agilab/apps/builtin/mission_decision_project/lab_stages.toml",
         "src/agilab/apps/builtin/multi_app_dag_project/lab_stages.toml",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml",
         "src/agilab/apps/builtin/uav_queue_project/lab_stages.toml",
         "src/agilab/apps/builtin/uav_relay_queue_project/lab_stages.toml",
         "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
@@ -2352,75 +2363,75 @@
     {
       "schema": "agilab.tescia_diagnostic.cases.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_diagnostic_cases.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/ui/app_surface.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/classroom.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/sample_data/tescia_diagnostic_cases.json",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/ui/app_surface.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.classroom.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_classroom_submissions.json",
-        "src/agilab/lib/agi-app-tescia-diagnostic/README.md"
+        "src/agilab/apps/builtin/learning_assessment_project/src/app_args_form.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/classroom.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/sample_data/tescia_classroom_submissions.json",
+        "src/agilab/lib/agi-app-learning-assessment/README.md"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.classroom_run_report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/classroom.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/classroom.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.decision.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.decision_policy.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/sample_data/tescia_diagnostic_cases.json"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/sample_data/tescia_diagnostic_cases.json"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.math_program_coverage.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/curriculum/math_program_2026.json",
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/curriculum.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/curriculum/math_program_2026.json",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/curriculum.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.math_program_coverage_report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/curriculum.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/curriculum.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.report.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.reports.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml"
+        "src/agilab/apps/builtin/learning_assessment_project/lab_stages.toml"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.self_evaluation.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py"
       ]
     },
     {
       "schema": "agilab.tescia_diagnostic.summary.v1",
       "sources": [
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/tescia_diagnostic/domain/diagnostic.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/diagnostic.py"
       ]
     },
     {

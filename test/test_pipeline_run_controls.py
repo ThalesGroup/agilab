@@ -1309,12 +1309,12 @@ def test_tescia_workflow_contract_selects_the_active_app_runtime(tmp_path) -> No
     repo_root = Path(__file__).resolve().parents[1]
     stages_file = (
         repo_root
-        / "src/agilab/apps/builtin/tescia_diagnostic_project/lab_stages.toml"
+        / "src/agilab/apps/builtin/learning_assessment_project/lab_stages.toml"
     )
     entries = tomllib.loads(stages_file.read_text(encoding="utf-8"))[
-        "tescia_diagnostic"
+        "learning_assessment"
     ]
-    runtime_root = tmp_path / "tescia_diagnostic_project"
+    runtime_root = tmp_path / "learning_assessment_project"
     runtime_python = runtime_root / ".venv" / "bin" / "python"
     runtime_python.parent.mkdir(parents=True)
     runtime_python.touch()

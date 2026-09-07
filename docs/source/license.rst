@@ -59,7 +59,6 @@ UI and page packages
    agi-page-simplex-map <agi-page-simplex-map-licenses>
    agi-page-decision-evidence <agi-page-decision-evidence-licenses>
    agi-page-timeseries-forecast <agi-page-timeseries-forecast-licenses>
-   agi-page-inference-report <agi-page-inference-report-licenses>
    agi-page-live-artifacts <agi-page-live-artifacts-licenses>
    agi-page-geospatial-map <agi-page-geospatial-map-licenses>
    agi-page-geospatial-3d <agi-page-geospatial-3d-licenses>
@@ -89,7 +88,8 @@ App packages
    agi-app-sklearn-pipeline <agi-app-sklearn-pipeline-licenses>
    agi-app-data-quality-gate <agi-app-data-quality-gate-licenses>
    agi-app-pytorch-playground <agi-app-pytorch-playground-licenses>
-   agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
+   agi-app-learning-assessment <agi-app-learning-assessment-licenses>
    agi-app-uav-queue <agi-app-uav-queue-licenses>
    agi-app-uav-relay-queue <agi-app-uav-relay-queue-licenses>
+   agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
    agi-apps <agi-apps-licenses>

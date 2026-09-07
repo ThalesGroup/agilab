@@ -34,7 +34,7 @@ def test_dependabot_visibility_covers_python_and_github_actions() -> None:
         "agi-app-multi-dag",
         "agi-app-weather-forecast",
         "agi-app-data-quality-gate",
-        "agi-app-tescia-diagnostic",
+        "agi-app-learning-assessment",
         "agi-app-uav-queue",
         "agi-app-uav-relay-queue",
     ):

@@ -61,7 +61,7 @@ SECTION_DEFINITIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Top-level package", ("top-level-bundle",)),
     ("Runtime packages", ("runtime-component", "runtime-bundle")),
     ("UI and page packages", ("ui-component", "page-bundle", "page-umbrella")),
-    ("App packages", ("app-project", "app-umbrella")),
+    ("App packages", ("app-project", "app-compatibility", "app-umbrella")),
 )
 
 

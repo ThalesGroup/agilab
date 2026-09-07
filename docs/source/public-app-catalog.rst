@@ -94,10 +94,11 @@ Status legend:
      - Narrow R stage runtime proof: AGILAB stays the Python orchestrator while
        a worker executes ``Rscript`` through JSON input/output, captured logs,
        artifact directories, manifest hashes, and reducer evidence.
-   * - ``tescia_diagnostic_project``
-     - ``agi-app-tescia-diagnostic``
+   * - ``learning_assessment_project``
+     - ``agi-app-learning-assessment``
      - PyPI app package
-     - Evidence-scored diagnostic and self-evaluation cases with 2026 math
+     - Learning & Assessment: evidence-scored diagnostic and self-evaluation
+       cases, including the original TeSciA collection, with 2026 math
        coverage, a 12-case 2026 data-scientist interview evaluation spanning
        modern ML, RAG, agents, LLM evaluation, uncertainty, and token-cost
        optimization, classroom batch intake, live teacher dashboard artifacts,

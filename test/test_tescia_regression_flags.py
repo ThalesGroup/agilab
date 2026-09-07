@@ -8,21 +8,21 @@ import pytest
 
 APP_SRC = (
     Path(__file__).resolve().parents[1]
-    / "src/agilab/apps/builtin/tescia_diagnostic_project/src"
+    / "src/agilab/apps/builtin/learning_assessment_project/src"
 )
 
 
 @pytest.fixture
 def diagnostic_modules(monkeypatch):
     monkeypatch.syspath_prepend(str(APP_SRC))
-    from tescia_diagnostic.domain import diagnostic, generator
+    from learning_assessment.domain import diagnostic, generator
 
     return diagnostic, generator
 
 
 @pytest.fixture
 def case_payload():
-    sample = APP_SRC / "tescia_diagnostic/sample_data/tescia_diagnostic_cases.json"
+    sample = APP_SRC / "learning_assessment/sample_data/tescia_diagnostic_cases.json"
     payload = json.loads(sample.read_text(encoding="utf-8"))
     payload["cases"] = payload["cases"][:1]
     return payload

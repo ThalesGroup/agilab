@@ -30,8 +30,8 @@ MANAGER_PATHS = (
     ),
     Path("src/agilab/apps/builtin/r_runtime_bridge_project/src/r_runtime_bridge/r_runtime_bridge.py"),
     Path(
-        "src/agilab/apps/builtin/tescia_diagnostic_project/src/"
-        "tescia_diagnostic/runtime/tescia_diagnostic.py"
+        "src/agilab/apps/builtin/learning_assessment_project/src/"
+        "learning_assessment/runtime/learning_assessment.py"
     ),
     Path("src/agilab/apps/builtin/uav_queue_project/src/uav_queue/uav_queue.py"),
     Path(

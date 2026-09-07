@@ -66,10 +66,10 @@ APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
         "package": "agi_app_pytorch_playground",
     },
     {
-        "project": "tescia_diagnostic_project",
-        "slug": "tescia_diagnostic",
-        "distribution": "agi-app-tescia-diagnostic",
-        "package": "agi_app_tescia_diagnostic",
+        "project": "learning_assessment_project",
+        "slug": "learning_assessment",
+        "distribution": "agi-app-learning-assessment",
+        "package": "agi_app_learning_assessment",
     },
     {
         "project": "uav_queue_project",

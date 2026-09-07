@@ -45,7 +45,7 @@ PROFILE_BUILTIN_APP_ENTRIES = {
         "multi_app_dag_project",
         "mission_decision_project",
         "minimal_app_project",
-        "tescia_diagnostic_project",
+        "learning_assessment_project",
         "uav_queue_project",
         "uav_relay_queue_project",
         "weather_forecast_project",

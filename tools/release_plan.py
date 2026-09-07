@@ -34,6 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
 
 SCHEMA_VERSION = "agilab.release_plan.v1"
 PYPI_PUBLISH_ROLES = {
+    "app-compatibility",
     "runtime-component",
     "ui-component",
     "page-bundle",

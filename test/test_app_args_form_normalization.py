@@ -443,7 +443,7 @@ def test_flight_app_args_form_reseeds_widgets_after_external_settings_change(tmp
 
 
 def test_tescia_app_args_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
-    form_path = REPO_ROOT / "src/agilab/apps/builtin/tescia_diagnostic_project/src/app_args_form.py"
+    form_path = REPO_ROOT / "src/agilab/apps/builtin/learning_assessment_project/src/app_args_form.py"
     settings_file = _seed_settings_for_form(form_path, tmp_path)
     env = _make_builtin_env(form_path, settings_file, tmp_path)
 
@@ -454,13 +454,13 @@ def test_tescia_app_args_form_reseeds_widgets_after_external_settings_change(tmp
     at.session_state["app_settings"] = {"args": {}, "cluster": {}}
     at.run()
     assert not at.exception
-    assert at.text_input(key="tescia_diagnostic_project:app_args_form:files").value == "*.json"
+    assert at.text_input(key="learning_assessment_project:app_args_form:files").value == "*.json"
 
     content = settings_file.read_text(encoding="utf-8")
     settings_file.write_text(content.replace('files = "*.json"', 'files = "case_*.json"'), encoding="utf-8")
     at.run()
     assert not at.exception
-    assert at.text_input(key="tescia_diagnostic_project:app_args_form:files").value == "case_*.json"
+    assert at.text_input(key="learning_assessment_project:app_args_form:files").value == "case_*.json"
 
 
 def test_pytorch_playground_form_reseeds_widgets_after_external_settings_change(tmp_path: Path) -> None:
