@@ -21,6 +21,7 @@ if str(SRC_PACKAGE) not in _agilab_package.__path__:
     _agilab_package.__path__.insert(0, str(SRC_PACKAGE))
 
 from package_split_contract import (  # noqa: E402
+    APP_PROJECT_PACKAGE_SPECS,
     PACKAGE_NAMES,
     ROOT_EXTRA_INTERNAL_REQUIREMENTS,
     is_self_extra_alias,
@@ -685,8 +686,6 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
 
 
 def test_promoted_app_packages_depend_on_runtime_pair_not_core_bundle() -> None:
-    from tools.package_split_contract import APP_PROJECT_PACKAGE_SPECS
-
     # Compatibility distributions forward to a full app package; only app
     # payload providers own the runtime pair directly.
     package_pyprojects = sorted(
