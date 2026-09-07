@@ -1,7 +1,7 @@
 [project]
-version = "2026.07.31"
+version = "2026.09.07"
 name = "agi-app-tescia-diagnostic"
-description = "AGILAB TeSciA-style diagnostic workflow with evidence scoring and regression-plan artifacts"
+description = "Compatibility package for agi-app-learning-assessment (formerly TeSciA Diagnostic)"
 requires-python = ">=3.13"
 readme = "README.md"
 authors = [
@@ -28,7 +28,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-env>=2026.07.31,<2027.0", "agi-node>=2026.07.31,<2027.0"]
+dependencies = ["agi-app-learning-assessment>=2026.09.07,<2027.0"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -38,10 +38,6 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
-
-[project.entry-points."agilab.apps"]
-tescia_diagnostic = "agi_app_tescia_diagnostic:project_root"
-tescia_diagnostic_project = "agi_app_tescia_diagnostic:project_root"
 
 
 
@@ -61,13 +57,13 @@ dev = [
     "pytest",
 ]
 
-[tool.uv.sources.agi-env]
-    path = "../../core/agi-env"
-    editable = true
+[project.entry-points."agilab.apps"]
+tescia_diagnostic = "agi_app_tescia_diagnostic:project_root"
+tescia_diagnostic_project = "agi_app_tescia_diagnostic:project_root"
 
-[tool.uv.sources.agi-node]
-    path = "../../core/agi-node"
-    editable = true
+[tool.uv.sources.agi-app-learning-assessment]
+path = "../agi-app-learning-assessment"
+editable = true
 
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -77,23 +73,3 @@ build-backend = "setuptools.build_meta"
 include-package-data = false
 package-dir = {"" = "src"}
 packages = ["agi_app_tescia_diagnostic"]
-
-[tool.setuptools.package-data]
-"agi_app_tescia_diagnostic" = [
-    "project/**/*",
-]
-
-[tool.setuptools.exclude-package-data]
-"agi_app_tescia_diagnostic" = [
-    "project/**/.venv/**",
-    "project/**/__pycache__/**",
-    "project/**/*.pyc",
-    "project/**/*.pyo",
-    "project/**/*.pyx",
-    "project/**/*.c",
-    "project/**/*.so",
-    "project/**/uv.lock",
-]
-
-[tool.pytest.ini_options]
-testpaths = ["test"]

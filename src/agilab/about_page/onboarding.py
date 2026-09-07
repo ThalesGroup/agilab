@@ -135,11 +135,11 @@ FIRST_RUN_SHOWCASE_ITEMS = (
         "run_label": "Open workflow",
     },
     {
-        "route": "TeSciA diagnostic",
+        "route": "Learning & Assessment",
         "evidence": "scored diagnostic cases and classroom batch artifacts",
         "preview_page": "public-app-catalog",
         "run_page": "ORCHESTRATE",
-        "active_app": "tescia_diagnostic_project",
+        "active_app": "learning_assessment_project",
         "run_label": "Open run page",
     },
     {
@@ -229,7 +229,7 @@ FIRST_RUN_SHOWCASE_GROUPS = (
             "Mission decision",
             "Multi-app DAG",
             "UAV relay queue",
-            "TeSciA diagnostic",
+            "Learning & Assessment",
             "MLflow tracking",
         ),
     },

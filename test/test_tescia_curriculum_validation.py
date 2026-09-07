@@ -9,14 +9,14 @@ import pytest
 
 APP_SRC = (
     Path(__file__).resolve().parents[1]
-    / "src/agilab/apps/builtin/tescia_diagnostic_project/src"
+    / "src/agilab/apps/builtin/learning_assessment_project/src"
 )
 
 
 @pytest.fixture
 def curriculum_module(monkeypatch):
     monkeypatch.syspath_prepend(str(APP_SRC))
-    return importlib.import_module("tescia_diagnostic.curriculum")
+    return importlib.import_module("learning_assessment.curriculum")
 
 
 def _cases_per_curriculum_id(module, curriculum, count=1):

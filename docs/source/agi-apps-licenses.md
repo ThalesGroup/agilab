@@ -17,71 +17,72 @@ Audit notes:
 
 | Package Name | Version | License |
 |--------------|---------|---------|
-| agi-app-flight-telemetry | 2026.5.31 | BSD-3-Clause |
-| agi-app-mission-decision | 2026.5.31 | BSD-3-Clause |
-| agi-app-multi-dag | 2026.5.31 | BSD-3-Clause |
-| agi-app-pandas-execution | 2026.5.31 | BSD-3-Clause |
-| agi-app-polars-execution | 2026.5.31 | BSD-3-Clause |
-| agi-app-pytorch-playground | 2026.5.31 | BSD-3-Clause |
-| agi-app-sklearn-pipeline | 2026.5.31 | BSD-3-Clause |
-| agi-app-tescia-diagnostic | 2026.5.31 | BSD-3-Clause |
-| agi-app-uav-relay-queue | 2026.5.31 | BSD-3-Clause |
-| agi-app-weather-forecast | 2026.5.31 | BSD-3-Clause |
-| agi-cluster | 2026.5.31 | BSD-3-Clause |
-| agi-core | 2026.5.31 | BSD-3-Clause |
-| agi-env | 2026.5.31 | BSD-3-Clause |
-| agi-node | 2026.5.31 | BSD-3-Clause |
-| annotated-types | 0.7.0 | MIT LICENSE |
-| asyncssh | 2.23.0 | EPL-2.0;; GPL-2.0-OR-LATER |
-| backports-zstd | 1.3.0 | PSF-2.0 |
+| agi-app-data-quality-gate | 2026.7.31 | BSD-3-Clause |
+| agi-app-flight-telemetry | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-learning-assessment | UNKNOWN | BSD-3-Clause |
+| agi-app-mission-decision | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-multi-dag | 2026.7.17 | BSD-3-Clause |
+| agi-app-pandas-execution | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-polars-execution | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-pytorch-playground | 2026.5.23 | BSD-3-Clause |
+| agi-app-sklearn-pipeline | 2026.7.31 | BSD-3-Clause |
+| agi-app-uav-relay-queue | 2026.5.17.post2 | BSD-3-Clause |
+| agi-app-weather-forecast | 2026.5.17.post2 | BSD-3-Clause |
+| agi-cluster | 2026.7.31 | BSD-3-Clause |
+| agi-core | 2026.7.31 | BSD-3-Clause |
+| agi-env | 2026.7.31 | BSD-3-Clause |
+| agi-node | 2026.7.31 | BSD-3-Clause |
+| annotated-types | 0.8.0 | MIT LICENSE |
+| asyncssh | 2.24.0 | EPL-2.0;; GPL-2.0-OR-LATER |
+| backports-zstd | 1.7.0 | PSF-2.0 |
 | brotli | 1.2.0 | MIT |
-| cffi | 2.0.0 | MIT |
-| click | 8.3.3 | BSD-3-CLAUSE |
+| cffi | 2.1.1 | MIT-0 |
+| click | 8.5.0 | BSD-3-CLAUSE |
 | cloudpickle | 3.1.2 | BSD LICENSE |
-| cryptography | 46.0.7 | APACHE-2.0;; BSD-3-CLAUSE |
-| cython | 3.2.4 | APACHE SOFTWARE LICENSE |
-| dask | 2026.3.0 | BSD-3-CLAUSE |
-| distributed | 2026.3.0 | BSD-3-CLAUSE |
-| fsspec | 2026.2.0 | BSD-3-CLAUSE |
-| humanize | 4.15.0 | MIT |
+| cryptography | 50.0.1 | APACHE-2.0;; BSD-3-CLAUSE |
+| cython | 3.3.0 | APACHE-2.0 |
+| dask | 2026.8.0 | BSD-3-CLAUSE |
+| distributed | 2026.8.0 | BSD-3-CLAUSE |
+| fsspec | 2026.7.0 | UNKNOWN |
+| humanize | 4.16.0 | MIT |
 | inflate64 | 1.0.4 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
 | jinja2 | 3.1.6 | BSD LICENSE |
-| joblib | 1.5.3 | BSD-3-CLAUSE |
+| joblib | 1.6.0 | BSD-3-CLAUSE |
 | locket | 1.0.0 | BSD LICENSE |
 | markupsafe | 3.0.3 | BSD-3-CLAUSE |
-| msgpack | 1.1.2 | APACHE-2.0 |
+| msgpack | 1.2.2 | APACHE-2.0 |
 | multivolumefile | 0.2.3 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| narwhals | 2.25.0 | MIT |
 | numpy | 2.3.5 | BSD LICENSE |
-| packaging | 26.2 | APACHE-2.0;; BSD-2-CLAUSE |
+| packaging | 26.3 | APACHE-2.0;; BSD-2-CLAUSE |
 | pandas | 2.3.3 | BSD LICENSE |
-| parso | 0.8.6 | MIT LICENSE |
+| parso | 0.8.7 | MIT LICENSE |
 | partd | 1.4.2 | BSD |
 | pathspec | 1.1.1 | MOZILLA PUBLIC LICENSE 2.0 _MPL 2.0_ |
-| polars | 1.40.1 | MIT LICENSE |
-| polars-runtime-32 | 1.40.1 | MIT LICENSE |
+| polars | 1.44.1 | MIT LICENSE |
+| polars-runtime-32 | 1.44.1 | MIT LICENSE |
 | psutil | 7.2.2 | BSD-3-CLAUSE |
-| py7zr | 1.0.0 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
-| pybcj | 1.0.7 | GNU LESSER GENERAL PUBLIC LICENSE V2;; LATER _LGPLV2__ |
+| py7zr | 1.1.3 | LGPL-2.1-OR-LATER |
+| pybcj | 1.0.8 | LGPL-2.1-OR-LATER |
 | pycparser | 3.0 | BSD-3-CLAUSE |
 | pycryptodomex | 3.23.0 | BSD LICENSE;; PUBLIC DOMAIN |
-| pydantic | 2.12.5 | MIT |
-| pydantic-core | 2.41.5 | MIT |
-| pyppmd | 1.2.0 | LGPL-2.1-OR-LATER |
+| pydantic | 2.13.5 | MIT |
+| pydantic-core | 2.46.5 | MIT |
+| pyppmd | 1.3.1 | LGPL-2.1-OR-LATER |
 | python-dateutil | 2.9.0.post0 | APACHE SOFTWARE LICENSE;; BSD LICENSE |
-| python-dotenv | 1.2.2 | BSD-3-CLAUSE |
+| python-dotenv | 1.2.3 | BSD-3-CLAUSE |
 | pyyaml | 6.0.3 | MIT LICENSE |
-| scikit-learn | 1.8.0 | BSD-3-CLAUSE |
+| scikit-learn | 1.9.0 | BSD-3-CLAUSE |
 | scipy | 1.16.3 | BSD LICENSE |
-| setuptools | 81.0.0 | MIT |
+| setuptools | 83.0.0 | MIT |
 | six | 1.17.0 | MIT LICENSE |
 | sortedcontainers | 2.4.0 | APACHE SOFTWARE LICENSE |
 | tblib | 3.2.2 | BSD-2-CLAUSE |
 | texttable | 1.7.0 | MIT LICENSE |
 | threadpoolctl | 3.6.0 | BSD LICENSE |
-| tomlkit | 0.14.0 | MIT LICENSE |
+| tomlkit | 0.15.1 | MIT LICENSE |
 | toolz | 1.1.0 | BSD-3-CLAUSE |
-| tornado | 6.5.5 | APACHE SOFTWARE LICENSE |
-| typing-extensions | 4.15.0 | PSF-2.0 |
-| typing-inspection | 0.4.2 | MIT |
-| urllib3 | 2.7.0 | MIT |
+| tornado | 6.5.8 | APACHE SOFTWARE LICENSE |
+| typing-extensions | 4.16.0 | PSF-2.0 |
+| typing-inspection | 0.4.4 | MIT |
 | zict | 3.0.0 | BSD LICENSE |

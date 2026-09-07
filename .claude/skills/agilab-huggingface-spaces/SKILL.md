@@ -58,7 +58,7 @@ Profile app/page sets:
 - `advanced`
   - apps: `execution_pandas_project`, `execution_polars_project`,
     `flight_telemetry_project`, `multi_app_dag_project`,
-    `mission_decision_project`, `minimal_app_project`, `tescia_diagnostic_project`,
+    `mission_decision_project`, `minimal_app_project`, `learning_assessment_project`,
     `uav_queue_project`, `uav_relay_queue_project`,
     `weather_forecast_project`
   - pages: `view_data_io_decision`, `view_forecast_analysis`, `view_maps`,

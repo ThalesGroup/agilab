@@ -10,6 +10,7 @@ Source manifests:
 Extras included: `agents`, `ai`, `bridges`, `core`, `dev`, `examples`, `local-llm`, `mlflow`, `notebook`, `offline`, `pages`, `proof`, `ui`, `viz`.
 
 Audit notes:
+- This snapshot retains the last published dependency graph until the Learning & Assessment first publication.
 - This page lists Python dependency metadata resolved for documentation review.
 - AGILAB-owned packages are normalized to `BSD-3-Clause` when PyPI metadata is incomplete.
 - Dependency metadata can be broader than vendored source; review redistribution changes separately.

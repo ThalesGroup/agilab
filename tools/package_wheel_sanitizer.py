@@ -27,7 +27,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
         "agi-app-sklearn-pipeline",
         "agi-app-data-quality-gate",
         "agi-app-pytorch-playground",
-        "agi-app-tescia-diagnostic",
+        "agi-app-learning-assessment",
         "agi-app-uav-queue",
         "agi-app-uav-relay-queue",
         "agi-page-simplex-map",

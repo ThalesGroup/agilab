@@ -102,12 +102,12 @@ def test_builtin_app_profile_requires_current_first_proof_apps() -> None:
         [
             {"path": "src/agilab/apps/builtin/flight_telemetry_project"},
             {"path": "src/agilab/apps/builtin/pytorch_playground_project"},
-            {"path": "src/agilab/apps/builtin/tescia_diagnostic_project"},
+            {"path": "src/agilab/apps/builtin/learning_assessment_project"},
         ]
     )
 
     assert missing == ["weather_forecast_project"]
-    assert unexpected == ["tescia_diagnostic_project"]
+    assert unexpected == ["learning_assessment_project"]
 
 
 def test_unexpected_page_entries_flags_only_direct_extra_pages() -> None:

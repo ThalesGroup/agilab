@@ -7246,7 +7246,7 @@ def test_first_run_showcase_groups_flagship_routes_by_newcomer_intent():
         "PyTorch playground",
         "UAV relay queue",
         "UAV queue policy",
-        "TeSciA diagnostic",
+        "Learning & Assessment",
         "R runtime bridge",
         "Excel workbook proof",
         "Voila dashboard proof",
@@ -7259,7 +7259,7 @@ def test_first_run_showcase_groups_flagship_routes_by_newcomer_intent():
     assert "/ORCHESTRATE?active_app=flight_telemetry_project" in by_route["Flight telemetry first proof"]["access"]
     assert "/ORCHESTRATE?active_app=mission_decision_project" in by_route["Mission decision"]["access"]
     assert "/ANALYSIS?active_app=pytorch_playground_project" in by_route["PyTorch playground"]["access"]
-    assert "/ORCHESTRATE?active_app=tescia_diagnostic_project" in by_route["TeSciA diagnostic"]["access"]
+    assert "/ORCHESTRATE?active_app=learning_assessment_project" in by_route["Learning & Assessment"]["access"]
     assert "excel-users.html" in by_route["Excel workbook proof"]["access"]
     assert "voila-users.html" in by_route["Voila dashboard proof"]["access"]
 

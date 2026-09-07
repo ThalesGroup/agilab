@@ -685,7 +685,14 @@ def test_shared_core_runtime_dependencies_are_not_copied_meta_stacks() -> None:
 
 
 def test_promoted_app_packages_depend_on_runtime_pair_not_core_bundle() -> None:
-    package_pyprojects = sorted((REPO_ROOT / "src/agilab/lib").glob("agi-app-*/pyproject.toml"))
+    from tools.package_split_contract import APP_PROJECT_PACKAGE_SPECS
+
+    # Compatibility distributions forward to a full app package; only app
+    # payload providers own the runtime pair directly.
+    package_pyprojects = sorted(
+        REPO_ROOT / project / "pyproject.toml"
+        for _, project in APP_PROJECT_PACKAGE_SPECS
+    )
     assert package_pyprojects
 
     for pyproject in package_pyprojects:

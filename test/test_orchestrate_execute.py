@@ -704,7 +704,7 @@ def test_orchestrate_execute_import_survives_missing_networkx():
         ("custom_dag_project", "custom_dag_project", "custom_dag", None, True),
         ("dag_app_template", "your_dag_project", "dag_app", None, True),
         ("flight_telemetry_project", "flight_telemetry_project", "flight", "PolarsWorker", False),
-        ("tescia_diagnostic_project", "tescia_diagnostic_project", "tescia_diagnostic", "PandasWorker", False),
+        ("learning_assessment_project", "learning_assessment_project", "learning_assessment", "PandasWorker", False),
     ],
 )
 def test_is_dag_based_app_detects_env_worker_base_first(app_state_name, env_app, target, base_worker_cls, expected):

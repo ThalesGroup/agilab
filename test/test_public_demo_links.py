@@ -775,15 +775,18 @@ def test_docs_index_links_to_release_matching_source_state() -> None:
 
     linked_url, linked_tag = links[0]
     relation = release["source_version_relation"]
+    # Advancing the checkout does not publish a release. The landing page must
+    # keep linking to the published release recorded by the evidence manifest.
+    assert linked_url == LATEST_RELEASE_URL
+    published_version = Version(release["package_version"])
+    assert Version(linked_tag.removeprefix("v").replace("_", ".")) == published_version
+    source_version = Version(source["project"]["version"])
     if relation == "exact":
-        assert linked_url == LATEST_RELEASE_URL
+        assert source_version == published_version
         return
 
     assert relation == "ahead"
-    source_version = Version(source["project"]["version"])
-    assert source_version > Version(release["package_version"])
-    assert linked_url != LATEST_RELEASE_URL
-    assert Version(linked_tag.removeprefix("v").replace("_", ".")) == source_version
+    assert source_version > published_version
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:

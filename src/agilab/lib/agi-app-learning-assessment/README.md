@@ -1,0 +1,167 @@
+# agi-app-learning-assessment
+
+The app is displayed as **Learning & Assessment**. The original TeSciA
+diagnostic collection remains available. The former
+`agi-app-tescia-diagnostic` package installs this distribution; both legacy
+project discovery aliases resolve to `learning_assessment_project`.
+Existing user workspace data and settings remain in place.
+
+[![PyPI version](https://img.shields.io/pypi/v/agi-app-learning-assessment.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-learning-assessment/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agi-app-learning-assessment.svg)](https://pypi.org/project/agi-app-learning-assessment/)
+[![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-learning-assessment)](https://opensource.org/licenses/BSD-3-Clause)
+
+`agi-app-learning-assessment` packages the `learning_assessment_project`
+AGILAB app. It is a diagnostic-method example that turns weak assumptions,
+evidence, candidate fixes, and regression plans into structured artifacts.
+It can also be used as a student self-evaluation exercise: cases expose
+student-facing metadata and optional submitted answers that are graded with a
+deterministic rubric.
+For classroom use, a submission batch can reference exercise ids and expand
+into independent scoring rows for local or cluster execution.
+The example teaches evidence-based diagnostic reasoning; it does not process
+acoustic, vibration, or telemetry signals.
+
+## Purpose
+
+Use this package to test a TeSciA-style engineering diagnostic workflow. The
+default path scores bundled cases deterministically; optional local AI engines
+can draft new cases, but validated scoring remains explicit and reproducible.
+When a case contains `student_answer`, the exported `student_score` reflects the
+learner response while `case_quality_score` keeps the reference exercise score.
+Bundled cases also carry a 2026 French mathematics-program coverage matrix at
+top-level domain granularity for the 2026-2027 rollout, with at least two
+exercises required per declared curriculum id.
+The bundled catalog now also includes a 12-case 2026 data-scientist interview
+evaluation inspired by a legacy QCM and current AI-engineering interview
+practice: modern Python/pandas workflows, leakage-free model evaluation,
+scaling decisions, RAG retrieval design, agent memory, LLM evaluation,
+uncertainty and drift, data-centric limited-label strategy, open-weight model
+review, and inference or token-cost optimization are scored with the same
+evidence-backed rubric.
+
+The bundled catalog is organized into three explicit learner paths:
+
+- **AGILAB diagnostics**: 2 support and workflow cases.
+- **Mathematics 2026**: 10 curriculum-audit and practice cases.
+- **Data science 2026**: 12 modern ML and AI-engineering cases.
+
+ANALYSIS uses the selected path for its catalog and self-check. Custom or locally
+generated cases fall back to **General diagnostics** when they do not declare a
+supported path.
+Classroom batches export anonymized teacher artifacts: progress, heatmap,
+needs-attention, per-student, curriculum-level, intervention-plan CSV files,
+and a printable teacher summary.
+
+## Installed Project
+
+The distribution name is `agi-app-learning-assessment`; the AGILAB
+project name is `learning_assessment_project`. The package exposes both
+`learning_assessment` and `learning_assessment_project` through the `agilab.apps`
+entry point group, so `AgiEnv(app="learning_assessment_project")` resolves the
+project without a monorepo checkout.
+
+## Install
+
+```bash
+pip install agi-app-learning-assessment
+```
+
+The `agi-apps` umbrella pulls this package on Python 3.13+ because the TeSciA
+diagnostic app uses the same Python floor as its packaged worker environment.
+Install it directly when validating the diagnostic app package from an index or
+a locally built wheel.
+
+## Run In AGILAB
+
+Select `learning_assessment_project`, open `ORCHESTRATE`, then run `Deploy scheduler & workers` and
+`RUN` with bundled cases. Inspect the exported reports under `ANALYSIS` or
+the project output directory. The argument form includes the student-answer JSON
+contract used for self-evaluation.
+For a classroom batch, select `Bundled classroom sample` in ORCHESTRATE, or
+place a `agilab.tescia_diagnostic.classroom.v1` JSON file in the input
+directory and set the file glob to that payload.
+
+## Expected Inputs
+
+The default input is a bundled JSON case file with exercise metadata. Optional
+local-AI generation requires a configured local endpoint and fails closed if the
+generated JSON does not match the expected schema. Student submissions can be
+added through a `student_answer` object in the case JSON. Data-scientist cases
+use topic tags such as `data-science-2026`, `pandas`, `model-evaluation`, `rag`,
+`agent`, `llm-judge`, `conformal-prediction`, `token-efficiency`, and
+`quantization`. Mathematics cases can also include `curriculum_ids`;
+unknown ids are rejected by the coverage helper.
+Classroom submission files contain `classroom` metadata plus a `submissions`
+list of `student_id`, `case_id`, and answer objects. Student ids are anonymized
+by default in teacher artifacts.
+
+## Expected Outputs
+
+The app writes diagnostic reports, summary CSV files, reducer summaries, and a
+`student_score` field that records whether the diagnosis, better fix, and
+regression plan are supported by evidence. With a submitted answer, the report
+also exports a score band and targeted feedback for missing evidence, fix, or
+regression-test selections.
+Cases can also declare a versioned deterministic decision policy. The bundled
+uncertainty-and-drift exercise records observed drift and coverage, thresholds,
+the selected action, and the triggers that force abstention to human review.
+The worker also writes printable correction sheets and
+`math_program_2026_coverage.json` so a catalog can prove whether every declared
+2026 top-level mathematics curriculum id meets the minimum exercise count.
+For classroom batches it also writes:
+
+- `classroom/classroom_run_report.json`
+- `classroom/classroom_teacher_summary.md`
+- `classroom/classroom_progress.csv`
+- `classroom/classroom_heatmap.csv`
+- `classroom/classroom_needs_attention.csv`
+- `classroom/classroom_students.csv`
+- `classroom/classroom_curriculum.csv`
+- `classroom/classroom_learning_tracks.csv`
+- `classroom/classroom_interventions.csv`
+
+During live or distributed runs, workers can also publish partial progress under
+`classroom/partials/` as `classroom_partial_worker_<id>_<source>.json` and
+`classroom_partial_worker_<id>_<source>_progress.csv`. The ANALYSIS classroom tab
+reads the latest completed run artifact when present, merges partial worker
+artifacts while a run is still progressing, falls back to the bundled preview
+otherwise, and includes manual plus optional live refresh.
+
+## Change One Thing
+
+Add one diagnostic case with a deliberately weak proposed fix and two candidate
+regression tests. The app should keep the stronger fix only when the evidence
+and tests support it.
+
+For data-scientist evaluation, filter the catalog to `data-scientist candidate`
+and change one answer selection. The score should fall when the answer keeps a
+stale pandas API, leaks test data, ships a RAG or agent-memory demo without
+goldens, trusts a leaderboard without task-specific evaluation, ignores
+uncertainty and drift, or accepts token/inference savings without a target
+quality and latency gate.
+
+In the uncertainty-and-drift case, move `drift_score` and
+`empirical_coverage` across their thresholds. The report must select
+`serve_prediction_with_monitoring` only when both gates pass and otherwise use
+`abstain_and_route_to_human_review`.
+
+For mathematics-program coverage, add or remove a `curriculum_ids` entry and
+run the focused TeSciA tests. Missing required ids, undercovered ids, and
+invented ids fail the coverage contract.
+
+For classroom mode, upload/drop a classroom JSON batch into
+`learning_assessment/submissions`, or add a second submission for the same
+exercise with a different `student_id`; the exported heatmap should add a new
+row without changing the exercise definition. Inbox files are scored before the
+bundled sample when `Read submission inbox` is enabled.
+
+## Scope
+
+This is a repeatable diagnostic example. It does not execute remediation
+commands, replace incident management, or silently trust model-generated
+content.
+
+It is not an acoustic, vibration, or telemetry signal-processing application.
+
+The mathematics-program coverage is a domain-level audit contract, not a full
+official exercise bank.

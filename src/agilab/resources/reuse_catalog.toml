@@ -339,9 +339,9 @@ reuse_rationale = "Maintained AGILAB surface already cataloged for reuse; extend
 checked_against = []
 
 [[project]]
-id = "tescia_diagnostic_project"
-title = "Tescia diagnostic"
-package = "agi-app-tescia-diagnostic"
+id = "learning_assessment_project"
+title = "Learning & Assessment"
+package = "agi-app-learning-assessment"
 purpose = "Evidence-scored diagnostic and self-evaluation cases with classroom intake and teacher dashboard artifacts."
 when_to_use = "Use when building diagnostic evaluation, teacher review, or self-evaluation evidence workflows."
 artifacts = ["diagnostic cases", "teacher dashboard artifacts", "evaluation evidence", "regression plan"]

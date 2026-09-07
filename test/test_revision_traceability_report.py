@@ -63,7 +63,7 @@ def test_revision_traceability_fingerprints_builtin_apps() -> None:
         "pytorch_playground_project",
         "r_runtime_bridge_project",
         "sklearn_pipeline_project",
-        "tescia_diagnostic_project",
+        "learning_assessment_project",
         "uav_queue_project",
         "uav_relay_queue_project",
         "weather_forecast_project",
