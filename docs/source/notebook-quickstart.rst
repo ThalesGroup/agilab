@@ -4,8 +4,8 @@ agi-core Demo
 Use this page only when you intentionally want the notebook path first.
 
 If you want the main AGILAB product path first, use :doc:`quick-start` and run
-the built-in ``flight_telemetry_project`` from the web UI. This page is the smallest
-published-package notebook route for the built-in Minimal App example app.
+the built-in ``flight_telemetry_project`` from the web UI. This page shows how to
+run the built-in Minimal App example in a notebook using published packages.
 
 Start here
 ----------
@@ -37,7 +37,7 @@ The first notebook does only one thing:
 What success looks like
 -----------------------
 
-You are past the notebook newcomer hurdle when both are true:
+Your first notebook run is complete when:
 
 - the notebook run finishes without error
 - you can inspect fresh output under ``~/log/execute/minimal_app``
