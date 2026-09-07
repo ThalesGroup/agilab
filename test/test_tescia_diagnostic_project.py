@@ -1459,15 +1459,11 @@ def test_tescia_math_program_2026_rejects_invalid_curriculum_contracts(
         "missing domain",
     )
 
-    import tescia_diagnostic.curriculum as curriculum_module
+    with pytest.raises(ValueError, match="required_min_cases_per_id"):
+        validate_math_program_2026({**valid, "required_min_cases_per_id": 0})
 
-    monkeypatch.setattr(
-        curriculum_module, "required_min_cases_per_id", lambda _curriculum: 0
-    )
-    with pytest.raises(ValueError, match="must be at least 1"):
-        curriculum_module.validate_math_program_2026(valid)
-
-    assert required_min_cases_per_id({"required_min_cases_per_id": "bad"}) == 1
+    with pytest.raises(ValueError, match="required_min_cases_per_id"):
+        required_min_cases_per_id({"required_min_cases_per_id": "bad"})
     assert case_curriculum_ids({"curriculum_ids": "prog"}) == []
     assert curriculum_id_counts([{"curriculum_ids": ["prog", "prog"]}]) == {"prog": 1}
 
@@ -2327,9 +2323,9 @@ def test_tescia_printable_exports_handle_missing_optional_sections(
     assert "No feedback." in markdown
     assert "No weak assumptions recorded." in markdown
     assert "No regression plan recorded." in markdown
-    assert (
-        write_correction_sheet(report, tmp_path).name == "messy_case_id_correction.md"
-    )
+    correction_name = write_correction_sheet(report, tmp_path).name
+    assert correction_name.startswith("messy_case_id~")
+    assert correction_name.endswith("_correction.md")
     assert (
         write_correction_index([], tmp_path)
         .read_text(encoding="utf-8")
@@ -3137,7 +3133,8 @@ def test_tescia_worker_helper_and_empty_paths(monkeypatch, tmp_path) -> None:
         "export",
         "leaf",
     )
-    assert _sanitize_slug("  ") == "tescia_case"
+    with pytest.raises(ValueError, match="case_id"):
+        _sanitize_slug("  ")
 
     worker = TesciaDiagnosticWorker()
     worker.env = _FakeEnv(tmp_path)
