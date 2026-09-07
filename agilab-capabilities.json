@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-07T14:27:29Z",
+  "generated_at_utc": "2026-09-07T15:15:37Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 243,
+    "evidence_schema_count": 244,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2408,6 +2408,13 @@
       "schema": "agilab.tescia_diagnostic.math_program_coverage_report.v1",
       "sources": [
         "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/curriculum.py"
+      ]
+    },
+    {
+      "schema": "agilab.tescia_diagnostic.ml_landscape.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/curriculum/ml_landscape_2026.json",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/learning.py"
       ]
     },
     {

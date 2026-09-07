@@ -31,11 +31,37 @@ Choose one path in ANALYSIS before opening the catalog or self-check:
 
 - **AGILAB diagnostics**: distinguish symptoms, causes, fixes, and regressions.
 - **Mathematics 2026**: audit curriculum coverage and target a second practice round.
-- **Data science 2026**: diagnose modern ML, RAG, agent, uncertainty, and cost failures.
+- **Data science 2026**: read the ML landscape, distinguish algorithm families,
+  and diagnose modern ML, RAG, agent, uncertainty, and cost failures.
 
-The bundled bank contains 2 AGILAB cases, 10 mathematics cases, and 12 data-science
-cases. Custom or locally generated cases use the **General diagnostics** path unless
+The bundled bank contains 2 AGILAB cases, 10 mathematics cases, and 24 data-science
+cases (12 interview cases plus 12 ML landscape exercises).
+Custom or locally generated cases use the **General diagnostics** path unless
 they declare another supported path.
+
+### ML landscape: map, explanation and self-check
+
+In **ANALYSIS → Data science 2026**, open **ML landscape — map and practice**.
+The [packaged SVG](src/learning_assessment/resources/ml_landscape_axes.svg) separates
+eight complementary questions: task, signal, algorithm, representation,
+combination, adaptation, training and evaluation.
+
+Choose **Concept family** to read the principle, covered concepts and a common
+misconception. **Use this exercise in Self-check** selects its diagnostic case;
+open **Self-check** to answer, evaluate and export the correction as usual.
+The [reading guide](src/learning_assessment/curriculum/ml_landscape_2026.json)
+maps 54 grouped landscape concepts and probability-density foundations to 12 exercises, including classical supervised
+models, ensembles, clustering, projection, probabilistic models, representations,
+neural architectures, optimization, evaluation and limited-label strategies.
+The probability-density module includes an [area plot](src/learning_assessment/resources/ml_probability_density.svg):
+a density of 2 s⁻¹ over a 0.1-second interval gives probability 0.2.
+Self-check identifies these as worked examples with model answers; explain the
+choices and change them to compare feedback.
+
+The map uses French terminology; the guided explanations and diagnostic cases
+use English like the existing app. All resources ship inside the package and
+work offline. The cases are synthetic reasoning exercises with proposed
+regression checks, not executed model benchmarks or proof of operational performance.
 
 ## What You Learn
 
@@ -91,6 +117,50 @@ use a readable prefix and a stable SHA256 suffix so punctuation or letter-case
 differences do not cause reports to overwrite one another. Reports retain the
 original case ID, and rerunning the same case reuses its filename. Explicitly
 empty or whitespace-only IDs are rejected.
+
+## External Assessment Programs
+
+The bundled cases are a sample, not an exhaustive AI curriculum. A separately
+maintained diagnostic bank can add an optional `assessment_program` object to
+the existing case-file envelope. No external content is bundled or fetched by
+the app. Keep restricted banks and their exported reports in an appropriately
+restricted workspace; reports contain source references and assessment rubrics.
+
+Use the existing `data_in` and `files` arguments to select that bank. With
+`case_source = "bundled"`, existing matching input files are used as supplied;
+the demo bank is seeded only when none exist. Use a dedicated input directory
+and an exact filename so unrelated JSON manifests are not scored as case banks.
+The interactive teaching demo still displays the bundled cases; external banks
+are processed through the worker and inspected in its exported artifacts.
+
+An assessment program declares schema `tescia-assessment-program.v1`, an ID,
+title, version, and sources with revision and SHA256 fingerprints. Competencies
+have stable IDs, observable outcomes, explicit source sections, prerequisite
+IDs, and links to existing diagnostic case IDs. Each can also include a
+`practical_assessment`: instructions, expected deliverables, criterion-based
+rubric, and optional local artifact references. References are descriptive:
+the app neither opens nor executes them. The schema and a complete synthetic
+example are exercised in `test/test_tescia_assessment_program.py` and
+`test/test_tescia_program_integration.py` in the source checkout.
+
+Do not put external competency IDs in `curriculum_ids`: that field remains
+reserved for the existing Mathematics 2026 contract. Program competencies link
+to diagnostic cases through `diagnostic_case_ids` instead.
+
+The worker preserves program coverage through its DataFrame transport and
+writes content-addressed JSON reports under `assessment_programs/` in both
+output locations. Each report includes a SHA256 of the normalized input bank.
+Different bank versions remain distinct; repeated identical runs reuse the
+same report filename. These are bank-material reports, not per-student grades.
+
+`curriculum_ready` means every declared competency has diagnostic cases and
+practical assessment material. Missing material gives `incomplete`; malformed
+references, duplicate IDs, prerequisite cycles, and invalid types are errors.
+Neither status proves the source inventory is exhaustive: the bank owner must
+audit the source-to-competency map and recheck it when source fingerprints
+change. Practical mastery remains `not_assessed` until actual learner work is
+reviewed against the rubric. A worked answer or a high diagnostic score is not
+proof that a lab was executed or a competency was mastered.
 
 ## Change One Thing
 

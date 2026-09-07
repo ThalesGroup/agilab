@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import json
+from pathlib import Path
 from typing import Any, Final
 
 
 DEFAULT_LEARNING_TRACK: Final = "general_diagnostic"
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 LEARNING_TRACKS: Final[dict[str, dict[str, Any]]] = {
     "agilab_diagnostics": {
@@ -31,6 +34,7 @@ LEARNING_TRACKS: Final[dict[str, dict[str, Any]]] = {
         "label": "Data science 2026",
         "audience": "Data-science candidates and practitioners",
         "outcomes": [
+            "Distinguish ML tasks, training signals, model families and validation.",
             "Diagnose modern ML and AI-engineering failure modes.",
             "Calibrate confidence against deployment evidence.",
             "Select a reversible fix and a measurable regression plan.",
@@ -46,6 +50,38 @@ LEARNING_TRACKS: Final[dict[str, dict[str, Any]]] = {
         ],
     },
 }
+
+
+def load_ml_landscape() -> dict[str, Any]:
+    """Load the packaged ML reading guide without a sibling repository."""
+
+    source = _PACKAGE_ROOT / "curriculum" / "ml_landscape_2026.json"
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    if payload.get("schema") != "agilab.tescia_diagnostic.ml_landscape.v1":
+        raise ValueError("Unsupported TeSciA ML landscape schema.")
+    modules = payload.get("modules", [])
+    concepts = [concept for module in modules for concept in module["concepts"]]
+    if not modules or len(concepts) != payload.get("coverage_entry_count"):
+        raise ValueError("TeSciA ML landscape coverage count is inconsistent.")
+    if len(set(concepts)) != len(concepts):
+        raise ValueError("TeSciA ML landscape contains duplicate coverage entries.")
+    return payload
+
+
+def ml_landscape_svg() -> str:
+    """Return the self-contained teaching figure included in the app package."""
+
+    return (_PACKAGE_ROOT / "resources" / "ml_landscape_axes.svg").read_text(
+        encoding="utf-8"
+    )
+
+
+def probability_density_svg() -> str:
+    """Return the density-versus-probability worked-example plot."""
+
+    return (_PACKAGE_ROOT / "resources" / "ml_probability_density.svg").read_text(
+        encoding="utf-8"
+    )
 
 
 def normalize_learning_track(value: Any) -> str:
@@ -96,6 +132,9 @@ def available_learning_tracks(
 __all__ = [
     "DEFAULT_LEARNING_TRACK",
     "LEARNING_TRACKS",
+    "load_ml_landscape",
+    "ml_landscape_svg",
+    "probability_density_svg",
     "available_learning_tracks",
     "learning_track_metadata",
     "normalize_learning_track",

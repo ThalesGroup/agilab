@@ -29,7 +29,12 @@ from learning_assessment.classroom import (  # noqa: E402
     validate_classroom_payload,
 )
 from learning_assessment.diagnostic import diagnose_case, validate_case_payload  # noqa: E402
-from learning_assessment.domain.learning import available_learning_tracks  # noqa: E402
+from learning_assessment.domain.learning import (  # noqa: E402
+    available_learning_tracks,
+    load_ml_landscape,
+    ml_landscape_svg,
+    probability_density_svg,
+)
 from learning_assessment.exports import diagnostic_report_to_markdown  # noqa: E402
 
 
@@ -600,6 +605,41 @@ def _render_configure_surface() -> None:
     runpy.run_path(str(_APP_SRC / "app_args_form.py"), run_name="__main__")
 
 
+def _render_ml_landscape() -> None:
+    import streamlit as st
+
+    guide = load_ml_landscape()
+    with st.expander("ML landscape — map and practice", expanded=True):
+        st.markdown(guide["reading_guide"])
+        st.image(ml_landscape_svg(), width="stretch")
+        modules = {module["id"]: module for module in guide["modules"]}
+        selected = st.selectbox(
+            "Concept family",
+            list(modules),
+            format_func=lambda module_id: modules[module_id]["title"],
+            key="tescia_ml_family",
+        )
+        module = modules[selected]
+        st.markdown(module["lesson"])
+        if selected == "density":
+            st.image(probability_density_svg(), width="stretch")
+        st.caption("Concepts: " + " · ".join(module["concepts"]))
+        st.info("Misconception to test: " + module["misconception"])
+        if st.button(
+            "Use this exercise in Self-check", key="tescia_ml_select_exercise"
+        ):
+            st.session_state["tescia_answer_case"] = module["case_id"]
+            st.success("Exercise selected. Open Self-check to answer.")
+        st.caption(guide["scope"])
+        st.markdown(
+            "Sources: "
+            + " · ".join(
+                f"[{index}]({url})"
+                for index, url in enumerate(module["sources"], start=1)
+            )
+        )
+
+
 def render(
     *, mode: str = "analysis", active_app: Path | None = None, **_kwargs: Any
 ) -> None:
@@ -652,6 +692,9 @@ def render(
         )
         st.caption(f"For {track['audience']}: {' '.join(track['outcomes'])}")
 
+    if selected_track_id == "data_science_2026":
+        _render_ml_landscape()
+
     classroom_report, classroom_source = classroom_display_report(
         cases,
         active_app=active_app_path,
@@ -701,6 +744,11 @@ def render(
         catalog = report["catalog"]
         st.markdown(f"**{catalog['title']}**")
         st.caption(catalog["student_prompt"])
+        if selected_id.startswith("ml_landscape_2026_"):
+            st.info(
+                "Worked example: the fields below contain a model answer. "
+                "Explain each choice, then change an answer to compare the feedback."
+            )
         answer = build_student_answer(
             diagnosis=st.text_area(
                 "Diagnosis",

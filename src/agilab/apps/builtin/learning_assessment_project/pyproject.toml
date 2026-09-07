@@ -23,7 +23,7 @@ agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }
 
 [tool.setuptools.package-data]
-learning_assessment = ["curriculum/*.json", "sample_data/*.json"]
+learning_assessment = ["curriculum/*.json", "sample_data/*.json", "resources/*.svg"]
 
 [build-system]
 requires = ["setuptools"]
