@@ -214,7 +214,19 @@ def create_temp_app_project(tmp_path):
 
 
 @pytest.fixture
-def run_page_app_test(monkeypatch, tmp_path):
+def streamlit_loopback_config(monkeypatch):
+    """Give in-memory AppTests an explicit bind config without opening a server."""
+    from copy import copy
+    from streamlit import config
+
+    options = config.get_config_options()
+    monkeypatch.setitem(options, "server.address", copy(options["server.address"]))
+    config.set_option("server.address", "127.0.0.1")
+    return config
+
+
+@pytest.fixture
+def run_page_app_test(monkeypatch, tmp_path, streamlit_loopback_config):
     """Run a Streamlit page AppTest with a temporary active app and isolated shares."""
 
     def _run(page_path: str, project_dir: Path, export_root: Path | None = None, timeout: int = 20) -> AppTest:

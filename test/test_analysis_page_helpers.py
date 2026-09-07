@@ -21,6 +21,8 @@ import pytest
 import psutil
 
 
+pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
+
 MODULE_PATH = Path("src/agilab/pages/4_ANALYSIS.py")
 STATE_MODULE_PATH = Path("src/agilab/analysis_page_state.py")
 

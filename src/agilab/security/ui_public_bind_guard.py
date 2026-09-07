@@ -18,6 +18,10 @@ PUBLIC_BIND_CONTROL_ENVS = (
     "AGILAB_TLS_TERMINATED",
     "STREAMLIT_AUTH_REQUIRED",
 )
+_UNAVAILABLE_CONFIG_MESSAGE = (
+    "AGILAB cannot determine the active Streamlit server.address. "
+    "Restart with a supported Streamlit runtime and an explicit --server.address."
+)
 
 
 class PublicBindPolicyError(RuntimeError):
@@ -33,20 +37,24 @@ def configured_streamlit_host(
     *,
     streamlit_config_getter: Callable[[str], object] | None = None,
 ) -> str:
-    env = environ or os.environ
+    """Select a launch address, or inspect the effective address of a running UI."""
+    if streamlit_config_getter is not None:
+        try:
+            config_host = streamlit_config_getter("server.address")
+        except Exception:
+            raise PublicBindPolicyError(_UNAVAILABLE_CONFIG_MESSAGE) from None
+        # Streamlit binds all interfaces when server.address is unset. Its
+        # effective configuration already includes CLI overrides of env values.
+        runtime_host = "" if config_host is None else str(config_host).strip()
+        return runtime_host or "0.0.0.0"
+
+    # The launcher explicitly passes this selected address to Streamlit.
+    env = os.environ if environ is None else environ
     env_host = str(
         env.get("AGILAB_UI_HOST") or env.get("STREAMLIT_SERVER_ADDRESS") or ""
     ).strip()
     if env_host:
         return env_host
-
-    if streamlit_config_getter is not None:
-        try:
-            config_host = streamlit_config_getter("server.address")
-        except Exception:
-            config_host = None
-        if config_host is not None and str(config_host).strip():
-            return str(config_host).strip()
 
     return DEFAULT_STREAMLIT_HOST
 
@@ -68,7 +76,7 @@ def host_is_exposed(host: str) -> bool:
 
 
 def public_bind_has_controls(environ: Mapping[str, str] | None = None) -> bool:
-    env = environ or os.environ
+    env = os.environ if environ is None else environ
     return truthy(env.get(PUBLIC_BIND_OK_ENV)) and any(
         truthy(env.get(name)) for name in PUBLIC_BIND_CONTROL_ENVS
     )
@@ -77,7 +85,7 @@ def public_bind_has_controls(environ: Mapping[str, str] | None = None) -> bool:
 def public_bind_error_message(host: str) -> str:
     return (
         f"AGILAB refuses to bind the Streamlit UI on non-loopback host {host!r} without explicit protection. "
-        "Use the default 127.0.0.1 bind, or set AGILAB_PUBLIC_BIND_OK=1 together with "
+        "Launch with --server.address=127.0.0.1, or set AGILAB_PUBLIC_BIND_OK=1 together with "
         "an auth/TLS indicator such as AGILAB_TLS_TERMINATED=1. These flags are operator "
         "attestations, not proof: AGILAB does not verify that authentication or TLS is "
         "actually in place. For shared/public deployments, also archive "
@@ -124,6 +132,8 @@ def enforce_public_bind_policy_or_stop(
     if streamlit_config_getter is None:
         streamlit_config_getter = streamlit_config_getter_from_module(streamlit_module)
     try:
+        if streamlit_config_getter is None:
+            raise PublicBindPolicyError(_UNAVAILABLE_CONFIG_MESSAGE)
         return enforce_public_bind_policy(
             environ,
             streamlit_config_getter=streamlit_config_getter,

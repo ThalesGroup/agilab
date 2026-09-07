@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 import types
 
+import pytest
+from streamlit import config
+from streamlit.testing.v1.util import patch_config_options
+
 
 MODULE_PATH = Path("tools/first_launch_robot.py").resolve()
 
@@ -61,6 +65,19 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     assert persisted["status"] == "pass", json.dumps(
         persisted, indent=2, sort_keys=True
     )
+
+
+@pytest.mark.parametrize("address", [None, "0.0.0.0", "::"])
+def test_first_launch_robot_isolates_and_restores_bind_config(address) -> None:
+    module = _load_module()
+    original_argv = list(sys.argv)
+
+    with patch_config_options({"server.address": address}):
+        report = module.build_report(target_seconds=90.0, timeout=90.0)
+        assert config.get_option("server.address") == address
+
+    assert sys.argv == original_argv
+    assert report["status"] == "pass", json.dumps(report, indent=2, sort_keys=True)
 
 
 def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(

@@ -532,6 +532,70 @@ def test_main_human_success_reports_manifest_and_next_steps(monkeypatch, tmp_pat
     assert manifest_path.is_file()
 
 
+@pytest.mark.parametrize("destination", ["manifest-option", "relative-log-root"])
+def test_main_relative_manifest_destination_produces_verifiable_artifacts(
+    monkeypatch, tmp_path: Path, capsys, destination: str
+) -> None:
+    from agilab.evidence import evidence_contract
+
+    module = _load_module()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    active_app = tmp_path / module.FIRST_PROOF_PROJECT
+    active_app.mkdir()
+    (active_app / "pyproject.toml").write_text(
+        "[project]\nname = 'flight-telemetry'\n", encoding="utf-8"
+    )
+    argv = ["--active-app", str(active_app), "--json"]
+    if destination == "manifest-option":
+        relative_manifest = Path("reports") / "run_manifest.json"
+        argv.extend(["--manifest-out", str(relative_manifest)])
+    else:
+        monkeypatch.setenv("AGILAB_LOG_ABS", "relative-log")
+        relative_manifest = (
+            Path("relative-log") / "execute" / "flight_telemetry" / "run_manifest.json"
+        )
+    manifest_path = tmp_path / relative_manifest
+    artifact_path = manifest_path.parent / "metrics.json"
+
+    def fake_run_proof(commands):
+        artifact_path.parent.mkdir(parents=True)
+        artifact_path.write_text('{"accuracy": 1.0}\n', encoding="utf-8")
+        return [
+            module.ProofStepResult(
+                label=command.label,
+                description=command.description,
+                argv=list(command.argv),
+                returncode=0,
+                duration_seconds=0.5,
+                stdout="",
+                env=command.env,
+            )
+            for command in commands
+        ]
+
+    monkeypatch.setattr(module, "run_proof", fake_run_proof)
+    monkeypatch.setattr(module, "write_agilab_path_marker", lambda: None)
+    monkeypatch.setattr(
+        evidence_contract.shutil, "which", lambda _executable: sys.executable
+    )
+
+    assert module.main(argv) == 0
+    payload = json.loads(capsys.readouterr().out)
+    other_directory = tmp_path / "elsewhere"
+    other_directory.mkdir()
+    monkeypatch.chdir(other_directory)
+    verification = evidence_contract.verify_manifest(manifest_path)
+
+    assert verification["status"] == "pass", verification
+    assert payload["run_manifest_path"] == str(manifest_path)
+    manifest = module.run_manifest.load_run_manifest(manifest_path)
+    assert {Path(artifact.path) for artifact in manifest.artifacts} == {
+        manifest_path,
+        artifact_path,
+    }
+
+
 def test_run_proof_stops_on_first_failure() -> None:
     module = _load_module()
     commands = module.build_proof_commands(module.default_active_app(), with_install=True, with_ui=True)
