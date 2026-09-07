@@ -17,10 +17,11 @@ The same reuse catalog also covers analysis views, so notebook-first work can
 discover both an existing app project and an existing visualization before it
 turns into a new maintained surface.
 
-Status legend:
+Package route legend:
 
-- ``PyPI app package``: promoted by the current release plan and installable as
-  a standalone ``agi-app-*`` payload.
+- ``PyPI app package``: selected by the current release plan for standalone
+  ``agi-app-*`` distribution. Installation requires a published package;
+  entries awaiting their first publication are marked below.
 - ``Release artifact``: built as an app payload artifact, but not currently
   promoted to PyPI by the release plan.
 - ``Source built-in``: present in the public source checkout for development,
@@ -32,7 +33,7 @@ Status legend:
 
    * - Project
      - Package
-     - Status
+     - Package route
      - When to use it
    * - ``flight_telemetry_project``
      - ``agi-app-flight-telemetry``
@@ -97,7 +98,9 @@ Status legend:
    * - ``learning_assessment_project``
      - ``agi-app-learning-assessment``
      - PyPI app package
-     - Learning & Assessment: evidence-scored diagnostic and self-evaluation
+     - **Not yet published on PyPI.** Use this app from the source checkout
+       until its first package release. Learning & Assessment provides
+       evidence-scored diagnostic and self-evaluation
        cases, including the original TeSciA collection, with 2026 math
        coverage, a 12-case 2026 data-scientist interview evaluation spanning
        modern ML, RAG, agents, LLM evaluation, uncertainty, and token-cost

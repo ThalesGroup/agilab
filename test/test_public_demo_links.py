@@ -760,37 +760,18 @@ def test_changelog_documents_current_public_release() -> None:
     assert "create or update the" in changelog
 
 
-def test_docs_index_links_to_release_matching_source_state() -> None:
+def test_docs_index_links_to_latest_published_release() -> None:
     text = Path("docs/source/index.rst").read_text(encoding="utf-8")
-    release = _release_proof_manifest()["release"]
-    source = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
     links = re.findall(
         r"`latest public GitHub release\s*"
-        r"<(https://github\.com/ThalesGroup/agilab/releases/tag/(v[^>]+))>`__",
+        r"<(https://github\.com/ThalesGroup/agilab/releases/[^>]+)>`__",
         text,
     )
 
-    assert "latest public GitHub release" in text
-    assert len(links) == 1
-
-    linked_url, linked_tag = links[0]
-    relation = release["source_version_relation"]
-    source_version = Version(source["project"]["version"])
-    published_version = Version(release["package_version"])
-    linked_version = Version(linked_tag.removeprefix("v").replace("_", "."))
-    if relation == "exact":
-        assert linked_url == LATEST_RELEASE_URL
-        assert linked_version == source_version == published_version
-        return
-
-    # Source docs prepare the release target; the proof keeps the published
-    # version until publication. The landing page must make that distinction.
-    assert relation == "ahead"
-    assert source_version > published_version
-    assert linked_url != LATEST_RELEASE_URL
-    assert linked_version == source_version
-    assert "prepared for this source version" in text
-    assert "currently" in text and "published version" in text
+    # Source versions can advance before publication. Resolve the latest
+    # published assets without constructing a tag from the source version.
+    assert links == ["https://github.com/ThalesGroup/agilab/releases/latest"]
+    assert ":doc:`release-proof`" in text
 
 
 def test_public_docs_expose_three_clear_adoption_routes() -> None:
