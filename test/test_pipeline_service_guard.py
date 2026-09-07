@@ -7,6 +7,10 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
+
 
 def _ensure_agilab_package_path() -> None:
     src_path = str(Path("src").resolve())

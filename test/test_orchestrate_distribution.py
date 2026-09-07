@@ -422,7 +422,7 @@ def test_orchestrate_distribution_import_fallback_sets_networkx_error():
     assert "agilab[ui]" in warnings[0]
 
 
-def test_orchestrate_page_import_survives_missing_networkx():
+def test_orchestrate_page_import_survives_missing_networkx(streamlit_loopback_config):
     module_name = "agilab_page_orchestrate_missing_networkx"
     module_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
     original_import = __import__
