@@ -50,10 +50,13 @@ through the local Streamlit UI, a hosted Hugging Face backend, or browser-native
 If the local first proof fails, use :doc:`newcomer-troubleshooting` before
 branching into cluster mode, external app repositories, or broader workflows.
 
-For release-level evidence, use :doc:`release-proof`; it points to the
-`latest public GitHub release
-<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31>`__,
-package proof, CI guardrails, and hosted demo status.
+For release-level evidence, use :doc:`release-proof` for the currently
+published version, package proof, CI guardrails, and hosted demo status.
+
+The `latest public GitHub release
+<https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07>`__ link is
+prepared for this source version. Until publication completes, use the
+verified release links in :doc:`release-proof`.
 
 This documentation then expands into architecture, service mode, API
 references, and example projects.
