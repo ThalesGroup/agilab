@@ -7,6 +7,7 @@ import hashlib
 import re
 from typing import Any
 
+from .assessment_program import validate_assessment_program
 from .learning import learning_track_metadata, normalize_learning_track
 
 
@@ -418,7 +419,12 @@ def validate_case_payload(
 
         normalized_cases.append(dict(case))
 
-    return {"schema": CASE_SCHEMA, "cases": normalized_cases}
+    normalized = {"schema": CASE_SCHEMA, "cases": normalized_cases}
+    if "assessment_program" in payload:
+        normalized["assessment_program"] = validate_assessment_program(
+            payload["assessment_program"], normalized_cases
+        )
+    return normalized
 
 
 def evidence_quality(case: Mapping[str, Any]) -> float:

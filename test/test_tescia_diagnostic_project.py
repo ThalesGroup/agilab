@@ -942,7 +942,7 @@ def test_tescia_learning_tracks_and_drift_decision_are_deterministic(
     } == {
         "agilab_diagnostics": 2,
         "mathematics_2026": 10,
-        "data_science_2026": 12,
+        "data_science_2026": 24,
     }
 
     drift_case = next(
@@ -1503,6 +1503,17 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
     data_scientist_cases = module.filter_cases(
         cases, learner_level="data-scientist candidate"
     )
+    landscape_cases = [
+        case
+        for case in data_scientist_cases
+        if case["case_id"].startswith("ml_landscape_2026_")
+    ]
+    assert len(landscape_cases) == 12
+    data_scientist_cases = [
+        case
+        for case in data_scientist_cases
+        if not case["case_id"].startswith("ml_landscape_2026_")
+    ]
     assert {case["case_id"] for case in data_scientist_cases} == {
         "data_scientist_2026_python_pandas_modernization",
         "data_scientist_2026_model_evaluation_leakage",
@@ -1986,9 +1997,8 @@ def test_tescia_app_surface_render_covers_classroom_upload_and_partial_status(
     )
 
     no_click_streamlit = UploadingStreamlit(fake_env, [upload])
-    no_click_streamlit.button = (
-        lambda label, *_args, **_kwargs: no_click_streamlit.buttons.append(label)
-        or False
+    no_click_streamlit.button = lambda label, *_args, **_kwargs: (
+        no_click_streamlit.buttons.append(label) or False
     )
     monkeypatch.setitem(sys.modules, "streamlit", no_click_streamlit)
     module.render(mode="analysis", active_app=active_app)
