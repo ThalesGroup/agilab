@@ -24,9 +24,9 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 
 ## Current rules
 
-- When adding or renaming evidence schemas, regenerate `agilab-capabilities.json`
-  with `uv run python tools/agilab_capabilities_manifest.py --apply`, then run its
-  `--check` and manifest tests. App-local schemas also feed this generated inventory.
+- After schema or package-version changes, run
+  `uv run python tools/workflow_parity.py --profile skills`; commit its generated
+  discovery artifacts, then rerun the profile to prove there is no remaining drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
   badges into a rendered expander unless the user explicitly asks for removal.
