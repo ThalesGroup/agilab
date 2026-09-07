@@ -66,7 +66,7 @@ path = "../agi-app-learning-assessment"
 editable = true
 
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=84.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
