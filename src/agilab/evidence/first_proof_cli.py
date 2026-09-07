@@ -214,9 +214,11 @@ def default_manifest_path(active_app: Path) -> Path:
 
 
 def resolve_manifest_path(active_app: Path, manifest_out: str | None) -> Path:
-    if manifest_out:
-        return Path(manifest_out).expanduser()
-    return default_manifest_path(active_app)
+    destination = (
+        Path(manifest_out) if manifest_out else default_manifest_path(active_app)
+    )
+    # Artifact paths are collected from this directory and must not depend on cwd.
+    return destination.expanduser().resolve(strict=False)
 
 
 def _apps_path_for_active_app(active_app: Path) -> Path:

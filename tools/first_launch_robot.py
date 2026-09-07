@@ -157,6 +157,7 @@ def build_report(
 ) -> dict[str, Any]:
     _suppress_streamlit_bare_mode_log_warning()
     from streamlit.testing.v1 import AppTest
+    from streamlit.testing.v1.util import patch_config_options
 
     start = time.perf_counter()
     previous_argv = list(sys.argv)
@@ -168,8 +169,11 @@ def build_report(
         str(apps_path),
     ]
     try:
-        app = AppTest.from_file(str(about_page), default_timeout=timeout)
-        app.run(timeout=timeout)
+        # AppTest opens no server. Model the documented local launch without
+        # inheriting a wildcard bind or changing the caller's configuration.
+        with patch_config_options({"server.address": "127.0.0.1"}):
+            app = AppTest.from_file(str(about_page), default_timeout=timeout)
+            app.run(timeout=timeout)
     finally:
         sys.argv = previous_argv
 
