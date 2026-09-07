@@ -2,10 +2,28 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+
+
+def case_artifact_stem(case_id: str) -> str:
+    """Keep canonical IDs readable and preserve every other ID in a stable name.
+
+    Hashed names use a reserved separator and lowercase ASCII so distinct IDs
+    remain distinct on case-insensitive and Unicode-normalizing filesystems.
+    The bounded prefix also leaves room for the worker's report suffixes.
+    """
+    if not isinstance(case_id, str) or not case_id.strip():
+        raise ValueError("case_id must be a non-empty string for artifact export")
+    if len(case_id) <= 96 and re.fullmatch(r"[a-z0-9]+(?:[-_][a-z0-9]+)*", case_id):
+        return case_id
+    prefix = re.sub(r"[^a-z0-9_-]+", "_", case_id.lower()).strip("_-")
+    prefix = prefix[:48] or "tescia_case"
+    return f"{prefix}~{hashlib.sha256(case_id.encode('utf-8')).hexdigest()}"
 
 
 def _as_list(value: Any) -> list[Any]:
@@ -104,10 +122,9 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
 
 
 def write_correction_sheet(report: Mapping[str, Any], output_dir: str | Path) -> Path:
-    case_id = str(report.get("case_id") or "tescia_case").strip() or "tescia_case"
-    safe_stem = "".join(
-        ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in case_id
-    )
+    """Export a sheet, retaining the legacy default only for an absent case ID."""
+    case_id = report.get("case_id")
+    safe_stem = case_artifact_stem("tescia_case" if case_id is None else case_id)
     output_path = Path(output_dir) / f"{safe_stem}_correction.md"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(diagnostic_report_to_markdown(report), encoding="utf-8")
@@ -125,6 +142,7 @@ def write_correction_index(paths: Sequence[Path], output_dir: str | Path) -> Pat
 
 
 __all__ = [
+    "case_artifact_stem",
     "diagnostic_report_to_markdown",
     "write_correction_index",
     "write_correction_sheet",

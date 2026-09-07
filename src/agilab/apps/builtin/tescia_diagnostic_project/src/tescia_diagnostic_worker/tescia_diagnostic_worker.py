@@ -22,7 +22,11 @@ from tescia_diagnostic.classroom import (
 )
 from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
 from tescia_diagnostic.diagnostic import diagnose_case, summarize_report, validate_case_payload
-from tescia_diagnostic.exports import write_correction_index, write_correction_sheet
+from tescia_diagnostic.exports import (
+    case_artifact_stem,
+    write_correction_index,
+    write_correction_sheet,
+)
 from tescia_diagnostic.reduction import write_reduce_artifact
 
 logger = logging.getLogger(__name__)
@@ -34,9 +38,7 @@ def _artifact_dir(env: object, leaf: str) -> Path:
 
 
 def _sanitize_slug(value: str) -> str:
-    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value.strip())
-    cleaned = "_".join(part for part in cleaned.split("_") if part)
-    return cleaned or "tescia_case"
+    return case_artifact_stem(value)
 
 
 def _write_json(path: Path, payload: Any) -> None:
