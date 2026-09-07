@@ -443,6 +443,10 @@ import sys
 from types import SimpleNamespace
 
 from agi_env import AgiEnv
+from streamlit import config as streamlit_config
+
+# Import the editor page under the same local UI contract as the AppTest probes.
+streamlit_config.set_option("server.address", "127.0.0.1")
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_RELEASE_SMOKE"
@@ -595,7 +599,11 @@ import tomllib
 
 from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
+from streamlit import config as streamlit_config
 from streamlit.testing.v1 import AppTest
+
+# This subprocess exercises pages through AppTest without a server bootstrap.
+streamlit_config.set_option("server.address", "127.0.0.1")
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_EXECUTE_ANALYSIS_SMOKE"
