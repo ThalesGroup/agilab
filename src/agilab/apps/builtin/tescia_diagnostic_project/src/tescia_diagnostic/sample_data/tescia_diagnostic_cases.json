@@ -2324,6 +2324,954 @@
         ],
         "confidence": 0.88
       }
+    },
+    {
+      "case_id": "ml_landscape_2026_taxonomy",
+      "learning_track": "data_science_2026",
+      "title": "Separate the questions before choosing a model",
+      "difficulty": "intro",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "taxonomy"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A team wants to estimate whether a network connection will be declared unavailable in the next five minutes, using measurements already available. In this synthetic example, the label is an alarm triggered after at least ten seconds of unavailability. The team asks whether to use supervised learning, a random forest, or Adam. Identify the category error and write a coherent task–signal–model–training–evaluation contract.",
+      "symptom": "The proposed comparison treats a learning regime, a model family and an optimizer as mutually exclusive algorithms.",
+      "proposed_diagnosis": "Choose the label with the highest advertised accuracy.",
+      "root_cause": "The selection mixes different axes: supervised learning describes the training signal, a random forest describes an ensemble of trees, and Adam is a gradient optimizer for differentiable parameters.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Choose the label with the highest advertised accuracy."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "Past incident labels are available and the required output is a failure probability.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The shortlist contains supervised learning, random forest and Adam as if they were alternative classifiers.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_taxonomy",
+          "summary": "Separate task, label availability, model structure, optimizer where applicable, and held-out evaluation before comparing compatible candidates.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Choose the label with the highest advertised accuracy.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Reject comparisons whose candidates refer to different taxonomy axes.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Require each candidate to declare task, signal, model, training and independent evaluation.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The proposed comparison treats a learning regime, a model family and an optimizer as mutually exclusive algorithms.",
+        "root_cause": "The selection mixes different axes: supervised learning describes the training signal, a random forest describes an ensemble of trees, and Adam is a gradient optimizer for differentiable parameters.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_taxonomy",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_supervised",
+      "learning_track": "data_science_2026",
+      "title": "Choose supervised baselines without invented prerequisites",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "supervised"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A latency dataset has correlated load counters and overlapping incident labels. A reviewer rejects linear models because inputs are correlated, rejects SVM because classes overlap, and selects KNN without scaling. Propose a valid baseline comparison.",
+      "symptom": "Useful baselines are excluded by assumptions the algorithms do not require.",
+      "proposed_diagnosis": "Use KNN directly on mixed-unit counters and skip the rejected baselines.",
+      "root_cause": "The review confuses collinearity with a prohibition, ignores soft margins, and treats an unscaled distance as a meaningful similarity.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Use KNN directly on mixed-unit counters and skip the rejected baselines."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "Two counters are strongly correlated, but the design matrix still permits fitting.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "Packet counts and milliseconds differ greatly in scale; incident classes overlap.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_supervised",
+          "summary": "Compare training-only scaling plus Ridge/Lasso, logistic or soft-margin SVM for classification, and linear or SVR models for regression; include KNN and shallow trees with task-appropriate metrics.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Use KNN directly on mixed-unit counters and skip the rejected baselines.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Fit scaling and regularization within each training fold.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Compare predictions and cost on held-out sites for the same target and budget.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Useful baselines are excluded by assumptions the algorithms do not require.",
+        "root_cause": "The review confuses collinearity with a prohibition, ignores soft margins, and treats an unscaled distance as a meaningful similarity.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_supervised",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_ensembles",
+      "learning_track": "data_science_2026",
+      "title": "Distinguish bagging from sequential boosting",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "ensembles"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A forest votes unanimously on a new site. The team treats this as proof of certainty and rejects all forests for online use because a cheat sheet calls them slow. Assess both claims.",
+      "symptom": "Unanimity substitutes for validation and a generic speed label substitutes for measurement.",
+      "proposed_diagnosis": "Accept every unanimous prediction and replace forests without measuring their latency.",
+      "root_cause": "Trees trained from shared site data can make correlated errors, and serving latency depends on tree count, depth, implementation and hardware.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Accept every unanimous prediction and replace forests without measuring their latency."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "All trees were trained on the same two sites; deployment introduces a third site.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "No target-hardware latency distribution has been measured for the selected tree depth.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_ensembles",
+          "summary": "Validate calibration and site shift independently, then compare bagging and boosting candidates under the same measured latency and quality budget.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Accept every unanimous prediction and replace forests without measuring their latency.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Measure error and calibration on a held-out site, including unanimous wrong predictions.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Measure inference latency and memory for the chosen forest and boosting configurations.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Unanimity substitutes for validation and a generic speed label substitutes for measurement.",
+        "root_cause": "Trees trained from shared site data can make correlated errors, and serving latency depends on tree count, depth, implementation and hardware.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_ensembles",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_clustering",
+      "learning_track": "data_science_2026",
+      "title": "Interpret clusters without assigning a diagnosis",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "clustering"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "DBSCAN labels sparse telemetry from a new equipment family as noise. The operator proposes to block that family as an attack. Determine what the result actually establishes.",
+      "symptom": "A geometric noise label is used as an operational incident label.",
+      "proposed_diagnosis": "Block every observation labelled as noise.",
+      "root_cause": "The clustering result reflects the chosen metric, density threshold and population; it contains no validated mapping from noise to attack.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Block every observation labelled as noise."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "The new equipment family has much fewer observations than established devices.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "No labelled attack examples were used to validate the noise-to-attack mapping.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_clustering",
+          "summary": "Inspect metric, density and equipment strata; compare K-means, hierarchy or DBSCAN where appropriate, then validate any incident interpretation with independent labels.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Block every observation labelled as noise.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Sweep density settings and measure stability across equipment families.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Test the proposed incident mapping against independent labelled incidents and benign rare events.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "A geometric noise label is used as an operational incident label.",
+        "root_cause": "The clustering result reflects the chosen metric, density threshold and population; it contains no validated mapping from noise to attack.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_clustering",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_projection",
+      "learning_track": "data_science_2026",
+      "title": "Do not turn a two-dimensional map into evidence",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "projection"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A PCA projection retains 99% of variance and a UMAP plot shows separated islands. The team declares rare faults preserved and uses island membership as its final fault classifier.",
+      "symptom": "Variance retention and visual separation are treated as predictive validation.",
+      "proposed_diagnosis": "Approve the classifier from the PCA variance ratio and the UMAP screenshot.",
+      "root_cause": "The rare-fault signal may lie in a low-variance direction, and a neighbourhood visualization does not establish target-label separation on future data.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Approve the classifier from the PCA variance ratio and the UMAP screenshot."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "The rare fault changes a low-amplitude counter while routine load dominates variance.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The 2D map was tuned repeatedly using the same samples later called the test set.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_projection",
+          "summary": "Compare downstream fault detection before and after projection on held-out data, and treat t-SNE or UMAP as exploratory visualizations with documented parameters.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Approve the classifier from the PCA variance ratio and the UMAP screenshot.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Measure held-out rare-class recall before and after PCA fitted on training only.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Evaluate future samples independently of visualization and parameter selection.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Variance retention and visual separation are treated as predictive validation.",
+        "root_cause": "The rare-fault signal may lie in a low-variance direction, and a neighbourhood visualization does not establish target-label separation on future data.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_projection",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_probability",
+      "learning_track": "data_science_2026",
+      "title": "Match probabilistic structure to the inference question",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "probability"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A Bayesian network links load and alarms. A team interprets its arrows as proof that changing a configuration will prevent failure. Choose the missing discriminator.",
+      "symptom": "An observational dependency graph is used as an intervention guarantee.",
+      "proposed_diagnosis": "Approve the configuration change because the Bayesian network contains a directed arrow.",
+      "root_cause": "A probabilistic factorization encodes conditional relationships but does not identify an intervention effect without additional causal assumptions and evidence.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Approve the configuration change because the Bayesian network contains a directed arrow."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "The graph was fitted to observational logs with unmeasured maintenance activity.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "No intervention or causal identification analysis supports the configuration claim.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_probability",
+          "summary": "Separate observational prediction from intervention claims; specify causal assumptions and obtain a controlled comparison before granting action authority.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Approve the configuration change because the Bayesian network contains a directed arrow.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Distinguish prediction under observation from the declared intervention query.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Test the proposed effect with an authorized controlled comparison or justified causal identification.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "An observational dependency graph is used as an intervention guarantee.",
+        "root_cause": "A probabilistic factorization encodes conditional relationships but does not identify an intervention effect without additional causal assumptions and evidence.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_probability",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_representation",
+      "learning_track": "data_science_2026",
+      "title": "Check what a learned representation preserves",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "representation"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A radio autoencoder reconstructs every input accurately, including known interference. The team reports perfect anomaly detection because reconstruction error is low.",
+      "symptom": "Good reconstruction is confused with successful anomaly detection.",
+      "proposed_diagnosis": "Declare every well-reconstructed signal nominal.",
+      "root_cause": "The reconstruction objective can be satisfied for both nominal and anomalous inputs; anomaly detection requires a validated separation and threshold.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Declare every well-reconstructed signal nominal."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "Both nominal and interference examples have similarly low reconstruction errors.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The model has enough capacity to reproduce inputs beyond the nominal training regime.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_representation",
+          "summary": "Evaluate nominal and anomalous held-out score distributions, tune the threshold on validation, and compare representations or constraints without using the final test.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Declare every well-reconstructed signal nominal.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Measure false negatives on held-out interference rather than reconstruction alone.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Reject augmentations that erase task-defining radio information.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Good reconstruction is confused with successful anomaly detection.",
+        "root_cause": "The reconstruction objective can be satisfied for both nominal and anomalous inputs; anomaly detection requires a validated separation and threshold.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_representation",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_architectures",
+      "learning_track": "data_science_2026",
+      "title": "Choose neural structure from data relationships",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "architectures"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A sequence-monitoring project rejects CNNs because they are supposedly image-only and chooses a Transformer because parallel training supposedly guarantees fast generation.",
+      "symptom": "The architecture choice is based on modality and speed slogans.",
+      "proposed_diagnosis": "Select the largest Transformer without a sequence-workload benchmark.",
+      "root_cause": "Convolutions can operate on one-dimensional sequences, and Transformer training parallelism does not remove attention memory or autoregressive serving cost.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Select the largest Transformer without a sequence-workload benchmark."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "The useful motif spans a short local window of counter measurements.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The serving requirement is per-event latency, while the available benchmark measures batched training throughput.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_architectures",
+          "summary": "Compare a small MLP reference, a temporal CNN, an RNN or a suitable Transformer on the same horizon, data split, latency and memory budget.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Select the largest Transformer without a sequence-workload benchmark.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Benchmark local-window CNN and recurrent or attention alternatives on the actual serving workload.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Verify chronological evaluation and report memory plus per-event latency.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The architecture choice is based on modality and speed slogans.",
+        "root_cause": "Convolutions can operate on one-dimensional sequences, and Transformer training parallelism does not remove attention memory or autoregressive serving cost.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_architectures",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_optimization",
+      "learning_track": "data_science_2026",
+      "title": "Separate loss optimization from generalization",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "optimization"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "Switching to Adam drives training loss down while validation error rises. The proposed fix is to keep training indefinitely because Adam supposedly guarantees the best solution.",
+      "symptom": "Lower training loss is reported as better deployment performance.",
+      "proposed_diagnosis": "Ignore validation and continue until training loss is nearly zero.",
+      "root_cause": "Optimization progress on training data is confused with generalization; neither Adam nor a longer run guarantees the best held-out model.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Ignore validation and continue until training loss is nearly zero."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "Training loss keeps decreasing after validation error begins rising.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The test set has already been checked after every optimizer change.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_optimization",
+          "summary": "Compare learning-rate schedules and regularization under a fixed budget, select an early-stopped checkpoint on validation, and evaluate the frozen choice on the final test.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Ignore validation and continue until training loss is nearly zero.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Select checkpoints and hyperparameters without querying the final test.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Compare held-out performance and compute budget across SGD, RMSprop or Adam choices.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "Lower training loss is reported as better deployment performance.",
+        "root_cause": "Optimization progress on training data is confused with generalization; neither Adam nor a longer run guarantees the best held-out model.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_optimization",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_evaluation",
+      "learning_track": "data_science_2026",
+      "title": "Choose metrics and splits for the service decision",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "evaluation"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A rare-fault detector reports 99% accuracy, a random row split and a threshold repeatedly tuned on the test data. Decide whether the evidence supports deployment.",
+      "symptom": "A high aggregate score conceals leakage and missed rare faults.",
+      "proposed_diagnosis": "Approve the detector from accuracy alone.",
+      "root_cause": "The evaluation mixes model selection with test assessment and ignores class imbalance plus correlated observations from the same time and sites.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Approve the detector from accuracy alone."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "Only one percent of observations are faults; a constant negative classifier reaches 99% accuracy.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "Nearby samples from the same incident occur on both sides of the split and the test threshold was optimized repeatedly.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_evaluation",
+          "summary": "Create independent time/site-aware splits, fit preprocessing inside training folds, choose the threshold on validation, and report rare-class and service-cost metrics on a frozen test.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Approve the detector from accuracy alone.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Keep related incidents and future periods outside training during the final evaluation.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Report a confusion matrix, recall, precision and threshold-specific cost alongside the named AUC.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "A high aggregate score conceals leakage and missed rare faults.",
+        "root_cause": "The evaluation mixes model selection with test assessment and ignores class imbalance plus correlated observations from the same time and sites.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_evaluation",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_adaptation",
+      "learning_track": "data_science_2026",
+      "title": "Distinguish limited-label learning strategies",
+      "difficulty": "intermediate",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "adaptation"
+      ],
+      "estimated_minutes": 8,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A team calls uncertainty-based human annotation self-supervised learning and claims that a pretrained model removes the need for target-site validation.",
+      "symptom": "The source of labels and the evidence for adaptation are both misidentified.",
+      "proposed_diagnosis": "Skip target-site validation because the model was pretrained.",
+      "root_cause": "Requesting human labels is active learning, while reusing pretrained weights is transfer learning; neither guarantees target-domain performance.",
+      "plain_repro": "Inspect the two synthetic observations and test the proposed conclusion against the stated learning contract.",
+      "weak_assumptions": [
+        "Skip target-site validation because the model was pretrained."
+      ],
+      "evidence": [
+        {
+          "id": "observation_1",
+          "description": "An annotator supplies labels for the most uncertain incidents.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        },
+        {
+          "id": "observation_2",
+          "description": "The target site differs from the pretraining domain and has no independent evaluation sample yet.",
+          "confidence": 0.95,
+          "relevance": 0.95
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "validate_adaptation",
+          "summary": "Name the signal and adaptation strategy correctly, account for human annotation cost, and compare target-domain quality under an independent evaluation protocol.",
+          "expected_impact": 0.9,
+          "blast_radius": 0.2,
+          "reversibility": 0.9
+        },
+        {
+          "id": "accept_shortcut",
+          "summary": "Skip target-site validation because the model was pretrained.",
+          "expected_impact": 0.25,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "check_1",
+          "description": "Record whether each target was human-provided, pseudo-labelled or constructed from the input.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "check_2",
+          "description": "Evaluate target-domain transfer separately from example selection and annotation-budget tuning.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The source of labels and the evidence for adaptation are both misidentified.",
+        "root_cause": "Requesting human labels is active learning, while reusing pretrained weights is transfer learning; neither guarantees target-domain performance.",
+        "evidence_ids": [
+          "observation_1",
+          "observation_2"
+        ],
+        "selected_fix_id": "validate_adaptation",
+        "regression_test_ids": [
+          "check_1",
+          "check_2"
+        ],
+        "confidence": 0.9
+      }
+    },
+    {
+      "case_id": "ml_landscape_2026_density",
+      "learning_track": "data_science_2026",
+      "title": "Read probability as area, not density height",
+      "difficulty": "intro",
+      "topic_tags": [
+        "data-science-2026",
+        "ml-landscape",
+        "density"
+      ],
+      "estimated_minutes": 6,
+      "learner_level": "data-scientist candidate",
+      "student_prompt": "A synthetic delay T is uniform on [0, 0.5 seconds]. A report reads f(0.15) = 2 as a 200 percent probability. Find P(0.1 <= T <= 0.2), explain an exact-point probability, and repeat the calculation in milliseconds.",
+      "symptom": "A probability-density height is reported as a probability exceeding one.",
+      "proposed_diagnosis": "Clip every density value to one to make it a valid probability.",
+      "root_cause": "A density height has inverse-time units; only its integral over an interval is a probability. For a uniform half-second delay, the density is 2 per second and the area over a 0.1-second interval is 0.2.",
+      "plain_repro": "Integrate the constant density over the requested interval, then express both height and width in milliseconds.",
+      "weak_assumptions": [
+        "Density height is dimensionless and equals the probability of an exact value."
+      ],
+      "evidence": [
+        {
+          "id": "uniform_support",
+          "description": "The synthetic delay is uniform over an interval of width 0.5 seconds, so total area one requires height 2 per second.",
+          "confidence": 1.0,
+          "relevance": 1.0
+        },
+        {
+          "id": "interval_width",
+          "description": "The event covers [0.1, 0.2] seconds, a width of 0.1 second or 100 milliseconds.",
+          "confidence": 1.0,
+          "relevance": 1.0
+        }
+      ],
+      "candidate_fixes": [
+        {
+          "id": "integrate_density_with_units",
+          "summary": "Compute interval area, distinguish point density from point probability, and preserve probability under a unit conversion.",
+          "expected_impact": 0.95,
+          "blast_radius": 0.1,
+          "reversibility": 0.95
+        },
+        {
+          "id": "clip_density_to_one",
+          "summary": "Clip the density to one and report its height as point probability.",
+          "expected_impact": 0.1,
+          "blast_radius": 0.8,
+          "reversibility": 0.2
+        }
+      ],
+      "regression_tests": [
+        {
+          "id": "normalization_and_interval",
+          "description": "Verify total density area is 1 and the area on [0.1, 0.2] is 0.2.",
+          "automated": true,
+          "discriminator": true
+        },
+        {
+          "id": "unit_invariance",
+          "description": "Verify 2 * 0.1 equals 0.002 * 100 and distinguish an exact point from a rounded-time bin.",
+          "automated": true,
+          "discriminator": true
+        }
+      ],
+      "student_answer": {
+        "diagnosis": "The report confuses density height with probability mass.",
+        "root_cause": "A density height has inverse-time units; only its integral over an interval is a probability. For a uniform half-second delay, the density is 2 per second and the area over a 0.1-second interval is 0.2.",
+        "evidence_ids": [
+          "uniform_support",
+          "interval_width"
+        ],
+        "selected_fix_id": "integrate_density_with_units",
+        "regression_test_ids": [
+          "normalization_and_interval",
+          "unit_invariance"
+        ],
+        "confidence": 1.0
+      }
     }
   ]
 }

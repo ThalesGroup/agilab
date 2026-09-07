@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import logging
 import shutil
@@ -22,6 +23,7 @@ from tescia_diagnostic.classroom import (
 )
 from tescia_diagnostic.curriculum import build_math_program_2026_coverage_report
 from tescia_diagnostic.diagnostic import diagnose_case, summarize_report, validate_case_payload
+from tescia_diagnostic.domain.assessment_program import build_program_coverage_report
 from tescia_diagnostic.exports import (
     case_artifact_stem,
     write_correction_index,
@@ -98,27 +100,42 @@ class TesciaDiagnosticWorker(PandasWorker):
     def work_init(self) -> None:
         return None
 
-    def _load_cases(self, file_path: str | Path) -> list[dict[str, Any]]:
+    def _load_payload(self, file_path: str | Path) -> dict[str, Any]:
         source = Path(str(file_path)).expanduser()
         payload = json.loads(source.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"Diagnostic file must contain a JSON object: {source}")
         if payload.get("schema") == CLASSROOM_SCHEMA:
+            if "assessment_program" in payload:
+                raise ValueError("assessment_program belongs in a diagnostic case bank, not a classroom batch")
             try:
-                return expand_classroom_submissions(payload)
+                return {"cases": expand_classroom_submissions(payload)}
             except ValueError as exc:
                 raise ValueError(f"Invalid TeSciA classroom submission file {source}: {exc}") from exc
         try:
             validated = validate_case_payload(payload)
         except ValueError as exc:
             raise ValueError(f"Invalid TeSciA diagnostic file {source}: {exc}") from exc
-        return validated["cases"]
+        return validated
+
+    def _load_cases(self, file_path: str | Path) -> list[dict[str, Any]]:
+        return self._load_payload(file_path)["cases"]
 
     def work_pool(self, file_path):
         args = self._current_args()
         rows: list[dict[str, Any]] = []
         reports: list[dict[str, Any]] = []
-        for case in self._load_cases(file_path):
+        payload = self._load_payload(file_path)
+        program_coverage = None
+        if "assessment_program" in payload:
+            program_coverage = build_program_coverage_report(
+                payload["assessment_program"], payload["cases"]
+            )
+            # Bind coverage to the validated input, not to a mutable source path.
+            program_coverage["case_bank_sha256"] = hashlib.sha256(
+                json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+            ).hexdigest()
+        for case in payload["cases"]:
             report = diagnose_case(
                 case,
                 minimum_evidence_confidence=float(getattr(args, "minimum_evidence_confidence", 0.65)),
@@ -134,6 +151,10 @@ class TesciaDiagnosticWorker(PandasWorker):
                 **summary,
                 "report_json": json.dumps(report, sort_keys=True),
             }
+            if program_coverage is not None and not rows:
+                # Carry bank-level material coverage through the worker DataFrame
+                # exactly once; it is not an individual learner's assessment.
+                row["assessment_program_coverage_json"] = json.dumps(program_coverage, sort_keys=True)
             rows.append(row)
         if any(str(report.get("classroom", {}).get("student_ref", "")).strip() for report in reports):
             worker_id = int(getattr(self, "_worker_id", 0))
@@ -165,7 +186,7 @@ class TesciaDiagnosticWorker(PandasWorker):
             summary = {
                 key: row[key].item() if hasattr(row[key], "item") else row[key]
                 for key in row.index
-                if key != "report_json"
+                if key not in {"report_json", "assessment_program_coverage_json"}
             }
             materialized.append((report, summary))
         return materialized
@@ -230,9 +251,28 @@ class TesciaDiagnosticWorker(PandasWorker):
         if df is None or df.empty:
             return
         materialized = self._materialize_rows(df)
+        program_reports = self._materialize_program_reports(df)
         self._write_artifact_bundle(Path(self.data_out), materialized)
         self._write_artifact_bundle(self.artifact_dir, materialized)
+        for root in (Path(self.data_out), self.artifact_dir):
+            for digest, report in program_reports.items():
+                _write_json(root / "assessment_programs" / f"{digest}.json", report)
         logger.info("wrote TeSciA diagnostic artifacts for %s cases", len(df))
+
+    @staticmethod
+    def _materialize_program_reports(df: pd.DataFrame) -> dict[str, dict[str, Any]]:
+        """Keep independently authored banks distinct, even with the same ID."""
+        reports: dict[str, dict[str, Any]] = {}
+        if "assessment_program_coverage_json" not in df:
+            return reports
+        for value in df["assessment_program_coverage_json"].dropna():
+            report = json.loads(str(value))
+            if not isinstance(report, dict) or report.get("schema") != "tescia-assessment-program-coverage.v1":
+                raise ValueError("Invalid assessment program coverage in worker output")
+            serialized = json.dumps(report, sort_keys=True, ensure_ascii=False)
+            digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+            reports[digest] = report
+        return dict(sorted(reports.items()))
 
 
 __all__ = ["TesciaDiagnosticWorker"]

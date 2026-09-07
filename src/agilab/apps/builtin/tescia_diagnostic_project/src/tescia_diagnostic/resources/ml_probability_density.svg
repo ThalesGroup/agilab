@@ -1,0 +1,190 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:ns2="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink" width="648pt" height="345.6pt" viewBox="0 0 648 345.6" version="1.1" role="img" aria-labelledby="density-title density-desc">
+  <title id="density-title">Densité uniforme : la probabilité correspond à une aire</title>
+  <desc id="density-desc">Un délai uniforme entre zéro et une demi-seconde a une densité de deux secondes inverses. La zone entre 0,1 et 0,2 seconde a une aire de 0,2, soit une probabilité de 20 pour cent. La hauteur peut dépasser un ; l’aire totale vaut un.</desc>
+  <metadata>
+    <rdf:RDF>
+      <ns2:Work>
+        <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:format>image/svg+xml</dc:format>
+        <dc:creator>
+          <ns2:Agent>
+            <dc:title>AGILAB teaching figure</dc:title>
+          </ns2:Agent>
+        </dc:creator>
+      </ns2:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs>
+    <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+  </defs>
+  <g id="figure_1">
+    <g id="patch_1">
+      <path d="M 0 345.6  L 648 345.6  L 648 0  L 0 0  z " style="fill: #ffffff" />
+    </g>
+    <g id="axes_1">
+      <g id="patch_2">
+        <path d="M 64.8 266.112  L 628.56 266.112  L 628.56 69.12  L 64.8 69.12  z " style="fill: #ffffff" />
+      </g>
+      <g id="FillBetweenPolyCollection_1">
+        <path d="M 85.68 266.112  L 85.68 125.403429  L 607.68 125.403429  L 607.68 266.112  L 607.68 266.112  L 85.68 266.112  z " clip-path="url(#pe55f214d19)" style="fill: #edf5fa" />
+      </g>
+      <g id="FillBetweenPolyCollection_2">
+        <defs>
+          <path id="m89b7bef11b" d="M 190.08 -79.488  L 190.08 -220.196571  L 294.48 -220.196571  L 294.48 -79.488  L 294.48 -79.488  L 190.08 -79.488  z " style="stroke: #81c7bb; stroke-opacity: 0.95" />
+        </defs>
+        <g clip-path="url(#pe55f214d19)">
+          <use xlink:href="#m89b7bef11b" x="0" y="345.6" style="fill: #81c7bb; fill-opacity: 0.95; stroke: #81c7bb; stroke-opacity: 0.95" />
+        </g>
+      </g>
+      <g id="matplotlib.axis_1">
+        <g id="xtick_1">
+          <g id="line2d_1">
+            <defs>
+              <path id="m6eb9c293a2" d="M 0 0  L 0 3.5  " style="stroke: #000000; stroke-width: 0.8" />
+            </defs>
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="85.68" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_1">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="85.68" y="282.988953" transform="rotate(-0 85.68 282.988953)">0</text>
+          </g>
+        </g>
+        <g id="xtick_2">
+          <g id="line2d_2">
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="190.08" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_2">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="190.08" y="282.988953" transform="rotate(-0 190.08 282.988953)">0,1</text>
+          </g>
+        </g>
+        <g id="xtick_3">
+          <g id="line2d_3">
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="294.48" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_3">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="294.48" y="282.988953" transform="rotate(-0 294.48 282.988953)">0,2</text>
+          </g>
+        </g>
+        <g id="xtick_4">
+          <g id="line2d_4">
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="398.88" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_4">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="398.88" y="282.988953" transform="rotate(-0 398.88 282.988953)">0,3</text>
+          </g>
+        </g>
+        <g id="xtick_5">
+          <g id="line2d_5">
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="503.28" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_5">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="503.28" y="282.988953" transform="rotate(-0 503.28 282.988953)">0,4</text>
+          </g>
+        </g>
+        <g id="xtick_6">
+          <g id="line2d_6">
+            <g>
+              <use xlink:href="#m6eb9c293a2" x="607.68" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_6">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="607.68" y="282.988953" transform="rotate(-0 607.68 282.988953)">0,5</text>
+          </g>
+        </g>
+        <g id="text_7">
+          <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="346.68" y="300.509969" transform="rotate(-0 346.68 300.509969)">Délai T (secondes)</text>
+        </g>
+      </g>
+      <g id="matplotlib.axis_2">
+        <g id="ytick_1">
+          <g id="line2d_7">
+            <path d="M 64.8 266.112  L 628.56 266.112  " clip-path="url(#pe55f214d19)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.15; stroke-width: 0.8; stroke-linecap: square" />
+          </g>
+          <g id="line2d_8">
+            <defs>
+              <path id="mde8bb1b604" d="M 0 0  L -3.5 0  " style="stroke: #000000; stroke-width: 0.8" />
+            </defs>
+            <g>
+              <use xlink:href="#mde8bb1b604" x="64.8" y="266.112" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_8">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: end" x="57.8" y="271.050477" transform="rotate(-0 57.8 271.050477)">0</text>
+          </g>
+        </g>
+        <g id="ytick_2">
+          <g id="line2d_9">
+            <path d="M 64.8 195.757714  L 628.56 195.757714  " clip-path="url(#pe55f214d19)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.15; stroke-width: 0.8; stroke-linecap: square" />
+          </g>
+          <g id="line2d_10">
+            <g>
+              <use xlink:href="#mde8bb1b604" x="64.8" y="195.757714" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_9">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: end" x="57.8" y="200.696191" transform="rotate(-0 57.8 200.696191)">1</text>
+          </g>
+        </g>
+        <g id="ytick_3">
+          <g id="line2d_11">
+            <path d="M 64.8 125.403429  L 628.56 125.403429  " clip-path="url(#pe55f214d19)" style="fill: none; stroke: #b0b0b0; stroke-opacity: 0.15; stroke-width: 0.8; stroke-linecap: square" />
+          </g>
+          <g id="line2d_12">
+            <g>
+              <use xlink:href="#mde8bb1b604" x="64.8" y="125.403429" style="stroke: #000000; stroke-width: 0.8" />
+            </g>
+          </g>
+          <g id="text_10">
+            <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: end" x="57.8" y="130.341905" transform="rotate(-0 57.8 130.341905)">2</text>
+          </g>
+        </g>
+        <g id="text_11">
+          <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle" x="42.405703" y="167.616" transform="rotate(-90 42.405703 167.616)">Densité fₜ (s⁻¹)</text>
+        </g>
+      </g>
+      <g id="line2d_13">
+        <path d="M 64.8 266.112  L 85.68 266.112  L 85.68 125.403429  L 607.68 125.403429  L 607.68 266.112  L 628.56 266.112  " clip-path="url(#pe55f214d19)" style="fill: none; stroke: #265e9b; stroke-width: 2.5; stroke-linecap: square" />
+      </g>
+      <g id="patch_3">
+        <path d="M 64.8 266.112  L 64.8 69.12  " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square" />
+      </g>
+      <g id="patch_4">
+        <path d="M 64.8 266.112  L 628.56 266.112  " style="fill: none; stroke: #000000; stroke-width: 0.8; stroke-linejoin: miter; stroke-linecap: square" />
+      </g>
+      <g id="text_12">
+        <text style="font-weight: 700; font-size: 18px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #154e48" x="242.28" y="196.915781" transform="rotate(-0 242.28 196.915781)">20 %</text>
+      </g>
+      <g id="patch_5">
+        <path d="M 466.201386 98.501404  Q 459.130772 111.080531 452.607984 122.685036  " style="fill: none; stroke: #265e9b; stroke-linecap: round" />
+        <path d="M 457.422426 119.426026  L 452.607984 122.685036  L 452.889442 116.878076  " style="fill: none; stroke: #265e9b; stroke-linecap: round" />
+      </g>
+      <g id="text_13">
+        <text style="font-size: 13px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #265e9b" x="471.96" y="91.633371" transform="rotate(-0 471.96 91.633371)">Hauteur : 2 s⁻¹</text>
+      </g>
+      <g id="text_14">
+        <text style="font-size: 14px; font-family: Arial, 'DejaVu Sans', sans-serif; fill: #18334b" transform="translate(414.54 167.433012)">Aire colorée :</text>
+        <text style="font-size: 14px; font-family: Arial, 'DejaVu Sans', sans-serif; fill: #18334b" transform="translate(414.54 187.3152)">2 s⁻¹ × 0,1 s = 0,2</text>
+      </g>
+    </g>
+    <g id="text_15">
+      <text style="font-weight: 700; font-size: 16px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #18334b" x="324" y="26.6215" transform="rotate(-0 324 26.6215)">Une densité est une hauteur ; une probabilité est une aire</text>
+    </g>
+    <g id="text_16">
+      <text style="font-size: 12px; font-family: Arial, 'DejaVu Sans', sans-serif; text-anchor: start; fill: #18334b" x="64.8" y="324.864" transform="rotate(-0 64.8 324.864)">Uniforme sur [0 ; 0,5 s] : aire totale = 1. Pour une valeur exacte, P(T = t) = 0.</text>
+    </g>
+  </g>
+  <defs>
+    <clipPath id="pe55f214d19">
+      <rect x="64.8" y="69.12" width="563.76" height="196.992" />
+    </clipPath>
+  </defs>
+</svg>

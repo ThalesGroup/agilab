@@ -1,0 +1,230 @@
+{
+  "schema": "agilab.tescia_diagnostic.ml_landscape.v1",
+  "title": "ML landscape: map, concepts and practice",
+  "coverage_entry_count": 55,
+  "scope": "54 grouped landscape concepts plus probability-density foundations. Synthetic reasoning exercises, not a benchmark implementation of every algorithm.",
+  "reading_guide": "Start with task and training signal, then choose compatible models and representations. Finish with training and independent evaluation. The axes overlap; they are not mutually exclusive branches.",
+  "modules": [
+    {
+      "id": "taxonomy",
+      "title": "Separate the questions before choosing a model",
+      "concepts": [
+        "Supervisé ; classification ; régression",
+        "Non supervisé ; regroupement ; réduction de dimension",
+        "Modèles probabilistes ; incertitude",
+        "Representation learning ; deep learning"
+      ],
+      "lesson": "A task specifies the output: classification predicts a class or its probability, regression a continuous value, clustering groups observations, and representation learning constructs useful features. Supervised, unsupervised and self-supervised describe the source of the training signal. Ensembles describe how models are combined. Probabilistic models represent distributions; deep learning composes learned transformations. These categories overlap. A supervised random forest is both supervised and an ensemble. Optimization and validation are stages, not competing model families. For example, estimate the risk that a network connection is declared unavailable in the next five minutes. Here the synthetic teaching label is an alarm triggered after at least ten seconds of unavailability. Historical time-stamped labels define supervised binary classification; a random forest is one possible model. Only measurements available at prediction time may be used.",
+      "misconception": "Choose the label with the highest advertised accuracy.",
+      "case_id": "ml_landscape_2026_taxonomy",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/ensemble.html"
+      ]
+    },
+    {
+      "id": "supervised",
+      "title": "Choose supervised baselines without invented prerequisites",
+      "concepts": [
+        "Régression linéaire",
+        "Régression logistique",
+        "Ridge",
+        "Lasso",
+        "SVM",
+        "SVR",
+        "Arbres de décision",
+        "KNN"
+      ],
+      "lesson": "Linear regression fits a weighted sum by squared error. Ridge adds an L2 penalty to stabilize coefficients; Lasso adds L1 and may set coefficients to zero. Logistic regression predicts class probabilities through a logistic link. SVM trades margin width against violations; SVR uses an epsilon tolerance for regression. Perfect separability is not required for a soft-margin SVM. KNN votes or averages nearby labelled examples: distance, scaling and inference cost matter. A decision tree recursively partitions features; depth and leaf size control overfitting. Correlated features do not forbid linear regression, but can destabilize coefficients. Scaling must be fitted only on training data.",
+      "misconception": "Use KNN directly on mixed-unit counters and skip the rejected baselines.",
+      "case_id": "ml_landscape_2026_supervised",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/linear_model.html",
+        "https://scikit-learn.org/stable/modules/svm.html",
+        "https://scikit-learn.org/stable/modules/neighbors.html"
+      ]
+    },
+    {
+      "id": "ensembles",
+      "title": "Distinguish bagging from sequential boosting",
+      "concepts": [
+        "Ensemble learning ; bagging",
+        "Random Forest / forêts aléatoires",
+        "Boosting ; gradient boosting",
+        "AdaBoost",
+        "XGBoost",
+        "LightGBM",
+        "CatBoost"
+      ],
+      "lesson": "Bagging fits models on bootstrap samples and aggregates their predictions. Random Forest also samples candidate features at tree splits; the trees need not be statistically independent. AdaBoost reweights mistakes, while gradient boosting fits successive corrections to the loss gradient. XGBoost provides regularized tree boosting; LightGBM uses histograms and leaf-wise growth; CatBoost includes ordered boosting and categorical-feature techniques. Stacking learns to combine out-of-fold base predictions. Neither a forest nor boosting is universally unsuitable for real-time use: measure the selected model on target hardware. Correlated mistakes can survive unanimous votes.",
+      "misconception": "Accept every unanimous prediction and replace forests without measuring their latency.",
+      "case_id": "ml_landscape_2026_ensembles",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/ensemble.html",
+        "https://xgboost.readthedocs.io/en/stable/tutorials/model.html",
+        "https://lightgbm.readthedocs.io/en/stable/Features.html",
+        "https://arxiv.org/abs/1706.09516"
+      ]
+    },
+    {
+      "id": "clustering",
+      "title": "Interpret clusters without assigning a diagnosis",
+      "concepts": [
+        "K-means",
+        "Regroupement hiérarchique ; dendrogramme",
+        "DBSCAN"
+      ],
+      "lesson": "K-means alternates nearest-centre assignments and centre updates to reduce squared Euclidean distances; choose K, scaling and initialization. Agglomerative hierarchical clustering merges groups using a distance and linkage rule, producing a dendrogram. No K is needed to build the hierarchy, but a partition needs a cut. DBSCAN connects sufficiently dense regions using epsilon and a minimum-neighbour count, leaving some points as noise. It can represent non-convex groups but struggles with strongly varying density or uninformative distances. A cluster is not automatically a service class and a noise point is not automatically an attack.",
+      "misconception": "Block every observation labelled as noise.",
+      "case_id": "ml_landscape_2026_clustering",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/clustering.html"
+      ]
+    },
+    {
+      "id": "projection",
+      "title": "Do not turn a two-dimensional map into evidence",
+      "concepts": [
+        "ACP/PCA ; covariance ; SVD",
+        "t-SNE",
+        "UMAP"
+      ],
+      "lesson": "ACP/PCA projects centred data onto orthogonal directions of decreasing variance, using covariance decomposition or SVD. High explained variance does not guarantee preservation of a rare predictive signal. t-SNE constructs a low-dimensional map from probabilistic neighbourhood relationships. UMAP builds an embedding from a neighbourhood graph and can transform new points in its standard implementation. Neither map automatically proves real clusters, global distances or classes. Fit PCA only on training data, document scaling and random seeds, and evaluate the downstream target independently.",
+      "misconception": "Approve the classifier from the PCA variance ratio and the UMAP screenshot.",
+      "case_id": "ml_landscape_2026_projection",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/decomposition.html",
+        "https://scikit-learn.org/stable/modules/manifold.html",
+        "https://umap-learn.readthedocs.io/en/latest/faq.html"
+      ]
+    },
+    {
+      "id": "density",
+      "title": "Read probability as area, not density height",
+      "concepts": [
+        "Densité de probabilité ; aire ; fonction de répartition"
+      ],
+      "lesson": "A probability density is not a point probability. For a variable admitting a density, f is nonnegative and its integral over the whole domain is one. The probability of an interval is the area under f over that interval. If time is measured in seconds, density has units of inverse seconds and may exceed one. For T uniform on [0, 0.5 seconds], f = 2 per second. P(0.1 <= T <= 0.2) = 2 * 0.1 = 0.2, or 20 percent. Expressed in milliseconds, f = 0.002 per millisecond and the same interval has width 100 milliseconds, so its probability is unchanged. An exact point has probability zero in this density model; rounded measurements instead represent bins of positive width. The cumulative distribution F(t) is the area up to t; 1 - F(d) is the probability of exceeding a deadline. Density histograms normalize bin areas, not just heights.",
+      "misconception": "A density of 2 means a probability of 200 percent.",
+      "case_id": "ml_landscape_2026_density",
+      "sources": [
+        "https://www.itl.nist.gov/div898/handbook/eda/section3/eda3662.htm",
+        "https://scikit-learn.org/stable/modules/mixture.html"
+      ]
+    },
+    {
+      "id": "probability",
+      "title": "Match probabilistic structure to the inference question",
+      "concepts": [
+        "Naive Bayes",
+        "Réseaux bayésiens",
+        "Mélanges gaussiens (GMM)",
+        "Modèles de Markov cachés (HMM)"
+      ],
+      "lesson": "Naive Bayes multiplies class-conditional feature likelihoods; its independence assumption is conditional on the class, not marginal. Correlation may hurt calibration without making classification useless. A Bayesian network factorizes a joint distribution through an acyclic graph and conditional distributions; its arrows alone do not prove causal effects. A Gaussian mixture (GMM) gives soft memberships in a weighted mixture, usually fitted by EM. A hidden Markov model (HMM) combines transitions between latent states with observation emissions. It suits changing regimes under its state and temporal assumptions; it is not a general model of every long-range dependency.",
+      "misconception": "Approve the configuration change because the Bayesian network contains a directed arrow.",
+      "case_id": "ml_landscape_2026_probability",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/naive_bayes.html",
+        "https://pgmpy.org/api/generated/models/pgmpy.models.DiscreteBayesianNetwork.html",
+        "https://scikit-learn.org/stable/modules/mixture.html",
+        "https://hmmlearn.readthedocs.io/en/stable/tutorial.html"
+      ]
+    },
+    {
+      "id": "representation",
+      "title": "Check what a learned representation preserves",
+      "concepts": [
+        "Autoencodeurs ; reconstruction ; débruitage ; anomalies",
+        "Embeddings ; Word2Vec",
+        "Apprentissage contrastif"
+      ],
+      "lesson": "An autoencoder learns an encoder and decoder through a reconstruction loss. A bottleneck or other regularization discourages a trivial copy; symmetry is not required. Denoising reconstructs a clean target from a corrupted input. Reconstruction can supply an anomaly score, but a flexible model may reconstruct anomalies too. Embeddings map objects to learned vectors. Word2Vec learns word vectors through context prediction. Contrastive learning brings selected equivalent views closer and, depending on the objective, separates other views. The chosen augmentations must preserve the information needed by the downstream task.",
+      "misconception": "Declare every well-reconstructed signal nominal.",
+      "case_id": "ml_landscape_2026_representation",
+      "sources": [
+        "https://www.deeplearningbook.org/contents/autoencoders.html",
+        "https://arxiv.org/abs/1301.3781",
+        "https://proceedings.mlr.press/v119/chen20j.html"
+      ]
+    },
+    {
+      "id": "architectures",
+      "title": "Choose neural structure from data relationships",
+      "concepts": [
+        "Réseaux neuronaux ; MLP ; activations",
+        "CNN ; convolution ; pooling",
+        "RNN ; mémoire séquentielle",
+        "Transformer ; attention ; position ; BERT ; GPT"
+      ],
+      "lesson": "An MLP composes affine layers and nonlinear activations for tabular interactions. A CNN shares local filters; 1D convolutions can process time or text, and pooling is optional. An RNN carries hidden state between steps; vanishing or exploding gradients motivate gated variants such as LSTM and GRU. A Transformer combines representations using attention and positional information; standard dense attention has quadratic sequence-length cost. BERT illustrates masked pretraining and GPT autoregressive next-token prediction. Architecture does not uniquely determine the learning regime. Model size, pretraining, data and serving budget change the comparison.",
+      "misconception": "Select the largest Transformer without a sequence-workload benchmark.",
+      "case_id": "ml_landscape_2026_architectures",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/neural_networks_supervised.html",
+        "https://docs.pytorch.org/docs/2.14/generated/torch.nn.Conv1d.html",
+        "https://docs.pytorch.org/docs/2.14/generated/torch.nn.RNN.html",
+        "https://arxiv.org/abs/1706.03762",
+        "https://arxiv.org/abs/1810.04805"
+      ]
+    },
+    {
+      "id": "optimization",
+      "title": "Separate loss optimization from generalization",
+      "concepts": [
+        "Descente de gradient",
+        "SGD",
+        "Adam",
+        "RMSprop",
+        "Learning rate scheduling",
+        "Régularisation L1/L2",
+        "Dropout"
+      ],
+      "lesson": "Full gradient descent uses all training observations per update. SGD uses a sample or mini-batch. RMSprop adapts update scale using moving averages of squared gradients; Adam uses first and second moments with initialization-bias correction. A learning-rate schedule varies the step size. L1/L2 penalties, dropout and early stopping control model flexibility or training duration. Dropout masks activations during training; standard inference removes those random masks under the implementation's scaling convention. A decreasing training loss does not establish generalization, and an optimizer cannot repair data leakage.",
+      "misconception": "Ignore validation and continue until training loss is nearly zero.",
+      "case_id": "ml_landscape_2026_optimization",
+      "sources": [
+        "https://www.deeplearningbook.org/contents/optimization.html",
+        "https://docs.pytorch.org/docs/2.14/generated/torch.nn.Dropout.html"
+      ]
+    },
+    {
+      "id": "evaluation",
+      "title": "Choose metrics and splits for the service decision",
+      "concepts": [
+        "Entraînement / validation / test",
+        "Validation croisée",
+        "Accuracy ; précision ; rappel ; F1",
+        "RMSE ; AUC",
+        "Matrice de confusion",
+        "Biais–variance"
+      ],
+      "lesson": "Training fits parameters; validation selects model, preprocessing and threshold; an independent test estimates the final performance. Cross-validation repeats fitting across folds while keeping transformations inside each training fold. Network data may require chronological, site or equipment splits. Accuracy can hide a missed rare class. Confusion matrices, precision, recall and F1 describe thresholded decisions. RMSE measures regression error in the target unit. ROC-AUC and precision–recall area summarize different score curves and do not establish calibration. Bias–variance reasoning explains why a more flexible model may fit training better but generalize worse.",
+      "misconception": "Approve the detector from accuracy alone.",
+      "case_id": "ml_landscape_2026_evaluation",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/cross_validation.html",
+        "https://scikit-learn.org/stable/modules/model_evaluation.html"
+      ]
+    },
+    {
+      "id": "adaptation",
+      "title": "Distinguish limited-label learning strategies",
+      "concepts": [
+        "Semi-supervisé",
+        "Auto-supervisé",
+        "Transfer learning",
+        "Active learning",
+        "Meta-learning"
+      ],
+      "lesson": "Semi-supervised learning combines labelled and unlabelled data, but pseudo-labels can amplify errors. Self-supervised learning constructs targets from data through masking, context or contrast. Transfer learning reuses parameters or representations and may suffer negative transfer under domain shift. Active learning chooses which examples to ask a human to label. Meta-learning learns an initialization or adaptation procedure across tasks. These strategies can be combined, but none removes the need for independent target-domain evaluation and an explicit annotation budget.",
+      "misconception": "Skip target-site validation because the model was pretrained.",
+      "case_id": "ml_landscape_2026_adaptation",
+      "sources": [
+        "https://scikit-learn.org/stable/modules/semi_supervised.html",
+        "https://proceedings.mlr.press/v119/chen20j.html",
+        "https://burrsettles.com/pub/settles.activelearning.pdf",
+        "https://proceedings.mlr.press/v70/finn17a.html"
+      ]
+    }
+  ]
+}
