@@ -362,3 +362,7 @@ omit = [
     "src/agilab/lab_run.py",
     "src/agilab/pages/*.py",
 ]
+
+[tool.ruff.lint]
+# Preserve the existing lint policy when upgrading across Ruff's default-rule changes.
+select = ["E4", "E7", "E9", "F"]
