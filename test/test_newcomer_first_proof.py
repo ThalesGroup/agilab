@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +37,68 @@ def test_build_proof_commands_defaults_to_preinit_and_ui_smoke() -> None:
     assert "AppTest.from_file" in commands[2].argv[-1]
     assert str(module.DEFAULT_ACTIVE_APP) in commands[2].argv[-1]
 
+
+
+@pytest.mark.parametrize(
+    ("page_code", "expected_returncode", "expected_message"),
+    [
+        pytest.param(
+            "import streamlit as st\n"
+            "from agilab.ui_public_bind_guard import enforce_public_bind_policy_or_stop\n"
+            "enforce_public_bind_policy_or_stop(st)\n"
+            'st.session_state["env"] = "proof-env"\n',
+            0,
+            "newcomer-ui-smoke: OK",
+            id="inherited-public-address",
+        ),
+        pytest.param(
+            "import streamlit as st\n"
+            'st.error("UI smoke stopped at the setup guard")\n'
+            "st.stop()\n",
+            1,
+            "UI smoke stopped at the setup guard",
+            id="rendered-stop-diagnostic",
+        ),
+    ],
+)
+def test_ui_smoke_subprocess_is_local_and_reports_stopped_pages(
+    tmp_path: Path,
+    monkeypatch,
+    page_code: str,
+    expected_returncode: int,
+    expected_message: str,
+) -> None:
+    pytest.importorskip("streamlit")
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    page_root = tmp_path / "src" / "agilab"
+    (page_root / "pages").mkdir(parents=True)
+    (page_root / "main_page.py").write_text(page_code, encoding="utf-8")
+    (page_root / "pages" / "2_ORCHESTRATE.py").write_text(
+        "import streamlit as st\n"
+        'assert st.session_state["env"] == "proof-env"\n',
+        encoding="utf-8",
+    )
+    command = module._ui_smoke_command(tmp_path / "apps" / "proof_project")
+    env = {**os.environ, "STREAMLIT_SERVER_ADDRESS": "0.0.0.0"}
+    env.pop("AGILAB_PUBLIC_BIND_OK", None)
+    env.update(command.env)
+    source_root = str(MODULE_PATH.parents[1] / "src")
+    env["PYTHONPATH"] = os.pathsep.join(
+        path for path in (source_root, env.get("PYTHONPATH", "")) if path
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", command.argv[-1]],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    output = completed.stdout + completed.stderr
+    assert completed.returncode == expected_returncode, output
+    assert expected_message in output
 
 def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> None:
     module = _load_module()

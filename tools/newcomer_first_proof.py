@@ -238,7 +238,11 @@ def _ui_smoke_code(active_app: Path) -> str:
         f"""
         import sys
         from pathlib import Path
+        from streamlit import config as streamlit_config
         from streamlit.testing.v1 import AppTest
+
+        # AppTest does not run the CLI configuration bootstrap.
+        streamlit_config.set_option("server.address", "127.0.0.1")
 
         about_page = Path({str(about_page)!r})
         orchestrate_page = Path({str(orchestrate_page)!r})
@@ -253,7 +257,13 @@ def _ui_smoke_code(active_app: Path) -> str:
             raise AssertionError(f"Main page exceptions: {{about_errors}}")
 
         if "env" not in about.session_state:
-            raise AssertionError("Main page did not initialise AgiEnv in session_state.")
+            rendered_errors = " | ".join(str(item.value) for item in about.error)
+            omitted_chars = max(0, len(rendered_errors) - 1000)
+            raise AssertionError(
+                "Main page did not initialise AgiEnv in session_state. "
+                f"Rendered errors: {{rendered_errors[:1000] or 'none'}} "
+                f"(rendered_error_omitted_chars={{omitted_chars}})."
+            )
 
         env = about.session_state["env"]
         orchestrate = AppTest.from_file(str(orchestrate_page), default_timeout=90)
