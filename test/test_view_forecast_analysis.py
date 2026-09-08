@@ -72,8 +72,12 @@ def test_forecast_requires_predictions_from_selected_run(tmp_path, monkeypatch) 
     assert not at.metric and not at.dataframe
     with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project)]):
         at.selectbox[0].set_value(root / "run_b/forecast_metrics.json").run()
-    assert not at.exception and not at.warning
+    warnings = [warning.value for warning in at.warning]
+    assert not at.exception
+    assert at.selectbox[0].value == root / "run_b/forecast_metrics.json", warnings
     assert at.selectbox[1].value == predictions
+    assert not any("selected metrics run" in warning for warning in warnings), warnings
+    assert len(at.dataframe) == 1, warnings
     assert at.dataframe[0].value["y_pred"].iloc[0] == 100
 
 
