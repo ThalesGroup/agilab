@@ -28,6 +28,12 @@ on:
           - hotfix
           - candidate
           - repair
+      proof_publication_run:
+        description: "Proof repair only: exact successful publication run/attempt, for example 34148757505/3. Requires release_mode=repair."
+        required: false
+      proof_hf_space_commit:
+        description: "Proof repair only: immutable HF commit already validated by that publication."
+        required: false
       include_existing_pypi:
         description: "Include package versions that already exist on PyPI to repair release assets. Default skips them."
         required: false
@@ -1079,7 +1085,7 @@ jobs:
   # releases, attestations, and workflow dispatches. The immutable HF commit is
   # the only value crossing this credential boundary.
   publish-release-proof:
-    if: ${{ always() && needs.release-approval.result == 'success' && needs.sync-hf-space.result == 'success' }}
+    if: ${{ always() && needs.release-approval.result == 'success' && (needs.sync-hf-space.result == 'success' || github.event.inputs.proof_publication_run != '') }}
     needs:
       - release-approval
       - release-plan
@@ -1119,9 +1125,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HF_SPACE_COMMIT: ${{ needs.sync-hf-space.outputs.hf_space_commit }}
+          PROOF_PUBLICATION_RUN: ${{ github.event.inputs.proof_publication_run || '' }}
+          PROOF_HF_SPACE_COMMIT: ${{ github.event.inputs.proof_hf_space_commit || '' }}
+          RELEASE_MODE: ${{ github.event.inputs.release_mode || 'stable' }}
+          PYPI_PUBLISH_SELECTED: ${{ needs.release-plan.outputs.pypi_publish_selected }}
         run: |
           set -euo pipefail
           hf_commit="${HF_SPACE_COMMIT}"
+          publication_run_id="$GITHUB_RUN_ID"
+          publication_attempt="$GITHUB_RUN_ATTEMPT"
+          if [ -n "$PROOF_PUBLICATION_RUN" ]; then
+            if [ "$RELEASE_MODE" != repair ] || [ "$PYPI_PUBLISH_SELECTED" != false ]; then
+              echo "Proof repair requires release_mode=repair with no selected PyPI distributions." >&2
+              exit 2
+            fi
+            if [[ ! "$PROOF_PUBLICATION_RUN" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]]; then
+              echo "Proof publication run must be a positive run ID/attempt pair." >&2
+              exit 2
+            fi
+            publication_run_id="${PROOF_PUBLICATION_RUN%/*}"
+            publication_attempt="${PROOF_PUBLICATION_RUN#*/}"
+            hf_commit="$PROOF_HF_SPACE_COMMIT"
+          elif [ -n "$PROOF_HF_SPACE_COMMIT" ]; then
+            echo "An HF proof override requires an explicit publication run repair." >&2
+            exit 2
+          fi
           if [[ ! "$hf_commit" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Invalid Hugging Face commit: expected a 40-character lowercase SHA." >&2
             exit 2
@@ -1159,6 +1187,8 @@ jobs:
 
           python tools/release_proof_report.py \
             --refresh-from-local \
+            --publication-run-id "$publication_run_id" \
+            --publication-run-attempt "$publication_attempt" \
             --github-release-tag "$release_tag" \
             --github-release-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${release_tag}" \
             --hf-space-commit "$hf_commit" \
@@ -1180,17 +1210,18 @@ jobs:
           )
 
           release_version="${release_tag#v}"
+          proof_basename="agilab-${release_version}-release-proof-run-${publication_run_id}-attempt-${publication_attempt}"
           mkdir -p release-proof-assets
           cp docs/source/data/release_proof.toml \
-            "release-proof-assets/agilab-${release_version}-release-proof.toml"
+            "release-proof-assets/${proof_basename}.toml"
           cp docs/source/release-proof.rst \
-            "release-proof-assets/agilab-${release_version}-release-proof.rst"
+            "release-proof-assets/${proof_basename}.rst"
           (
             cd release-proof-assets
             shasum -a 256 \
-              "agilab-${release_version}-release-proof.toml" \
-              "agilab-${release_version}-release-proof.rst" \
-              > "agilab-${release_version}-release-proof-SHA256SUMS.txt"
+              "${proof_basename}.toml" \
+              "${proof_basename}.rst" \
+              > "${proof_basename}-SHA256SUMS.txt"
           )
 
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
@@ -1248,7 +1279,7 @@ jobs:
           cat > release-evidence-pr.md <<EOF
           ## Summary
 
-          - record the final Hugging Face Space commit for release ${RELEASE_VERSION}
+          - record the final Hugging Face Space commit and exact publication workflow attempt for release ${RELEASE_VERSION}
           - refresh the public release-proof manifest, rendered page, badge, and mirror integrity stamp
           - preserve review and required-check enforcement instead of writing directly to main
 
