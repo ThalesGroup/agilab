@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-04T10:29:41Z",
+  "generated_at_utc": "2026-09-08T11:17:09Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -39,7 +39,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-01",
+      "updated": "2026-09-08",
       "path": ".codex/skills/agilab-evidence-contracts/SKILL.md",
       "body_preview": "# AGILAB Evidence Contracts\nUse this skill when a change affects AGILAB's evidence-first value: proving that\nan experiment, app run, notebook migration, agent action, or release can be\nreviewed and replayed. The default stance is simple: a feature is not validated"
     },
@@ -207,7 +207,7 @@
       "name": "plan-before-code",
       "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-05-06",
+      "updated": "2026-09-08",
       "path": ".codex/skills/plan-before-code/SKILL.md",
       "body_preview": "# Plan Before Code\nUse this skill to force a planning pass before coding.\nThe goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits,\nand catch bad assumptions before touching files."
     },
@@ -215,7 +215,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-07-27",
+      "updated": "2026-09-08",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },
