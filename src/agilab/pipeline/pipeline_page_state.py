@@ -122,7 +122,7 @@ class PipelinePageStateDeps:
 
 
 def normalize_execution_sequence(total_stages: int, sequence: Optional[Sequence[Any]]) -> Tuple[int, ...]:
-    """Return a valid execution order, defaulting to all stages when selection is empty."""
+    """Default an unset selection to all stages; preserve an explicit empty choice."""
     selected: list[int] = []
     seen: set[int] = set()
     for raw in sequence or ():
@@ -133,7 +133,7 @@ def normalize_execution_sequence(total_stages: int, sequence: Optional[Sequence[
         if 0 <= idx < total_stages and idx not in seen:
             selected.append(idx)
             seen.add(idx)
-    if not selected and total_stages:
+    if sequence is None and total_stages:
         selected = list(range(total_stages))
     return tuple(selected)
 
@@ -306,6 +306,9 @@ def build_pipeline_page_state(
     elif not visible_stages:
         run_disabled_reason = f"No visible workflow stages were loaded from {stages_file}."
         status = PipelineWorkflowStatus.EMPTY
+    elif not execution_sequence:
+        run_disabled_reason = "No stages selected. Select at least one stage to run."
+        status = PipelineWorkflowStatus.GENERATED
     elif runnable_stage_count == 0:
         run_disabled_reason = "No selected workflow stage contains runnable code."
         status = PipelineWorkflowStatus.GENERATED

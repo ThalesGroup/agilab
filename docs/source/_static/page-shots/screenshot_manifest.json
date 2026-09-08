@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-06-02T14:01:51Z",
+  "created_at": "2026-09-08T11:57:57Z",
   "kind": "agilab.screenshot_manifest",
   "root": "docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -106,6 +106,28 @@
       "width_px": 1440
     },
     {
+      "page": "workflow",
+      "app": "",
+      "project": "portfolio_sample",
+      "image_path": "workflow-dag-inspector.png",
+      "sha256": "146cc597851ecbaf897b514cb42eb415f7a492a622d0630c128685fc0123e184",
+      "size_bytes": 98966,
+      "width_px": 1100,
+      "height_px": 1400,
+      "created_at": "2026-09-08T11:57:57Z",
+      "source_command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "playwright",
+        "python",
+        "reports/dag-navigation-evidence/browser_probe.py"
+      ],
+      "alt": "WORKFLOW portfolio DAG showing a waiting stage, its missing input, producer navigation and stage trace access.",
+      "url": ""
+    },
+    {
       "alt": "",
       "app": "",
       "created_at": "2026-06-02T14:01:51Z",
@@ -124,10 +146,37 @@
       "svg_summary_size_bytes": 6269,
       "url": "",
       "width_px": 1440
+    },
+    {
+      "page": "workflow",
+      "app": "",
+      "project": "branching_fixture",
+      "image_path": "workflow-dag-neighbor-groups.png",
+      "sha256": "8c0b55e14b759aaf89582a93d993b6d63b60597f6738267a29818e445d0f750c",
+      "size_bytes": 153504,
+      "width_px": 1100,
+      "height_px": 1400,
+      "created_at": "2026-09-08T11:57:57Z",
+      "source_command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "playwright",
+        "python",
+        "reports/dag-navigation-evidence/browser_probe.py"
+      ],
+      "alt": "WORKFLOW inspector showing three of forty neighboring stages and the selected stage trace in a synthetic preview fixture.",
+      "url": ""
     }
   ],
   "source_command": [
-    "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
-  ],
-  "svg_summary_note": "SVG summaries are token-light documentation views derived from the page-shot PNGs; PNG files remain canonical raster screenshot evidence."
+    "uv",
+    "run",
+    "--no-project",
+    "--with",
+    "playwright",
+    "python",
+    "reports/dag-navigation-evidence/browser_probe.py"
+  ]
 }

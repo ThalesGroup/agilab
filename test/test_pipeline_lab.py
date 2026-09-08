@@ -855,11 +855,8 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert ("expander", "True") in fake_st.messages
     assert ("metric", "Steps=2") in fake_st.messages
-    assert ("metric", "Inputs=1") in fake_st.messages
-    assert (
-        "caption",
-        "Next action: Preview `flight_context`.",
-    ) in fake_st.messages
+    assert any(kind == "caption" and "2 stages · 1 ready · 1 waiting" in message for kind, message in fake_st.messages)
+    assert fake_st.session_state["demo_global_runner_graph_stage"] == "flight_context"
     assert ("dataframe", "2") in fake_st.messages
     edit_token = pipeline_lab._multi_app_dag_source_token(
         "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
@@ -883,8 +880,8 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
-    assert ("metric", "Run mode=Executable") in fake_st.messages
-    assert ("metric", "Runner=uav_queue_to_relay_controlled") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Executable ·") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Runs with:") for kind, message in fake_st.messages)
     assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
 
 
@@ -1186,13 +1183,13 @@ def test_global_runner_panel_renders_project_stages_as_preview_dag(monkeypatch, 
     assert state["source"]["source_type"] == "lab_stages"
     assert state["summary"]["runnable_unit_ids"] == ["stage_001"]
     assert state["summary"]["blocked_unit_ids"] == ["stage_002"]
-    assert ("metric", "Plan=Project stages") in fake_st.messages
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Plan path:") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
-    assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
+    assert all(label != "Show graph" for label, _key in fake_st.checkbox_calls)
     assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
-    assert not fake_st.graphviz_sources
+    assert fake_st.graphviz_sources
     assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
     workplan_tables = [
         table
@@ -1533,7 +1530,7 @@ def test_global_runner_panel_renders_project_stages_synced_from_pipeline_logs(mo
     assert state["run_status"] == "completed"
     assert state["summary"]["completed_unit_ids"] == ["stage_001", "stage_002"]
     assert ("metric", "Completed=2") in fake_st.messages
-    assert any("stage_001" in source and "completed" in source for source in fake_st.graphviz_sources)
+    assert any("stage_001" in source and "done" in source for source in fake_st.graphviz_sources)
 
 
 def test_global_runner_panel_dispatch_button_marks_next_unit_running(monkeypatch, tmp_path):
@@ -1630,7 +1627,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
-    assert ("metric", "Run mode=Executable") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Executable ·") for kind, message in fake_st.messages)
 
 
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
@@ -1898,8 +1895,8 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
-    assert ("metric", "Runner=preview only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
+    assert fake_st.graphviz_sources
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
@@ -1923,8 +1920,8 @@ def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch
 
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE
     assert fake_st.session_state["demo_global_runner_workspace_dag"] == str(draft_path)
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
-    assert ("metric", "Runner=preview only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
+    assert fake_st.graphviz_sources
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
@@ -1963,7 +1960,7 @@ def test_multi_app_dag_execution_history_rows_skip_planning_and_sort_latest_firs
 
     assert [row["Event"] for row in rows] == ["unit completed", "unit dispatched"]
     assert rows[0]["Stage"] == "queue_baseline"
-    assert rows[0]["Status"] == "running -> completed"
+    assert rows[0]["Status"] == "running -> done"
 
 
 def test_global_runner_panel_recreates_state_when_selected_dag_changes(monkeypatch, tmp_path):
@@ -2480,15 +2477,15 @@ def test_multi_app_dag_display_summary_helpers_cover_fallbacks():
         "Stale: project stages changed"
     )
     assert pipeline_lab._multi_app_dag_execution_status({"summary": {"failed_unit_ids": ["alpha"]}}, support) == (
-        "Blocked: failed step"
+        "Failed stage"
     )
     assert pipeline_lab._multi_app_dag_execution_status({"summary": {"completed_unit_ids": ["alpha"], "unit_count": 1}}, support) == (
-        "Completed"
+        "Done"
     )
     assert pipeline_lab._multi_app_dag_execution_status(
         {"summary": {"blocked_unit_ids": ["beta"], "runnable_unit_ids": [], "unit_count": 2}},
         support,
-    ) == "Blocked: missing output"
+    ) == "Waiting for outputs"
     assert pipeline_lab._multi_app_dag_execution_status({}, SimpleNamespace(supported=False, status="Preview-only")) == (
         "Preview-only"
     )
@@ -2582,7 +2579,8 @@ def test_workflow_status_run_log_and_dot_helpers_cover_edge_branches(monkeypatch
         }
     )
     assert "ready_metrics" in dot and "available" in dot
-    assert "exec: command: python alpha.py" in dot
+    assert "alpha\\ndone" in dot
+    assert "alpha\\\\ndone" not in dot
 
 
 def test_pipeline_stage_execution_evidence_helpers_cover_running_and_stale_branches(monkeypatch, tmp_path):
@@ -3157,6 +3155,263 @@ def test_project_preview_writer_rejects_stale_state_before_publishing_evidence(
     assert evidence_calls == []
 
 
+def test_dag_action_guidance_uses_execution_order_not_inspected_stage(monkeypatch, tmp_path):
+    state = {"units": [
+        {"id": "A", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "ready_input"}]},
+        {"id": "B", "dispatch_status": "runnable"},
+    ], "artifacts": [{"artifact": "ready_input", "status": "available"}]}
+    original = json.dumps(state)
+    fake_st = _FakeStreamlit({"demo_global_runner_graph_stage": "B"})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    engine = SimpleNamespace(
+        real_run_support=lambda _state: SimpleNamespace(supported=True, status="Executable", message="", adapter="controlled_contract_dag"),
+        distributed_stage_supported=lambda: False,
+    )
+    pipeline_lab._render_global_runner_state_view(
+        state=state, state_path=tmp_path / "state.json", dag_path=None,
+        dag_engine=engine, repo_root=tmp_path, index_page_str="demo",
+    )
+    assert ("caption", "B: ready") in fake_st.messages
+    assert ("caption", "Next run: `A`.") in fake_st.messages
+    assert ("caption", "Batch run (2): `A`, `B`.") in fake_st.messages
+    assert ("caption", "Next preview: `B`.") in fake_st.messages
+    assert json.dumps(state) == original
+
+
+def test_dag_blocker_guidance_links_to_producer_and_shares_status_labels(monkeypatch):
+    for status, label, advice in (
+        ("runnable", "ready", "Run this producer"),
+        ("blocked", "waiting", "Resolve this producer"),
+        ("running", "running", "Wait for this producer"),
+        ("failed", "failed", "Inspect this producer's failure"),
+        ("completed", "done", "Check its artifacts"),
+        ("stale", "stale", "Review this producer"),
+    ):
+        producer = {"id": "producer", "dispatch_status": status, "produces": [{"artifact": "needed"}]}
+        consumer = {"id": "consumer", "dispatch_status": "blocked", "artifact_dependencies": [
+            {"artifact": "needed", "from": "producer"}, {"artifact": "present"},
+        ], "operator_ui": {"blocked_by_artifacts": ["needed", "present"]}}
+        state = {"units": [producer, consumer], "artifacts": [{"artifact": "present", "status": "available"}]}
+        original = json.dumps(state)
+        missing = pipeline_lab._multi_app_dag_missing_inputs(state, consumer)
+        assert missing == [{"artifact": "needed", "producers": [{"id": "producer", "state": label}]}]
+        fake_st = _FakeStreamlit({"demo_graph_stage": "consumer"})
+        monkeypatch.setattr(pipeline_lab, "st", fake_st)
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+        assert f"producer\\n{label}" in fake_st.graphviz_sources[-1]
+        assert ("caption", "Missing output: `needed`.") in fake_st.messages
+        assert ("caption", "Missing output: `present`.") not in fake_st.messages
+        assert any(kind == "caption" and f"Producer `producer`: {label}. {advice}" in text for kind, text in fake_st.messages)
+        dict(fake_st.button_calls)["demo_inspect_producer_producer"]["on_click"]()
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+        assert fake_st.session_state["demo_graph_stage"] == "producer"
+        assert ("caption", f"producer: {label}") in fake_st.messages
+        assert json.dumps(state) == original
+
+
+def test_dag_blocker_guidance_handles_external_and_undeclared_inputs(monkeypatch):
+    consumer = {"id": "consumer", "dispatch_status": "blocked", "artifact_dependencies": [
+        {"artifact": "external", "from": "absent_producer"}, {"artifact": "unowned"},
+    ]}
+    state = {"units": [consumer]}
+    fake_st = _FakeStreamlit({})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_blockers(state, consumer, key_prefix="demo")
+    assert any(kind == "caption" and "not in plan" in text for kind, text in fake_st.messages)
+    assert any(kind == "caption" and "No producer is declared" in text for kind, text in fake_st.messages)
+    assert not fake_st.button_calls
+    state["artifacts"] = [{"artifact": name, "status": "available"} for name in ("external", "unowned")]
+    assert pipeline_lab._multi_app_dag_missing_inputs(state, consumer) == []
+    pipeline_lab._render_multi_app_dag_blockers(state, consumer, key_prefix="demo")
+    assert any(kind == "caption" and "No missing input is recorded" in text for kind, text in fake_st.messages)
+
+
+def test_dag_backend_controls_never_fall_back_to_local_execution(monkeypatch, tmp_path):
+    state = {"units": [{"id": "alpha", "app": "alpha_project", "dispatch_status": "runnable"}]}
+    for backend in (pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_LOCAL, pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED):
+        for action in ("run_next_stage", "run_ready_stages"):
+            calls = []
+            fake_st = _FakeStreamlit(
+                {"demo_global_runner_stage_backend": backend},
+                buttons={f"demo_global_runner_{action}": True},
+            )
+            monkeypatch.setattr(pipeline_lab, "st", fake_st)
+            def run_next(_state):
+                calls.append("local-next")
+                return SimpleNamespace(ok=False, message="No work")
+            def run_ready(_state, *, execution_backend):
+                calls.append(execution_backend)
+                return SimpleNamespace(ok=False, message="No work", executed_unit_ids=(), failed_unit_ids=())
+            engine = SimpleNamespace(
+                real_run_support=lambda _state: SimpleNamespace(supported=True, status="Executable", message="", adapter="test"),
+                distributed_stage_supported=lambda: True,
+                run_next_controlled_stage_transaction=run_next,
+                run_ready_controlled_stages_transaction=run_ready,
+            )
+            pipeline_lab._render_global_runner_state_view(
+                state=state, state_path=tmp_path / "runner_state.json", dag_path=None,
+                dag_engine=engine, repo_root=tmp_path, index_page_str="demo",
+            )
+            disabled = dict(fake_st.button_calls)["demo_global_runner_run_next_stage"]["disabled"]
+            assert disabled == (backend == pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED)
+            expected = [backend] if action == "run_ready_stages" else ([] if disabled else ["local-next"])
+            assert calls == expected
+
+
+def test_dag_focus_preserves_neighbors_and_complete_stage_inspection(monkeypatch):
+    units = [
+        {"id": f"stage_{idx:02}", "app": "full_project_identifier", "dispatch_status": "runnable" if idx == 0 else "blocked",
+         "artifact_dependencies": [{"artifact": f"output_{idx - 1}"}] if idx else [],
+         "produces": [{"artifact": f"output_{idx}"}]}
+        for idx in range(40)
+    ]
+    state = {"units": units, "artifacts": []}
+    original = json.dumps(state)
+    focused = pipeline_lab._multi_app_dag_graph_state(state, "stage_20", focus=True)
+    assert [unit["id"] for unit in focused["units"]] == ["stage_19", "stage_20", "stage_21"]
+    assert json.dumps(state) == original
+    assert pipeline_lab._multi_app_dag_graph_state(state, "stage_20", focus=False) is state
+    fake_st = _FakeStreamlit({})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_graph({"units": units[:2]}, key_prefix="demo")
+    assert fake_st.session_state["demo_graph_scope"] == "Whole plan"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+    assert fake_st.session_state["demo_graph_scope"] == "Selected stage and neighbors"
+    assert '"stage_39"' not in fake_st.graphviz_sources[-1]
+    assert next(options for label, options, _key in fake_st.selectbox_calls if label == "Inspect stage" and len(options) == 40) == [unit["id"] for unit in units]
+    fake_st.session_state["demo_graph_stage"] = "stage_20"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+    assert '"stage_20"' in fake_st.graphviz_sources[-1]
+    assert "penwidth=3" in fake_st.graphviz_sources[-1]
+    assert ("caption", "App: full_project_identifier") in fake_st.messages
+    assert any(kind == "caption" and "output_19" in message for kind, message in fake_st.messages)
+
+
+@pytest.mark.parametrize("fan_in", [False, True])
+def test_dag_neighbor_groups_bound_wide_graphs_and_reach_every_stage(monkeypatch, fan_in):
+    leaves = [
+        {"id": f"branch_{idx:02}", "produces": [{"artifact": f"output_{idx}"}]} if fan_in else
+        {"id": f"branch_{idx:02}", "artifact_dependencies": [{"artifact": f"output_{idx}", "from": "hub"}]}
+        for idx in range(40)
+    ]
+    hub = {"id": "hub", "dispatch_status": "runnable",
+           "artifact_dependencies" if fan_in else "produces": [{"artifact": f"output_{idx}"} for idx in range(40)]}
+    state = {"units": [hub, *leaves]}
+    original = json.dumps(state)
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    seen = set()
+    for page in range(14):
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+        fake_st.session_state["wide_graph_neighbor_page"] = page
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+        dot = fake_st.graphviz_sources[-1]
+        assert '"hub"' in dot and "artifact:" not in dot
+        visible = {unit["id"] for unit in leaves if f'"{unit["id"]}"' in dot}
+        assert 1 <= len(visible) <= 3
+        assert not seen & visible
+        seen |= visible
+    assert seen == {unit["id"] for unit in leaves}
+    fake_st.session_state["wide_graph_stage"] = "branch_39"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+    assert fake_st.session_state["wide_graph_neighbor_page"] == 0
+    assert '"hub"' in fake_st.graphviz_sources[-1]
+    assert '"branch_39"' in fake_st.graphviz_sources[-1]
+    assert json.dumps(state) == original
+
+
+def test_dag_focus_respects_explicit_producer_and_plain_stage_dependencies():
+    state = {"units": [
+        {"id": "actual", "produces": [{"artifact": "shared"}]},
+        {"id": "unrelated", "produces": [{"artifact": "shared"}]},
+        {"id": "setup"},
+        {"id": "consumer", "depends_on": ["setup"],
+         "artifact_dependencies": [{"artifact": "shared", "from": "actual"}]},
+    ]}
+    focused = pipeline_lab._multi_app_dag_graph_state(state, "consumer", focus=True)
+    assert [unit["id"] for unit in focused["units"]] == ["actual", "setup", "consumer"]
+    dot = pipeline_lab._multi_app_dag_dot(focused, stages_only=True)
+    assert '"actual" -> "consumer"' in dot
+    assert '"setup" -> "consumer"' in dot
+    assert "unrelated" not in dot
+
+
+def test_dag_stage_outputs_distinguish_plans_from_attributed_records_without_file_reads(tmp_path):
+    secret_file = tmp_path / "output.json"
+    secret_file.write_text("file contents must stay private")
+    stage = {"id": "A", "produces": [
+        {"artifact": "result", "path": "planned/result.json"},
+        {"artifact": "missing", "path": "planned/missing.json"},
+        {"artifact": "unattributed", "path": "planned/unattributed.json"},
+    ]}
+    state = {"units": [stage], "artifacts": [
+        {"artifact": "result", "producer": "A", "status": "available", "path": str(secret_file), "sha256": "recorded-digest"},
+        {"artifact": "missing", "producer": "B", "status": "available", "path": "/other-stage/output.json"},
+        {"artifact": "unattributed", "status": "available", "path": "/unattributed/output.json"},
+        {"artifact": "extra", "producer": "A", "status": "missing", "path": "https://example.test?token=secret"},
+    ]}
+    original = json.dumps(state)
+    rows = pipeline_lab._multi_app_dag_stage_output_rows(state, stage)
+    assert [row["Status"] for row in rows] == ["recorded available", "planned", "planned", "recorded missing"]
+    assert rows[0]["Location"] == str(secret_file)
+    assert rows[0]["Recorded SHA-256"] == "recorded-digest"
+    assert rows[1]["Location"] == "planned/missing.json"
+    assert "secret" not in rows[-1]["Location"]
+    assert "file contents must stay private" not in json.dumps(rows)
+    assert json.dumps(state) == original
+
+
+def test_dag_stage_trace_is_filtered_bounded_redacted_and_keeps_full_download(monkeypatch):
+    stage = {"id": "A", "dispatch_status": "failed"}
+    state = {"units": [stage], "events": [
+        {"unit_id": unit, "kind": "unit_failed", "timestamp": f"2026-09-08T10:00:{idx:02}Z",
+         "from_status": "running", "to_status": "failed", "detail": "TOKEN=private " + "x" * 400}
+        for unit in ("A", "B") for idx in range(30)
+    ]}
+    fake_st = _FakeStreamlit()
+    downloads = []
+    fake_st.download_button = lambda label, **kwargs: downloads.append((label, kwargs))
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_stage_evidence(state, stage, key_prefix="trace")
+    visible = fake_st.dataframes[0]
+    assert len(visible) == 20 and set(visible["Stage"]) == {"A"}
+    assert visible.iloc[0]["Time"].endswith("29Z")
+    assert max(visible["Detail"].str.len()) <= 220
+    assert "private" not in visible.to_csv(index=False)
+    assert len(downloads[0][1]["data"].splitlines()) == 31
+    assert "private" not in downloads[0][1]["data"]
+    assert ("caption", "Showing the latest 20 of 30 recorded events.") in fake_st.messages
+    assert any("not verified here" in message for _kind, message in fake_st.messages)
+
+
+def test_dag_stage_evidence_empty_state_does_not_borrow_other_stage_events(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_stage_evidence(
+        {"events": [{"unit_id": "B", "kind": "unit_completed"}]}, {"id": "A"}, key_prefix="empty",
+    )
+    assert ("caption", "No events recorded for this stage yet.") in fake_st.messages
+    assert ("caption", "No outputs declared or recorded for this stage.") in fake_st.messages
+    assert not fake_st.dataframes
+
+
+def test_selected_execution_graph_matches_waves_and_excludes_unselected_stages():
+    dot = pipeline_lab._workflow_dependency_dot(
+        stage_ids_by_idx={2: "C", 0: "A"}, deps_by_stage_id={"C": [], "A": []},
+        labels_by_stage_id={"A": "first", "B": "excluded", "C": "third"}, waves=[[2], [0]],
+    )
+    assert '"B"' not in dot and "excluded" not in dot
+    assert dot.index('"C" [label=') < dot.index('"A" [label=')
+    assert '"C" -> "A" [style=dashed, label="next"]' in dot
+    assert "wave 1" in dot and "wave 2" in dot
+    dot = pipeline_lab._workflow_dependency_dot(
+        stage_ids_by_idx={2: "C", 0: "A"}, deps_by_stage_id={"C": ["A"]},
+        labels_by_stage_id={"A": "first", "B": "excluded", "C": "third"}, waves=[[0], [2]],
+    )
+    assert '"A" -> "C";' in dot
+    assert 'label="next"' not in dot
+
+
 def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatch, tmp_path):
     base_state = {
         "summary": {
@@ -3422,7 +3677,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
         for table in workplan_tables
         for row in table
     )
-    assert any("exec: alpha_project.alpha" in source for source in fake_st.graphviz_sources)
+    assert any(kind == "caption" and "Runs with: alpha_project.alpha" in message for kind, message in fake_st.messages)
     assert any(kind == "success" and "Executed `alpha`" in message for kind, message in fake_st.messages)
 
 
@@ -3527,7 +3782,7 @@ def test_display_lab_tab_empty_pipeline_still_renders_conceptual_view(
         deps,
     )
 
-    assert fake_st.graphviz_sources == ["digraph { source -> evidence }"]
+    assert "digraph { source -> evidence }" in fake_st.graphviz_sources
     assert ("info", "No stages recorded yet. Generate your first stage below.") in fake_st.messages
 
 
@@ -5277,7 +5532,7 @@ def test_display_lab_tab_sequence_lock_cancel_and_undo_paths(monkeypatch, tmp_pa
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert "demo_confirm_force_run" not in fake_st.session_state
     assert "demo_confirm_delete_all" not in fake_st.session_state
     assert any(kind == "info" and "looks stale" in message for kind, message in fake_st.messages)
@@ -5389,8 +5644,8 @@ def test_display_lab_tab_overlay_run_uses_active_app_when_agi_engine_has_no_runt
 def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp_path):
     render_calls = []
     fake_st = _FakeStreamlit(
-        {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [0]},
-        multiselects={"demo_run_sequence_widget": [0]},
+        {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [2, 0]},
+        multiselects={"demo_run_sequence_widget": [2, 0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
@@ -5403,7 +5658,7 @@ def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
 
     deps = _make_lab_deps(
-        load_all_stages=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_all_stages=lambda *_args, **_kwargs: [{"id": stage_id, "D": "", "Q": stage_id, "M": "m", "C": "print(1)", "E": ""} for stage_id in ("A", "B", "C")],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: ("pipeline_view.dot", "digraph { a -> b }"),
         render_pipeline_view=lambda *args, **kwargs: render_calls.append((args, kwargs)),
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
@@ -5413,7 +5668,13 @@ def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("graphviz", "True") in fake_st.messages
-    assert render_calls[-1][1]["title"] == "Execution view"
+    assert render_calls[-1][1]["title"] == "Saved stages overview"
+
+
+    assert len(render_calls[-1][0][0]) == 3
+    graph = next(source for source in fake_st.graphviz_sources if "digraph workflow_dependencies" in source)
+    assert '"B"' not in graph
+    assert '"C" -> "A" [style=dashed, label="next"]' in graph
 
 
 def test_display_lab_tab_existing_stages_warns_when_add_prompt_missing(monkeypatch, tmp_path):
@@ -5850,7 +6111,7 @@ def test_display_lab_tab_import_snippet_without_runtime_resets_sequence(monkeypa
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert save_calls[-1][1]["venv_map"] == {}
 
 
@@ -6491,7 +6752,7 @@ def test_display_lab_tab_overlay_run_uses_active_app_for_agi_engine(monkeypatch,
     assert fake_st.session_state["demo__engine_map"][0] == "agi.custom"
 
 
-def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_path):
+def test_display_lab_tab_preserves_deselection_across_reruns_and_reload(monkeypatch, tmp_path):
     class _FormattingStreamlit(_FakeStreamlit):
         def multiselect(self, _label, options, key=None, format_func=None, help=None):
             if format_func is not None:
@@ -6501,7 +6762,7 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
     fake_st = _FormattingStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
-            "demo__run_sequence": [],
+            "demo__run_sequence": [0],
             "demo_run_sequence_widget": [99],
         },
         multiselects={"demo_run_sequence_widget": []},
@@ -6526,8 +6787,17 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert any(kind == "formatted" and message.startswith("Stage 1") for kind, message in fake_st.messages)
+
+
+    for reload_preferences in (False, True):
+        if reload_preferences:
+            fake_st.session_state.pop("demo__run_sequence")
+            fake_st.session_state.pop("demo_run_sequence_widget")
+        pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+        assert fake_st.session_state["demo__run_sequence"] == []
+        assert any(kind in {"warning", "caption", "info"} and "No stages selected" in message for kind, message in fake_st.messages)
 
 
 def test_display_lab_tab_appends_custom_initial_runtime_label(monkeypatch, tmp_path):

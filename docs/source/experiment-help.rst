@@ -106,8 +106,13 @@ The WORKFLOW execution controls expose:
   stages. ``Suggest dependencies`` derives candidate edges from install/pipeline
   naming and explicit path literals such as ``data_in`` and ``data_out``. Review
   the suggestions before pressing ``Save dependencies``.
-* ``Show dependency graph``: previews the exact dependency graph used to compute
-  execution waves.
+* ``Selected execution plan``: shows the selected stages in their execution waves.
+  Solid edges represent declared dependencies; dashed ``next`` edges show the
+  selected order when no dependencies are declared. The separate ``Saved stages
+  overview`` describes all saved stages, regardless of the execution selection.
+
+Clearing the stage selection keeps it empty across reruns and reloads. Select at
+least one stage before running; an empty selection never means "run all".
 
 A dependency-aware stage entry uses stable ids instead of fragile list indices:
 
@@ -214,10 +219,63 @@ where the plan comes from:
   under ``.agilab/multi_app_dags``.
 * ``Custom path`` loads an external JSON plan by path.
 
-The graph is hidden by default so small screens stay readable. Enable
-``Show graph`` only when the current screen has enough room. Enable
-``Show technical output details`` when you need the lower-level output handoff
-table behind the plan.
+The graph is visible immediately below a compact readiness summary. Select
+``Inspect stage`` to highlight a stage and inspect its inputs, outputs, app and
+executor. Labels use separate lines for the short identifier and status; full
+identifiers remain available in the inspector.
+
+Inspecting a stage changes the details shown. The run buttons follow workflow
+readiness: ``Next run`` names the stage that will be attempted, while ``Batch run``
+lists the batch targets. These may include a waiting stage whose inputs have
+become available since the last state update. ``Next preview`` identifies the
+stage affected by the preview action. Changing the inspected stage does not
+change these execution targets.
+
+For a waiting stage, ``Waiting for inputs`` identifies each missing output and
+its producer's state. The guidance distinguishes a producer that is ready,
+running, waiting, failed, or done without the expected output. ``Inspect producer``
+opens that stage in the same inspector. Inputs already recorded as available
+are excluded from the missing-input list. Unknown producers are reported so
+the dependency can be corrected.
+
+Stage labels use ``ready``, ``waiting``, ``running``, ``done``, ``failed`` and
+``stale`` consistently across the graph, inspector and displayed history.
+
+Plans with more than eight stages initially show ``Selected stage and neighbors``:
+the selected stage and up to three connected stages. ``Neighbor group`` browses
+the remaining neighbors in plan order. This view draws connections between stages;
+the inspector lists their inputs and outputs. Choosing another stage returns to
+its first neighbor group. Use the searchable stage selector to reach any stage,
+or choose ``Whole plan`` for the complete graph with artifact nodes.
+
+Open ``Stage trace and outputs`` to inspect events and output records for the
+selected stage. The trace shows the latest twenty events and offers a CSV download
+of its full recorded history with common secret values redacted. Outputs distinguish
+planned paths from records attributed to this stage and show recorded locations,
+timestamps and hashes when present. These are runner-state records; this view does
+not read output files or verify their hashes. Missing records remain explicit.
+
+``Stage details`` contains the executor, complete long input/output lists and full
+DOT download. ``Plan details`` contains source paths, logs, evidence, handoff tables
+and execution history for the plan.
+
+.. figure:: _static/page-shots/workflow-dag-inspector.png
+   :alt: WORKFLOW portfolio DAG showing a waiting stage, its missing input and an Inspect producer action.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   The shipped portfolio sample explains why the inspected forecast stage is
+   waiting and links to its input producer. This documentation capture uses
+   the WORKFLOW graph component in a preview fixture with real execution disabled.
+
+.. figure:: _static/page-shots/workflow-dag-neighbor-groups.png
+   :alt: WORKFLOW inspector showing three of forty neighboring stages and the selected stage trace.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   A synthetic forty-branch preview demonstrates bounded graph navigation and
+   stage-specific trace inspection. Its events and output records are fixture data,
+   not evidence of a real application run.
 
 To edit a plan, enable ``Edit plan``. The normal editing path stays away from
 raw JSON:
@@ -247,6 +305,8 @@ Execution is intentionally conservative:
   current UI process; ``Distributed backend`` submits each ready stage through
   the configured backend and records ``distributed_stage`` provenance in the
   DAG state.
+  ``Run next stage`` is local only and is disabled when ``Distributed backend``
+  is selected. Use ``Run ready stages`` to submit work through that backend.
   When ``Distributed backend`` is selected, WORKFLOW shows the exact
   per-stage request preview before the run buttons: app, scheduler, worker
   nodes/slots, workers data path, mode integer, apps path, and the JSON

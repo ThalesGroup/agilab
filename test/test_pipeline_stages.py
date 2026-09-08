@@ -47,6 +47,16 @@ def test_normalize_runtime_path_prefers_existing_app(monkeypatch, tmp_path):
     assert normalized == str(app_dir)
 
 
+def test_saved_empty_sequence_is_distinct_from_unset_preferences(tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    module = tmp_path / "demo_project"
+    assert pipeline_stages.load_sequence_preferences(module, stages_file, default=[0, 1]) == [0, 1]
+    stages_file.write_text('[demo_project]\n', encoding="utf-8")
+    assert pipeline_stages.load_sequence_preferences(module, stages_file, default=[0, 1]) == [0, 1]
+    pipeline_stages.persist_sequence_preferences(module, stages_file, [])
+    assert pipeline_stages.load_sequence_preferences(module, stages_file, default=[0, 1]) == []
+
+
 def test_module_key_normalization_and_sequence_roundtrip(monkeypatch, tmp_path):
     export_root = tmp_path / "export"
     module_dir = export_root / "flight_telemetry_project"
