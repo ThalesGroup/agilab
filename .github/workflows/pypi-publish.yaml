@@ -317,6 +317,25 @@ jobs:
       pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}
       provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}
     steps:
+      - name: Validate proof repair inputs
+        if: ${{ github.event.inputs.proof_publication_run || github.event.inputs.proof_hf_space_commit }}
+        env:
+          PROOF_PUBLICATION_RUN: ${{ github.event.inputs.proof_publication_run || '' }}
+          PROOF_HF_SPACE_COMMIT: ${{ github.event.inputs.proof_hf_space_commit || '' }}
+          RELEASE_MODE: ${{ github.event.inputs.release_mode || 'stable' }}
+          INCLUDE_EXISTING_PYPI: ${{ github.event.inputs.include_existing_pypi || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ "$RELEASE_MODE" != repair ] || [ "$INCLUDE_EXISTING_PYPI" != false ]; then
+            echo "Proof repair requires release_mode=repair and include_existing_pypi=false before release planning." >&2
+            exit 2
+          fi
+          if [[ ! "$PROOF_PUBLICATION_RUN" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]] || \
+             [[ ! "$PROOF_HF_SPACE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Proof repair requires an exact publication run/attempt and a validated HF commit." >&2
+            exit 2
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1182,6 +1201,7 @@ jobs:
               release_tag,
               chosen_version,
               package_names,
+              refresh_proof=False,
           )
           PY
 

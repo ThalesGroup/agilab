@@ -420,7 +420,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert 'hf_commit="${HF_SPACE_COMMIT}"' in text
     assert "Invalid Hugging Face commit" in text
     assert "PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
-    assert "update_public_release_references_for_guard(" in text
+    assert "pypi_publish.update_public_release_references_for_guard(" in text
     assert "--hf-space-commit \"$hf_commit\"" in text
     assert "tools/sync_docs_source.py" in text
     assert "badges/pypi-version-agilab.svg" in text
@@ -684,3 +684,39 @@ def test_proof_repair_preflight_preserves_publication_boundary() -> None:
         "release-proof-run-${publication_run_id}-attempt-${publication_attempt}"
         in script
     )
+
+
+def test_proof_job_generates_once_after_preparing_release_metadata() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    step = next(
+        x for x in workflow["jobs"]["publish-release-proof"]["steps"]
+        if x.get("id") == "release-proof"
+    )
+    script = step["run"]
+    assert "refresh_proof=False" in script
+    assert script.count("python tools/release_proof_report.py") == 1
+    assert script.index("update_public_release_references_for_guard(") < script.index("python tools/release_proof_report.py")
+    assert script.index("--publication-run-attempt") < script.index("python tools/sync_docs_source.py")
+
+
+def test_invalid_proof_repair_is_rejected_before_release_planning() -> None:
+    import subprocess
+
+    jobs = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]
+    steps = jobs["release-plan"]["steps"]
+    assert steps[0]["name"] == "Validate proof repair inputs"
+    base = {
+        "PROOF_PUBLICATION_RUN": "123/3", "PROOF_HF_SPACE_COMMIT": "a" * 40,
+        "RELEASE_MODE": "repair", "INCLUDE_EXISTING_PYPI": "false",
+    }
+    for overrides in [
+        {"RELEASE_MODE": "stable"}, {"INCLUDE_EXISTING_PYPI": "true"},
+        {"PROOF_PUBLICATION_RUN": ""}, {"PROOF_PUBLICATION_RUN": "123/0"},
+        {"PROOF_HF_SPACE_COMMIT": ""}, {"PROOF_HF_SPACE_COMMIT": "../escape"}, {},
+    ]:
+        result = subprocess.run(
+            ["bash", "-c", steps[0]["run"]], env={**base, **overrides},
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == (2 if overrides else 0), result.stderr
+    assert "release-plan" in jobs["release-approval"]["needs"]

@@ -4166,3 +4166,30 @@ def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch
         raise AssertionError("main() should propagate upload failures")
 
     assert reset_calls == ["reset"]
+
+
+def test_guard_can_prepare_metadata_before_exact_publication_proof(tmp_path, monkeypatch):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    index = tmp_path / "docs" / "source" / "index.rst"
+    index.parent.mkdir(parents=True)
+    index.write_text(
+        "`latest public GitHub release\n"
+        "<https://github.com/ThalesGroup/agilab/releases/latest>`__.\n",
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(module, "update_static_badge", lambda *args: calls.append("badge"))
+    monkeypatch.setattr(module, "update_changelog_release_entry", lambda *args: calls.append("changelog"))
+    monkeypatch.setattr(
+        module, "update_release_proof_references_in_source",
+        lambda *args: pytest.fail("proof must wait for the exact publication identity"),
+    )
+    monkeypatch.setattr(
+        module, "update_public_docs_mirror_stamp_from_current_tree",
+        lambda: pytest.fail("mirror stamp must wait for the completed proof"),
+    )
+    module.update_public_release_references_for_guard(
+        "v2026.09.07", "2026.09.07", ["agilab"], refresh_proof=False,
+    )
+    assert calls == ["badge", "changelog"]
