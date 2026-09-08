@@ -26,6 +26,7 @@ from agi_env import AgiEnv
 from agi_env.snippet_contract import stale_snippet_cleanup_message
 from agi_gui.pagelib import run_lab, save_csv
 from agilab.pipeline.pipeline_run_state import PipelineRunState
+from agilab.pipeline.pipeline_page_state import normalize_execution_sequence
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -2084,10 +2085,13 @@ def run_all_stages(
         _push_run_log(index_page_str, "Run pipeline aborted: snippet file not configured.", log_placeholder)
         return
 
-    raw_sequence = st.session_state.get(sequence_state_key, [])
-    sequence = [idx for idx in raw_sequence if 0 <= idx < len(stages)]
+    raw_sequence = st.session_state.get(sequence_state_key)
+    sequence = list(normalize_execution_sequence(len(stages), raw_sequence))
     if not sequence:
-        sequence = list(range(len(stages)))
+        message = "No stages selected. Select at least one stage to run."
+        st.warning(message)
+        _push_run_log(index_page_str, message, log_placeholder)
+        return
 
     if _abort_if_legacy_agi_run_stages(index_page_str, stages_file, stages, sequence, log_placeholder):
         return

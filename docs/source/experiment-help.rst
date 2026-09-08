@@ -106,8 +106,13 @@ The WORKFLOW execution controls expose:
   stages. ``Suggest dependencies`` derives candidate edges from install/pipeline
   naming and explicit path literals such as ``data_in`` and ``data_out``. Review
   the suggestions before pressing ``Save dependencies``.
-* ``Show dependency graph``: previews the exact dependency graph used to compute
-  execution waves.
+* ``Selected execution plan``: shows the selected stages in their execution waves.
+  Solid edges represent declared dependencies; dashed ``next`` edges show the
+  selected order when no dependencies are declared. The separate ``Saved stages
+  overview`` describes all saved stages, regardless of the execution selection.
+
+Clearing the stage selection keeps it empty across reruns and reloads. Select at
+least one stage before running; an empty selection never means "run all".
 
 A dependency-aware stage entry uses stable ids instead of fragile list indices:
 
@@ -214,10 +219,25 @@ where the plan comes from:
   under ``.agilab/multi_app_dags``.
 * ``Custom path`` loads an external JSON plan by path.
 
-The graph is hidden by default so small screens stay readable. Enable
-``Show graph`` only when the current screen has enough room. Enable
-``Show technical output details`` when you need the lower-level output handoff
-table behind the plan.
+The graph is visible immediately below a compact readiness summary. Select
+``Inspect stage`` to highlight a stage and inspect its inputs, outputs, app and
+executor. Labels use separate lines for the short identifier and status; full
+identifiers remain available in the inspector.
+
+Plans with more than eight stages initially show ``Selected stage and neighbors``:
+the selected stage, its immediate input producers and output consumers. Use the
+searchable stage selector to reach any stage, or choose ``Whole plan`` to explore
+the complete graph. The vertical layout preserves readable text on small screens.
+Open ``Stage details`` for the executor and full DOT download. ``Plan details``
+contains source paths, logs, evidence, handoff tables and execution history.
+
+.. figure:: _static/page-shots/workflow-dag-inspector.png
+   :alt: WORKFLOW DAG inspector showing the four-stage portfolio sample, artifact handoffs and stage selection.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   The shipped portfolio sample rendered by the WORKFLOW graph component. This
+   documentation capture uses a preview fixture with real execution disabled.
 
 To edit a plan, enable ``Edit plan``. The normal editing path stays away from
 raw JSON:
@@ -247,6 +267,8 @@ Execution is intentionally conservative:
   current UI process; ``Distributed backend`` submits each ready stage through
   the configured backend and records ``distributed_stage`` provenance in the
   DAG state.
+  ``Run next stage`` is local only and is disabled when ``Distributed backend``
+  is selected. Use ``Run ready stages`` to submit work through that backend.
   When ``Distributed backend`` is selected, WORKFLOW shows the exact
   per-stage request preview before the run buttons: app, scheduler, worker
   nodes/slots, workers data path, mode integer, apps path, and the JSON

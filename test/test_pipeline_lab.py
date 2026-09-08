@@ -855,11 +855,8 @@ def test_global_runner_panel_uses_flight_two_app_dag_and_persists_state(monkeypa
     assert state["summary"]["blocked_unit_ids"] == ["weather_forecast_review"]
     assert ("expander", "True") in fake_st.messages
     assert ("metric", "Steps=2") in fake_st.messages
-    assert ("metric", "Inputs=1") in fake_st.messages
-    assert (
-        "caption",
-        "Next action: Preview `flight_context`.",
-    ) in fake_st.messages
+    assert any(kind == "caption" and "2 stages · 1 ready · 1 waiting" in message for kind, message in fake_st.messages)
+    assert fake_st.session_state["demo_global_runner_graph_stage"] == "flight_context"
     assert ("dataframe", "2") in fake_st.messages
     edit_token = pipeline_lab._multi_app_dag_source_token(
         "src/agilab/apps/builtin/flight_telemetry_project/dag_templates/flight_to_weather.json"
@@ -883,8 +880,8 @@ def test_global_runner_panel_uses_active_app_dag_template(monkeypatch, tmp_path)
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_APP_TEMPLATES
     assert state["summary"]["runnable_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["blocked_unit_ids"] == ["relay_followup"]
-    assert ("metric", "Run mode=Executable") in fake_st.messages
-    assert ("metric", "Runner=uav_queue_to_relay_controlled") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Executable ·") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Runs with:") for kind, message in fake_st.messages)
     assert any(call[0] == "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
 
 
@@ -1186,13 +1183,13 @@ def test_global_runner_panel_renders_project_stages_as_preview_dag(monkeypatch, 
     assert state["source"]["source_type"] == "lab_stages"
     assert state["summary"]["runnable_unit_ids"] == ["stage_001"]
     assert state["summary"]["blocked_unit_ids"] == ["stage_002"]
-    assert ("metric", "Plan=Project stages") in fake_st.messages
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Plan path:") for kind, message in fake_st.messages)
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any(call[0] == "demo_global_runner_dispatch_next" for call in fake_st.button_calls)
-    assert ("Show graph", "demo_global_runner_show_graph") in fake_st.checkbox_calls
+    assert all(label != "Show graph" for label, _key in fake_st.checkbox_calls)
     assert ("Show snippet code", "demo_global_runner_show_snippets") in fake_st.checkbox_calls
-    assert not fake_st.graphviz_sources
+    assert fake_st.graphviz_sources
     assert not any(kind == "code" and "print('load')" in message for kind, message in fake_st.messages)
     workplan_tables = [
         table
@@ -1630,7 +1627,7 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert calls == [tmp_path / ".agilab" / "multi_app_dag_real_runs" / "queue_baseline"]
     assert state["summary"]["completed_unit_ids"] == ["queue_baseline"]
     assert state["summary"]["real_executed_unit_ids"] == ["queue_baseline"]
-    assert ("metric", "Run mode=Executable") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Executable ·") for kind, message in fake_st.messages)
 
 
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
@@ -1898,8 +1895,8 @@ def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
 
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
-    assert ("metric", "Runner=preview only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
+    assert fake_st.graphviz_sources
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
@@ -1923,8 +1920,8 @@ def test_global_runner_panel_selects_workspace_draft_as_preview_only(monkeypatch
 
     assert fake_st.session_state["demo_global_runner_source"] == pipeline_lab.GLOBAL_DAG_SOURCE_WORKSPACE
     assert fake_st.session_state["demo_global_runner_workspace_dag"] == str(draft_path)
-    assert ("metric", "Run mode=Preview-only") in fake_st.messages
-    assert ("metric", "Runner=preview only") in fake_st.messages
+    assert any(kind == "caption" and message.startswith("Preview-only ·") for kind, message in fake_st.messages)
+    assert fake_st.graphviz_sources
     assert all(call[0] != "demo_global_runner_run_next_stage" for call in fake_st.button_calls)
     assert any("other plans stay preview-only" in message for kind, message in fake_st.messages if kind == "caption")
 
@@ -2582,7 +2579,8 @@ def test_workflow_status_run_log_and_dot_helpers_cover_edge_branches(monkeypatch
         }
     )
     assert "ready_metrics" in dot and "available" in dot
-    assert "exec: command: python alpha.py" in dot
+    assert "alpha\\ncompleted" in dot
+    assert "alpha\\\\ncompleted" not in dot
 
 
 def test_pipeline_stage_execution_evidence_helpers_cover_running_and_stale_branches(monkeypatch, tmp_path):
@@ -3157,6 +3155,84 @@ def test_project_preview_writer_rejects_stale_state_before_publishing_evidence(
     assert evidence_calls == []
 
 
+def test_dag_backend_controls_never_fall_back_to_local_execution(monkeypatch, tmp_path):
+    state = {"units": [{"id": "alpha", "app": "alpha_project", "dispatch_status": "runnable"}]}
+    for backend in (pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_LOCAL, pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED):
+        for action in ("run_next_stage", "run_ready_stages"):
+            calls = []
+            fake_st = _FakeStreamlit(
+                {"demo_global_runner_stage_backend": backend},
+                buttons={f"demo_global_runner_{action}": True},
+            )
+            monkeypatch.setattr(pipeline_lab, "st", fake_st)
+            def run_next(_state):
+                calls.append("local-next")
+                return SimpleNamespace(ok=False, message="No work")
+            def run_ready(_state, *, execution_backend):
+                calls.append(execution_backend)
+                return SimpleNamespace(ok=False, message="No work", executed_unit_ids=(), failed_unit_ids=())
+            engine = SimpleNamespace(
+                real_run_support=lambda _state: SimpleNamespace(supported=True, status="Executable", message="", adapter="test"),
+                distributed_stage_supported=lambda: True,
+                run_next_controlled_stage_transaction=run_next,
+                run_ready_controlled_stages_transaction=run_ready,
+            )
+            pipeline_lab._render_global_runner_state_view(
+                state=state, state_path=tmp_path / "runner_state.json", dag_path=None,
+                dag_engine=engine, repo_root=tmp_path, index_page_str="demo",
+            )
+            disabled = dict(fake_st.button_calls)["demo_global_runner_run_next_stage"]["disabled"]
+            assert disabled == (backend == pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED)
+            expected = [backend] if action == "run_ready_stages" else ([] if disabled else ["local-next"])
+            assert calls == expected
+
+
+def test_dag_focus_preserves_neighbors_and_complete_stage_inspection(monkeypatch):
+    units = [
+        {"id": f"stage_{idx:02}", "app": "full_project_identifier", "dispatch_status": "runnable" if idx == 0 else "blocked",
+         "artifact_dependencies": [{"artifact": f"output_{idx - 1}"}] if idx else [],
+         "produces": [{"artifact": f"output_{idx}"}]}
+        for idx in range(40)
+    ]
+    state = {"units": units, "artifacts": []}
+    original = json.dumps(state)
+    focused = pipeline_lab._multi_app_dag_graph_state(state, "stage_20", focus=True)
+    assert [unit["id"] for unit in focused["units"]] == ["stage_19", "stage_20", "stage_21"]
+    assert json.dumps(state) == original
+    assert pipeline_lab._multi_app_dag_graph_state(state, "stage_20", focus=False) is state
+    fake_st = _FakeStreamlit({})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_graph({"units": units[:2]}, key_prefix="demo")
+    assert fake_st.session_state["demo_graph_scope"] == "Whole plan"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+    assert fake_st.session_state["demo_graph_scope"] == "Selected stage and neighbors"
+    assert '"stage_39"' not in fake_st.graphviz_sources[-1]
+    assert next(options for label, options, _key in fake_st.selectbox_calls if label == "Inspect stage" and len(options) == 40) == [unit["id"] for unit in units]
+    fake_st.session_state["demo_graph_stage"] = "stage_20"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="demo")
+    assert '"stage_20"' in fake_st.graphviz_sources[-1]
+    assert "penwidth=3" in fake_st.graphviz_sources[-1]
+    assert ("caption", "App: full_project_identifier") in fake_st.messages
+    assert any(kind == "caption" and "output_19" in message for kind, message in fake_st.messages)
+
+
+def test_selected_execution_graph_matches_waves_and_excludes_unselected_stages():
+    dot = pipeline_lab._workflow_dependency_dot(
+        stage_ids_by_idx={2: "C", 0: "A"}, deps_by_stage_id={"C": [], "A": []},
+        labels_by_stage_id={"A": "first", "B": "excluded", "C": "third"}, waves=[[2], [0]],
+    )
+    assert '"B"' not in dot and "excluded" not in dot
+    assert dot.index('"C" [label=') < dot.index('"A" [label=')
+    assert '"C" -> "A" [style=dashed, label="next"]' in dot
+    assert "wave 1" in dot and "wave 2" in dot
+    dot = pipeline_lab._workflow_dependency_dot(
+        stage_ids_by_idx={2: "C", 0: "A"}, deps_by_stage_id={"C": ["A"]},
+        labels_by_stage_id={"A": "first", "B": "excluded", "C": "third"}, waves=[[0], [2]],
+    )
+    assert '"A" -> "C";' in dot
+    assert 'label="next"' not in dot
+
+
 def test_global_runner_state_view_covers_live_action_failure_branches(monkeypatch, tmp_path):
     base_state = {
         "summary": {
@@ -3422,7 +3498,7 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
         for table in workplan_tables
         for row in table
     )
-    assert any("exec: alpha_project.alpha" in source for source in fake_st.graphviz_sources)
+    assert any(kind == "caption" and "Runs with: alpha_project.alpha" in message for kind, message in fake_st.messages)
     assert any(kind == "success" and "Executed `alpha`" in message for kind, message in fake_st.messages)
 
 
@@ -3527,7 +3603,7 @@ def test_display_lab_tab_empty_pipeline_still_renders_conceptual_view(
         deps,
     )
 
-    assert fake_st.graphviz_sources == ["digraph { source -> evidence }"]
+    assert "digraph { source -> evidence }" in fake_st.graphviz_sources
     assert ("info", "No stages recorded yet. Generate your first stage below.") in fake_st.messages
 
 
@@ -5277,7 +5353,7 @@ def test_display_lab_tab_sequence_lock_cancel_and_undo_paths(monkeypatch, tmp_pa
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert "demo_confirm_force_run" not in fake_st.session_state
     assert "demo_confirm_delete_all" not in fake_st.session_state
     assert any(kind == "info" and "looks stale" in message for kind, message in fake_st.messages)
@@ -5389,8 +5465,8 @@ def test_display_lab_tab_overlay_run_uses_active_app_when_agi_engine_has_no_runt
 def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp_path):
     render_calls = []
     fake_st = _FakeStreamlit(
-        {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [0]},
-        multiselects={"demo_run_sequence_widget": [0]},
+        {"demo": [0, "", "", "", "", "", 0], "demo__run_sequence": [2, 0]},
+        multiselects={"demo_run_sequence_widget": [2, 0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_args, **_kwargs: None)
@@ -5403,7 +5479,7 @@ def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
 
     deps = _make_lab_deps(
-        load_all_stages=lambda *_args, **_kwargs: [{"D": "", "Q": "q", "M": "m", "C": "print('a')", "E": ""}],
+        load_all_stages=lambda *_args, **_kwargs: [{"id": stage_id, "D": "", "Q": stage_id, "M": "m", "C": "print(1)", "E": ""} for stage_id in ("A", "B", "C")],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: ("pipeline_view.dot", "digraph { a -> b }"),
         render_pipeline_view=lambda *args, **kwargs: render_calls.append((args, kwargs)),
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
@@ -5413,7 +5489,13 @@ def test_display_lab_tab_renders_conceptual_view_when_available(monkeypatch, tmp
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     assert ("graphviz", "True") in fake_st.messages
-    assert render_calls[-1][1]["title"] == "Execution view"
+    assert render_calls[-1][1]["title"] == "Saved stages overview"
+
+
+    assert len(render_calls[-1][0][0]) == 3
+    graph = next(source for source in fake_st.graphviz_sources if "digraph workflow_dependencies" in source)
+    assert '"B"' not in graph
+    assert '"C" -> "A" [style=dashed, label="next"]' in graph
 
 
 def test_display_lab_tab_existing_stages_warns_when_add_prompt_missing(monkeypatch, tmp_path):
@@ -5850,7 +5932,7 @@ def test_display_lab_tab_import_snippet_without_runtime_resets_sequence(monkeypa
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert save_calls[-1][1]["venv_map"] == {}
 
 
@@ -6491,7 +6573,7 @@ def test_display_lab_tab_overlay_run_uses_active_app_for_agi_engine(monkeypatch,
     assert fake_st.session_state["demo__engine_map"][0] == "agi.custom"
 
 
-def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_path):
+def test_display_lab_tab_preserves_deselection_across_reruns_and_reload(monkeypatch, tmp_path):
     class _FormattingStreamlit(_FakeStreamlit):
         def multiselect(self, _label, options, key=None, format_func=None, help=None):
             if format_func is not None:
@@ -6501,7 +6583,7 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
     fake_st = _FormattingStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
-            "demo__run_sequence": [],
+            "demo__run_sequence": [0],
             "demo_run_sequence_widget": [99],
         },
         multiselects={"demo_run_sequence_widget": []},
@@ -6526,8 +6608,17 @@ def test_display_lab_tab_sequence_defaults_and_formats_labels(monkeypatch, tmp_p
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert fake_st.session_state["demo__run_sequence"] == [0]
+    assert fake_st.session_state["demo__run_sequence"] == []
     assert any(kind == "formatted" and message.startswith("Stage 1") for kind, message in fake_st.messages)
+
+
+    for reload_preferences in (False, True):
+        if reload_preferences:
+            fake_st.session_state.pop("demo__run_sequence")
+            fake_st.session_state.pop("demo_run_sequence_widget")
+        pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
+        assert fake_st.session_state["demo__run_sequence"] == []
+        assert any(kind in {"warning", "caption", "info"} and "No stages selected" in message for kind, message in fake_st.messages)
 
 
 def test_display_lab_tab_appends_custom_initial_runtime_label(monkeypatch, tmp_path):

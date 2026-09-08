@@ -58,6 +58,9 @@ def test_default_stage_helpers_cover_question_code_and_empty_entries() -> None:
 
 
 def test_pipeline_page_state_helper_edge_branches(tmp_path, monkeypatch):
+    assert pipeline_page_state.normalize_execution_sequence(3, None) == (0, 1, 2)
+    assert pipeline_page_state.normalize_execution_sequence(3, []) == ()
+    assert pipeline_page_state.normalize_execution_sequence(3, [99, "bad"]) == ()
     assert pipeline_page_state.normalize_execution_sequence(2, ["x", None, 1, 1, 4]) == (1,)
     assert pipeline_page_state._format_stale_stage_refs(
         [

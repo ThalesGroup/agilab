@@ -929,6 +929,28 @@ def test_pipeline_run_controls_run_all_stages_executes_runpy_and_agi_run(tmp_pat
     assert mlflow_calls[1]["nested"] is True
 
 
+def test_run_all_stages_empty_selection_never_acquires_execution_lock(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit({
+        "page": [0, "", "", "", "", "", 0],
+        "page__run_sequence": [],
+        "snippet_file": str(tmp_path / "snippet.py"),
+    })
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value or ""))
+    def unexpected_execution(*_args, **_kwargs):
+        raise AssertionError("An empty selection must never begin execution")
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock", unexpected_execution)
+    module.run_all_stages(
+        tmp_path / "lab", "page", tmp_path / "lab_stages.toml", tmp_path / "module.py",
+        SimpleNamespace(app="demo", active_app="", copilot_file=tmp_path / "copilot.py"),
+        load_all_stages_fn=lambda *_args: [{"C": "raise AssertionError('must not run')"}],
+        stream_run_command_fn=unexpected_execution,
+    )
+    assert any(kind == "warning" and "No stages selected" in message for kind, message in fake_st.messages)
+    assert fake_st.session_state["page__run_sequence"] == []
+
+
 def test_pipeline_run_controls_run_all_stages_handles_early_exits(tmp_path, monkeypatch):
     module = _import_pipeline_run_controls()
     fake_st = _FakeStreamlit({"page": [0, "", "", "", "", "", 0]})

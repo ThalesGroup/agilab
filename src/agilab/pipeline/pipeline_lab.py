@@ -258,7 +258,7 @@ def _workflow_dependency_dot(
         "  node [shape=box, style=\"rounded,filled\", fillcolor=\"#F7FAFC\", color=\"#2D3748\", fontname=\"Helvetica\", fontsize=10];",
         "  edge [color=\"#4A5568\", arrowsize=0.7];",
     ]
-    for idx in sorted(stage_ids_by_idx):
+    for idx in [idx for wave in waves for idx in wave if idx in stage_ids_by_idx]:
         stage_id = stage_ids_by_idx[idx]
         label = _short_graph_label(labels_by_stage_id.get(stage_id, stage_id))
         wave_label = f"wave {wave_by_idx.get(idx, '?')}"
@@ -267,8 +267,12 @@ def _workflow_dependency_dot(
         )
     for stage_id, deps in deps_by_stage_id.items():
         for dep_id in deps:
-            if dep_id in labels_by_stage_id and stage_id in labels_by_stage_id:
+            if dep_id in stage_ids_by_idx.values() and stage_id in stage_ids_by_idx.values():
                 lines.append(f'  "{_dot_escape(dep_id)}" -> "{_dot_escape(stage_id)}";')
+    if not any(deps_by_stage_id.values()):
+        ordered_ids = [stage_ids_by_idx[idx] for wave in waves for idx in wave if idx in stage_ids_by_idx]
+        for previous, following in zip(ordered_ids, ordered_ids[1:]):
+            lines.append(f'  "{_dot_escape(previous)}" -> "{_dot_escape(following)}" [style=dashed, label="next"];')
     for wave in waves:
         wave_stage_ids = [stage_ids_by_idx[idx] for idx in wave if idx in stage_ids_by_idx]
         if len(wave_stage_ids) > 1:
@@ -2480,20 +2484,20 @@ def _enabled_workflow_control_labels(runtime_contract: Mapping[str, Any]) -> tup
 
 
 def _dot_quote(value: Any) -> str:
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
-def _multi_app_dag_dot(state: Dict[str, Any]) -> str:
+def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> str:
     units = state.get("units", [])
     if not isinstance(units, list) or not units:
         return ""
     available = _available_artifact_ids(state)
     lines = [
         "digraph AGILABGlobalDAG {",
-        "  rankdir=LR;",
-        '  graph [bgcolor="transparent", pad="0.25", nodesep="0.6", ranksep="0.75"];',
-        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10, margin="0.08,0.05"];',
-        '  edge [fontname="Helvetica", fontsize=9, color="#6b7280"];',
+        "  rankdir=TB;",
+        '  graph [bgcolor="transparent", pad="0.15", nodesep="0.35", ranksep="0.25"];',
+        '  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=14, margin="0.08,0.05"];',
+        '  edge [fontname="Helvetica", fontsize=12, color="#6b7280"];',
     ]
     status_colors = {
         "runnable": "#dcfce7",
@@ -2511,12 +2515,10 @@ def _multi_app_dag_dot(state: Dict[str, Any]) -> str:
         if not unit_id:
             continue
         status = str(unit.get("dispatch_status", ""))
-        app = str(unit.get("app", ""))
-        executor = _multi_app_dag_executor_label(unit)
-        executor_line = f"\\nexec: {executor}" if executor != "preview" else ""
-        label = f"{unit_id}\\n{app}\\n{status}{executor_line}"
+        label = f"{_short_graph_label(unit_id, limit=28)}\n{status}"
         fill = status_colors.get(status, "#f8fafc")
-        lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}];")
+        selected_style = ', color="#2563eb", penwidth=3' if unit_id == selected_unit_id else ""
+        lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}{selected_style}];")
         for artifact in unit.get("produces", []):
             if not isinstance(artifact, dict):
                 continue
@@ -2537,13 +2539,95 @@ def _multi_app_dag_dot(state: Dict[str, Any]) -> str:
                 lines.append(f"  {_dot_quote('artifact:' + artifact_id)} -> {_dot_quote(unit_id)};")
     for artifact_id, status in sorted(artifact_nodes.items()):
         fill = "#dcfce7" if status == "available" else "#fff7ed" if status == "missing" else "#f8fafc"
-        label = f"{artifact_id}\\n{status}"
+        label = f"{_short_graph_label(artifact_id, limit=24)}\n{status}"
         lines.append(
             f"  {_dot_quote('artifact:' + artifact_id)} "
             f"[label={_dot_quote(label)}, shape=note, fillcolor={_dot_quote(fill)}];"
         )
     lines.append("}")
     return "\n".join(lines)
+
+
+def _multi_app_dag_graph_state(
+    state: Dict[str, Any], selected_unit_id: str, *, focus: bool
+) -> Dict[str, Any]:
+    """Keep a selected stage and its immediate artifact producers/consumers."""
+    if not focus:
+        return state
+    raw_units = state.get("units", [])
+    units = [unit for unit in raw_units if isinstance(unit, dict)] if isinstance(raw_units, list) else []
+    selected = next((unit for unit in units if unit.get("id") == selected_unit_id), None)
+    if selected is None:
+        return state
+
+    def artifacts(unit: dict[str, Any], field: str) -> set[str]:
+        values = unit.get(field, [])
+        if not isinstance(values, list):
+            return set()
+        return {
+            _workplan_artifact_id(artifact)
+            for artifact in values
+            if isinstance(artifact, dict) and _workplan_artifact_id(artifact)
+        }
+
+    inputs = artifacts(selected, "artifact_dependencies")
+    outputs = artifacts(selected, "produces")
+    visible = [
+        unit for unit in units
+        if unit.get("id") == selected_unit_id
+        or artifacts(unit, "produces") & inputs
+        or artifacts(unit, "artifact_dependencies") & outputs
+    ]
+    return {**state, "units": visible}
+
+
+def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> None:
+    raw_units = state.get("units", [])
+    units = {
+        str(unit["id"]): unit
+        for unit in (raw_units if isinstance(raw_units, list) else [])
+        if isinstance(unit, dict) and unit.get("id")
+    }
+    if not units:
+        st.caption(GLOBAL_DAG_EMPTY_STATE)
+        return
+    selected_key = f"{key_prefix}_graph_stage"
+    if st.session_state.get(selected_key) not in units:
+        st.session_state[selected_key] = next(
+            (unit_id for unit_id, unit in units.items() if unit.get("dispatch_status") == "runnable"),
+            next(iter(units)),
+        )
+    scope_key = f"{key_prefix}_graph_scope"
+    scopes = ["Whole plan", "Selected stage and neighbors"]
+    plan_key = f"{key_prefix}_graph_plan"
+    plan_ids = tuple(units)
+    if st.session_state.get(scope_key) not in scopes or st.session_state.get(plan_key) != plan_ids:
+        st.session_state[scope_key] = scopes[1] if len(units) > 8 else scopes[0]
+        st.session_state[plan_key] = plan_ids
+    stage_col, scope_col = st.columns([2, 1])
+    with stage_col:
+        selected_id = st.selectbox("Inspect stage", list(units), key=selected_key)
+    with scope_col:
+        scope = st.selectbox("Graph scope", scopes, key=scope_key)
+    graph_state = _multi_app_dag_graph_state(state, selected_id, focus=scope == scopes[1])
+    st.graphviz_chart(_multi_app_dag_dot(graph_state, selected_unit_id=selected_id), width="content")
+    if scope == scopes[1]:
+        st.caption(f"Showing {len(graph_state['units'])} of {len(units)} stages. Choose another stage or Whole plan to explore the rest.")
+    selected = units[selected_id]
+    st.caption(f"{selected_id}: {_multi_app_dag_workplan_state(selected)}")
+    input_col, output_col = st.columns(2)
+    input_col.caption(f"Inputs: {_multi_app_dag_workplan_needs(selected)}")
+    output_col.caption(f"Outputs: {_multi_app_dag_workplan_produces(selected)}")
+    with st.expander("Stage details", expanded=False):
+        st.caption(f"App: {selected.get('app', '')}")
+        st.caption(f"Runs with: {_multi_app_dag_executor_label(selected)}")
+        st.download_button(
+            "Download full graph",
+            data=_multi_app_dag_dot(state),
+            file_name="workflow.dot",
+            mime="text/vnd.graphviz",
+            key=f"{key_prefix}_download_graph",
+        )
 
 
 def _pipeline_dag_stage_rows(pipeline_stages: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -3248,87 +3332,72 @@ def _render_global_runner_state_view(
     dag_label = dag_label_override or str(source.get("dag_path", "")) or (
         _repo_relative_text(dag_path, repo_root) if dag_path is not None else ""
     )
-    if dag_label:
-        st.caption(f"Plan path: `{dag_label}`")
-    st.caption(f"State file: `{state_path}`")
     real_run_support = dag_engine.real_run_support(state)
     execution_status = _multi_app_dag_execution_status(state, real_run_support)
-    _render_multi_app_dag_execution_capability(
-        contract_name=dag_label_override or _multi_app_dag_display_name(dag_label, repo_root),
-        execution_status=execution_status,
-        real_run_support=real_run_support,
+    readiness = _multi_app_dag_readiness_summary(state)
+    st.caption(
+        f"{execution_status} · {readiness['stage_count']} stages · "
+        f"{readiness['runnable_count']} ready · {readiness['blocked_count']} waiting · "
+        f"{readiness['failed_count']} failed"
     )
-    _render_multi_app_dag_readiness(state)
-    _render_existing_execution_log(run_log_dir, key_prefix=f"workflow:{index_page_str}:execution")
-    _render_workflow_run_evidence(state_path)
-    running_col, completed_col, failed_col = st.columns(3)
-    running_col.metric("Running", int(summary.get("running_count", 0) or 0))
-    completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
-    failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
+    support_message = str(getattr(real_run_support, "message", "")).strip()
+    if support_message:
+        st.caption(support_message)
+    _render_multi_app_dag_graph(state, key_prefix=f"{index_page_str}_global_runner")
+    with st.expander("Plan details", expanded=False):
+        if dag_label:
+            st.caption(f"Plan path: `{dag_label}`")
+        st.caption(f"State file: `{state_path}`")
+        _render_existing_execution_log(run_log_dir, key_prefix=f"workflow:{index_page_str}:execution")
+        _render_workflow_run_evidence(state_path)
+        running_col, completed_col, failed_col = st.columns(3)
+        running_col.metric("Running", int(summary.get("running_count", 0) or 0))
+        completed_col.metric("Completed", int(summary.get("completed_count", 0) or 0))
+        failed_col.metric("Failed", int(summary.get("failed_count", 0) or 0))
 
-    dag_dot = _multi_app_dag_dot(state)
-    show_graph = bool(
-        dag_dot
-        and st.checkbox(
-            "Show graph",
-            key=f"{index_page_str}_global_runner_show_graph",
-            help="Show the generated graph if the current screen has enough room to read it.",
-        )
-    )
-    if show_graph:
-        st.graphviz_chart(dag_dot, width="stretch")
-
-    workplan_rows = _multi_app_dag_workplan_rows_for_display(state)
-    if workplan_rows:
-        st.caption("Multi-app plan")
-        render_paginated_dataframe(
-            st,
-            workplan_rows,
-            key=f"{index_page_str}_global_runner_workplan",
-            page_size=100,
-            hide_index=True,
-            width="stretch",
-        )
-    else:
-        st.caption(GLOBAL_DAG_EMPTY_STATE)
-    _render_project_stage_snippet_preview(
-        project_stage_snippet_rows,
-        index_page_str=index_page_str,
-    )
-
-    artifact_rows = _artifact_handoffs_for_display(state)
-    show_artifacts = bool(
-        artifact_rows
-        and st.checkbox(
-            "Show technical output details",
-            key=f"{index_page_str}_global_runner_show_artifacts",
-            help="Show the output handoffs used behind the plan.",
-        )
-    )
-    if show_artifacts:
-        st.caption("Output handoffs")
-        render_paginated_dataframe(
-            st,
-            artifact_rows,
-            key=f"{index_page_str}_global_runner_artifacts",
-            page_size=100,
-            hide_index=True,
-            width="stretch",
+        workplan_rows = _multi_app_dag_workplan_rows_for_display(state)
+        if workplan_rows:
+            st.caption("Multi-app plan")
+            render_paginated_dataframe(
+                st,
+                workplan_rows,
+                key=f"{index_page_str}_global_runner_workplan",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption(GLOBAL_DAG_EMPTY_STATE)
+        _render_project_stage_snippet_preview(
+            project_stage_snippet_rows,
+            index_page_str=index_page_str,
         )
 
-    history_rows = _multi_app_dag_execution_history_rows(state)
-    if history_rows:
-        st.caption("Execution history")
-        render_paginated_dataframe(
-            st,
-            history_rows,
-            key=f"{index_page_str}_global_runner_history",
-            page_size=100,
-            hide_index=True,
-            width="stretch",
-        )
-    else:
-        st.caption("Execution history: no step has been started yet.")
+        artifact_rows = _artifact_handoffs_for_display(state)
+        if artifact_rows:
+            st.caption("Output handoffs")
+            render_paginated_dataframe(
+                st,
+                artifact_rows,
+                key=f"{index_page_str}_global_runner_artifacts",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
+
+        history_rows = _multi_app_dag_execution_history_rows(state)
+        if history_rows:
+            st.caption("Execution history")
+            render_paginated_dataframe(
+                st,
+                history_rows,
+                key=f"{index_page_str}_global_runner_history",
+                page_size=100,
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.caption("Execution history: no step has been started yet.")
 
     active_attempt = runner_state_active_attempt(state)
     if active_attempt is not None:
@@ -3402,15 +3471,19 @@ def _render_global_runner_state_view(
                         "do not provide a complete scheduler, workers, and workflow share root request."
                     )
         run_next_col, run_ready_col = st.columns(2)
+        can_run_next = stage_backend == GLOBAL_DAG_STAGE_BACKEND_LOCAL
         with run_next_col:
             run_stage_clicked = action_button(
                 run_next_col,
                 "Run next stage",
                 key=f"{index_page_str}_global_runner_run_next_stage",
                 kind="run",
+                disabled=not can_run_next,
                 help=(
                     f"Execute the next ready stage through `{real_run_support.adapter}`. "
                     "Only checked-in DAGs with a controlled adapter marker can run from this view."
+                    if can_run_next else
+                    "Single-stage distributed execution is unavailable. Use Run ready stages for the selected backend."
                 ),
             )
         with run_ready_col:
@@ -3424,7 +3497,9 @@ def _render_global_runner_state_view(
                     "Independent stages can run concurrently; each stage still owns its app runtime."
                 ),
             )
-        if run_stage_clicked:
+        if not can_run_next:
+            st.caption("For distributed execution, use Run ready stages. Run next stage is local only.")
+        if run_stage_clicked and can_run_next:
             try:
                 result = dag_engine.run_next_controlled_stage_transaction(state)
             except RunnerStateRecoveryRequiredError as exc:
@@ -4421,7 +4496,9 @@ def display_lab_tab(
     sequence_state_key = f"{index_page_str}__run_sequence"
     stored_sequence = st.session_state.get(sequence_state_key)
     if stored_sequence is None:
-        stored_sequence = _load_sequence_preferences(module_path, stages_file)
+        stored_sequence = _load_sequence_preferences(
+            module_path, stages_file, default=list(range(total_stages))
+        )
         st.session_state[sequence_state_key] = stored_sequence
 
     if total_stages == 0:
@@ -4430,9 +4507,7 @@ def display_lab_tab(
             _persist_sequence_preferences(module_path, stages_file, [])
     else:
         current_sequence = [idx for idx in stored_sequence if 0 <= idx < total_stages]
-        if not current_sequence:
-            current_sequence = list(range(total_stages))
-        elif isinstance(prev_total, int) and total_stages > prev_total:
+        if current_sequence and isinstance(prev_total, int) and total_stages > prev_total:
             for idx in range(prev_total, total_stages):
                 if idx not in current_sequence:
                     current_sequence.append(idx)
@@ -5438,7 +5513,7 @@ def display_lab_tab(
     render_stages = [persisted_stages[item.index] for item in render_page_state.visible_stages]
     render_pipeline_view(
         render_stages,
-        title="Execution view" if conceptual_dot else "Workflow view",
+        title="Saved stages overview",
     )
 
     for visible_stage in render_page_state.visible_stages:
@@ -5633,7 +5708,6 @@ def display_lab_tab(
     if total_stages > 0:
         sequence_options = [item.index for item in render_page_state.visible_stages]
         stored_sequence = [idx for idx in st.session_state.get(sequence_state_key, sequence_options) if idx in sequence_options]
-        stored_sequence = stored_sequence or sequence_options
         st.session_state[sequence_state_key] = stored_sequence
         if sequence_widget_key not in st.session_state:
             st.session_state[sequence_widget_key] = stored_sequence
@@ -5641,8 +5715,6 @@ def display_lab_tab(
             st.session_state[sequence_widget_key] = [
                 idx for idx in st.session_state[sequence_widget_key] if idx in sequence_options
             ]
-            if not st.session_state[sequence_widget_key]:
-                st.session_state[sequence_widget_key] = stored_sequence
 
         def _format_sequence_option(idx: int) -> str:
             return _stage_label_for_multiselect(idx, persisted_stages[idx], env=env)
@@ -5655,7 +5727,7 @@ def display_lab_tab(
             help="Select which stages to run. They execute in the order shown.",
         )
         sanitized_selection = [idx for idx in selected_sequence if idx in sequence_options]
-        final_sequence = sanitized_selection or sequence_options
+        final_sequence = sanitized_selection
         if st.session_state.get(sequence_state_key) != final_sequence:
             st.session_state[sequence_state_key] = final_sequence
             _persist_sequence_preferences(module_path, stages_file, final_sequence)
@@ -5864,20 +5936,19 @@ def display_lab_tab(
             for wave in preview_waves
         ]
         st.caption(f"Planned execution waves: {' -> '.join(wave_labels)}")
-        if st.checkbox(
-            "Show dependency graph",
-            key=f"{index_page_str}_show_dependency_graph",
-            help="Preview the exact stage dependency graph used to compute execution waves.",
-        ):
-            st.graphviz_chart(
-                _workflow_dependency_dot(
-                    stage_ids_by_idx=stage_ids_by_idx,
-                    deps_by_stage_id=deps_state,
-                    labels_by_stage_id=stage_labels_by_id,
-                    waves=preview_waves,
-                ),
-                width="stretch",
-            )
+        st.markdown("**Selected execution plan**")
+        st.graphviz_chart(
+            _workflow_dependency_dot(
+                stage_ids_by_idx=_preview_ids,
+                deps_by_stage_id={
+                    _preview_ids[idx]: list(_preview_deps.get(idx, []))
+                    for idx in _preview_ids
+                },
+                labels_by_stage_id=stage_labels_by_id,
+                waves=preview_waves,
+            ),
+            width="stretch",
+        )
     last_manifest_file = str(st.session_state.get(f"{index_page_str}__last_pipeline_manifest_file", "") or "")
     if last_manifest_file:
         st.caption(f"Last automation manifest: `{last_manifest_file}`")

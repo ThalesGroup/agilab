@@ -611,21 +611,27 @@ def automation_meta_key(module_key: str) -> str:
     return f"{module_key}__automation"
 
 
-def load_sequence_preferences(module: Union[str, Path], stages_file: Path, env: Optional[AgiEnv] = None) -> List[int]:
-    """Return the stored execution order for a module, if any."""
+def load_sequence_preferences(
+    module: Union[str, Path],
+    stages_file: Path,
+    env: Optional[AgiEnv] = None,
+    *,
+    default: Optional[List[int]] = None,
+) -> List[int]:
+    """Use the initial default only when no selection has been saved."""
     module_key = module_keys(module, env=env)[0]
     try:
         with stages_file.open("rb") as handle:
             data = tomllib.load(handle)
     except FileNotFoundError:
-        return []
+        return list(default or [])
     except tomllib.TOMLDecodeError as exc:
         logger.warning("Failed to parse sequence metadata from %s: %s", stages_file, exc)
         return []
     meta = data.get(LAB_STAGES_META_KEY, {})
     if not isinstance(meta, dict):
         return []
-    raw_sequence = meta.get(sequence_meta_key(module_key), [])
+    raw_sequence = meta.get(sequence_meta_key(module_key), default or [])
     if not isinstance(raw_sequence, list):
         return []
     return [idx for idx in raw_sequence if isinstance(idx, int) and idx >= 0]
