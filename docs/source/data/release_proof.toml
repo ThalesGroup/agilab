@@ -20,22 +20,22 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.07.31"
-source_version_relation = "ahead"
+package_version = "2026.09.07"
+source_version_relation = "exact"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.07.31"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31"
-github_release_commit = "3e88def4dda5be155d8d9a91537a671c00851c83"
+github_release_tag = "v2026.09.07"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07"
+github_release_commit = "5d60124b8699803198fd692969328dce262083b3"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "85f28330cd50f810f0e229816e45c7ee5b1bffae"
-dataset_release_tag = "datasets-f3c9b30733ce0232"
-dataset_manifest_sha256 = "f3c9b30733ce02322da542deae8ae6edb70082f537764570816413b321a4cd8f"
-dataset_count = 12
-dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-f3c9b30733ce0232"
+hf_space_commit = "c102870edcb18d51d8c5225c13b2ae90357f4c7a"
+dataset_release_tag = "datasets-535fcc176054e2fb"
+dataset_manifest_sha256 = "535fcc176054e2fb8e39c83d428273ea52c1521eaa2c694c39c3ee5a89df8d93"
+dataset_count = 10
+dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-535fcc176054e2fb"
 
 [ui_robot]
 mode = "historical"
@@ -81,10 +81,11 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "30616241713"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/30616241713"
-head_sha = "3e88def4dda5be155d8d9a91537a671c00851c83"
-summary = "tested and published the release artifacts from the recorded release commit"
+run_id = "34148757505"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/34148757505/attempts/3"
+head_sha = "5d60124b8699803198fd692969328dce262083b3"
+summary = "publication workflow for the recorded release commit; see the linked attempt for its final result"
+attempt = "3"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"
