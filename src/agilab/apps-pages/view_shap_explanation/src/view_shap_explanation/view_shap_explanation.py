@@ -238,15 +238,15 @@ shap_path = st.sidebar.selectbox(
 )
 feature_path = st.sidebar.selectbox(
     "Feature values file",
-    options=[*feature_files, None] if feature_files else [None],
+    options=[path for path in feature_files if path.parent == Path(shap_path).parent] + [None],
     format_func=lambda path: "none" if path is None else str(Path(path).relative_to(artifact_root)),
-    key=f"{PAGE_KEY}:feature_values_file",
+    key=f"{PAGE_KEY}:{shap_path}:feature_values_file",
 )
 metadata_path = st.sidebar.selectbox(
     "Metadata file",
-    options=[*metadata_files, None] if metadata_files else [None],
+    options=[path for path in metadata_files if path.parent == Path(shap_path).parent] + [None],
     format_func=lambda path: "none" if path is None else str(Path(path).relative_to(artifact_root)),
-    key=f"{PAGE_KEY}:metadata_file",
+    key=f"{PAGE_KEY}:{shap_path}:metadata_file",
 )
 
 metadata = _load_json(Path(metadata_path) if metadata_path else None)

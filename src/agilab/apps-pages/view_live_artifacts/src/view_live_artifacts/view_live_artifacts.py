@@ -7,8 +7,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 import hashlib
+import heapq
 import json
 from pathlib import Path
+from stat import S_ISREG
 from typing import Any, Iterable
 
 import streamlit as st
@@ -58,6 +60,7 @@ IMAGE_SUFFIXES = {".gif", ".jpeg", ".jpg", ".png", ".webp"}
 PREVIEW_BYTES = 64 * 1024
 MAX_JSON_PREVIEW_BYTES = 512 * 1024
 MAX_DISCOVERED_FILES = 500
+DISCOVERY_TTL_SECONDS = 30
 REFRESH_INTERVAL_SECONDS = (1, 2, 5, 10, 30, 60)
 
 
@@ -150,14 +153,20 @@ def _mtime_iso(mtime_ns: int) -> str:
 
 
 def discover_artifacts(root: Path, patterns: Iterable[str], *, limit: int = MAX_DISCOVERED_FILES) -> tuple[ArtifactRecord, ...]:
+    return _discover_artifact_scan(root, patterns, limit=limit)[0]
+
+
+def _discover_artifact_scan(
+    root: Path, patterns: Iterable[str], *, limit: int
+) -> tuple[tuple[ArtifactRecord, ...], int]:
     if limit <= 0:
-        return ()
+        return (), 0
     try:
         root_path = Path(root).expanduser().resolve(strict=False)
     except (OSError, RuntimeError, TypeError, ValueError):
-        return ()
+        return (), 0
     if not root_path.exists() or not root_path.is_dir():
-        return ()
+        return (), 0
 
     found: dict[Path, ArtifactRecord] = {}
     for pattern in parse_patterns(patterns):
@@ -166,9 +175,11 @@ def discover_artifacts(root: Path, patterns: Iterable[str], *, limit: int = MAX_
             for candidate in candidates:
                 try:
                     resolved = candidate.resolve(strict=False)
-                    if resolved in found or not resolved.is_file():
+                    if resolved in found:
                         continue
                     stat = resolved.stat()
+                    if not S_ISREG(stat.st_mode):
+                        continue
                 except (OSError, RuntimeError, TypeError, ValueError):
                     continue
                 found[resolved] = ArtifactRecord(
@@ -183,8 +194,20 @@ def discover_artifacts(root: Path, patterns: Iterable[str], *, limit: int = MAX_
         except (OSError, RuntimeError, TypeError, ValueError):
             continue
 
-    ordered = sorted(found.values(), key=lambda item: (-item.mtime_ns, item.relative_path.casefold()))
-    return tuple(ordered[: max(0, int(limit))])
+    ordered = heapq.nsmallest(
+        int(limit), found.values(),
+        key=lambda item: (-item.mtime_ns, item.relative_path.casefold()),
+    )
+    return tuple(ordered), len(found)
+
+
+@st.cache_data(show_spinner=False, ttl=DISCOVERY_TTL_SECONDS, max_entries=16)
+def _cached_artifact_scan(
+    root: str, patterns: tuple[str, ...], limit: int
+) -> tuple[tuple[ArtifactRecord, ...], int, str]:
+    records, total = _discover_artifact_scan(Path(root), patterns, limit=limit)
+    scanned_at = datetime.now(tz=UTC).replace(microsecond=0).isoformat()
+    return records, total, scanned_at
 
 
 def build_artifact_signature(records: Iterable[ArtifactRecord]) -> str:
@@ -341,7 +364,7 @@ def _render_controls(env: AgiEnv, active_app_path: Path) -> tuple[Path, tuple[st
 
     limit_key = _state_key(app_name, "limit")
     st.session_state.setdefault(limit_key, 100)
-    max_files = int(st.sidebar.number_input("Max files", min_value=1, max_value=MAX_DISCOVERED_FILES, step=10, key=limit_key))
+    max_files = int(st.sidebar.number_input("Files to display", min_value=1, max_value=MAX_DISCOVERED_FILES, step=10, key=limit_key))
 
     live_key = _state_key(app_name, "live_refresh")
     st.session_state.setdefault(live_key, True)
@@ -353,6 +376,7 @@ def _render_controls(env: AgiEnv, active_app_path: Path) -> tuple[Path, tuple[st
     interval_seconds = int(st.sidebar.selectbox("Refresh interval", REFRESH_INTERVAL_SECONDS, key=interval_key))
 
     if st.sidebar.button("Refresh now", type="secondary", width="stretch"):
+        _cached_artifact_scan.clear(str(selected_root), parse_patterns(pattern_value), max_files)
         st.rerun()
 
     return selected_root, parse_patterns(pattern_value), max_files, live_refresh, interval_seconds
@@ -394,15 +418,18 @@ def _render_preview(records: tuple[ArtifactRecord, ...]) -> None:
 
 
 def _render_artifacts_panel(root: Path, patterns: tuple[str, ...], max_files: int) -> None:
-    records = discover_artifacts(root, patterns, limit=max_files)
+    records, total, scanned_at = _cached_artifact_scan(str(root), patterns, max_files)
     summary = summarize_artifacts(records)
-    scanned_at = datetime.now(tz=UTC).replace(microsecond=0).isoformat()
 
     cols = st.columns(4)
-    cols[0].metric("Artifacts", str(summary["count"]))
-    cols[1].metric("Manifests", str(summary["manifest_count"]))
-    cols[2].metric("Size", summary["total_size_label"])
+    cols[0].metric("Shown files", str(summary["count"]))
+    cols[1].metric("Shown manifests", str(summary["manifest_count"]))
+    cols[2].metric("Shown size", summary["total_size_label"])
     cols[3].metric("Scanned", scanned_at.split("T", 1)[1].replace("+00:00", " UTC"))
+    st.caption(
+        f"Showing {len(records)} of {total} matching files. "
+        f"File discovery is cached for up to {DISCOVERY_TTL_SECONDS} seconds; Refresh now rescans."
+    )
 
     if not root.exists():
         st.warning(f"Artifact root does not exist yet: {root}")

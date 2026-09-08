@@ -39,6 +39,74 @@ def _patch_page_header(monkeypatch, module) -> None:
     monkeypatch.setattr(module, "render_streamlit_page_header", lambda *_args, **_kwargs: None)
 
 
+def test_training_cache_tracks_file_updates_and_reuses_unchanged_input(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    path = tmp_path / "training_history.csv"
+    path.write_text("epoch,train_loss\n")
+    reads = []
+    original = pd.read_csv
+
+    def read_csv(*args, **kwargs):
+        reads.append(args[0])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pd, "read_csv", read_csv)
+    assert module._load_scalar_frame(str(path)).empty
+    assert module._load_scalar_frame(str(path)).empty
+    assert len(reads) == 1
+    path.write_text("epoch,train_loss\n1,0.5\n")
+    assert len(module._load_scalar_frame(str(path))) == 1
+    path.write_text("epoch,train_loss\n1,0.5\n2,0.2\n")
+    assert len(module._load_scalar_frame(str(path))) == 2
+    assert len(reads) == 3
+
+
+def test_training_cache_tracks_event_file_additions_and_appends(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    first = tmp_path / "events.out.tfevents.1"
+    first.write_text("a")
+    reloads = []
+
+    class Accumulator:
+        def __init__(self, path):
+            self.path = Path(path)
+
+        def Reload(self):
+            reloads.append(True)
+
+        def Tags(self):
+            return {"scalars": ["loss"]}
+
+        def Scalars(self, tag):
+            size = sum(p.stat().st_size for p in self.path.glob("events.out.tfevents.*"))
+            return [SimpleNamespace(step=1, wall_time=1, value=float(size))]
+
+    monkeypatch.setattr(module, "_load_event_accumulator", lambda: Accumulator)
+    assert module._load_scalar_frame(str(tmp_path))["value"].iloc[0] == 1
+    assert module._load_scalar_frame(str(tmp_path))["value"].iloc[0] == 1
+    assert len(reloads) == 1
+    first.write_text("ab")
+    assert module._load_scalar_frame(str(tmp_path))["value"].iloc[0] == 2
+    (tmp_path / "events.out.tfevents.2").write_text("xyz")
+    assert module._load_scalar_frame(str(tmp_path))["value"].iloc[0] == 5
+
+
+def test_training_rotated_event_file_has_recoverable_error(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    path = tmp_path / "events.out.tfevents.1"
+    path.write_text("a")
+    original_stat = Path.stat
+
+    def removed_stat(current, *args, **kwargs):
+        if current == path:
+            raise FileNotFoundError("event file rotated")
+        return original_stat(current, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", removed_stat)
+    with pytest.raises(RuntimeError, match="Finish the export and retry"):
+        module._load_scalar_frame(str(tmp_path))
+
+
 def test_view_training_analysis_discovers_trainers_and_runs(tmp_path: Path) -> None:
     module = _load_module()
 
@@ -483,7 +551,7 @@ def test_view_training_analysis_handles_tensorboard_helper_edge_cases(monkeypatc
             return {"scalars": []}
 
     monkeypatch.setattr(module, "_load_event_accumulator", lambda: _EmptyAccumulator)
-    module._load_scalar_frame.clear()
+    module._load_scalar_frame_cached.clear()
     assert module._load_scalar_frame(str(tmp_path)).empty
 
 
@@ -503,7 +571,7 @@ def test_view_training_analysis_loads_training_history_csv_as_scalars(tmp_path: 
     run_labels = module._discover_run_labels([trainer_root], tmp_path / "export")
     assert run_labels == {"training_history": history_file.resolve()}
 
-    module._load_scalar_frame.clear()
+    module._load_scalar_frame_cached.clear()
     scalar_df = module._load_scalar_frame(str(history_file))
 
     assert scalar_df[["tag", "step", "value"]].to_dict("records") == [
@@ -640,7 +708,7 @@ def test_view_training_analysis_event_helpers_and_scalar_frame(monkeypatch, tmp_
             return [_Event(1, 11.0, 1.1)]
 
     monkeypatch.setattr(module, "_load_event_accumulator", lambda: _Accumulator)
-    module._load_scalar_frame.clear()
+    module._load_scalar_frame_cached.clear()
     df = module._load_scalar_frame(str(events_root))
 
     assert df[["tag", "step", "value"]].to_dict("records") == [
