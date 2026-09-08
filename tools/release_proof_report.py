@@ -8,6 +8,7 @@ import copy
 from datetime import UTC, datetime
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 from string import Formatter
@@ -26,6 +27,7 @@ OUTPUT_RELATIVE_PATH = Path("release-proof.rst")
 SCHEMA = "agilab.release_proof.v1"
 GITHUB_RUN_FIELDS = (
     "databaseId",
+    "attempt",
     "workflowName",
     "headSha",
     "status",
@@ -813,6 +815,15 @@ def refresh_manifest_from_github(
         )
 
     refreshed["ci_runs"] = normalized_runs
+    if "pypi-publish" in runs:
+        publication = runs["pypi-publish"]
+        refreshed = refresh_publication_run(
+            refreshed,
+            run_id=_github_run_id(publication),
+            attempt=str(publication.get("attempt", "") or ""),
+            repo_root=repo_root,
+            github_repo=repo,
+        )
     return refreshed
 
 
@@ -896,6 +907,203 @@ def _changelog_section_has_release_url(section: str, release_url: str) -> bool:
     }
 
 
+def _publication_binding_check(
+    release: Mapping[str, Any], ci_runs: Sequence[Any]
+) -> dict[str, Any]:
+    rows = [
+        row
+        for row in ci_runs
+        if isinstance(row, Mapping) and row.get("workflow") == "pypi-publish"
+    ]
+    commit = str(release.get("github_release_commit", "") or "")
+    failures = []
+    if len(rows) != 1:
+        failures.append(f"expected one publication run, found {len(rows)}")
+    elif not commit or rows[0].get("head_sha") != commit:
+        failures.append(
+            f"publication run {rows[0].get('run_id')} records {rows[0].get('head_sha')}; "
+            f"expected release commit {commit or '<missing>'}"
+        )
+    return _check_result(
+        "publication_binding",
+        not failures,
+        "publication run must match the declared release commit",
+        evidence=[str(MANIFEST_RELATIVE_PATH)],
+        details={"release_commit": commit, "failures": failures},
+    )
+
+
+def _publication_run_args(repo: str, run_id: str, attempt: str) -> list[str]:
+    if (
+        not run_id.isdecimal()
+        or int(run_id) < 1
+        or not attempt.isdecimal()
+        or int(attempt) < 1
+    ):
+        raise ValueError("publication run ID and attempt must be positive integers")
+    return [
+        "run",
+        "view",
+        run_id,
+        "--repo",
+        repo,
+        "--attempt",
+        attempt,
+        "--json",
+        _github_json_fields() + ",jobs",
+    ]
+
+
+def _publication_jobs_succeeded(raw: Mapping[str, Any]) -> bool:
+    jobs = raw.get("jobs", [])
+    if not isinstance(jobs, list) or not jobs:
+        return False
+    if any(
+        not isinstance(job, Mapping) or not isinstance(job.get("name"), str)
+        for job in jobs
+    ):
+        return False
+    by_name = {job["name"]: job for job in jobs}
+    if len(by_name) != len(jobs):
+        return False
+    required = {
+        "release-approval",
+        "publish-release-assets",
+        "pypi-provenance-evidence",
+    }
+    if not required.issubset(by_name):
+        return False
+    succeeded = {
+        name
+        for name, job in by_name.items()
+        if job.get("status") == "completed" and job.get("conclusion") == "success"
+    }
+    return required.issubset(succeeded) and any(
+        name == "publish-agilab" or name.startswith("publish-library-packages (")
+        for name in succeeded
+    )
+
+
+def _active_publication_is_ready(
+    raw: Mapping[str, Any], *, repo: str, run_id: str, attempt: str, release_commit: str
+) -> bool:
+    # Only the exact proof-producing job may validate its already-finished
+    # publication prerequisites while its enclosing workflow is still active.
+    context = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_JOB": "publish-release-proof",
+        "GITHUB_REPOSITORY": repo,
+        "GITHUB_RUN_ID": run_id,
+        "GITHUB_RUN_ATTEMPT": attempt,
+        "GITHUB_SHA": release_commit,
+    }
+    if any(os.environ.get(key) != value for key, value in context.items()):
+        return False
+    if raw.get("status") != "in_progress" or raw.get("conclusion"):
+        return False
+    if not _publication_jobs_succeeded(raw):
+        return False
+    jobs = raw["jobs"]
+    by_name = {job["name"]: job for job in jobs}
+    required = {
+        "release-approval",
+        "publish-agilab",
+        "publish-release-assets",
+        "pypi-provenance-evidence",
+        "sync-hf-space",
+    }
+    if not required.issubset(by_name):
+        return False
+    if any(by_name[name].get("conclusion") != "success" for name in required):
+        return False
+    producer = by_name.get("publish-release-proof", {})
+    if producer.get("status") != "in_progress":
+        return False
+    return all(
+        job.get("status") == "completed"
+        and job.get("conclusion") in {"success", "skipped"}
+        for name, job in by_name.items()
+        if name != "publish-release-proof"
+    ) and len(by_name) == len(jobs)
+
+
+def _publication_run_failures(
+    raw: Mapping[str, Any], *, repo: str, run_id: str, attempt: str, release_commit: str
+) -> list[str]:
+    failures = []
+    if _github_run_id(raw) != run_id:
+        failures.append("publication run ID differs from GitHub")
+    if str(raw.get("attempt", "")) != attempt:
+        failures.append("publication attempt differs from GitHub")
+    if not _github_workflow_name_matches(
+        "pypi-publish", str(raw.get("workflowName", ""))
+    ):
+        failures.append("publication workflow is not pypi-publish")
+    if not release_commit or raw.get("headSha") != release_commit:
+        failures.append("publication run does not match the release commit")
+    expected_url = f"https://github.com/{repo}/actions/runs/{run_id}"
+    if str(raw.get("url", "")) not in {
+        expected_url,
+        f"{expected_url}/attempts/{attempt}",
+    }:
+        failures.append("publication URL does not match the repository and run")
+    if not _publication_jobs_succeeded(raw):
+        failures.append("publication jobs are missing, skipped, or unsuccessful")
+    if not _github_run_is_success(raw) and not _active_publication_is_ready(
+        raw, repo=repo, run_id=run_id, attempt=attempt, release_commit=release_commit
+    ):
+        failures.append(
+            "publication workflow is not successful; active producer prerequisites are not complete"
+        )
+    return failures
+
+
+def refresh_publication_run(
+    manifest: Mapping[str, Any],
+    *,
+    run_id: str,
+    attempt: str,
+    repo_root: Path = REPO_ROOT,
+    github_repo: str | None = None,
+) -> dict[str, Any]:
+    repo = _resolve_github_repo(repo_root, github_repo)
+    raw = _run_gh_json(_publication_run_args(repo, run_id, attempt))
+    if not isinstance(raw, Mapping):
+        raise ValueError("publication run lookup did not return an object")
+    release_commit = str(
+        _required_table("release", manifest).get("github_release_commit", "") or ""
+    )
+    failures = _publication_run_failures(
+        raw, repo=repo, run_id=run_id, attempt=attempt, release_commit=release_commit
+    )
+    if failures:
+        raise ValueError("; ".join(failures))
+    refreshed = copy.deepcopy(dict(manifest))
+    ci_runs = _required_list("ci_runs", refreshed)
+    rows = [
+        row
+        for row in ci_runs
+        if isinstance(row, dict) and row.get("workflow") == "pypi-publish"
+    ]
+    if len(rows) > 1:
+        raise ValueError("publication evidence contains duplicate pypi-publish rows")
+    row = (
+        rows[0]
+        if rows
+        else {"id": "pypi-publish", "label": "PyPI publish", "workflow": "pypi-publish"}
+    )
+    if not rows:
+        ci_runs.append(row)
+    row.update(
+        run_id=run_id,
+        attempt=attempt,
+        head_sha=release_commit,
+        url=f"https://github.com/{repo}/actions/runs/{run_id}/attempts/{attempt}",
+        summary="publication workflow for the recorded release commit; see the linked attempt for its final result",
+    )
+    return refreshed
+
+
 def _ci_run_urls_are_consistent(ci_runs: Sequence[Any]) -> bool:
     for run in ci_runs:
         if not isinstance(run, Mapping):
@@ -903,9 +1111,12 @@ def _ci_run_urls_are_consistent(ci_runs: Sequence[Any]) -> bool:
         run_id = str(run.get("run_id", ""))
         url = str(run.get("url", ""))
         head_sha = str(run.get("head_sha", ""))
+        attempt = str(run.get("attempt", "") or "")
+        suffix = f"/actions/runs/{run_id}" + (f"/attempts/{attempt}" if attempt else "")
         if (
             not run_id
-            or not url.endswith(f"/actions/runs/{run_id}")
+            or not url.endswith(suffix)
+            or (attempt and (not attempt.isdecimal() or int(attempt) < 1))
             or re.fullmatch(r"[0-9a-f]{40}", head_sha) is None
         ):
             return False
@@ -919,6 +1130,7 @@ def _github_ci_runs_check(
     github_repo: str | None,
     max_age_days: int,
     now: datetime | None = None,
+    release_commit: str | None = None,
 ) -> dict[str, Any]:
     checked_at = now or datetime.now(UTC)
     try:
@@ -934,6 +1146,7 @@ def _github_ci_runs_check(
 
     details: list[dict[str, Any]] = []
     failures: list[str] = []
+    active_producer = False
     for run in ci_runs:
         if not isinstance(run, Mapping):
             failures.append("malformed ci_runs entry")
@@ -943,9 +1156,12 @@ def _github_ci_runs_check(
         if not run_id:
             failures.append(f"{workflow or '<unknown>'}: missing run_id")
             continue
+        attempt = str(run.get("attempt", "") or "")
         try:
-            raw = _run_gh_json(
-                [
+            args = (
+                _publication_run_args(repo, run_id, attempt)
+                if workflow == "pypi-publish" and attempt
+                else [
                     "run",
                     "view",
                     run_id,
@@ -955,11 +1171,14 @@ def _github_ci_runs_check(
                     _github_json_fields(),
                 ]
             )
-        except RuntimeError as exc:
+            raw = _run_gh_json(args)
+        except (RuntimeError, ValueError) as exc:
             failures.append(f"{workflow or run_id}: {exc}")
             continue
         if not isinstance(raw, Mapping):
-            failures.append(f"{workflow or run_id}: gh run view did not return an object")
+            failures.append(
+                f"{workflow or run_id}: gh run view did not return an object"
+            )
             continue
 
         github_run = _normalize_github_run(raw)
@@ -970,12 +1189,33 @@ def _github_ci_runs_check(
             age_days = max((checked_at - created_at).total_seconds() / 86400, 0.0)
         run_failures: list[str] = []
         if not _github_workflow_name_matches(workflow, github_workflow):
-            run_failures.append(f"workflow mismatch: expected {workflow}, got {github_workflow}")
-        if not _github_run_is_success(raw):
+            run_failures.append(
+                f"workflow mismatch: expected {workflow}, got {github_workflow}"
+            )
+        if workflow == "pypi-publish" and attempt and release_commit is not None:
+            run_failures.extend(
+                _publication_run_failures(
+                    raw,
+                    repo=repo,
+                    run_id=run_id,
+                    attempt=attempt,
+                    release_commit=release_commit,
+                )
+            )
+            if not run_failures and raw.get("status") == "in_progress":
+                active_producer = True
+        elif not _github_run_is_success(raw):
             run_failures.append(
                 "run is not successful: "
                 f"status={github_run['status']} conclusion={github_run['conclusion']}"
             )
+        if workflow == "pypi-publish" and release_commit is not None:
+            if not release_commit or github_run["headSha"] != release_commit:
+                run_failures.append(
+                    "publication run differs from the declared release commit"
+                )
+        if _github_run_id(raw) != run_id:
+            run_failures.append("manifest run ID differs from GitHub")
         expected_url = str(run.get("url", "") or "")
         if expected_url and github_run["url"] and expected_url != github_run["url"]:
             run_failures.append("manifest URL differs from GitHub run URL")
@@ -987,7 +1227,9 @@ def _github_ci_runs_check(
         if age_days is None:
             run_failures.append("run createdAt timestamp is missing or invalid")
         elif age_days > max_age_days:
-            run_failures.append(f"run is stale: {age_days:.1f} days old > {max_age_days}")
+            run_failures.append(
+                f"run is stale: {age_days:.1f} days old > {max_age_days}"
+            )
 
         details.append(
             {
@@ -1010,7 +1252,11 @@ def _github_ci_runs_check(
         "github_ci_runs",
         not failures,
         (
-            "manifest CI runs exist on GitHub, succeeded, and are fresh"
+            (
+                "publication prerequisites succeeded; producer workflow is still in progress"
+                if active_producer
+                else "manifest CI runs exist on GitHub, succeeded, and are fresh"
+            )
             if not failures
             else "manifest CI runs are missing, failed, or stale on GitHub"
         ),
@@ -1018,6 +1264,7 @@ def _github_ci_runs_check(
         details={
             "repo": repo,
             "max_age_days": max_age_days,
+            "producer_workflow_in_progress": active_producer,
             "checked_at": checked_at.isoformat(),
             "runs": details,
             "failures": failures,
@@ -1233,6 +1480,8 @@ def build_report(
     dataset_count = release.get("dataset_count")
     checks: list[dict[str, Any]] = []
 
+    checks.append(_publication_binding_check(release, ci_runs))
+
     project_version = _load_project_version(repo_root)
     version_matches, version_summary, version_details = _source_version_check(
         release,
@@ -1435,6 +1684,7 @@ def build_report(
                 repo_root=repo_root,
                 github_repo=github_repo,
                 max_age_days=github_max_age_days,
+                release_commit=github_release_commit,
             )
         )
     output_matches = output_path.exists() and output_path.read_text(encoding="utf-8") == rendered
@@ -1549,6 +1799,16 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail if manifest CI run IDs are missing, failed, mismatched, or stale on GitHub.",
     )
+    parser.add_argument(
+        "--publication-run-id",
+        default=None,
+        help="Bind the PyPI evidence to this exact publication run (requires --publication-run-attempt).",
+    )
+    parser.add_argument(
+        "--publication-run-attempt",
+        default=None,
+        help="Exact publication workflow attempt.",
+    )
     parser.add_argument("--render", action="store_true", help="Write the rendered RST page.")
     parser.add_argument("--check", action="store_true", help="Fail if manifest checks or rendered page drift.")
     parser.add_argument("--compact", action="store_true", help="Emit compact JSON.")
@@ -1571,7 +1831,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             github_release_url=args.github_release_url,
             hf_space_commit=args.hf_space_commit,
         )
-        write_manifest(manifest_path, manifest)
     if args.refresh_from_github:
         manifest = refresh_manifest_from_github(
             manifest,
@@ -1582,6 +1841,35 @@ def main(argv: Sequence[str] | None = None) -> int:
             workflows=tuple(args.github_workflows or DEFAULT_GITHUB_WORKFLOWS),
             run_limit=args.github_run_limit,
         )
+    publication_run_id = args.publication_run_id
+    publication_attempt = args.publication_run_attempt
+    # An old release attempt reuses its original YAML but imports the current
+    # tool from main. Its explicit Actions job identity supports that recovery.
+    if (
+        not publication_run_id
+        and not publication_attempt
+        and args.refresh_from_local
+        and args.check_github_runs
+        and os.environ.get("GITHUB_ACTIONS") == "true"
+        and os.environ.get("GITHUB_JOB") == "publish-release-proof"
+    ):
+        publication_run_id = os.environ.get("GITHUB_RUN_ID")
+        publication_attempt = os.environ.get("GITHUB_RUN_ATTEMPT")
+        if not publication_run_id or not publication_attempt:
+            raise ValueError(
+                "publication producer context is missing its run ID or attempt"
+            )
+    if publication_run_id or publication_attempt:
+        if not publication_run_id or not publication_attempt:
+            raise ValueError("publication run ID and attempt must be provided together")
+        manifest = refresh_publication_run(
+            manifest,
+            run_id=publication_run_id,
+            attempt=publication_attempt,
+            repo_root=REPO_ROOT,
+            github_repo=args.github_repo,
+        )
+    if args.refresh_from_local or args.refresh_from_github or publication_run_id:
         write_manifest(manifest_path, manifest)
 
     rendered = render_release_proof(

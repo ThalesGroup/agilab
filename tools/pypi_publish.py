@@ -2707,14 +2707,16 @@ def update_public_release_references_for_guard(
     tag: str,
     chosen_version: str,
     package_names: list[str],
+    *,
+    refresh_proof: bool = True,
 ) -> None:
-    """Update only release metadata tracked in this repository for pre-upload tests."""
+    """Update release metadata; defer proof/stamp when the caller binds publication evidence."""
 
     assert_public_docs_index_release_link(tag)
     update_static_badge(static_badge_path(UMBRELLA[0]), chosen_version)
     update_changelog_release_entry(chosen_version, tag, package_names)
     public_source = REPO_ROOT / "docs/source"
-    if public_source.exists():
+    if public_source.exists() and refresh_proof:
         update_release_proof_references_in_source(tag, public_source)
         update_public_docs_mirror_stamp_from_current_tree()
 

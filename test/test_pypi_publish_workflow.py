@@ -420,7 +420,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert 'hf_commit="${HF_SPACE_COMMIT}"' in text
     assert "Invalid Hugging Face commit" in text
     assert "PROVENANCE_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
-    assert "update_public_release_references_for_guard(" in text
+    assert "pypi_publish.update_public_release_references_for_guard(" in text
     assert "--hf-space-commit \"$hf_commit\"" in text
     assert "tools/sync_docs_source.py" in text
     assert "badges/pypi-version-agilab.svg" in text
@@ -437,9 +437,9 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\"" in text
     assert "gh workflow run root-test-suite.yml --ref \"$RELEASE_BRANCH\"" in text
     assert "gh workflow run docs-source-guard.yaml --ref \"$RELEASE_BRANCH\"" in text
-    assert "release-proof-assets/agilab-${release_version}-release-proof.toml" in text
-    assert "release-proof-assets/agilab-${release_version}-release-proof.rst" in text
-    assert "release-proof-SHA256SUMS.txt" in text
+    assert "release-proof-assets/${proof_basename}.toml" in text
+    assert "release-proof-assets/${proof_basename}.rst" in text
+    assert "${proof_basename}-SHA256SUMS.txt" in text
     assert "Existing immutable release asset differs" in text
     assert "subject-path: release-proof-assets/**" in text
 
@@ -600,3 +600,123 @@ def test_test_pypi_publish_uses_the_local_shortcut() -> None:
     assert "package_split_contract" in tool_text
     for package in PACKAGE_NAMES:
         assert package in contract_text
+
+
+def test_proof_repair_preflight_preserves_publication_boundary() -> None:
+    import os
+    import subprocess
+
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["publish-release-proof"]
+    assert "needs.release-approval.result == 'success'" in job["if"]
+    step = next(x for x in job["steps"] if x.get("id") == "release-proof")
+    script = step["run"]
+    preflight = script.split('release_tag="${RELEASE_TAG#refs/tags/}"', 1)[0]
+    preflight += (
+        'printf "%s/%s %s" "$publication_run_id" "$publication_attempt" "$hf_commit"\n'
+    )
+    base = {
+        "PATH": os.environ.get("PATH", ""),
+        "GITHUB_RUN_ID": "456",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "HF_SPACE_COMMIT": "a" * 40,
+        "PROOF_PUBLICATION_RUN": "",
+        "PROOF_HF_SPACE_COMMIT": "",
+        "RELEASE_MODE": "stable",
+        "PYPI_PUBLISH_SELECTED": "true",
+    }
+    cases = [
+        ({}, 0, "456/1 " + "a" * 40),
+        (
+            {
+                "PROOF_PUBLICATION_RUN": "123/3",
+                "PROOF_HF_SPACE_COMMIT": "b" * 40,
+                "RELEASE_MODE": "repair",
+                "PYPI_PUBLISH_SELECTED": "false",
+            },
+            0,
+            "123/3 " + "b" * 40,
+        ),
+        ({"PROOF_PUBLICATION_RUN": "123/3", "PROOF_HF_SPACE_COMMIT": "b" * 40}, 2, ""),
+        (
+            {
+                "PROOF_PUBLICATION_RUN": "123/3",
+                "PROOF_HF_SPACE_COMMIT": "b" * 40,
+                "RELEASE_MODE": "repair",
+            },
+            2,
+            "",
+        ),
+        (
+            {
+                "PROOF_PUBLICATION_RUN": "123/0",
+                "PROOF_HF_SPACE_COMMIT": "b" * 40,
+                "RELEASE_MODE": "repair",
+                "PYPI_PUBLISH_SELECTED": "false",
+            },
+            2,
+            "",
+        ),
+        (
+            {
+                "PROOF_PUBLICATION_RUN": "123/3",
+                "RELEASE_MODE": "repair",
+                "PYPI_PUBLISH_SELECTED": "false",
+            },
+            2,
+            "",
+        ),
+        ({"PROOF_HF_SPACE_COMMIT": "b" * 40}, 2, ""),
+    ]
+    for overrides, expected_code, expected_output in cases:
+        result = subprocess.run(
+            ["bash", "-c", preflight],
+            env={**base, **overrides},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == expected_code, (overrides, result.stderr)
+        assert result.stdout == expected_output
+    assert '--publication-run-id "$publication_run_id"' in script
+    assert '--publication-run-attempt "$publication_attempt"' in script
+    assert (
+        "release-proof-run-${publication_run_id}-attempt-${publication_attempt}"
+        in script
+    )
+
+
+def test_proof_job_generates_once_after_preparing_release_metadata() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    step = next(
+        x for x in workflow["jobs"]["publish-release-proof"]["steps"]
+        if x.get("id") == "release-proof"
+    )
+    script = step["run"]
+    assert "refresh_proof=False" in script
+    assert script.count("python tools/release_proof_report.py") == 1
+    assert script.index("update_public_release_references_for_guard(") < script.index("python tools/release_proof_report.py")
+    assert script.index("--publication-run-attempt") < script.index("python tools/sync_docs_source.py")
+
+
+def test_invalid_proof_repair_is_rejected_before_release_planning() -> None:
+    import subprocess
+
+    jobs = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]
+    steps = jobs["release-plan"]["steps"]
+    assert steps[0]["name"] == "Validate proof repair inputs"
+    base = {
+        "PROOF_PUBLICATION_RUN": "123/3", "PROOF_HF_SPACE_COMMIT": "a" * 40,
+        "RELEASE_MODE": "repair", "INCLUDE_EXISTING_PYPI": "false",
+    }
+    for overrides in [
+        {"RELEASE_MODE": "stable"}, {"INCLUDE_EXISTING_PYPI": "true"},
+        {"PROOF_PUBLICATION_RUN": ""}, {"PROOF_PUBLICATION_RUN": "123/0"},
+        {"PROOF_HF_SPACE_COMMIT": ""}, {"PROOF_HF_SPACE_COMMIT": "../escape"}, {},
+    ]:
+        result = subprocess.run(
+            ["bash", "-c", steps[0]["run"]], env={**base, **overrides},
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == (2 if overrides else 0), result.stderr
+    assert "release-plan" in jobs["release-approval"]["needs"]

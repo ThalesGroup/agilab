@@ -891,3 +891,291 @@ def test_release_proof_latest_successful_github_runs_filters_rows(monkeypatch) -
             head_sha="abc",
             limit=10,
         )
+
+
+def test_release_proof_rejects_successful_ci_from_another_release(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    old_run = next(
+        row for row in manifest["ci_runs"] if row["workflow"] == "pypi-publish"
+    )
+    manifest["release"]["github_release_commit"] = "b" * 40
+    assert old_run["head_sha"] != manifest["release"]["github_release_commit"]
+    path = tmp_path / "release_proof.toml"
+    module.write_manifest(path, manifest)
+    report = module.build_report(manifest_path=path, output_path=tmp_path / "proof.rst")
+    check = next(row for row in report["checks"] if row["id"] == "publication_binding")
+    assert check["status"] == "fail"
+    assert "release commit" in check["summary"]
+    assert old_run["head_sha"] in check["details"]["failures"][0]
+
+
+def _publication_run_fixture():
+    return {
+        "databaseId": 123,
+        "attempt": 3,
+        "workflowName": "pypi-publish",
+        "headSha": "a" * 40,
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ThalesGroup/agilab/actions/runs/123/attempts/3",
+        "createdAt": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "event": "workflow_dispatch",
+        "jobs": [
+            {"name": name, "status": "completed", "conclusion": "success"}
+            for name in [
+                "release-approval",
+                "publish-agilab",
+                "publish-release-assets",
+                "pypi-provenance-evidence",
+                "sync-hf-space",
+                "publish-release-proof",
+            ]
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "invalid", ["head", "workflow", "failed", "running", "attempt", "id"]
+)
+def test_publication_refresh_rejects_invalid_producer(monkeypatch, invalid) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "a" * 40
+    run = _publication_run_fixture()
+    field, value = {
+        "head": ("headSha", "b" * 40),
+        "workflow": ("workflowName", "root-test-suite"),
+        "failed": ("conclusion", "failure"),
+        "running": ("status", "in_progress"),
+        "attempt": ("attempt", 2),
+        "id": ("databaseId", 456),
+    }[invalid]
+    run[field] = value
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: run)
+    monkeypatch.delenv("GITHUB_JOB", raising=False)
+    with pytest.raises(ValueError, match="publication"):
+        module.refresh_publication_run(
+            manifest, run_id="123", attempt="3", github_repo="ThalesGroup/agilab"
+        )
+
+
+def test_publication_refresh_pins_exact_successful_attempt(monkeypatch) -> None:
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "a" * 40
+    before = json.dumps(manifest, sort_keys=True)
+    seen = []
+
+    def fake_gh(args):
+        seen.append(args)
+        return _publication_run_fixture()
+
+    monkeypatch.setattr(module, "_run_gh_json", fake_gh)
+    refreshed = module.refresh_publication_run(
+        manifest, run_id="123", attempt="3", github_repo="ThalesGroup/agilab"
+    )
+    row = next(x for x in refreshed["ci_runs"] if x["workflow"] == "pypi-publish")
+    assert (row["run_id"], row["attempt"], row["head_sha"]) == ("123", "3", "a" * 40)
+    assert row["url"].endswith("/runs/123/attempts/3")
+    assert module._ci_run_urls_are_consistent(refreshed["ci_runs"])
+    assert all(args[args.index("--attempt") + 1] == "3" for args in seen)
+    assert json.dumps(manifest, sort_keys=True) == before
+
+
+def _set_publication_producer(monkeypatch):
+    for key, value in {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_JOB": "publish-release-proof",
+        "GITHUB_REPOSITORY": "ThalesGroup/agilab",
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "3",
+        "GITHUB_SHA": "a" * 40,
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+@pytest.mark.parametrize(
+    "defect",
+    [None, "missing", "failed", "skipped", "pending", "foreign_attempt", "foreign_job"],
+)
+def test_active_publication_requires_own_job_and_finished_publishers(
+    monkeypatch, defect
+):
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "a" * 40
+    raw = _publication_run_fixture()
+    raw.update(status="in_progress", conclusion="")
+    raw["jobs"][-1].update(status="in_progress", conclusion="")
+    _set_publication_producer(monkeypatch)
+    if defect == "missing":
+        raw["jobs"] = [
+            x for x in raw["jobs"] if x["name"] != "pypi-provenance-evidence"
+        ]
+    elif defect in {"failed", "skipped", "pending"}:
+        raw["jobs"][1].update(
+            status="in_progress" if defect == "pending" else "completed",
+            conclusion={"failed": "failure", "skipped": "skipped", "pending": ""}[
+                defect
+            ],
+        )
+    elif defect == "foreign_attempt":
+        monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "4")
+    elif defect == "foreign_job":
+        monkeypatch.setenv("GITHUB_JOB", "unrelated-job")
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: raw)
+    if defect:
+        with pytest.raises(ValueError, match="publication"):
+            module.refresh_publication_run(
+                manifest, run_id="123", attempt="3", github_repo="ThalesGroup/agilab"
+            )
+        return
+    refreshed = module.refresh_publication_run(
+        manifest, run_id="123", attempt="3", github_repo="ThalesGroup/agilab"
+    )
+    row = next(x for x in refreshed["ci_runs"] if x["workflow"] == "pypi-publish")
+    check = module._github_ci_runs_check(
+        [row],
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        max_age_days=45,
+        release_commit="a" * 40,
+    )
+    assert check["status"] == "pass", check["details"]["failures"]
+    assert check["details"]["producer_workflow_in_progress"] is True
+    assert "still in progress" in check["summary"]
+
+
+def test_successful_workflow_without_publication_is_rejected(monkeypatch):
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "a" * 40
+    raw = _publication_run_fixture()
+    raw["jobs"] = [x for x in raw["jobs"] if x["name"] != "publish-agilab"]
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: raw)
+    with pytest.raises(ValueError, match="publication jobs"):
+        module.refresh_publication_run(
+            manifest, run_id="123", attempt="3", github_repo="ThalesGroup/agilab"
+        )
+
+
+def test_live_publication_check_rejects_consistent_old_success(monkeypatch):
+    module = _load_module()
+    raw = _publication_run_fixture()
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: raw)
+    row = {
+        "workflow": "pypi-publish",
+        "run_id": "123",
+        "attempt": "3",
+        "head_sha": "a" * 40,
+        "url": raw["url"],
+    }
+    check = module._github_ci_runs_check(
+        [row],
+        repo_root=Path.cwd(),
+        github_repo="ThalesGroup/agilab",
+        max_age_days=45,
+        release_commit="b" * 40,
+    )
+    assert check["status"] == "fail"
+    assert "release commit" in " ".join(check["details"]["failures"])
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_publication_refresh_cli_persists_exact_identity(
+    tmp_path, monkeypatch, explicit
+):
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = "a" * 40
+    path = tmp_path / "proof.toml"
+    module.write_manifest(path, manifest)
+    monkeypatch.setattr(
+        module, "refresh_manifest_from_local", lambda data, **kwargs: data
+    )
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: _publication_run_fixture())
+    monkeypatch.setattr(module, "build_report", lambda **kwargs: {"status": "pass"})
+    argv = [
+        "--data",
+        str(path),
+        "--output",
+        str(tmp_path / "proof.rst"),
+        "--refresh-from-local",
+        "--check-github-runs",
+        "--github-repo",
+        "ThalesGroup/agilab",
+        "--render",
+        "--quiet",
+        "--check",
+    ]
+    if explicit:
+        monkeypatch.setenv("GITHUB_JOB", "unrelated-job")
+        argv += ["--publication-run-id", "123", "--publication-run-attempt", "3"]
+    else:
+        _set_publication_producer(monkeypatch)
+    assert module.main(argv) == 0
+    row = next(
+        x
+        for x in module.load_manifest(path)["ci_runs"]
+        if x["workflow"] == "pypi-publish"
+    )
+    assert (row["run_id"], row["attempt"], row["head_sha"]) == ("123", "3", "a" * 40)
+    assert "/runs/123/attempts/3" in (tmp_path / "proof.rst").read_text()
+
+
+def test_invalid_publication_refresh_does_not_write_manifest(tmp_path, monkeypatch):
+    module = _load_module()
+    path = tmp_path / "proof.toml"
+    shutil.copyfile(Path("docs/source/data/release_proof.toml"), path)
+    before = path.read_bytes()
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: _publication_run_fixture())
+    with pytest.raises(ValueError, match="release commit"):
+        module.main(
+            [
+                "--data",
+                str(path),
+                "--publication-run-id",
+                "123",
+                "--publication-run-attempt",
+                "3",
+                "--github-repo",
+                "ThalesGroup/agilab",
+            ]
+        )
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("matches_release", [False, True])
+def test_bulk_github_refresh_cannot_bypass_publication_binding(
+    monkeypatch, matches_release
+):
+    module = _load_module()
+    manifest = module.load_manifest(Path("docs/source/data/release_proof.toml"))
+    manifest["release"]["github_release_commit"] = (
+        "a" if matches_release else "b"
+    ) * 40
+    monkeypatch.setattr(
+        module,
+        "_latest_successful_github_runs",
+        lambda **kwargs: {"pypi-publish": _publication_run_fixture()},
+    )
+    monkeypatch.setattr(module, "_run_gh_json", lambda args: _publication_run_fixture())
+    if not matches_release:
+        with pytest.raises(ValueError, match="release commit"):
+            module.refresh_manifest_from_github(
+                manifest,
+                workflows=("pypi-publish",),
+                github_repo="ThalesGroup/agilab",
+            )
+    else:
+        refreshed = module.refresh_manifest_from_github(
+            manifest,
+            workflows=("pypi-publish",),
+            github_repo="ThalesGroup/agilab",
+        )
+        row = next(x for x in refreshed["ci_runs"] if x["workflow"] == "pypi-publish")
+        assert row["attempt"] == "3"
+        assert row["url"].endswith("/runs/123/attempts/3")
