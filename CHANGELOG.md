@@ -23,12 +23,22 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.09.07] - 2026-09-07
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
+
 - Renamed the app to **Learning & Assessment**, with project identifier
   `learning_assessment_project` and standalone package
   `agi-app-learning-assessment`. The former `agi-app-tescia-diagnostic`
   distribution installs the new package, and its project discovery aliases
   remain available. TeSciA names the original diagnostic collection; existing
   user data and the diagnostic evidence schemas are preserved.
+
+### Changed
+
+- Published AGILAB `2026.09.07` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.07.31] - 2026-07-31
 
@@ -937,3 +947,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.07.17]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17
 [2026.07.17.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1
 [2026.07.31]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31
+[2026.09.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
