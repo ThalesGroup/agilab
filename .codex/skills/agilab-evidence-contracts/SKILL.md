@@ -3,7 +3,7 @@ name: agilab-evidence-contracts
 description: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-01
+  updated: 2026-09-08
 ---
 
 # AGILAB Evidence Contracts
@@ -48,6 +48,16 @@ For every new or changed evidence output, verify:
 - It has a documented verification, replay, or inspection command.
 - It has at least one regression test that catches schema or path drift.
 - Public docs describe what the evidence proves and what it does not prove.
+
+For agent workflow completion claims, bind the successful tool/run terminal result
+to the exact executed inputs or source snapshot, using a recorded revision or
+artifact digest. A final assistant message, a generated plan, and the absence of
+errors do not establish that binding. A digest alone establishes identity, not
+execution. If completion or source binding is missing, report what remains
+unverified; do not pair an older successful run with newer unexecuted source.
+Keep shared evidence limited to redacted identifiers and artifact metadata;
+retain raw provider transcripts and sensitive execution inputs in their existing
+local evidence store.
 
 For GitHub dataset release evidence, also verify that the manifest records every
 tracked dataset path, size, `sha256`, LFS-tracking status, and whether the file

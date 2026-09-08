@@ -3,7 +3,7 @@ name: plan-before-code
 description: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-06
+  updated: 2026-09-08
 ---
 
 # Plan Before Code
@@ -65,6 +65,9 @@ Use for risky or multi-step work.
 1. Understand the real task.
    - Separate the user request from the likely root problem.
    - If the task mentions a symptom, inspect the cause before proposing edits.
+   - For review-only requests, report code and documentation discrepancies with
+     evidence; finding a discrepancy does not authorize editing either file.
+     A follow-up `fix it` inherits the established scope and authorization.
 
 2. Inspect before proposing a fix.
    - Read the relevant files.
@@ -87,12 +90,22 @@ Use for risky or multi-step work.
 
 4. Validate assumptions before execution.
    - Confirm the file path, call site, dependency, config source, or failing case.
+   - Resolve documentation ownership from the repository's `AGENTS.md` and docs
+     tooling. Update the canonical source for an authorized behavior change;
+     do not create an alternate architecture/design document from an external
+     skill's assumed path. Resolve ordinary implementation choices within the
+     existing authorization; ask only when missing intent changes the outcome.
    - If a key assumption is unverified and easy to check, check it first.
    - Do not code around uncertainty when inspection can remove it.
 
 5. Execute in sequence.
    - Change one logical unit at a time.
    - Keep the write scope aligned with the plan.
+   - Use the repository's configured formatter from its managed environment on
+     the explicit files in the authorized change. Avoid whole-tree writes and
+     implicit tool downloads (such as an unresolved `npx` invocation) for a
+     scoped edit. Review the resulting diff for unrelated formatting changes;
+     preserve pre-existing edits when correcting any spillover.
    - If reality diverges from the plan, stop and re-plan before continuing.
 
 6. Verify before declaring success.

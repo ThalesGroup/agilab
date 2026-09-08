@@ -1,9 +1,11 @@
 """Tests for the shared in-worker pool engine (agi_node.agi_dispatcher.worker_pool_support)."""
 
+import heapq
 import logging
+import multiprocessing
 import threading
 import time
-from concurrent.futures import Future
+from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 
 import pandas as pd
@@ -284,6 +286,89 @@ def test_chunk_deadline_scales_with_waves():
     assert deadline == 2.0 * 2 + worker_pool_support._POOL_TIMEOUT_GRACE_SECONDS
 
 
+@pytest.mark.parametrize("item_count,width", [(62, 8), (100, 8), (300, 8)])
+def test_healthy_batched_chunk_waits_for_its_actual_schedule(monkeypatch, item_count, width):
+    """A virtual clock exercises real submission batches without sleep races."""
+    class ScheduledPool(RecordingPool):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.slots = [0.0] * self.max_workers
+
+        def submit(self, fn, *args):
+            future = super().submit(fn, *args)
+            # Every item is healthy: 1.8 seconds for a 2-second item budget.
+            finish = heapq.heappop(self.slots) + len(args[0]) * 1.8
+            heapq.heappush(self.slots, finish)
+            future.virtual_finish = finish
+            return future
+
+    def collect_at_virtual_completion(futures, timeout=None):
+        for future in sorted(futures, key=lambda future: future.virtual_finish):
+            if timeout is not None and future.virtual_finish > timeout:
+                raise worker_pool_support.FuturesTimeoutError()
+            yield future
+
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "process")
+    monkeypatch.setattr(worker_pool_support.os, "cpu_count", lambda: width)
+    monkeypatch.setattr(worker_pool_support, "as_completed", collect_at_virtual_completion)
+    worker = EngineWorker()
+    worker.args.update(pool_max_workers=width, pool_item_timeout=2.0)
+    worker_pool_support.exec_multi_process(
+        worker, {0: [list(range(item_count))]}, None, _pandas_hooks(ScheduledPool)
+    )
+    assert len(worker.last_dfs) == 1
+    assert worker.last_dfs[0]["col"].tolist() == list(range(item_count))
+
+
+@pytest.mark.parametrize(
+    "platform,kind,cpu_count,cap,expected",
+    [
+        ("win32", "process", 60, None, 60),
+        ("win32", "process", 61, None, 61),
+        ("win32", "process", 64, None, 61),
+        ("win32", "process", 128, None, 61),
+        ("win32", "process", 128, 4, 4),
+        ("win32", "thread", 64, None, 64),
+        ("win32", "thread", 128, None, 128),
+        ("linux", "process", 128, None, 128),
+        ("darwin", "process", 128, None, 128),
+    ],
+)
+def test_pool_width_respects_backend_platform_limits(monkeypatch, platform, kind, cpu_count, cap, expected):
+    monkeypatch.setattr(worker_pool_support.sys, "platform", platform)
+    monkeypatch.setattr(worker_pool_support.os, "cpu_count", lambda: cpu_count)
+    monkeypatch.delenv(worker_pool_support.POOL_MAX_WORKERS_ENV, raising=False)
+    args = {} if cap is None else {"pool_max_workers": cap}
+    assert worker_pool_support.resolve_pool_width([256], args, executor_kind=kind) == expected
+
+
+def test_resolved_process_width_is_accepted_by_native_executor(monkeypatch):
+    monkeypatch.setattr(worker_pool_support.os, "cpu_count", lambda: 128)
+    width = worker_pool_support.resolve_pool_width([128], {"pool_max_workers": 128}, executor_kind="process")
+    # Exercise CPython's real platform guard; no tasks or child processes start.
+    with ProcessPoolExecutor(max_workers=width, mp_context=multiprocessing.get_context("spawn")):
+        pass
+
+
+@pytest.mark.parametrize(
+    "choice,free_threaded,expected_width",
+    [("process", False, 61), ("thread", False, 64), ("auto", True, 64), ("auto", False, 61)],
+)
+def test_windows_pool_width_uses_resolved_executor(monkeypatch, choice, free_threaded, expected_width):
+    monkeypatch.setattr(worker_pool_support.sys, "platform", "win32")
+    monkeypatch.setattr(worker_pool_support.os, "cpu_count", lambda: 64)
+    monkeypatch.setattr(worker_pool_support, "_free_threading_active", lambda: free_threaded)
+    monkeypatch.setattr(worker_pool_support, "ThreadPoolExecutor", RecordingPool)
+    monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, choice)
+    worker = EngineWorker()
+    worker.args.update(pool_max_workers=128)
+    worker_pool_support.exec_multi_process(
+        worker, {0: [list(range(128))]}, None, _pandas_hooks(RecordingPool)
+    )
+    assert RecordingPool.instances[-1].max_workers == expected_width
+    assert len(worker.last_dfs[0]) == 128
+
+
 def test_timed_out_chunk_raises_and_abandons_pool(monkeypatch):
     class StuckFuture:
         def done(self):
@@ -305,7 +390,7 @@ def test_timed_out_chunk_raises_and_abandons_pool(monkeypatch):
     monkeypatch.setattr(worker_pool_support, "as_completed", _raise_timeout)
     worker = EngineWorker(mode=1)
     worker.args = {"output_format": "csv", "pool_item_timeout": 0.01}
-    with pytest.raises(RuntimeError, match="per-item time"):
+    with pytest.raises(RuntimeError, match="chunk deadline"):
         worker_pool_support.exec_multi_process(
             worker, {0: [["slow1", "slow2"]]}, None, _pandas_hooks(StuckPool)
         )
@@ -405,7 +490,7 @@ def test_resolve_executor_process_pins_default_despite_free_threading(monkeypatc
     assert factory is RecordingPool and kind == "process"
 
 
-def test_resolve_executor_never_converts_thread_family_to_process(monkeypatch):
+def test_thread_family_rejects_forced_process_before_initializing_work(monkeypatch):
     monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, "process")
     hooks = worker_pool_support.PoolFrameHooks(
         family="PolarsWorker",
@@ -416,5 +501,15 @@ def test_resolve_executor_never_converts_thread_family_to_process(monkeypatch):
         concat_labeled=lambda frames, labels: frames[0],
         empty_frame=lambda: None,
     )
-    factory, kind = worker_pool_support.resolve_executor(hooks)
-    assert factory is RecordingPool and kind == "thread"
+    worker = EngineWorker()
+    initialized = []
+    monkeypatch.setattr(worker, "work_init", lambda: initialized.append(True))
+    with pytest.raises(ValueError, match="PolarsWorker does not support process pool execution"):
+        worker_pool_support.exec_multi_process(worker, {0: [[1]]}, None, hooks)
+    assert initialized == []
+    assert RecordingPool.instances == []
+
+    for choice in ("auto", "thread"):
+        monkeypatch.setenv(worker_pool_support.POOL_EXECUTOR_ENV, choice)
+        factory, kind = worker_pool_support.resolve_executor(hooks)
+        assert factory is RecordingPool and kind == "thread"

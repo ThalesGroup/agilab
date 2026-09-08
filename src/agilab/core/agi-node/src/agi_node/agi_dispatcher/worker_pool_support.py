@@ -51,9 +51,9 @@ POOL_MAX_WORKERS_ENV = "AGILAB_POOL_MAX_WORKERS"
 #: Optional per-app override read from ``worker.args`` when present.
 POOL_MAX_WORKERS_ARG = "pool_max_workers"
 
-#: Per-work-item time budget in seconds (float). Opt-in: unset means no
-#: timeout, preserving historical behavior. Read from ``worker.args`` first,
-#: then the environment.
+#: Per-item budget in seconds used to derive a deadline for the whole chunk's
+#: batch waves. It does not preempt individual items. Opt-in: unset means no
+#: timeout. Read from ``worker.args`` first, then the environment.
 POOL_ITEM_TIMEOUT_ENV = "AGILAB_POOL_ITEM_TIMEOUT"
 POOL_ITEM_TIMEOUT_ARG = "pool_item_timeout"
 
@@ -68,6 +68,8 @@ POOL_EXECUTOR_ENV = "AGILAB_POOL_EXECUTOR"
 _POOL_TIMEOUT_GRACE_SECONDS = 5.0
 
 _MAP_CHUNKSIZE_CAP = 32
+# CPython ProcessPoolExecutor reserves two of Windows' 63 wait handles.
+_WINDOWS_PROCESS_POOL_LIMIT = 61
 
 # Worker code boundary: pool children execute app work_pool implementations;
 # each failure is captured with its work item and re-raised in the parent
@@ -88,7 +90,7 @@ class PoolFrameHooks:
     """Per worker-family hooks used by the shared pool engine."""
 
     family: str
-    executor_kind: str  # "process" or "thread" (logging/diagnostics only)
+    executor_kind: str  # Native family backend: "process" or "thread".
     executor_factory: Callable[..., Any]
     is_frame: Callable[[Any], bool]
     is_empty: Callable[[Any], bool]
@@ -106,13 +108,16 @@ def pool_mode_requested(mode: Any) -> bool:
         return False
 
 
-def resolve_pool_width(chunk_lengths: Sequence[int], args: Any = None) -> int:
+def resolve_pool_width(
+    chunk_lengths: Sequence[int], args: Any = None, *, executor_kind: str | None = None
+) -> int:
     """Resolve the pool width once per ``works()`` call.
 
     The width is bounded by the largest chunk (extra workers would idle), the
     machine's CPU count (guarding ``os.cpu_count()`` returning ``None``), and
     an optional cap from ``args[pool_max_workers]`` or
-    ``AGILAB_POOL_MAX_WORKERS``.
+    ``AGILAB_POOL_MAX_WORKERS``. A resolved process backend also respects the
+    Windows ProcessPoolExecutor limit; thread backends do not share that limit.
     """
     largest_chunk = max((int(length) for length in chunk_lengths), default=0)
     cpu_count = os.cpu_count() or 1
@@ -120,6 +125,8 @@ def resolve_pool_width(chunk_lengths: Sequence[int], args: Any = None) -> int:
     cap = _resolve_pool_cap(args)
     if cap is not None:
         width = max(min(width, cap), 1)
+    if executor_kind == "process" and sys.platform == "win32":
+        width = min(width, _WINDOWS_PROCESS_POOL_LIMIT)
     return width
 
 
@@ -172,9 +179,15 @@ def resolve_pool_item_timeout(args: Any = None) -> float | None:
 
 
 def _chunk_deadline_seconds(item_timeout: float, item_count: int, width: int) -> float:
-    """Whole-chunk deadline: serial item budget per pool slot plus grace."""
-    waves = math.ceil(item_count / max(width, 1))
-    return item_timeout * max(waves, 1) + _POOL_TIMEOUT_GRACE_SECONDS
+    """Budget whole batch waves: each future runs its items serially.
+
+    An incomplete final wave can put two batches on one slot even when an
+    average item count suggests less work. Budget a full batch for each wave
+    so healthy items do not time out because of that scheduling imbalance.
+    """
+    batch_size = map_chunksize(item_count, width)
+    waves = math.ceil(item_count / (batch_size * max(width, 1)))
+    return item_timeout * batch_size * max(waves, 1) + _POOL_TIMEOUT_GRACE_SECONDS
 
 
 def _free_threading_active() -> bool:
@@ -195,7 +208,8 @@ def resolve_executor(hooks: PoolFrameHooks) -> tuple[Callable[..., Any], str]:
     ``AGILAB_POOL_EXECUTOR=process|thread`` forces a backend; ``auto`` (or
     unset) keeps the family default, except that process-pool families run a
     thread pool on free-threaded interpreters where threads deliver the same
-    parallelism without spawn and pickling costs.
+    parallelism without spawn and pickling costs. Thread-only families reject
+    a process override because their worker state need not be picklable.
     """
     choice = os.environ.get(POOL_EXECUTOR_ENV, "auto").strip().lower() or "auto"
     if choice not in ("auto", "process", "thread"):
@@ -207,10 +221,13 @@ def resolve_executor(hooks: PoolFrameHooks) -> tuple[Callable[..., Any], str]:
         choice = "auto"
     if choice == "thread" and hooks.executor_kind != "thread":
         return ThreadPoolExecutor, "thread (forced by env)"
+    if choice == "process" and hooks.executor_kind == "thread":
+        raise ValueError(
+            f"{hooks.family} does not support process pool execution. "
+            f"Set {POOL_EXECUTOR_ENV}=auto or thread; this worker family requires threads."
+        )
     if choice in ("process", "thread"):
-        # "process" pins process families to their default (disables the
-        # free-threading auto-switch); it cannot convert a thread family,
-        # whose workers are not required to be picklable.
+        # Explicit process selection disables the free-threading auto-switch.
         return hooks.executor_factory, hooks.executor_kind
     if hooks.executor_kind == "process" and _free_threading_active():
         return ThreadPoolExecutor, "thread (free-threaded interpreter)"
@@ -318,9 +335,9 @@ def exec_multi_process(
     chunks = select_worker_chunks(worker, workers_plan)
     chunk_lengths = [len(chunk) for chunk in chunks]
     args = getattr(worker, "args", None)
-    width = resolve_pool_width(chunk_lengths, args)
-    item_timeout = resolve_pool_item_timeout(args)
     executor_factory, executor_kind = resolve_executor(hooks)
+    width = resolve_pool_width(chunk_lengths, args, executor_kind=executor_kind)
+    item_timeout = resolve_pool_item_timeout(args)
     logging.info(
         f"{hooks.family}.works - {executor_kind} pool width {width}"
         f" - worker #{worker._worker_id}"
@@ -429,9 +446,9 @@ def _run_chunk(
         if len(pending) > 3:
             preview += ", ..."
         raise _PoolItemTimeoutError(
-            f"{hooks.family}.work_pool exceeded the {item_timeout}s per-item time "
-            f"budget on chunk #{work_id} ({deadline:.1f}s chunk deadline); "
-            f"{len(pending)} item(s) still pending: {preview}. Process-pool "
+            f"{hooks.family}.work_pool exceeded the {deadline:.1f}s chunk deadline "
+            f"on chunk #{work_id} (derived from a {item_timeout}s per-item budget); "
+            f"{len(pending)} item(s) in unfinished batches: {preview}. Process-pool "
             "children are terminated; thread-pool stragglers cannot be stopped "
             "and may keep running in the background."
         ) from exc
