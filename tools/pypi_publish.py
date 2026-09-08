@@ -352,9 +352,10 @@ PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
 GITHUB_RELEASE_URL_RE = re.compile(
     r"https://github\.com/ThalesGroup/agilab/releases/tag/v[0-9A-Za-z._-]+"
 )
+LATEST_PUBLIC_GITHUB_RELEASE_URL = "https://github.com/ThalesGroup/agilab/releases/latest"
 LATEST_PUBLIC_GITHUB_RELEASE_LINK_RE = re.compile(
     rf"(?P<prefix>`latest public GitHub release\s*<)"
-    rf"(?P<url>{GITHUB_RELEASE_URL_RE.pattern})"
+    rf"(?P<url>{GITHUB_RELEASE_URL_RE.pattern}|{re.escape(LATEST_PUBLIC_GITHUB_RELEASE_URL)})"
     r"(?P<suffix>>`__)"
 )
 
@@ -2356,6 +2357,9 @@ def _replace_latest_release_url(text: str, release_url: str) -> str:
         match = _latest_public_github_release_link(text)
     except ValueError as exc:
         raise SystemExit(f"ERROR: docs/source/index.rst {exc}") from exc
+    if match.group("url") == LATEST_PUBLIC_GITHUB_RELEASE_URL:
+        # The landing page may use stable navigation; release proof pins the tag.
+        return text
     return text[: match.start("url")] + release_url + text[match.end("url") :]
 
 
@@ -2364,7 +2368,8 @@ def _latest_public_github_release_link(text: str) -> re.Match[str]:
     if len(matches) != 1:
         raise ValueError(
             "must contain exactly one managed `latest public GitHub release "
-            "<https://github.com/ThalesGroup/agilab/releases/tag/v...>`__ link; "
+            "<https://github.com/ThalesGroup/agilab/releases/latest>`__ link "
+            "or its pinned /tag/v... form; "
             f"found {len(matches)}"
         )
     return matches[0]
@@ -2675,7 +2680,7 @@ def update_public_release_references(tag: str, chosen_version: str, package_name
 
 
 def assert_public_docs_index_release_link(tag: str) -> None:
-    """Require the managed public index to be canonically prepared for a release."""
+    """Accept stable release navigation or a link pinned to the intended tag."""
 
     public_index = REPO_ROOT / "docs/source/index.rst"
     release_url = github_release_url(tag)
@@ -2690,11 +2695,11 @@ def assert_public_docs_index_release_link(tag: str) -> None:
             "ERROR: public docs index is not prepared for the release tag: "
             f"{exc}"
         ) from exc
-    if managed_link.group("url") != release_url:
+    if managed_link.group("url") not in (release_url, LATEST_PUBLIC_GITHUB_RELEASE_URL):
         raise SystemExit(
             "ERROR: public docs index is not prepared for the release tag; update "
             "the canonical docs source and sync it before release metadata: "
-            f"expected {release_url} in {public_index}"
+            f"expected {release_url} or {LATEST_PUBLIC_GITHUB_RELEASE_URL} in {public_index}"
         )
 
 
