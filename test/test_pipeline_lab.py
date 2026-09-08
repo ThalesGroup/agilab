@@ -3287,6 +3287,114 @@ def test_dag_focus_preserves_neighbors_and_complete_stage_inspection(monkeypatch
     assert any(kind == "caption" and "output_19" in message for kind, message in fake_st.messages)
 
 
+@pytest.mark.parametrize("fan_in", [False, True])
+def test_dag_neighbor_groups_bound_wide_graphs_and_reach_every_stage(monkeypatch, fan_in):
+    leaves = [
+        {"id": f"branch_{idx:02}", "produces": [{"artifact": f"output_{idx}"}]} if fan_in else
+        {"id": f"branch_{idx:02}", "artifact_dependencies": [{"artifact": f"output_{idx}", "from": "hub"}]}
+        for idx in range(40)
+    ]
+    hub = {"id": "hub", "dispatch_status": "runnable",
+           "artifact_dependencies" if fan_in else "produces": [{"artifact": f"output_{idx}"} for idx in range(40)]}
+    state = {"units": [hub, *leaves]}
+    original = json.dumps(state)
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    seen = set()
+    for page in range(14):
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+        fake_st.session_state["wide_graph_neighbor_page"] = page
+        pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+        dot = fake_st.graphviz_sources[-1]
+        assert '"hub"' in dot and "artifact:" not in dot
+        visible = {unit["id"] for unit in leaves if f'"{unit["id"]}"' in dot}
+        assert 1 <= len(visible) <= 3
+        assert not seen & visible
+        seen |= visible
+    assert seen == {unit["id"] for unit in leaves}
+    fake_st.session_state["wide_graph_stage"] = "branch_39"
+    pipeline_lab._render_multi_app_dag_graph(state, key_prefix="wide")
+    assert fake_st.session_state["wide_graph_neighbor_page"] == 0
+    assert '"hub"' in fake_st.graphviz_sources[-1]
+    assert '"branch_39"' in fake_st.graphviz_sources[-1]
+    assert json.dumps(state) == original
+
+
+def test_dag_focus_respects_explicit_producer_and_plain_stage_dependencies():
+    state = {"units": [
+        {"id": "actual", "produces": [{"artifact": "shared"}]},
+        {"id": "unrelated", "produces": [{"artifact": "shared"}]},
+        {"id": "setup"},
+        {"id": "consumer", "depends_on": ["setup"],
+         "artifact_dependencies": [{"artifact": "shared", "from": "actual"}]},
+    ]}
+    focused = pipeline_lab._multi_app_dag_graph_state(state, "consumer", focus=True)
+    assert [unit["id"] for unit in focused["units"]] == ["actual", "setup", "consumer"]
+    dot = pipeline_lab._multi_app_dag_dot(focused, stages_only=True)
+    assert '"actual" -> "consumer"' in dot
+    assert '"setup" -> "consumer"' in dot
+    assert "unrelated" not in dot
+
+
+def test_dag_stage_outputs_distinguish_plans_from_attributed_records_without_file_reads(tmp_path):
+    secret_file = tmp_path / "output.json"
+    secret_file.write_text("file contents must stay private")
+    stage = {"id": "A", "produces": [
+        {"artifact": "result", "path": "planned/result.json"},
+        {"artifact": "missing", "path": "planned/missing.json"},
+        {"artifact": "unattributed", "path": "planned/unattributed.json"},
+    ]}
+    state = {"units": [stage], "artifacts": [
+        {"artifact": "result", "producer": "A", "status": "available", "path": str(secret_file), "sha256": "recorded-digest"},
+        {"artifact": "missing", "producer": "B", "status": "available", "path": "/other-stage/output.json"},
+        {"artifact": "unattributed", "status": "available", "path": "/unattributed/output.json"},
+        {"artifact": "extra", "producer": "A", "status": "missing", "path": "https://example.test?token=secret"},
+    ]}
+    original = json.dumps(state)
+    rows = pipeline_lab._multi_app_dag_stage_output_rows(state, stage)
+    assert [row["Status"] for row in rows] == ["recorded available", "planned", "planned", "recorded missing"]
+    assert rows[0]["Location"] == str(secret_file)
+    assert rows[0]["Recorded SHA-256"] == "recorded-digest"
+    assert rows[1]["Location"] == "planned/missing.json"
+    assert "secret" not in rows[-1]["Location"]
+    assert "file contents must stay private" not in json.dumps(rows)
+    assert json.dumps(state) == original
+
+
+def test_dag_stage_trace_is_filtered_bounded_redacted_and_keeps_full_download(monkeypatch):
+    stage = {"id": "A", "dispatch_status": "failed"}
+    state = {"units": [stage], "events": [
+        {"unit_id": unit, "kind": "unit_failed", "timestamp": f"2026-09-08T10:00:{idx:02}Z",
+         "from_status": "running", "to_status": "failed", "detail": "TOKEN=private " + "x" * 400}
+        for unit in ("A", "B") for idx in range(30)
+    ]}
+    fake_st = _FakeStreamlit()
+    downloads = []
+    fake_st.download_button = lambda label, **kwargs: downloads.append((label, kwargs))
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_stage_evidence(state, stage, key_prefix="trace")
+    visible = fake_st.dataframes[0]
+    assert len(visible) == 20 and set(visible["Stage"]) == {"A"}
+    assert visible.iloc[0]["Time"].endswith("29Z")
+    assert max(visible["Detail"].str.len()) <= 220
+    assert "private" not in visible.to_csv(index=False)
+    assert len(downloads[0][1]["data"].splitlines()) == 31
+    assert "private" not in downloads[0][1]["data"]
+    assert ("caption", "Showing the latest 20 of 30 recorded events.") in fake_st.messages
+    assert any("not verified here" in message for _kind, message in fake_st.messages)
+
+
+def test_dag_stage_evidence_empty_state_does_not_borrow_other_stage_events(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_multi_app_dag_stage_evidence(
+        {"events": [{"unit_id": "B", "kind": "unit_completed"}]}, {"id": "A"}, key_prefix="empty",
+    )
+    assert ("caption", "No events recorded for this stage yet.") in fake_st.messages
+    assert ("caption", "No outputs declared or recorded for this stage.") in fake_st.messages
+    assert not fake_st.dataframes
+
+
 def test_selected_execution_graph_matches_waves_and_excludes_unselected_stages():
     dot = pipeline_lab._workflow_dependency_dot(
         stage_ids_by_idx={2: "C", 0: "A"}, deps_by_stage_id={"C": [], "A": []},

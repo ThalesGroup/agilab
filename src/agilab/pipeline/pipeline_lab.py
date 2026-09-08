@@ -12,15 +12,19 @@ import pandas as pd
 from agilab.components.code_editor_component import code_editor
 import streamlit as st
 from agilab.pipeline.pipeline_dag_inspection import (
+    _multi_app_dag_stage_links,
+    _multi_app_dag_graph_state,
+    _multi_app_dag_stage_output_rows,
     _multi_app_dag_executor_label,
     _state_units_for_display as _state_units_for_display,
-    _workplan_artifact_id,
+    _workplan_artifact_id as _workplan_artifact_id,
     _multi_app_dag_workplan_state,
     _multi_app_dag_workplan_needs,
     _multi_app_dag_workplan_produces,
     _multi_app_dag_missing_inputs,
     _multi_app_dag_units,
 )
+from agilab.environment.logging_utils import bound_log_value, redact_log_value
 
 from agi_env import AgiEnv
 from agi_gui.pagelib import (
@@ -2431,7 +2435,9 @@ def _dot_quote(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
 
-def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> str:
+def _multi_app_dag_dot(
+    state: Dict[str, Any], *, selected_unit_id: str = "", stages_only: bool = False
+) -> str:
     units = state.get("units", [])
     if not isinstance(units, list) or not units:
         return ""
@@ -2463,6 +2469,8 @@ def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> 
         fill = status_colors.get(status, "#f8fafc")
         selected_style = ', color="#2563eb", penwidth=3' if unit_id == selected_unit_id else ""
         lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}{selected_style}];")
+        if stages_only:
+            continue
         for artifact in unit.get("produces", []):
             if not isinstance(artifact, dict):
                 continue
@@ -2481,6 +2489,10 @@ def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> 
                     continue
                 artifact_nodes.setdefault(artifact_id, "available" if artifact_id in available else "missing")
                 lines.append(f"  {_dot_quote('artifact:' + artifact_id)} -> {_dot_quote(unit_id)};")
+    if stages_only:
+        for (source, target), artifacts in sorted(_multi_app_dag_stage_links(state).items()):
+            tooltip = ", ".join(sorted(artifact for artifact in artifacts if artifact)) or "Stage dependency"
+            lines.append(f"  {_dot_quote(source)} -> {_dot_quote(target)} [tooltip={_dot_quote(tooltip)}];")
     for artifact_id, status in sorted(artifact_nodes.items()):
         fill = "#dcfce7" if status == "available" else "#fff7ed" if status == "missing" else "#f8fafc"
         label = f"{_short_graph_label(artifact_id, limit=24)}\n{status}"
@@ -2492,37 +2504,34 @@ def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> 
     return "\n".join(lines)
 
 
-def _multi_app_dag_graph_state(
-    state: Dict[str, Any], selected_unit_id: str, *, focus: bool
-) -> Dict[str, Any]:
-    """Keep a selected stage and its immediate artifact producers/consumers."""
-    if not focus:
-        return state
-    raw_units = state.get("units", [])
-    units = [unit for unit in raw_units if isinstance(unit, dict)] if isinstance(raw_units, list) else []
-    selected = next((unit for unit in units if unit.get("id") == selected_unit_id), None)
-    if selected is None:
-        return state
-
-    def artifacts(unit: dict[str, Any], field: str) -> set[str]:
-        values = unit.get(field, [])
-        if not isinstance(values, list):
-            return set()
-        return {
-            _workplan_artifact_id(artifact)
-            for artifact in values
-            if isinstance(artifact, dict) and _workplan_artifact_id(artifact)
-        }
-
-    inputs = artifacts(selected, "artifact_dependencies")
-    outputs = artifacts(selected, "produces")
-    visible = [
-        unit for unit in units
-        if unit.get("id") == selected_unit_id
-        or artifacts(unit, "produces") & inputs
-        or artifacts(unit, "artifact_dependencies") & outputs
-    ]
-    return {**state, "units": visible}
+def _render_multi_app_dag_stage_evidence(state: Dict[str, Any], selected: dict[str, Any], *, key_prefix: str) -> None:
+    with st.expander("Stage trace and outputs", expanded=False):
+        st.caption("Recorded events and output metadata for this stage. File contents and hashes are not verified here.")
+        rows = [
+            {key: redact_log_value(value) for key, value in row.items()}
+            for row in _multi_app_dag_execution_history_rows(state)
+            if row["Stage"] == str(selected.get("id", ""))
+        ]
+        st.markdown("**Stage trace**")
+        if rows:
+            visible = [{**row, "Detail": bound_log_value(row["Detail"], limit=220)} for row in rows[:20]]
+            st.dataframe(pd.DataFrame(visible), hide_index=True, width="stretch")
+            st.caption(f"Showing the latest {len(visible)} of {len(rows)} recorded events.")
+            st.download_button(
+                "Download stage trace", data=pd.DataFrame(rows).to_csv(index=False),
+                file_name="stage-trace.csv", mime="text/csv", key=f"{key_prefix}_stage_trace_download",
+            )
+        else:
+            st.caption("No events recorded for this stage yet.")
+        st.markdown("**Stage outputs**")
+        outputs = _multi_app_dag_stage_output_rows(state, selected)
+        if outputs:
+            render_paginated_dataframe(
+                st, pd.DataFrame(outputs), key=f"{key_prefix}_stage_outputs_{selected.get('id', '')}",
+                page_size=20, hide_index=True, width="stretch",
+            )
+        else:
+            st.caption("No outputs declared or recorded for this stage.")
 
 
 def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> None:
@@ -2556,19 +2565,42 @@ def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> No
         )
     with scope_col:
         scope = st.selectbox("Graph scope", scopes, key=scope_key)
-    graph_state = _multi_app_dag_graph_state(state, selected_id, focus=scope == scopes[1])
-    st.graphviz_chart(_multi_app_dag_dot(graph_state, selected_unit_id=selected_id), width="content")
-    if scope == scopes[1]:
-        st.caption(f"Showing {len(graph_state['units'])} of {len(units)} stages. Choose another stage or Whole plan to explore the rest.")
+    focus = scope == scopes[1]
+    graph_state = _multi_app_dag_graph_state(state, selected_id, focus=focus)
+    if focus:
+        neighbors = tuple(unit["id"] for unit in graph_state["units"] if unit["id"] != selected_id)
+        page_key = f"{key_prefix}_graph_neighbor_page"
+        context_key = f"{key_prefix}_graph_neighbor_context"
+        context = (selected_id, neighbors)
+        pages = list(range(max(1, (len(neighbors) + 2) // 3)))
+        if st.session_state.get(context_key) != context or st.session_state.get(page_key) not in pages:
+            st.session_state[page_key] = 0
+            st.session_state[context_key] = context
+        if len(pages) > 1:
+            st.selectbox(
+                "Neighbor group", pages, key=page_key,
+                format_func=lambda page: f"Neighbors {page * 3 + 1}–{min(page * 3 + 3, len(neighbors))} of {len(neighbors)}",
+                help="Browse connected stages in plan order. Choosing another stage returns to its first group.",
+            )
+        graph_state = _multi_app_dag_graph_state(
+            state, selected_id, focus=True, neighbor_offset=st.session_state[page_key] * 3, neighbor_limit=3,
+        )
+    st.graphviz_chart(_multi_app_dag_dot(graph_state, selected_unit_id=selected_id, stages_only=focus), width="content")
+    if focus:
+        st.caption(f"Showing {len(graph_state['units'])} of {len(units)} stages. Connections join stages; inputs and outputs are listed below. Choose Whole plan for the full artifact graph.")
     selected = units[selected_id]
     st.caption(f"{selected_id}: {_multi_app_dag_workplan_state(selected)}")
     input_col, output_col = st.columns(2)
-    input_col.caption(f"Inputs: {_multi_app_dag_workplan_needs(selected)}")
-    output_col.caption(f"Outputs: {_multi_app_dag_workplan_produces(selected)}")
+    input_col.caption(f"Inputs: {bound_log_value(_multi_app_dag_workplan_needs(selected), limit=180)}")
+    output_col.caption(f"Outputs: {bound_log_value(_multi_app_dag_workplan_produces(selected), limit=180)}")
     _render_multi_app_dag_blockers(state, selected, key_prefix=key_prefix)
+    _render_multi_app_dag_stage_evidence(state, selected, key_prefix=key_prefix)
     with st.expander("Stage details", expanded=False):
         st.caption(f"App: {selected.get('app', '')}")
         st.caption(f"Runs with: {_multi_app_dag_executor_label(selected)}")
+        for label, value in (("All inputs", _multi_app_dag_workplan_needs(selected)), ("All outputs", _multi_app_dag_workplan_produces(selected))):
+            if len(value) > 180:
+                st.caption(f"{label}: {value}")
         st.download_button(
             "Download full graph",
             data=_multi_app_dag_dot(state),
