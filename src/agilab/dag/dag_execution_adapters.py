@@ -256,6 +256,36 @@ def _next_runnable_unit(state: Mapping[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def planned_stage_ids(
+    adapter_id: str, state: Mapping[str, Any], *, batch: bool = False
+) -> tuple[str, ...]:
+    """Preview the adapter's next targets without claims, writes or execution."""
+    if adapter_id == CONTROLLED_CONTRACT_ADAPTER:
+        projected = deepcopy(dict(state))
+        _unblock_ready_units(projected, timestamp="")
+        ready = _runnable_units(projected)
+        return tuple(str(unit["id"]) for unit in (ready if batch else ready[:1]))
+    if adapter_id == UAV_QUEUE_ADAPTER:
+        next_id = _next_uav_queue_to_relay_unit_id(state)
+        return (next_id,) if next_id else ()
+    raise ValueError(f"No execution target preview is available for adapter `{adapter_id}`.")
+
+
+def _next_uav_queue_to_relay_unit_id(state: Mapping[str, Any]) -> str | None:
+    queue = _dag_unit(state, QUEUE_UNIT_ID)
+    relay = _dag_unit(state, RELAY_UNIT_ID)
+    if not isinstance(queue, dict) or not isinstance(relay, dict):
+        return None
+    if str(queue.get("dispatch_status", "")) == "runnable":
+        return QUEUE_UNIT_ID
+    if (
+        str(relay.get("dispatch_status", "")) in {"runnable", "blocked"}
+        and "queue_metrics" in available_artifact_ids(state)
+    ):
+        return RELAY_UNIT_ID
+    return None
+
+
 def _runnable_units(state: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [
         unit
@@ -348,10 +378,10 @@ def _run_next_uav_queue_to_relay_stage(
             state=mutable_state,
         )
 
-    queue_status = str(queue.get("dispatch_status", ""))
+    next_unit_id = _next_uav_queue_to_relay_unit_id(mutable_state)
     relay_status = str(relay.get("dispatch_status", ""))
     timestamp = context.now_fn()
-    if queue_status == "runnable":
+    if next_unit_id == QUEUE_UNIT_ID:
         idempotency_token = _unit_idempotency_token(context, QUEUE_UNIT_ID)
         _mark_controlled_stage_running(
             mutable_state,
@@ -397,7 +427,7 @@ def _run_next_uav_queue_to_relay_stage(
             executed_unit_id=QUEUE_UNIT_ID,
         )
 
-    if relay_status in {"runnable", "blocked"} and "queue_metrics" in available_artifact_ids(mutable_state):
+    if next_unit_id == RELAY_UNIT_ID:
         if relay_status == "blocked":
             _unblock_relay_after_queue(mutable_state, timestamp=timestamp)
         idempotency_token = _unit_idempotency_token(context, RELAY_UNIT_ID)

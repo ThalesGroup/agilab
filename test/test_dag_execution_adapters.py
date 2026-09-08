@@ -54,6 +54,39 @@ def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
     )
 
 
+def test_target_preview_rechecks_available_inputs_without_mutating_state():
+    state = {
+        "units": [
+            {"id": "newly_ready", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "input"}]},
+            {"id": "already_ready", "dispatch_status": "runnable"},
+            {"id": "waiting", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "absent"}]},
+            {"id": "failed", "dispatch_status": "failed", "artifact_dependencies": []},
+        ],
+        "artifacts": [{"artifact": "input", "status": "available"}],
+        "events": [],
+        "summary": {"runnable_unit_ids": ["already_ready"]},
+    }
+    original = json.dumps(state, sort_keys=True)
+    assert dag_execution_adapters.planned_stage_ids("controlled_contract_dag", state) == ("newly_ready",)
+    assert dag_execution_adapters.planned_stage_ids("controlled_contract_dag", state, batch=True) == ("newly_ready", "already_ready")
+    assert json.dumps(state, sort_keys=True) == original
+    with pytest.raises(ValueError, match="No execution target preview"):
+        dag_execution_adapters.planned_stage_ids("unknown", state)
+
+
+def test_uav_target_preview_preserves_adapter_order_and_single_stage_batch():
+    state = {"units": [
+        {"id": "relay_followup", "dispatch_status": "runnable"},
+        {"id": "queue_baseline", "dispatch_status": "runnable"},
+    ], "artifacts": [{"artifact": "queue_metrics", "status": "available"}]}
+    assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state) == ("queue_baseline",)
+    assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state, batch=True) == ("queue_baseline",)
+    state["units"][1]["dispatch_status"] = "completed"
+    assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state) == ("relay_followup",)
+    state["artifacts"] = []
+    assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state) == ()
+
+
 def test_adapter_dispatch_reports_unknown_adapter(tmp_path):
     result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "missing-adapter",
@@ -178,12 +211,16 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
         persist_execution_claim_fn=lambda _state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
     )
 
+    first_targets = dag_execution_adapters.planned_stage_ids("controlled_contract_dag", state)
     first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag", state, context
     )
+    assert first_targets == (first.executed_unit_id,)
+    second_targets = dag_execution_adapters.planned_stage_ids("controlled_contract_dag", first.state)
     second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag", first.state, context
     )
+    assert second_targets == (second.executed_unit_id,)
     third = dag_execution_adapters._run_next_adapter_stage_uncommitted(
         "controlled_contract_dag", second.state, context
     )

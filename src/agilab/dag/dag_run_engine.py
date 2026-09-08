@@ -23,6 +23,7 @@ from .dag_execution_adapters import (
     DagStageExecutionResult,
     _DURABLE_CLAIM_RECEIPT,
     available_artifact_ids,  # noqa: F401 - re-exported for pipeline_lab compatibility
+    planned_stage_ids,  # noqa: F401 - read-only target preview for pipeline_lab
     dag_units,
     recover_execution_attempt,
     registered_execution_adapter_ids,
