@@ -59,6 +59,29 @@ def _load_shap_helpers() -> ModuleType:
     return module
 
 
+def test_shap_optional_artifacts_stay_with_the_selected_run(tmp_path, monkeypatch) -> None:
+    project = _create_demo_project(tmp_path)
+    root = tmp_path / "export/minimal_app/shap_explanation"
+    for name in ("run_a", "run_b"):
+        (root / name).mkdir(parents=True)
+        (root / name / "shap_values.csv").write_text("feature,shap_value\nage,0.4\n")
+    (root / "run_b/feature_values.csv").write_text("feature,feature_value\nage,99\n")
+    (root / "run_b/explanation_summary.json").write_text('{"prediction": 0.9}')
+    at = _run_shap_page(tmp_path, monkeypatch, project)
+    assert not at.exception
+    assert at.selectbox[1].value is None and at.selectbox[2].value is None
+    assert next(metric.value for metric in at.metric if metric.label == "Prediction") == "n/a"
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project)]):
+        at.selectbox[0].set_value(root / "run_b/shap_values.csv").run()
+    assert not at.exception
+    assert at.selectbox[1].value == root / "run_b/feature_values.csv"
+    assert at.dataframe[0].value["feature_value"].iloc[0] == 99
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project)]):
+        at.selectbox[0].set_value(root / "run_a/shap_values.csv").run()
+    assert not at.exception
+    assert at.selectbox[1].value is None and at.selectbox[2].value is None
+
+
 def test_view_shap_explanation_renders_exported_artifacts(tmp_path: Path, monkeypatch) -> None:
     project_dir = _create_demo_project(tmp_path)
     artifact_dir = tmp_path / "export" / "minimal_app" / "shap_explanation"

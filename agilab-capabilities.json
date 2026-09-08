@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-07T15:15:37Z",
+  "generated_at_utc": "2026-09-08T11:17:10Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -812,7 +812,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "path": ".claude/skills/agilab-evidence-contracts/SKILL.md",
-      "updated": "2026-06-01"
+      "updated": "2026-09-08"
     },
     {
       "name": "agilab-example-maturity",
@@ -938,13 +938,13 @@
       "name": "plan-before-code",
       "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
       "path": ".claude/skills/plan-before-code/SKILL.md",
-      "updated": "2026-05-06"
+      "updated": "2026-09-08"
     },
     {
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "path": ".claude/skills/repo-skill-maintenance/SKILL.md",
-      "updated": "2026-07-27"
+      "updated": "2026-09-08"
     },
     {
       "name": "report-qa-docx",

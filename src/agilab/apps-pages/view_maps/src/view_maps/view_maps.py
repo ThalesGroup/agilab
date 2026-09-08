@@ -290,11 +290,23 @@ def _compute_viewport(df: pd.DataFrame, lat_col: str, lon_col: str) -> dict[str,
     if latitudes.empty or longitudes.empty:
         return None
     lat_min, lat_max = latitudes.min(), latitudes.max()
-    lon_min, lon_max = longitudes.min(), longitudes.max()
+    # Remove the largest empty arc to fit dateline crossings in a local view.
+    wrapped = sorted(set(float(value) % 360 for value in longitudes))
+    gaps = [
+        ((wrapped[(index + 1) % len(wrapped)] - value) % 360, index)
+        for index, value in enumerate(wrapped)
+    ]
+    gap, index = max(gaps)
+    span_lon = 0.0 if len(wrapped) == 1 else 360.0 - gap
+    start_lon = wrapped[(index + 1) % len(wrapped)]
     center_lat = float((lat_min + lat_max) / 2)
-    center_lon = float((lon_min + lon_max) / 2)
+    center_lon = (start_lon + span_lon / 2 + 180) % 360 - 180
+    lon_min, lon_max = longitudes.min(), longitudes.max()
+    if lon_max - lon_min <= 180:
+        # Preserve the ordinary-coordinate midpoint without modulo roundoff.
+        center_lon = float((lon_min + lon_max) / 2)
+        span_lon = float(lon_max - lon_min)
     span_lat = abs(lat_max - lat_min)
-    span_lon = abs(lon_max - lon_min)
     span = max(span_lat, span_lon)
     zoom = _compute_zoom_from_span(span if span > 0 else 0.01)
     return {"center_lat": center_lat, "center_lon": center_lon, "default_zoom": zoom}

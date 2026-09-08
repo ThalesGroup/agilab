@@ -505,12 +505,32 @@ _IVDL_HEATMAP_COLOR_RANGE = [
 ]
 
 
-@st.cache_data(show_spinner=False)
+def _artifact_signature(path_str: str) -> tuple[int, int] | None:
+    try:
+        stat = Path(path_str).expanduser().stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
 def _load_cloud_heatmap_points(
     npz_path: str,
     stride: int = 25,
     min_weight: float = 0.0,
     max_points: int = _CLOUD_HEATMAP_MAX_POINTS,
+) -> pd.DataFrame:
+    return _load_cloud_heatmap_points_cached(
+        npz_path, _artifact_signature(npz_path), stride, min_weight, max_points
+    )
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def _load_cloud_heatmap_points_cached(
+    npz_path: str,
+    file_signature: tuple[int, int] | None,
+    stride: int,
+    min_weight: float,
+    max_points: int,
 ) -> pd.DataFrame:
     """Load a cloud map NPZ (heatmap/x_min/z_min/step/center arrays) and convert sampled grid points to lat/lon."""
     path = Path(npz_path).expanduser()
@@ -578,8 +598,14 @@ def _load_cloud_heatmap_points(
     return pd.DataFrame({"long": lon, "lat": lat, "weight": weights})
 
 
-@st.cache_data(show_spinner=False)
 def _load_cloud_heatmap_grid(npz_path: str) -> dict[str, Any]:
+    return _load_cloud_heatmap_grid_cached(npz_path, _artifact_signature(npz_path))
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def _load_cloud_heatmap_grid_cached(
+    npz_path: str, file_signature: tuple[int, int] | None
+) -> dict[str, Any]:
     path = Path(npz_path).expanduser()
     if not path.exists():
         raise FileNotFoundError(path)
@@ -2016,8 +2042,14 @@ def load_positions_at_time(traj_glob: str, t: float) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
-@st.cache_data(show_spinner=False)
 def _load_traj_file(path_str: str) -> pd.DataFrame:
+    return _load_traj_file_cached(path_str, _artifact_signature(path_str))
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def _load_traj_file_cached(
+    path_str: str, file_signature: tuple[int, int] | None
+) -> pd.DataFrame:
     p = Path(path_str).expanduser()
     if not p.exists():
         return pd.DataFrame()

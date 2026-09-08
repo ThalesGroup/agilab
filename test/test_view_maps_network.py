@@ -449,6 +449,25 @@ def test_view_maps_network_prefers_semantic_ids_when_normalizing_rows(
     assert module._preferred_node_id_from_row(row) == "2002"
 
 
+def test_network_caches_track_mutable_overlay_files(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    trajectory = tmp_path / "trajectory.csv"
+    assert module._load_traj_file(str(trajectory)).empty
+    trajectory.write_text("x\n1\n")
+    assert module._load_traj_file(str(trajectory))["x"].iloc[0] == 1
+    trajectory.write_text("x\n999\n")
+    assert module._load_traj_file(str(trajectory))["x"].iloc[0] == 999
+    heatmap = tmp_path / "heatmap.npz"
+    for weight in (1.0, 9.0):
+        np.savez(heatmap, heatmap=np.full((2, 2), weight), x_min=0, z_min=0, step=1, center=np.array([0, 0]))
+        # Explicit times make same-size replacement deterministic on every OS.
+        import os
+        os.utime(heatmap, ns=(int(weight * 1_000_000_000),) * 2)
+        assert module._load_cloud_heatmap_grid(str(heatmap))["heatmap"][0, 0] == weight
+        points = module._load_cloud_heatmap_points(str(heatmap), stride=1)
+        assert points["weight"].eq(weight).all() and len(points) == 4
+
+
 def test_view_maps_network_loads_heatmap_points_and_stats(
     monkeypatch, tmp_path: Path
 ) -> None:
