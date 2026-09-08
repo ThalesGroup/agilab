@@ -435,6 +435,17 @@ def test_view_maps_default_app_returns_none_without_builtin_projects(
     assert module._default_app() is None
 
 
+@pytest.mark.parametrize("longitudes", [[179.0, -179.0], [-179.0, 179.0], [179.0, -179.0, 179.0]])
+def test_view_maps_fits_dateline_crossing(longitudes) -> None:
+    module = _load_view_maps_module()
+    viewport = module._compute_viewport(
+        pd.DataFrame({"lat": [10.0] * len(longitudes), "lon": longitudes}), "lat", "lon"
+    )
+    assert abs(viewport["center_lon"]) == 180.0
+    assert viewport["center_lat"] == 10.0
+    assert viewport["default_zoom"] == 8
+
+
 def test_view_maps_computes_viewport_for_numeric_coordinates() -> None:
     module = _load_view_maps_module()
     df = pd.DataFrame(

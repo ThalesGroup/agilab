@@ -523,8 +523,29 @@ def _load_training_history_frame(history_file: Path) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner=False)
 def _load_scalar_frame(run_dir_str: str) -> pd.DataFrame:
+    try:
+        return _load_current_scalar_frame(run_dir_str)
+    except OSError as exc:
+        raise RuntimeError(
+            f"Unable to read training artifacts: {exc}. Finish the export and retry."
+        ) from exc
+
+
+def _load_current_scalar_frame(run_dir_str: str) -> pd.DataFrame:
+    run_path = Path(run_dir_str).expanduser().resolve()
+    files = [run_path] if run_path.is_file() else sorted(run_path.glob("events.out.tfevents.*"))
+    signatures = []
+    for path in files:
+        stat = path.stat()
+        signatures.append((str(path), stat.st_mtime_ns, stat.st_size))
+    return _load_scalar_frame_cached(str(run_path), tuple(signatures))
+
+
+@st.cache_data(show_spinner=False, max_entries=128)
+def _load_scalar_frame_cached(
+    run_dir_str: str, file_signatures: tuple[tuple[str, int, int], ...]
+) -> pd.DataFrame:
     run_path = Path(run_dir_str)
     if run_path.is_file() and run_path.name == TRAINING_HISTORY_REL.name:
         return _load_training_history_frame(run_path)

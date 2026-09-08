@@ -58,6 +58,67 @@ def _load_forecast_helpers() -> ModuleType:
     return module
 
 
+def test_forecast_requires_predictions_from_selected_run(tmp_path, monkeypatch) -> None:
+    project = _create_forecast_project(tmp_path)
+    root = tmp_path / "export/weather_forecast/forecast_analysis"
+    for name in ("run_a", "run_b"):
+        (root / name).mkdir(parents=True)
+        (root / name / "forecast_metrics.json").write_text(json.dumps({"mae": 0.1}))
+    predictions = root / "run_b/forecast_predictions.csv"
+    predictions.write_text("ds,y_true,y_pred\n2026-09-01,0,100\n")
+    at = _run_forecast_page(tmp_path, monkeypatch, project)
+    assert not at.exception
+    assert any("selected metrics run" in warning.value for warning in at.warning)
+    assert not at.metric and not at.dataframe
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project)]):
+        at.selectbox[0].set_value(root / "run_b/forecast_metrics.json").run()
+    assert not at.exception and not at.warning
+    assert at.selectbox[1].value == predictions
+    assert at.dataframe[0].value["y_pred"].iloc[0] == 100
+
+
+@pytest.mark.parametrize("metrics,predictions", [
+    ('{"mae":', "ds,y_true,y_pred\n2026-09-01,1,1\n"),
+    ("[]", "ds,y_true,y_pred\n2026-09-01,1,1\n"),
+    ("{}", ""),
+    ("{}", "value\n1\n"),
+    ("{}", "ds,y_true,y_pred\nnot-a-date,1,1\n"),
+    ('{"run_id":"a"}', "ds,y_true,y_pred,run_id\n2026-09-01,1,1,b\n"),
+])
+def test_forecast_invalid_exports_can_recover(tmp_path, monkeypatch, metrics, predictions) -> None:
+    project = _create_forecast_project(tmp_path)
+    root = tmp_path / "export/weather_forecast/forecast_analysis"
+    root.mkdir(parents=True)
+    metrics_path = root / "forecast_metrics.json"
+    predictions_path = root / "forecast_predictions.csv"
+    metrics_path.write_text(metrics)
+    predictions_path.write_text(predictions)
+    at = _run_forecast_page(tmp_path, monkeypatch, project)
+    assert not at.exception
+    assert len(at.error) == 1
+    assert not at.dataframe
+    metrics_path.write_text('{"mae": 0.2}')
+    predictions_path.write_text("ds,y_true,y_pred\n2026-09-01,1,1\n")
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project)]):
+        at.button[0].click().run()
+    assert not at.exception and not at.error
+    assert len(at.dataframe) == 1
+
+
+@pytest.mark.parametrize("run_id", ["001", "NA", "null"])
+def test_forecast_preserves_textual_run_ids(tmp_path, monkeypatch, run_id) -> None:
+    project = _create_forecast_project(tmp_path)
+    root = tmp_path / "export/weather_forecast/forecast_analysis"
+    root.mkdir(parents=True)
+    (root / "forecast_metrics.json").write_text(json.dumps({"run_id": run_id}))
+    (root / "forecast_predictions.csv").write_text(
+        f"ds,y_true,y_pred,run_id\n2026-09-01,1,1,{run_id}\n"
+    )
+    at = _run_forecast_page(tmp_path, monkeypatch, project)
+    assert not at.exception and not at.error
+    assert at.dataframe[0].value["run_id"].iloc[0] == run_id
+
+
 def test_view_forecast_analysis_renders_exported_artifacts(tmp_path, monkeypatch) -> None:
     project_dir = _create_forecast_project(tmp_path)
 

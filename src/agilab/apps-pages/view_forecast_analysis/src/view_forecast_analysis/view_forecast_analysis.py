@@ -78,15 +78,26 @@ def _safe_float(value: Any) -> float | None:
 
 
 def _load_metrics(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Metrics must be a JSON object.")
+    return payload
 
 
 def _load_predictions(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, converters={"run_id": str})
     if "date" not in df.columns and "ds" in df.columns:
         df = df.rename(columns={"ds": "date"})
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    if df.empty:
+        raise ValueError("Predictions contain no rows.")
+    if not {"date", "y_true", "y_pred"}.issubset(df.columns):
+        raise ValueError("Predictions require date (or ds), y_true, and y_pred columns.")
+    if df["date"].isna().any():
+        raise ValueError("Predictions contain invalid dates.")
+    for column in ("y_true", "y_pred"):
+        df[column] = pd.to_numeric(df[column], errors="raise")
     return df
 
 
@@ -140,14 +151,30 @@ metrics_path = st.sidebar.selectbox(
     options=metrics_files,
     format_func=lambda path: str(Path(path).relative_to(artifact_root)),
 )
+prediction_files = [path for path in prediction_files if path.parent == Path(metrics_path).parent]
+if not prediction_files:
+    st.warning("No predictions file belongs to the selected metrics run. Export both files into the same run directory.")
+    st.stop()
 predictions_path = st.sidebar.selectbox(
     "Predictions file",
     options=prediction_files,
     format_func=lambda path: str(Path(path).relative_to(artifact_root)),
 )
 
-metrics = _load_metrics(Path(metrics_path))
-predictions = _load_predictions(Path(predictions_path))
+try:
+    loading_path = Path(metrics_path)
+    metrics = _load_metrics(loading_path)
+    loading_path = Path(predictions_path)
+    predictions = _load_predictions(loading_path)
+    if metrics.get("run_id") is not None and "run_id" in predictions:
+        if not predictions["run_id"].astype(str).eq(str(metrics["run_id"])).all():
+            raise ValueError("Prediction run_id does not match the selected metrics.")
+except (OSError, ValueError, pd.errors.ParserError) as exc:
+    st.error(f"Unable to load {loading_path.name}: {exc}")
+    st.caption("Finish or repair the export, then retry.")
+    if st.button("Retry loading artifacts"):
+        st.rerun()
+    st.stop()
 
 meta_left, meta_right = st.columns([2, 1])
 with meta_left:

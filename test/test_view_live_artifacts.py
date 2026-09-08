@@ -25,6 +25,41 @@ def _set_mtime(path: Path, value: int) -> None:
     os.utime(path, ns=(value, value))
 
 
+def test_live_discovery_cache_reuses_scan_and_refreshes_exact_root(tmp_path, monkeypatch):
+    module = _load_module()
+    artifact = tmp_path / "first.json"
+    artifact.write_text("{}")
+    calls = []
+    scan = module._discover_artifact_scan
+
+    def counted(*args, **kwargs):
+        calls.append(args[0])
+        return scan(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_discover_artifact_scan", counted)
+    args = (str(tmp_path), ("*.json",), 1)
+    records, total, timestamp = module._cached_artifact_scan(*args)
+    assert len(records) == total == 1
+    (tmp_path / "second.json").write_text("{}")
+    assert module._cached_artifact_scan(*args) == (records, total, timestamp)
+    assert len(calls) == 1
+    module._cached_artifact_scan.clear(*args)
+    refreshed, count, _ = module._cached_artifact_scan(*args)
+    assert len(refreshed) == 1 and count == 2
+    assert len(calls) == 2
+
+
+def test_live_discovery_counts_all_matches_but_returns_newest(tmp_path):
+    module = _load_module()
+    for index in range(30):
+        path = tmp_path / f"{index}.json"
+        path.write_text("{}")
+        _set_mtime(path, (index + 1) * 1_000_000_000)
+    records, total = module._discover_artifact_scan(tmp_path, ("*.json",), limit=2)
+    assert total == 30
+    assert [record.path.name for record in records] == ["29.json", "28.json"]
+
+
 def test_live_artifacts_parse_patterns_and_format_helpers() -> None:
     module = _load_module()
 
