@@ -224,6 +224,23 @@ The graph is visible immediately below a compact readiness summary. Select
 executor. Labels use separate lines for the short identifier and status; full
 identifiers remain available in the inspector.
 
+Inspecting a stage changes the details shown. The run buttons follow workflow
+readiness: ``Next run`` names the stage that will be attempted, while ``Batch run``
+lists the batch targets. These may include a waiting stage whose inputs have
+become available since the last state update. ``Next preview`` identifies the
+stage affected by the preview action. Changing the inspected stage does not
+change these execution targets.
+
+For a waiting stage, ``Waiting for inputs`` identifies each missing output and
+its producer's state. The guidance distinguishes a producer that is ready,
+running, waiting, failed, or done without the expected output. ``Inspect producer``
+opens that stage in the same inspector. Inputs already recorded as available
+are excluded from the missing-input list. Unknown producers are reported so
+the dependency can be corrected.
+
+Stage labels use ``ready``, ``waiting``, ``running``, ``done``, ``failed`` and
+``stale`` consistently across the graph, inspector and displayed history.
+
 Plans with more than eight stages initially show ``Selected stage and neighbors``:
 the selected stage, its immediate input producers and output consumers. Use the
 searchable stage selector to reach any stage, or choose ``Whole plan`` to explore
@@ -232,12 +249,13 @@ Open ``Stage details`` for the executor and full DOT download. ``Plan details``
 contains source paths, logs, evidence, handoff tables and execution history.
 
 .. figure:: _static/page-shots/workflow-dag-inspector.png
-   :alt: WORKFLOW DAG inspector showing the four-stage portfolio sample, artifact handoffs and stage selection.
+   :alt: WORKFLOW portfolio DAG showing a waiting stage, its missing input and an Inspect producer action.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The shipped portfolio sample rendered by the WORKFLOW graph component. This
-   documentation capture uses a preview fixture with real execution disabled.
+   The shipped portfolio sample explains why the inspected forecast stage is
+   waiting and links to its input producer. This documentation capture uses
+   the WORKFLOW graph component in a preview fixture with real execution disabled.
 
 To edit a plan, enable ``Edit plan``. The normal editing path stays away from
 raw JSON:

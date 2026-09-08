@@ -705,6 +705,7 @@ GLOBAL_DAG_STAGE_BACKEND_LABELS = {
     GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED: "Distributed backend",
 }
 available_artifact_ids = _dag_run_engine_module.available_artifact_ids
+planned_stage_ids = _dag_run_engine_module.planned_stage_ids
 controlled_real_run_supported = _dag_run_engine_module.controlled_real_run_supported
 dispatch_next_runnable = _dag_run_engine_module.dispatch_next_runnable
 execution_history_rows = _dag_run_engine_module.execution_history_rows
@@ -1701,7 +1702,7 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
                 "unit": str(unit.get("id", "")),
                 "app": str(unit.get("app", "")),
                 "executor": _multi_app_dag_executor_label(unit),
-                "status": str(unit.get("dispatch_status", "")),
+                "status": _multi_app_dag_workplan_state(unit),
                 "depends_on": ", ".join(str(item) for item in unit.get("depends_on", []) if str(item)),
                 "blocked_by": ", ".join(
                     str(item)
@@ -1761,6 +1762,78 @@ def _multi_app_dag_workplan_produces(unit: dict[str, Any]) -> str:
     labels = [_workplan_artifact_id(artifact) for artifact in produced]
     labels = [label for label in labels if label]
     return ", ".join(labels) if labels else "none"
+
+
+def _multi_app_dag_missing_inputs(state: Dict[str, Any], unit: Dict[str, Any]) -> list[dict[str, Any]]:
+    """Resolve missing inputs against recorded artifact availability and producers."""
+    available = _available_artifact_ids(state)
+    units = {
+        str(row["id"]): row for row in _multi_app_dag_units(state) if row.get("id")
+    }
+    dependencies = unit.get("artifact_dependencies", [])
+    dependencies = list(dependencies) if isinstance(dependencies, list) else []
+    operator_ui = unit.get("operator_ui", {})
+    recorded = operator_ui.get("blocked_by_artifacts", []) if isinstance(operator_ui, dict) else []
+    declared = {_workplan_artifact_id(dep) for dep in dependencies if isinstance(dep, dict)}
+    if isinstance(recorded, list):
+        dependencies.extend({"artifact": name} for name in recorded if isinstance(name, str) and name not in declared)
+    missing = []
+    seen: set[tuple[str, str]] = set()
+    for dependency in dependencies:
+        if not isinstance(dependency, dict):
+            continue
+        artifact_id = _workplan_artifact_id(dependency)
+        producer_id = str(dependency.get("from", "") or "").strip()
+        if not artifact_id or artifact_id in available or (artifact_id, producer_id) in seen:
+            continue
+        seen.add((artifact_id, producer_id))
+        producers = [producer_id] if producer_id else [
+            candidate_id for candidate_id, candidate in units.items()
+            if isinstance(candidate.get("produces"), list)
+            and any(isinstance(item, dict) and _workplan_artifact_id(item) == artifact_id for item in candidate["produces"])
+        ]
+        missing.append({
+            "artifact": artifact_id,
+            "producers": [
+                {"id": candidate_id, "state": _multi_app_dag_workplan_state(units[candidate_id]) if candidate_id in units else "not in plan"}
+                for candidate_id in producers
+            ],
+        })
+    return missing
+
+
+def _render_multi_app_dag_blockers(state: Dict[str, Any], unit: Dict[str, Any], *, key_prefix: str) -> None:
+    if _multi_app_dag_workplan_state(unit) != "waiting":
+        return
+    missing = _multi_app_dag_missing_inputs(state, unit)
+    if not missing:
+        st.caption("No missing input is recorded. Readiness is checked again when a run starts.")
+        return
+    advice = {
+        "ready": "Run this producer to create the output.",
+        "waiting": "Resolve this producer's missing inputs first.",
+        "running": "Wait for this producer to finish.",
+        "failed": "Inspect this producer's failure before retrying.",
+        "done": "Check its artifacts: this output is not recorded as available.",
+        "stale": "Review this producer's changed plan before rerunning.",
+        "not in plan": "Check the dependency's producer reference.",
+    }
+    st.markdown("**Waiting for inputs**")
+    linked: set[str] = set()
+    for row in missing:
+        st.caption(f"Missing output: `{row['artifact']}`.")
+        if not row["producers"]:
+            st.caption("No producer is declared in this plan. Supply the input or correct its dependency.")
+        for producer in row["producers"]:
+            producer_id, producer_state = producer["id"], producer["state"]
+            st.caption(f"Producer `{producer_id}`: {producer_state}. {advice.get(producer_state, 'Inspect the producer before running.')}")
+            if producer_state != "not in plan" and producer_id not in linked:
+                st.button(
+                    f"Inspect producer: {producer_id}",
+                    key=f"{key_prefix}_inspect_producer_{producer_id}",
+                    on_click=lambda target=producer_id: st.session_state.update({f"{key_prefix}_graph_stage": target}),
+                )
+                linked.add(producer_id)
 
 
 def _multi_app_dag_workplan_rows_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
@@ -1865,7 +1938,13 @@ def _artifact_handoffs_for_display(state: Dict[str, Any]) -> list[dict[str, str]
 
 
 def _multi_app_dag_execution_history_rows(state: Dict[str, Any]) -> list[dict[str, str]]:
-    return execution_history_rows(state)
+    return [
+        {**row, "Status": " -> ".join(
+            _multi_app_dag_workplan_state({"dispatch_status": value}) if value else ""
+            for value in row.get("Status", "").split(" -> ")
+        )}
+        for row in execution_history_rows(state)
+    ]
 
 
 def _multi_app_dag_units(state: Dict[str, Any]) -> list[dict[str, Any]]:
@@ -1959,11 +2038,11 @@ def _multi_app_dag_execution_status(state: Dict[str, Any], support: Any) -> str:
         return str(getattr(support, "status", "Preview-only") or "Preview-only")
     failed = _multi_app_dag_status_ids(state, "failed")
     if failed:
-        return "Blocked: failed step"
+        return "Failed stage"
     if _multi_app_dag_unit_count(state) and len(_multi_app_dag_status_ids(state, "completed")) == _multi_app_dag_unit_count(state):
-        return "Completed"
+        return "Done"
     if _multi_app_dag_status_ids(state, "blocked") and not _multi_app_dag_status_ids(state, "runnable"):
-        return "Blocked: missing output"
+        return "Waiting for outputs"
     return str(getattr(support, "status", "Executable") or "Executable")
 
 
@@ -2515,7 +2594,7 @@ def _multi_app_dag_dot(state: Dict[str, Any], *, selected_unit_id: str = "") -> 
         if not unit_id:
             continue
         status = str(unit.get("dispatch_status", ""))
-        label = f"{_short_graph_label(unit_id, limit=28)}\n{status}"
+        label = f"{_short_graph_label(unit_id, limit=28)}\n{_multi_app_dag_workplan_state(unit)}"
         fill = status_colors.get(status, "#f8fafc")
         selected_style = ', color="#2563eb", penwidth=3' if unit_id == selected_unit_id else ""
         lines.append(f"  {_dot_quote(unit_id)} [label={_dot_quote(label)}, fillcolor={_dot_quote(fill)}{selected_style}];")
@@ -2606,7 +2685,10 @@ def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> No
         st.session_state[plan_key] = plan_ids
     stage_col, scope_col = st.columns([2, 1])
     with stage_col:
-        selected_id = st.selectbox("Inspect stage", list(units), key=selected_key)
+        selected_id = st.selectbox(
+            "Inspect stage", list(units), key=selected_key,
+            help="Choose the stage details to inspect. Run actions follow workflow readiness; their targets are shown beside the buttons.",
+        )
     with scope_col:
         scope = st.selectbox("Graph scope", scopes, key=scope_key)
     graph_state = _multi_app_dag_graph_state(state, selected_id, focus=scope == scopes[1])
@@ -2618,6 +2700,7 @@ def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> No
     input_col, output_col = st.columns(2)
     input_col.caption(f"Inputs: {_multi_app_dag_workplan_needs(selected)}")
     output_col.caption(f"Outputs: {_multi_app_dag_workplan_produces(selected)}")
+    _render_multi_app_dag_blockers(state, selected, key_prefix=key_prefix)
     with st.expander("Stage details", expanded=False):
         st.caption(f"App: {selected.get('app', '')}")
         st.caption(f"Runs with: {_multi_app_dag_executor_label(selected)}")
@@ -3470,9 +3553,22 @@ def _render_global_runner_state_view(
                         "Distributed backend is selected, but the active ORCHESTRATE cluster settings "
                         "do not provide a complete scheduler, workers, and workflow share root request."
                     )
+        next_targets = batch_targets = None
+        try:
+            next_targets = planned_stage_ids(real_run_support.adapter, state)
+            batch_targets = planned_stage_ids(real_run_support.adapter, state, batch=True)
+        except ValueError as exc:
+            st.warning(str(exc))
+        if batch_targets and any(
+            unit.get("dispatch_status") == "blocked" and str(unit.get("id", "")) in batch_targets
+            for unit in _multi_app_dag_units(state)
+        ):
+            st.caption("Targets include stages whose inputs are now available.")
         run_next_col, run_ready_col = st.columns(2)
         can_run_next = stage_backend == GLOBAL_DAG_STAGE_BACKEND_LOCAL
         with run_next_col:
+            if can_run_next and next_targets is not None:
+                st.caption(f"Next run: `{next_targets[0]}`." if next_targets else "Next run: no stage is ready.")
             run_stage_clicked = action_button(
                 run_next_col,
                 "Run next stage",
@@ -3487,6 +3583,12 @@ def _render_global_runner_state_view(
                 ),
             )
         with run_ready_col:
+            if batch_targets is not None:
+                targets_text = ", ".join(f"`{unit_id}`" for unit_id in batch_targets[:6])
+                st.caption(f"Batch run ({len(batch_targets)}): {targets_text}." if batch_targets else "Batch run: no stage is ready.")
+                if len(batch_targets) > 6:
+                    with st.expander(f"All {len(batch_targets)} batch targets", expanded=False):
+                        st.code("\n".join(batch_targets), language="text")
             run_ready_clicked = action_button(
                 run_ready_col,
                 "Run ready stages",
@@ -3561,6 +3663,12 @@ def _render_global_runner_state_view(
         else False
     )
     dispatch_disabled = real_run_supported and controlled_run_started
+    preview_target = next(
+        (str(unit["id"]) for unit in _multi_app_dag_units(state) if unit.get("dispatch_status") == "runnable" and unit.get("id")),
+        "",
+    )
+    if not dispatch_disabled:
+        st.caption(f"Next preview: `{preview_target}`." if preview_target else "Next preview: no stage is ready.")
     dispatch_clicked = action_button(
         st,
         "Preview next ready step",
@@ -3569,7 +3677,7 @@ def _render_global_runner_state_view(
         help=(
             "Mark the next ready stage as running in the preview without executing the app."
             if not dispatch_disabled
-            else "Preview is disabled after a controlled live run starts; use Run next ready step."
+            else "Preview is disabled after a controlled live run starts; use the live run controls."
         ),
         disabled=dispatch_disabled,
     )

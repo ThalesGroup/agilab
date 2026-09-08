@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-09-08T10:30:12Z",
+  "created_at": "2026-09-08T11:22:29Z",
   "kind": "agilab.screenshot_manifest",
   "root": "docs/source/_static/page-shots",
   "schema": "agilab.screenshot_manifest.v1",
@@ -106,20 +106,23 @@
       "width_px": 1440
     },
     {
-      "alt": "Four-stage portfolio DAG with artifact handoffs and stage inspection.",
+      "alt": "Portfolio DAG with a waiting stage, missing input and navigation to its producer.",
       "app": "",
-      "created_at": "2026-09-08T10:30:12Z",
-      "height_px": 954,
+      "created_at": "2026-09-08T11:22:29Z",
+      "height_px": 1189,
       "image_path": "workflow-dag-inspector.png",
       "page": "workflow",
       "project": "portfolio_sample",
-      "sha256": "9d03c538de6a7629b0db7afe66e3576d11a50cf875821943ec1afccb433d191a",
-      "size_bytes": 60872,
+      "sha256": "f261a4d7a05761be332d663a15378ebe050a43d991786e94e0418f79e4a4b577",
+      "size_bytes": 84345,
       "source_command": [
+        "uv",
+        "run",
+        "--no-project",
+        "--with",
+        "playwright",
         "python",
-        "tools/generate_screenshot_manifest.py",
-        "--root",
-        "docs/source/_static/page-shots"
+        "reports/dag-action-guidance/browser_probe.py"
       ],
       "url": "",
       "width_px": 640
@@ -146,9 +149,12 @@
     }
   ],
   "source_command": [
+    "uv",
+    "run",
+    "--no-project",
+    "--with",
+    "playwright",
     "python",
-    "tools/generate_screenshot_manifest.py",
-    "--root",
-    "docs/source/_static/page-shots"
+    "reports/dag-action-guidance/browser_probe.py"
   ]
 }
