@@ -242,11 +242,22 @@ Stage labels use ``ready``, ``waiting``, ``running``, ``done``, ``failed`` and
 ``stale`` consistently across the graph, inspector and displayed history.
 
 Plans with more than eight stages initially show ``Selected stage and neighbors``:
-the selected stage, its immediate input producers and output consumers. Use the
-searchable stage selector to reach any stage, or choose ``Whole plan`` to explore
-the complete graph. The vertical layout preserves readable text on small screens.
-Open ``Stage details`` for the executor and full DOT download. ``Plan details``
-contains source paths, logs, evidence, handoff tables and execution history.
+the selected stage and up to three connected stages. ``Neighbor group`` browses
+the remaining neighbors in plan order. This view draws connections between stages;
+the inspector lists their inputs and outputs. Choosing another stage returns to
+its first neighbor group. Use the searchable stage selector to reach any stage,
+or choose ``Whole plan`` for the complete graph with artifact nodes.
+
+Open ``Stage trace and outputs`` to inspect events and output records for the
+selected stage. The trace shows the latest twenty events and offers a CSV download
+of its full recorded history with common secret values redacted. Outputs distinguish
+planned paths from records attributed to this stage and show recorded locations,
+timestamps and hashes when present. These are runner-state records; this view does
+not read output files or verify their hashes. Missing records remain explicit.
+
+``Stage details`` contains the executor, complete long input/output lists and full
+DOT download. ``Plan details`` contains source paths, logs, evidence, handoff tables
+and execution history for the plan.
 
 .. figure:: _static/page-shots/workflow-dag-inspector.png
    :alt: WORKFLOW portfolio DAG showing a waiting stage, its missing input and an Inspect producer action.
@@ -256,6 +267,15 @@ contains source paths, logs, evidence, handoff tables and execution history.
    The shipped portfolio sample explains why the inspected forecast stage is
    waiting and links to its input producer. This documentation capture uses
    the WORKFLOW graph component in a preview fixture with real execution disabled.
+
+.. figure:: _static/page-shots/workflow-dag-neighbor-groups.png
+   :alt: WORKFLOW inspector showing three of forty neighboring stages and the selected stage trace.
+   :align: center
+   :class: diagram-panel diagram-wide
+
+   A synthetic forty-branch preview demonstrates bounded graph navigation and
+   stage-specific trace inspection. Its events and output records are fixture data,
+   not evidence of a real application run.
 
 To edit a plan, enable ``Edit plan``. The normal editing path stays away from
 raw JSON:

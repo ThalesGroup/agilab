@@ -2,6 +2,8 @@
 
 from typing import Any, Dict
 
+from agilab.environment.logging_utils import redact_log_value
+
 from agilab.dag.dag_execution_adapters import available_artifact_ids as _available_artifact_ids
 
 
@@ -155,3 +157,85 @@ def _state_units_for_display(state: Dict[str, Any]) -> list[dict[str, str]]:
             }
         )
     return rows
+
+
+def _multi_app_dag_stage_links(state: Dict[str, Any]) -> dict[tuple[str, str], set[str]]:
+    """Resolve stage connections without conflating explicitly named producers."""
+    units = {str(unit["id"]): unit for unit in _multi_app_dag_units(state) if unit.get("id")}
+    producers: dict[str, set[str]] = {}
+    for unit_id, unit in units.items():
+        for artifact in unit.get("produces", []):
+            if isinstance(artifact, dict) and _workplan_artifact_id(artifact):
+                producers.setdefault(_workplan_artifact_id(artifact), set()).add(unit_id)
+    links: dict[tuple[str, str], set[str]] = {}
+    for unit_id, unit in units.items():
+        for dependency in unit.get("artifact_dependencies", []):
+            if not isinstance(dependency, dict):
+                continue
+            artifact_id = _workplan_artifact_id(dependency)
+            source = str(dependency.get("from", "") or "")
+            sources = {source} if source else producers.get(artifact_id, set())
+            for source_id in sorted(sources):
+                if source_id in units and source_id != unit_id:
+                    links.setdefault((source_id, unit_id), set()).add(artifact_id)
+        for source in unit.get("depends_on", []):
+            if isinstance(source, str) and source in units and source != unit_id:
+                links.setdefault((source, unit_id), set())
+    return links
+
+
+
+def _multi_app_dag_graph_state(
+    state: Dict[str, Any], selected_unit_id: str, *, focus: bool,
+    neighbor_offset: int = 0, neighbor_limit: int | None = None,
+) -> Dict[str, Any]:
+    """Keep a selected stage and its immediate artifact producers/consumers."""
+    if not focus:
+        return state
+    raw_units = state.get("units", [])
+    units = [unit for unit in raw_units if isinstance(unit, dict)] if isinstance(raw_units, list) else []
+    selected = next((unit for unit in units if unit.get("id") == selected_unit_id), None)
+    if selected is None:
+        return state
+
+    neighbor_ids = {
+        target if source == selected_unit_id else source
+        for source, target in _multi_app_dag_stage_links(state)
+        if selected_unit_id in (source, target)
+    }
+    neighbors = [unit for unit in units if unit.get("id") in neighbor_ids]
+    if neighbor_limit is not None:
+        start = max(0, neighbor_offset)
+        neighbors = neighbors[start:start + max(0, neighbor_limit)]
+    visible_ids = {selected_unit_id, *(unit["id"] for unit in neighbors)}
+    visible = [unit for unit in units if unit.get("id") in visible_ids]
+    return {**state, "units": visible}
+
+
+
+def _multi_app_dag_stage_output_rows(state: Dict[str, Any], selected: dict[str, Any]) -> list[dict[str, str]]:
+    """Show declared outputs and records attributed to this stage, without file IO."""
+    declared = {
+        _workplan_artifact_id(artifact): artifact
+        for artifact in selected.get("produces", [])
+        if isinstance(artifact, dict) and _workplan_artifact_id(artifact)
+    }
+    records = state.get("artifacts", [])
+    recorded = {
+        _workplan_artifact_id(artifact): artifact
+        for artifact in (records if isinstance(records, list) else [])
+        if isinstance(artifact, dict) and _workplan_artifact_id(artifact)
+        and artifact.get("producer") == selected.get("id")
+    }
+    rows = []
+    for artifact_id in dict.fromkeys([*declared, *recorded]):
+        record = recorded.get(artifact_id)
+        artifact = record if record is not None else declared[artifact_id]
+        rows.append({
+            "Output": artifact_id,
+            "Status": f"recorded {record.get('status', 'unknown')}" if record is not None else "planned",
+            "Location": str(artifact.get("path", "") or ""),
+            "Recorded at": str(artifact.get("available_at", "") or "") if record is not None else "",
+            "Recorded SHA-256": str(artifact.get("sha256", "") or "") if record is not None else "",
+        })
+    return [{key: redact_log_value(value) for key, value in row.items()} for row in rows]
