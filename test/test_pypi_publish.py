@@ -1895,8 +1895,9 @@ def test_public_release_reference_refresh_reseals_v3_public_owned_evidence(
     assert ok, message
 
 
+@pytest.mark.parametrize("release_path", ["tag/v2026.07.30", "latest"])
 def test_guard_release_refresh_does_not_rewrite_managed_docs_index(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, release_path
 ) -> None:
     module = _load_pypi_publish()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
@@ -1905,7 +1906,7 @@ def test_guard_release_refresh_does_not_rewrite_managed_docs_index(
     original = (
         "Canonical mirror content must remain unchanged.\n"
         "`latest public GitHub release\n"
-        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.30>`__.\n"
+        f"<https://github.com/ThalesGroup/agilab/releases/{release_path}>`__.\n"
     )
     public_index.write_text(original, encoding="utf-8")
 
@@ -1998,7 +1999,38 @@ def test_guard_rejects_matching_historical_url_when_latest_link_is_stale(
         module.assert_public_docs_index_release_link("v2026.07.30")
 
 
-def test_replace_latest_release_url_updates_only_marker_bound_link() -> None:
+@pytest.mark.parametrize(
+    "release_paths",
+    [
+        (),
+        ("latest", "latest"),
+        ("latest", "tag/v2026.07.30"),
+        ("latest-extra",),
+        ("latest?tag=v2026.07.30",),
+    ],
+)
+def test_guard_rejects_missing_ambiguous_or_invalid_release_links(
+    tmp_path, monkeypatch, release_paths
+) -> None:
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    public_index = tmp_path / "docs" / "source" / "index.rst"
+    public_index.parent.mkdir(parents=True)
+    public_index.write_text(
+        "".join(
+            "`latest public GitHub release\n"
+            f"<https://github.com/ThalesGroup/agilab/releases/{path}>`__.\n"
+            for path in release_paths
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SystemExit, match="public docs index is not prepared"):
+        module.assert_public_docs_index_release_link("v2026.07.30")
+
+
+@pytest.mark.parametrize("release_path", ["tag/v2026.07.29", "latest"])
+def test_replace_latest_release_url_updates_only_marker_bound_link(release_path) -> None:
     module = _load_pypi_publish()
     historical_url = (
         "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.28"
@@ -2006,16 +2038,19 @@ def test_replace_latest_release_url_updates_only_marker_bound_link() -> None:
     text = (
         f"Historical release: {historical_url}\n\n"
         "`latest public GitHub release\n"
-        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.29>`__.\n"
+        f"<https://github.com/ThalesGroup/agilab/releases/{release_path}>`__.\n"
     )
     expected_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.30"
 
     updated = module._replace_latest_release_url(text, expected_url)
 
     assert historical_url in updated
-    assert (
-        "`latest public GitHub release\n" f"<{expected_url}>`__."
-    ) in updated
+    if release_path == "latest":
+        assert updated == text
+    else:
+        assert (
+            "`latest public GitHub release\n" f"<{expected_url}>`__."
+        ) in updated
 
 
 def test_update_docs_index_release_link_requires_canonical_docs_repo(tmp_path, monkeypatch) -> None:
