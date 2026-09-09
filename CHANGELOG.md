@@ -23,6 +23,25 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+Release target: **2026.09.09**. The changes below are merged in source and
+await package publication.
+
+### Changed
+
+- Improved DAG execution selection, stage navigation, and inspection of run
+  evidence and neighboring stages.
+- Kept analysis artifacts consistent and fresh across forecast, live-artifact,
+  geospatial, network, feature-attribution, and training-report pages.
+- Aligned worker-pool deadlines and capacity with the selected executor's
+  execution contract.
+- Added the `Free Threading :: 1 - Unstable` classifier to the five framework
+  distributions and an isolated installed-wheel compatibility probe. The probe
+  records build, dependency-installation, import/GIL, and worker-result evidence;
+  free-threaded runtime compatibility remains unverified where dependency wheels
+  are unavailable.
+- Bound release proof to exact publication attempts and clarified public
+  package routes and publication status.
+
 ## [2026.09.07] - 2026-09-07
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
