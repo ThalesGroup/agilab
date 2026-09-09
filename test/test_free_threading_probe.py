@@ -12,7 +12,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("free_threading_probe", ROOT / "tools/free_threading_probe.py")
+SPEC = importlib.util.spec_from_file_location("free_threading_probe", ROOT / "tools/testing/free_threading_probe.py")
 assert SPEC and SPEC.loader
 probe = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(probe)

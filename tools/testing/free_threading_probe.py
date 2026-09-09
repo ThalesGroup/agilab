@@ -27,7 +27,7 @@ from typing import Any
 
 
 SCHEMA = "agilab.free_threading_probe.v1"
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 PACKAGES = ("agilab", "agi-env", "agi-node", "agi-cluster", "agi-core")
 MODULES = (
     "agilab", "agi_env", "agi_node", "agi_cluster", "agi_core",
@@ -168,10 +168,10 @@ def probe(*, python: str, timeout: float, repo_root: Path = ROOT) -> dict[str, A
     from package_split_contract import package_by_name
 
     report: dict[str, Any] = {
-        "schema": SCHEMA, "producer": "tools/free_threading_probe.py", "local_only": True,
+        "schema": SCHEMA, "producer": "tools/testing/free_threading_probe.py", "local_only": True,
         "created_at": datetime.now(timezone.utc).isoformat(), "python_requested": python,
         "command": ["uv", "--preview-features", "extra-build-dependencies", "run", "--no-sync",
-                    "python", "tools/free_threading_probe.py", "--python", python, "--timeout", str(timeout)],
+                    "python", "tools/testing/free_threading_probe.py", "--python", python, "--timeout", str(timeout)],
         "status": "failed", "packages": list(PACKAGES), "steps": [], "wheels": [],
         "runtime": {"status": "skipped", "reason": "setup_not_completed"},
     }

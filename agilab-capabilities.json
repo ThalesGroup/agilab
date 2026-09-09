@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-08T11:17:10Z",
+  "generated_at_utc": "2026-09-09T13:23:52Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 244,
+    "evidence_schema_count": 245,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1590,6 +1590,13 @@
       "sources": [
         "docs/source/features.rst",
         "tools/first_launch_robot.py"
+      ]
+    },
+    {
+      "schema": "agilab.free_threading_probe.v1",
+      "sources": [
+        "tools/testing/README.free-threading.md",
+        "tools/testing/free_threading_probe.py"
       ]
     },
     {

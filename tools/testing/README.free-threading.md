@@ -3,7 +3,7 @@
 From the AGILAB source checkout, run:
 
 ```bash
-uv --preview-features extra-build-dependencies run --no-sync python tools/free_threading_probe.py \
+uv --preview-features extra-build-dependencies run --no-sync python tools/testing/free_threading_probe.py \
   --python 3.14t --output reports/free-threading/probe.json
 ```
 

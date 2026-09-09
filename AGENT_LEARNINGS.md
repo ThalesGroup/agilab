@@ -24,9 +24,9 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 
 ## Current rules
 
-- After schema or package-version changes, run
-  `uv run python tools/workflow_parity.py --profile skills`; commit its generated
-  discovery artifacts, then rerun the profile to prove there is no remaining drift.
+- When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
+  After schema or package-version changes, run the workflow parity `skills` profile;
+  commit generated discovery artifacts and rerun it to prove there is no drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
   badges into a rendered expander unless the user explicitly asks for removal.
