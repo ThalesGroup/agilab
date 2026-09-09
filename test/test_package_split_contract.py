@@ -233,6 +233,9 @@ def test_self_extra_alias_exact_pin_must_match_project(
 
 
 def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:
+    # The shared runtime landed in 4536816. Asset floors track that capability,
+    # while subsequent shared-package releases can leave these pages unchanged.
+    runtime_floor = Version("2026.07.17.1")
     shared_pyproject = REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml"
     shared_version = _load_toml(shared_pyproject)["project"]["version"]
     root_pyproject = REPO_ROOT / "pyproject.toml"
@@ -242,8 +245,8 @@ def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:
     )
 
     assert shared_module.is_file()
-    assert Version(shared_version) > Version("2026.07.17")
-    assert Version(root_version) > Version("2026.07.17")
+    assert Version(shared_version) >= runtime_floor
+    assert Version(root_version) >= runtime_floor
     for page_name in ("view_queue_resilience", "view_relay_resilience"):
         pyproject = REPO_ROOT / "src/agilab/apps-pages" / page_name / "pyproject.toml"
         requirements = _requirements(pyproject, "dependencies")
@@ -253,9 +256,13 @@ def test_queue_resilience_pages_require_the_shared_runtime_release() -> None:
             if requirement.name.lower() == "agi-pages"
         )
         assert any(
-            specifier.operator == ">=" and specifier.version == shared_version
+            specifier.operator == ">="
+            and Version(specifier.version) >= runtime_floor
             for specifier in agi_pages.specifier
-        ), pyproject
+        ), f"{pyproject}: agi-pages must require the shared queue runtime"
+        assert Version(shared_version) in agi_pages.specifier, (
+            f"{pyproject}: agi-pages must allow the current shared runtime"
+        )
 
     for extra_name in ("ui", "pages"):
         requirements = _requirements(root_pyproject, extra_name)
