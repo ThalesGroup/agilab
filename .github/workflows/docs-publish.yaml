@@ -11,6 +11,7 @@ on:
       - 'src/agilab/resources/help/**'
       - 'tools/release_proof_report.py'
       - '.github/workflows/docs-publish.yaml'
+      - '.github/actions/configure-ubuntu-apt/**'
   workflow_dispatch:
 
 env:
@@ -59,6 +60,9 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp --skip-missing-source --quiet
           uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --check-github-runs --compact
+      - name: Configure Ubuntu APT sources
+        uses: ./.github/actions/configure-ubuntu-apt
+
       - name: Install Graphviz
         run: |
           set -euo pipefail

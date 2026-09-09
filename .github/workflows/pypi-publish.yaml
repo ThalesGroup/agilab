@@ -152,6 +152,9 @@ jobs:
           # browser revisions and unioning them into ever-growing saves.
           key: playwright-${{ runner.os }}-py${{ matrix.python-version }}-${{ steps.playwright-version.outputs.version }}-chromium
 
+      - name: Configure Ubuntu APT sources
+        uses: ./.github/actions/configure-ubuntu-apt
+
       - name: Install Playwright browser for frontend smoke
         run: |
           set -euxo pipefail
