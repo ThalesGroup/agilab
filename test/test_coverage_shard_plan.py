@@ -6,6 +6,8 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path("tools/coverage_shard_plan.py").resolve()
 
@@ -105,6 +107,29 @@ def test_timing_balanced_plan_greedily_spreads_slow_files(tmp_path) -> None:
             _item_chunk(plan, "test/test_first_launch_robot.py"),
         }
     ) == 3
+
+
+@pytest.mark.parametrize("with_timings", [False, True])
+def test_evidence_runtime_tests_are_in_coverage_plan(tmp_path, with_timings) -> None:
+    """A passing root suite must not conceal omitted evidence coverage tests."""
+    module = _load_module()
+    junit_path = tmp_path / "junit-agi-gui-support.xml"
+    if with_timings:
+        _write_junit(junit_path, [("test.test_evidence_graph", "graph", 1.0)])
+    plan = module.build_plan([str(junit_path)])
+    assert plan.mode == ("timing-balanced" if with_timings else "static")
+    scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
+    # Scope this contract to runtime evidence modules with a same-named root
+    # test file; inspect source inventory rather than duplicating the plan list.
+    expected = {
+        f"test/test_{source.stem}.py"
+        for source in sorted((module.REPO_ROOT / "src/agilab/evidence").glob("*.py"))
+        if (module.REPO_ROOT / f"test/test_{source.stem}.py").is_file()
+    }
+    assert expected, "No evidence runtime test pairs were discovered"
+    assert not expected - scheduled, (
+        f"Evidence tests omitted from coverage: {sorted(expected - scheduled)}"
+    )
 
 
 def test_timing_balanced_plan_does_not_schedule_legacy_src_test_package(tmp_path) -> None:
