@@ -152,7 +152,7 @@ def test_heartbeat_json_reader_retries_only_transient_permission_errors(tmp_path
 
 
 def test_service_loop_without_worker_override_stops_cleanly():
-    worker = DummyWorker()
+    DummyWorker()
     result: dict[str, object] = {}
 
     def _run_loop():
@@ -529,6 +529,9 @@ def test_service_loop_records_worker_failures(tmp_path):
     worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
 
     def _raise(*_args, **_kwargs):
+        # Stop after this task; the loop must still publish its failure before
+        # returning. Run synchronously so slow CI I/O is not a test deadline.
+        assert BaseWorker.break_loop() is True
         raise RuntimeError("boom")
 
     worker.works = _raise
@@ -557,19 +560,8 @@ def test_service_loop_records_worker_failures(tmp_path):
     task_file = pending / "000003-batch-fail-000-worker.task.json"
     _write_task(task_file, payload)
 
-    result: dict[str, object] = {}
-
-    def _run_loop():
-        result["payload"] = BaseWorker.loop(poll_interval=0.05)
-
-    thread = threading.Thread(target=_run_loop, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 2.0
+    payload_out = BaseWorker.loop(poll_interval=0.05)
     failed_file = queue_root / "failed" / task_file.name
-    while time.time() < deadline and not failed_file.exists():
-        time.sleep(0.05)
-
     assert failed_file.exists(), "Failed task was not moved to failed"
 
     failed_payload = json.loads(failed_file.read_text(encoding="utf-8"))
@@ -577,13 +569,14 @@ def test_service_loop_records_worker_failures(tmp_path):
     assert failed_payload["error"] == "boom"
     assert "RuntimeError: boom" in failed_payload["traceback"]
 
-    assert BaseWorker.break_loop() is True
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "Service loop did not stop after break_loop"
-
-    payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
+    assert payload_out.get("status") == "stopped"
     assert payload_out.get("failed") == 1
+    assert payload_out.get("processed") == 0
+    assert not task_file.exists()
+    assert list((queue_root / "running").glob("*.task.json")) == []
+    assert BaseWorker._service_stop_events == {}
+    assert BaseWorker._service_active == {}
 
 
 def test_service_loop_skips_tasks_for_other_workers(tmp_path):
