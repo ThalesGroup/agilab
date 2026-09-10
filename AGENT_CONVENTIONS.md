@@ -25,6 +25,10 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
   `BUILTIN_APPS`; do not substitute a root reinstall, manual `.env` edits, or
   ad-hoc pytest loops.
 - Keep edits narrow and validate with the smallest relevant proof first.
+- Agent commits need explicit agent author and committer display names. Use the
+  confirmed operator's verified email and matching signing key, and record the
+  operator separately in PR metadata. Do not invent a bot noreply address or
+  infer unavailable model/runtime settings from the operator's identity.
 - For successful final close-outs, write `Validation passed.` without listing
   every command unless failures, skipped checks, release/audit evidence, PR
   proof, or an explicit user request make the details useful.

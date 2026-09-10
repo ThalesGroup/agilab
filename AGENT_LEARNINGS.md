@@ -90,10 +90,10 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 - Before acting on a stale sibling worktree reported by `./dev audit`, verify
   it still exists in `git worktree list --porcelain`. If it is missing, stop
   and ask whether to recreate that branch or continue from the current checkout.
-- On agent-prefixed branches such as `codex/*`, `codex-*`, `claude/*`,
-  `aider/*`, `opencode/*`, or `agent/*`, never commit with a human Git
-  identity. Run `python3 tools/agent_commit_provenance_guard.py --check-config`
-  before committing; configure an explicit agent identity when needed.
+- Agent branches require explicit agent author/committer names and the confirmed
+  operator's verified email/key; invented noreply addresses can cause `unknown_key`.
+  Run `python3 tools/agent_commit_provenance_guard.py --check-config` before commits
+  and verify new signatures on GitHub. Record the operator separately in PR metadata.
 - When `gh pr merge --delete-branch` fails because another local worktree owns
   `main`, check the remote PR state before retrying. Prefer a remote-only
   retry from outside the checkout, for example `gh pr merge <n> --repo

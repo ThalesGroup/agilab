@@ -63,7 +63,13 @@ Agent commit provenance is checked separately::
 The output uses schema ``agilab.agent_commit_provenance.v1``. On
 agent-prefixed branches such as ``codex/*``, ``codex-*``, ``claude/*``,
 ``aider/*``, ``opencode/*``, and ``agent/*``, the guard rejects human Git
-author or committer identities and requires an explicit agent or bot identity.
+author or committer display names and requires explicit agent or bot names.
+Those names may use the confirmed operator's verified email and matching
+signing key. Do not invent a bot noreply address: it may belong to another
+GitHub account. The offline guard checks attribution conventions; verify email
+ownership and new commit signatures separately on GitHub. The config check
+reads effective identities, including author/committer config and environment
+overrides.
 The repo hooks run the config check before commits and the pushed-commit check
 before pushes, so agent-authored PRs cannot silently appear as human-authored
 work.
@@ -71,8 +77,14 @@ work.
 .. figure:: diagrams/agent_commit_provenance_guard.svg
    :alt: Diagram of the AGILAB agent commit provenance guard
 
-   Agent-prefixed branches are checked before commit and before push so the
-   Git author and committer fields stay aligned with PR Agent Metadata.
+   Agent-prefixed branches preserve explicit agent display names while the
+   confirmed operator owns the signing account.
+
+PR Agent Metadata records the confirmed operator/approver separately from the
+agent and its technical settings. In Jean-Pierre MORARD's confirmed sessions,
+the operator is ``jpmorard``; verify the publishing GitHub actor. Other operators
+must supply their own identity. For unavailable model/runtime details, write
+``not exposed by the runtime``. A person's name does not fill those fields.
 
 Shared repo contract
 --------------------

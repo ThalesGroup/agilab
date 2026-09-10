@@ -207,11 +207,20 @@ Use this runbook whenever you:
 - **PR agent metadata**: Every AGILAB PR description must include an `Agent Metadata`
   section with the Tokki version (`tokki --version`, or `not used`/`unavailable`),
   agent/runtime name and version when exposed, model name, reasoning effort, and
-  whether `/fast` mode was used. Do not infer missing values; write `unknown`,
-  `unavailable`, or `not used` explicitly.
+  whether `/fast` mode was used. Record the confirmed human operator/approver
+  separately from the agent. For this operator's sessions, the user-confirmed
+  identity is Jean-Pierre MORARD (`jpmorard`); check the authenticated GitHub
+  actor before publishing. Never assign that identity to another contributor
+  by default. Technical fields describe the agent: use `not exposed by the
+  runtime` when unavailable and `not used` only when known, without guessing.
 - **Agent commit provenance**: Agent-prefixed branches such as `codex/*`,
   `codex-*`, `claude/*`, `aider/*`, `opencode/*`, and `agent/*` must not use a
-  human Git author or committer identity. Before committing on those branches,
+  human Git author or committer display names. An explicit agent display name
+  may use the confirmed operator's verified email and matching signing key.
+  Do not invent an agent noreply address: it may belong to a different account.
+  The offline guard checks effective author/committer names, including Git
+  config and environment overrides; it does not prove email ownership or
+  signature validity. Verify new signed commits on GitHub. Before committing on those branches,
   run `python3 tools/agent_commit_provenance_guard.py --check-config`; the
   repo hooks also run this guard at pre-commit and pre-push. If a released
   commit already has misleading identity metadata, do not rewrite public

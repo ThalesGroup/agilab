@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard agent branch commits from using human Git identities."""
+"""Require explicit agent display names while preserving operator-owned signing."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import argparse
 import json
 import re
 import subprocess
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
@@ -19,13 +18,11 @@ ZERO_SHA = "0" * 40
 FIELD_SEP = "\x1f"
 
 AGENT_BRANCH_RE = re.compile(r"^(codex|claude|aider|opencode|agent)(?:[-/].*)?$", re.I)
-AGENT_IDENTITY_TERMS = (
-    "agent",
+AGENT_RUNTIME_NAMES = (
     "aider",
-    "bot",
-    "claude",
+    "claude code",
     "codex",
-    "github-actions[bot]",
+    "openai codex",
     "opencode",
 )
 HUMAN_IDENTITY_TERMS = (
@@ -45,7 +42,6 @@ SUSPECT_DIRECT_HISTORY_TERMS = (
     "guilaumedemets",
 )
 DEFAULT_AGENT_NAME = "AGILAB Codex Agent"
-DEFAULT_AGENT_EMAIL = "codex-agent@users.noreply.github.com"
 
 
 @dataclass(frozen=True)
@@ -114,13 +110,14 @@ def is_agent_branch(branch: str) -> bool:
 
 
 def is_human_identity(identity: Identity) -> bool:
-    blob = _identity_blob(identity)
-    return any(term in blob for term in HUMAN_IDENTITY_TERMS)
+    # Email identifies the signing account, not who performed the agent work.
+    return any(term in identity.name.lower() for term in HUMAN_IDENTITY_TERMS)
 
 
 def is_agent_identity(identity: Identity) -> bool:
-    blob = _identity_blob(identity)
-    return any(term in blob for term in AGENT_IDENTITY_TERMS)
+    return bool(re.search(r"\b(?:agent|bot)\b", identity.name, re.I)) or (
+        identity.name.strip().lower() in AGENT_RUNTIME_NAMES
+    )
 
 
 def is_suspect_direct_history_identity(identity: Identity) -> bool:
@@ -140,8 +137,8 @@ def _identity_issues(*, branch: str, commit: str, field: str, identity: Identity
                 name=identity.name,
                 email=identity.email,
                 message=(
-                    "agent-prefixed branches must not use a human Git identity; "
-                    f"configure {DEFAULT_AGENT_NAME!r} <{DEFAULT_AGENT_EMAIL}> instead"
+                    "agent-prefixed branches require an explicit agent display name; "
+                    f"use {DEFAULT_AGENT_NAME!r} with the operator's confirmed email"
                 ),
             )
         ]
@@ -156,8 +153,8 @@ def _identity_issues(*, branch: str, commit: str, field: str, identity: Identity
                 name=identity.name,
                 email=identity.email,
                 message=(
-                    "agent-prefixed branches require an explicit agent/bot Git identity; "
-                    f"configure {DEFAULT_AGENT_NAME!r} <{DEFAULT_AGENT_EMAIL}> instead"
+                    "agent-prefixed branches require an explicit agent/bot display name; "
+                    f"use {DEFAULT_AGENT_NAME!r} with the operator's confirmed email"
                 ),
             )
         ]
@@ -207,17 +204,42 @@ def check_current_config(root: Path = REPO_ROOT) -> dict[str, Any]:
         email=_run_git(root, ["config", "--get", "user.email"], check=False),
     )
     issues: list[Issue] = []
+    effective: dict[str, dict[str, str]] = {}
     if is_agent_branch(branch):
-        issues.extend(_identity_issues(branch=branch, commit="", field="git-config", identity=identity))
+        for field in ("author", "committer"):
+            variable = f"GIT_{field.upper()}_IDENT"
+            raw = _run_git(root, ["var", variable], check=False)
+            match = re.fullmatch(r"(.+) <([^<>]+)> \d+ [+-]\d{4}", raw)
+            if match is None:
+                issues.append(
+                    Issue(
+                        severity="error",
+                        rule="agent-identity-unresolved",
+                        branch=branch,
+                        field=field,
+                        message=f"Cannot resolve {variable}; configure its name and confirmed email.",
+                    )
+                )
+                continue
+            resolved = Identity(name=match[1], email=match[2])
+            effective[field] = asdict(resolved)
+            issues.extend(
+                _identity_issues(
+                    branch=branch, commit="", field=field, identity=resolved
+                )
+            )
     return _build_report(
         action="check-config",
         issues=issues,
         evidence={
             "branch": branch,
             "git_config": asdict(identity),
+            "effective_identities": effective,
+            "verification_basis": "Offline display-name convention only; email ownership and GitHub signatures require separate verification.",
             "default_agent_identity": {
                 "name": DEFAULT_AGENT_NAME,
-                "email": DEFAULT_AGENT_EMAIL,
+                "email": None,
+                "email_requirement": "Use the current operator's confirmed verified address and matching signing key.",
             },
         },
     )
@@ -494,15 +516,14 @@ def inventory_github_prs(
                         name=str(author.get("name") or ""),
                         email=str(author.get("email") or ""),
                     )
-                    if is_human_identity(identity) or not is_agent_identity(identity):
-                        issues.extend(
-                            _identity_issues(
-                                branch=branch,
-                                commit=commit_sha,
-                                field="github-pr-author",
-                                identity=identity,
-                            )
+                    issues.extend(
+                        _identity_issues(
+                            branch=branch,
+                            commit=commit_sha,
+                            field="github-pr-author",
+                            identity=identity,
                         )
+                    )
     return _build_report(
         action="github-inventory",
         issues=issues,
@@ -549,7 +570,9 @@ def render_text(report: Mapping[str, Any]) -> str:
                 "",
                 "Use an explicit agent identity on agent-prefixed branches:",
                 f"  git config user.name {DEFAULT_AGENT_NAME!r}",
-                f"  git config user.email {DEFAULT_AGENT_EMAIL!r}",
+                "  Set user.email to the current operator's confirmed verified email.",
+                "  Keep the matching signing key; verify the new commit on GitHub.",
+                "  Check author/committer Git settings and GIT_AUTHOR_*/GIT_COMMITTER_* overrides.",
             ]
         )
     return "\n".join(lines)
