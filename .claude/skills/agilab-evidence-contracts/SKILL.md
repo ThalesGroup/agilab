@@ -105,6 +105,33 @@ the original manifest is supplied and reconstructs the same graph. Relationship
 evidence explains manifest declarations and derived structure; it does not prove
 causation, artifact content, execution, or successful validation.
 
+## Data-quality rule evidence
+
+For a candidate dataset gate, extend the existing `data_quality_gate_project`
+`contract_json.rules` mechanism. Its app-local validator supports required,
+range, allowed-value, predefined-format and cross-column checks. Read the
+[app contract and verification workflow](../../../src/agilab/apps/builtin/data_quality_gate_project/README.md)
+before changing rule semantics or claiming coverage.
+
+- Keep malformed configuration separate from evaluated failures. Reject duplicate
+  JSON keys, unknown fields and duplicate IDs; never silently drop a requested rule.
+- Preserve checked, passed, failed and skipped counts. Missing columns and an
+  unevaluated cohort must not become a passing rule; follow declared severity.
+- Bind `rule_results.json` to the persisted candidate and normalized contract;
+  keep its hash in the existing run manifest. A matching hash proves byte
+  identity, not data truth, producer authenticity or independent attestation.
+- Retain failure categories and bounded row positions without copying observed
+  cell values into the rule report. Existing dataset artifacts retain their
+  access-control requirements. Do not sum per-rule failures as distinct bad rows.
+- Regress boundary/null/empty/missing cases, repeated-output cleanup, counts and
+  hash consistency through the public app producer. Run the existing
+  `test/test_data_quality_gate_project.py` suite.
+
+This adapts metadata-driven validation and detailed results from
+[IBM data-intelligence-sdk](https://github.com/IBM/data-intelligence-sdk/tree/762394e24e1c236fc19f1734ba08a86854627ecb/src/wxdi/dq_validator)
+into AGILAB's existing app. IBM services and ODCS interoperability are separate
+features; they are not prerequisites for these local rule checks.
+
 ## External Inspiration Gate
 
 When a user points to an external product, framework, repository, or docs URL as

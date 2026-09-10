@@ -47,6 +47,82 @@ candidate CSV files from the AGILAB share. Contract JSON accepts:
 - `target_column`, `identifier_columns`, and `leakage_name_patterns`.
 - `thresholds`: optional overrides for PSI, KS, null-rate, duplicate-rate, row
   count, mean-shift, and category-delta thresholds.
+- `rules`: optional named checks on candidate rows (see below).
+
+## Named Candidate Rules
+
+Add rules to the existing `contract_json` file. For example, this contract keeps
+the demo's default columns and checks the age and region fields:
+
+```json
+{
+  "schema": "agilab.app.data_quality_gate.contract.v1",
+  "rules": [
+    {"id": "adult-age", "column": "age", "kind": "range", "min": 18, "max": 100},
+    {"id": "known-region", "column": "region", "kind": "allowed_values",
+     "values": ["north", "south", "east", "west"], "severity": "warn"}
+  ]
+}
+```
+
+Each rule needs a unique `id`, a declared `column`, and a `kind`:
+
+| Kind | Additional fields | Meaning |
+| --- | --- | --- |
+| `required` | none | Reject missing values. |
+| `range` | `min` and/or `max` | Inclusive finite numeric bounds; numeric strings and booleans fail. |
+| `allowed_values` | non-empty `values` list | Exact string/boolean or numeric membership; `true` does not equal `1`. |
+| `format` | `format`: `iso_date` or `email` | Calendar-valid `YYYY-MM-DD`, or basic email syntax. Email checks do not verify mailbox existence or full RFC compliance. |
+| `compare` | `other_column`, `operator`: `eq`, `ne`, `lt`, `le`, `gt`, `ge` | Compare two declared columns row by row; types must be compatible. Strings compare lexicographically. |
+
+Rules use `severity: "block"` by default; `"warn"` requires manual review.
+Nulls fail by default. `on_null: "skip"` excludes rows with null operands from
+the evaluated denominator, except for `required` rules, which cannot skip nulls.
+An empty string is a value; missingness follows Pandas parsing/null semantics.
+Rules run on the candidate only; the existing baseline/drift checks still run.
+
+Missing columns produce `missing`, and empty or entirely skipped cohorts produce
+`skipped`, with no pass rate. Every non-passing rule affects the decision at its
+declared severity, so an unevaluated blocking rule cannot silently promote data.
+Duplicate JSON keys, unknown kinds/fields, duplicate IDs, undeclared columns and invalid parameters
+raise a configuration error. Formats are predefined; contracts do not execute
+Python, SQL or user-supplied regular expressions.
+
+## Rule Evidence and Verification
+
+`rule_results.json` uses `agilab.app.data_quality_gate.rule_results.v1`. It records
+the evaluator version, normalized rule IDs, status, severity, checked/passed/
+failed/skipped counts, failure categories and up to ten failed row positions
+per rule. Positions start at zero and exclude the CSV header; omitted positions
+are counted. Observed cell values are not copied into this report. The existing
+CSV artifacts still contain the dataset and need the same access controls.
+
+Pass rates are fractions over evaluated rows; each row can fail multiple rules,
+so summing rule failures does not give the number of distinct invalid records.
+The report references the written candidate CSV and normalized `data_contract.json`
+by relative path, byte size and SHA-256. `run_manifest.json` hashes the report.
+The Markdown report and HTML dashboard show the same rule outcomes.
+
+After a run, verify the persisted artifact bytes from the evidence directory:
+
+```bash
+uv run python - <<'PY'
+import hashlib, json
+from pathlib import Path
+root = Path(".")  # directory containing run_manifest.json
+manifest = json.loads((root / "run_manifest.json").read_text())
+rules = json.loads((root / "rule_results.json").read_text())
+for ref in [*manifest["artifacts"].values(), *rules["inputs"].values()]:
+    data = (root / ref["path"]).read_bytes()
+    assert len(data) == ref["bytes"]
+    assert hashlib.sha256(data).hexdigest() == ref["sha256"]
+print("Artifact hashes match")
+PY
+```
+
+This detects changed artifact bytes against the stored hashes; it is not a
+signature, independent attestation, or proof that the input is truthful. Replay
+through the same app with the same input files and contract to re-evaluate rules.
 
 ## Expected Outputs
 
@@ -57,6 +133,7 @@ The worker writes:
 - `baseline_profile.json`
 - `candidate_profile.json`
 - `data_contract.json`
+- `rule_results.json`
 - `drift_metrics.csv`
 - `gate_decision.json`
 - `decision_card.json`
