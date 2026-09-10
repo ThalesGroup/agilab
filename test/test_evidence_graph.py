@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import importlib.util
+import json
+
+import pytest
 import sys
 from pathlib import Path
 
@@ -9,12 +13,21 @@ MODULE_PATH = Path("src/agilab/evidence_graph.py").resolve()
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("evidence_graph_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "evidence_graph_test_module", MODULE_PATH
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _edge_contracts(graph):
+    return [
+        {key: edge[key] for key in ("source", "target", "kind")}
+        for edge in graph["edges"]
+    ]
 
 
 def _sample_manifest() -> dict[str, object]:
@@ -35,7 +48,12 @@ def _sample_manifest() -> dict[str, object]:
             "phase": "completed",
             "event_count": 2,
             "controls": [
-                {"id": "stop", "label": "Stop", "enabled": False, "reason": "workflow is completed"},
+                {
+                    "id": "stop",
+                    "label": "Stop",
+                    "enabled": False,
+                    "reason": "workflow is completed",
+                },
             ],
         },
         "artifact_contracts": {
@@ -77,7 +95,11 @@ def _sample_manifest() -> dict[str, object]:
             },
         ],
         "validations": [
-            {"id": "run_outcome", "status": "pass", "summary": "workflow completed all stages"},
+            {
+                "id": "run_outcome",
+                "status": "pass",
+                "summary": "workflow completed all stages",
+            },
         ],
         "evidence_ledger": {
             "kind": "agilab.evidence_ledger",
@@ -96,16 +118,34 @@ def test_evidence_graph_builds_context_edges_from_workflow_manifest() -> None:
     graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
 
     assert module.validate_evidence_graph(graph) == ()
-    assert graph == module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    assert graph == module.build_evidence_graph_from_workflow_manifest(
+        _sample_manifest()
+    )
     assert graph["schema"] == module.EVIDENCE_GRAPH_SCHEMA
     assert graph["kind"] == module.EVIDENCE_GRAPH_KIND
     assert graph["summary"]["node_kinds"]["stage"] == 2
     assert graph["summary"]["node_kinds"]["artifact"] == 1
     assert graph["summary"]["node_kinds"]["validation"] == 1
-    assert {"source": "stage:load", "target": "stage:train", "kind": "precedes"} in graph["edges"]
-    assert {"source": "stage:load", "target": "artifact:features", "kind": "produced"} in graph["edges"]
-    assert {"source": "artifact:features", "target": "stage:train", "kind": "consumed_by"} in graph["edges"]
-    assert {"source": "validation:run_outcome", "target": "run:demo-run", "kind": "validates"} in graph["edges"]
+    assert {
+        "source": "stage:load",
+        "target": "stage:train",
+        "kind": "precedes",
+    } in _edge_contracts(graph)
+    assert {
+        "source": "stage:load",
+        "target": "artifact:features",
+        "kind": "produced",
+    } in _edge_contracts(graph)
+    assert {
+        "source": "artifact:features",
+        "target": "stage:train",
+        "kind": "consumed_by",
+    } in _edge_contracts(graph)
+    assert {
+        "source": "validation:run_outcome",
+        "target": "run:demo-run",
+        "kind": "validates",
+    } in _edge_contracts(graph)
 
 
 def test_evidence_graph_validation_rejects_dangling_edges() -> None:
@@ -114,7 +154,9 @@ def test_evidence_graph_validation_rejects_dangling_edges() -> None:
         "schema": module.EVIDENCE_GRAPH_SCHEMA,
         "kind": module.EVIDENCE_GRAPH_KIND,
         "nodes": [{"id": "run:demo", "kind": "run", "label": "demo"}],
-        "edges": [{"source": "run:demo", "target": "missing:node", "kind": "references"}],
+        "edges": [
+            {"source": "run:demo", "target": "missing:node", "kind": "references"}
+        ],
     }
 
     assert module.validate_evidence_graph(graph) == (
@@ -213,7 +255,11 @@ def test_evidence_graph_summary_and_messy_manifest_edge_cases() -> None:
             ],
             "consumed": [
                 {"artifact": "", "consumer": "first"},
-                {"artifact": "external", "consumer": "missing", "source_path": "input.csv"},
+                {
+                    "artifact": "external",
+                    "consumer": "missing",
+                    "source_path": "input.csv",
+                },
             ],
         },
         "validations": [
@@ -221,7 +267,13 @@ def test_evidence_graph_summary_and_messy_manifest_edge_cases() -> None:
             {"label": "Smoke", "status": "", "summary": "ok"},
         ],
         "artifacts": [
-            {"name": "loose", "kind": "table", "path": "loose.csv", "exists": False, "sha256": ""},
+            {
+                "name": "loose",
+                "kind": "table",
+                "path": "loose.csv",
+                "exists": False,
+                "sha256": "",
+            },
             {"path": "unnamed.txt", "kind": "", "exists": True, "sha256": "abc"},
         ],
         "evidence_ledger": {"path": "ledger.json"},
@@ -232,29 +284,202 @@ def test_evidence_graph_summary_and_messy_manifest_edge_cases() -> None:
     assert module.validate_evidence_graph(graph) == ()
     assert graph["source"]["run_id"] == "demo manifest!"
     assert graph["source"]["status"] == "unknown"
-    assert {"source": "stage:late", "target": "stage:first", "kind": "precedes"} in graph["edges"]
+    assert {
+        "source": "stage:late",
+        "target": "stage:first",
+        "kind": "precedes",
+    } in _edge_contracts(graph)
     node_by_id = {node["id"]: node for node in graph["nodes"]}
     assert node_by_id["phase:unknown"]["properties"] == {"event_count": 0}
     assert node_by_id["control:Retry"]["properties"] == {"enabled": True}
     assert node_by_id["validation:validation"]["properties"] == {"status": "unknown"}
     assert node_by_id["artifact:loose"]["kind"] == "artifact"
-    assert node_by_id["artifact:loose"]["properties"] == {"kind": "table", "path": "loose.csv", "exists": False}
+    assert node_by_id["artifact:loose"]["properties"] == {
+        "kind": "table",
+        "path": "loose.csv",
+        "exists": False,
+    }
     assert node_by_id["evidence_artifact:unnamed.txt"]["properties"] == {
         "path": "unnamed.txt",
         "exists": True,
         "sha256": "abc",
     }
-    assert node_by_id["evidence_artifact:evidence_ledger"]["properties"] == {"path": "ledger.json"}
-    assert node_by_id["evidence_artifact:evidence_graph"]["properties"] == {"kind": "graph"}
+    assert node_by_id["evidence_artifact:evidence_ledger"]["properties"] == {
+        "path": "ledger.json"
+    }
+    assert node_by_id["evidence_artifact:evidence_graph"]["properties"] == {
+        "kind": "graph"
+    }
 
     builder = module._GraphBuilder()
     builder.add_node("n", "kind", "", {"drop": "", "keep": "a"})
     builder.add_node("n", "kind", "ignored", {"drop": [], "keep": "b", "other": 1})
     builder.add_edge("", "n", "bad")
     builder.add_edge("n", "n", "self")
-    assert builder.nodes() == [{"id": "n", "kind": "kind", "label": "n", "properties": {"keep": "b", "other": 1}}]
+    assert builder.nodes() == [
+        {
+            "id": "n",
+            "kind": "kind",
+            "label": "n",
+            "properties": {"keep": "b", "other": 1},
+        }
+    ]
     assert builder.edges() == [{"source": "n", "target": "n", "kind": "self"}]
     assert module._mapping("bad") == {}
     assert module._sequence("bad") == ()
     assert module._int(object()) == 0
     assert module._token("   ") == "item"
+
+
+def test_every_exported_relationship_resolves_to_its_source_manifest():
+    module = _load_module()
+    manifest = _sample_manifest()
+    graph = module.build_evidence_graph_from_workflow_manifest(manifest)
+    assert len(graph["source"]["manifest_sha256"]) == 64
+    for edge in graph["edges"]:
+        for evidence in edge["evidence"]:
+            current = manifest
+            pointer = evidence["source_pointer"]
+            for token in pointer.split("/")[1:] if pointer else []:
+                token = token.replace("~1", "/").replace("~0", "~")
+                current = (
+                    current[int(token)] if isinstance(current, list) else current[token]
+                )
+            assert current is not None
+    dependency = next(edge for edge in graph["edges"] if edge["kind"] == "precedes")
+    assert dependency["evidence"] == [
+        {"source_pointer": "/stages/0/depends_on/0", "basis": "declared"}
+    ]
+    assert (
+        module.build_evidence_graph_from_workflow_manifest(
+            dict(reversed(list(manifest.items())))
+        )
+        == graph
+    )
+
+
+def test_duplicate_relationships_retain_all_source_locations():
+    module = _load_module()
+    manifest = _sample_manifest()
+    manifest["stages"][0]["depends_on"].append("load")
+    graph = module.build_evidence_graph_from_workflow_manifest(manifest)
+    dependency = next(edge for edge in graph["edges"] if edge["kind"] == "precedes")
+    assert dependency["evidence"] == [
+        {"source_pointer": "/stages/0/depends_on/0", "basis": "declared"},
+        {"source_pointer": "/stages/0/depends_on/1", "basis": "declared"},
+    ]
+
+
+def test_explanation_traces_support_and_downstream_impact_without_mutation():
+    module = _load_module()
+    manifest = _sample_manifest()
+    graph = module.build_evidence_graph_from_workflow_manifest(manifest)
+    before = deepcopy(graph)
+    support = module.explain_evidence_node(
+        graph, "artifact:features", source_manifest=manifest
+    )
+    assert support["schema"] == module.EXPLANATION_SCHEMA
+    assert support["source_verified"] is True
+    assert {node["id"] for node in support["nodes"]} >= {
+        "artifact:features",
+        "stage:load",
+    }
+    assert any(edge["kind"] == "produced" for edge in support["edges"])
+    impact = module.explain_evidence_node(
+        graph, "artifact:features", direction="outgoing", source_manifest=manifest
+    )
+    assert {node["id"] for node in impact["nodes"]} == {
+        "artifact:features",
+        "stage:train",
+    }
+    assert impact["truncated"] is False
+    support["edges"][0]["evidence"].clear()
+    assert graph == before
+
+
+@pytest.mark.parametrize("change", ["source", "pointer", "relationship"])
+def test_explanation_rejects_stale_or_rewritten_graph_evidence(change):
+    module = _load_module()
+    manifest = _sample_manifest()
+    graph = module.build_evidence_graph_from_workflow_manifest(manifest)
+    if change == "source":
+        manifest["status"] = "failed"
+    elif change == "pointer":
+        graph["edges"][0]["evidence"][0]["source_pointer"] = "/status"
+    else:
+        graph["edges"][0]["kind"] = "proves"
+    with pytest.raises(ValueError, match="does not match"):
+        module.explain_evidence_node(
+            graph, "artifact:features", source_manifest=manifest
+        )
+
+
+def test_explanation_limits_and_cycles_are_bounded():
+    module = _load_module()
+    manifest = _sample_manifest()
+    manifest["stages"][1]["depends_on"] = ["train"]
+    graph = module.build_evidence_graph_from_workflow_manifest(manifest)
+    result = module.explain_evidence_node(graph, "stage:load", max_depth=8)
+    assert len({node["id"] for node in result["nodes"]}) == len(result["nodes"])
+    assert len(result["nodes"]) <= len(graph["nodes"])
+    for limits, field, maximum in [
+        ({"max_nodes": 1}, "nodes", 1),
+        ({"max_edges": 1}, "edges", 1),
+        ({"max_depth": 1}, "nodes", 4),
+    ]:
+        result = module.explain_evidence_node(graph, "stage:load", **limits)
+        assert result["truncated"] is True
+        assert len(result[field]) <= maximum
+    assert module.explain_evidence_node(
+        graph, "stage:load"
+    ) == module.explain_evidence_node(graph, "stage:load")
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [{"max_nodes": True}, {"max_edges": 401}, {"max_depth": 0}, {"max_depth": 1.5}],
+)
+def test_explanation_rejects_invalid_limits(limits):
+    module = _load_module()
+    graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    with pytest.raises(ValueError, match="must be an integer"):
+        module.explain_evidence_node(graph, "stage:load", **limits)
+
+
+def test_legacy_graph_is_readable_but_does_not_claim_verified_source():
+    module = _load_module()
+    graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    graph["source"].pop("manifest_sha256")
+    for edge in graph["edges"]:
+        edge.pop("evidence")
+    assert module.validate_evidence_graph(graph) == ()
+    report = module.explain_evidence_node(graph, "artifact:features")
+    assert report["source_verified"] is False
+    assert "unrecorded provenance" in report["claim_scope"]
+
+
+def test_invalid_edge_evidence_returns_shape_issues():
+    module = _load_module()
+    graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    graph["edges"][0]["evidence"] = [{"source_pointer": "/bad~escape", "basis": []}]
+    issues = module.validate_evidence_graph(graph)
+    assert any("source pointer is invalid" in issue for issue in issues)
+    assert any("evidence basis is invalid" in issue for issue in issues)
+
+
+def test_graph_cli_explains_current_manifest_and_rejects_missing_node(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "manifest.json"
+    path.write_text(json.dumps(_sample_manifest()))
+    assert module.main(["--manifest", str(path), "--node", "artifact:features"]) == 0
+    assert json.loads(capsys.readouterr().out)["source_verified"] is True
+    assert module.main(["--manifest", str(path), "--node", "missing"]) == 1
+    assert "Unknown evidence node" in json.loads(capsys.readouterr().out)["error"]
+
+
+def test_graph_cli_reports_excessive_json_nesting(tmp_path, capsys):
+    module = _load_module()
+    path = tmp_path / "manifest.json"
+    path.write_text("[" * 10000 + "0" + "]" * 10000)
+    assert module.main(["--manifest", str(path)]) == 1
+    assert "nesting" in json.loads(capsys.readouterr().out)["error"]
