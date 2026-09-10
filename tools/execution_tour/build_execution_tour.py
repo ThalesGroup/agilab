@@ -15,15 +15,15 @@ import re
 import sys
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA = "agilab.execution-tour.v1"
 PROOF = "tools/newcomer_first_proof.py"
 PROOF_TEST = "test/test_newcomer_first_proof.py"
 MANIFEST = "src/agilab/evidence/run_manifest.py"
 EVIDENCE = "src/agilab/evidence/evidence_contract.py"
 FLIGHT = "src/agilab/apps/builtin/flight_telemetry_project/src"
-PRODUCER = "tools/build_execution_tour.py"
-TEMPLATE = "tools/execution_tour.html"
+PRODUCER = "tools/execution_tour/build_execution_tour.py"
+TEMPLATE = "tools/execution_tour/template.html"
 MAPS = "tools/render_package_maps.py"
 
 # Editorial sequence, not an inferred call graph. Selectors resolve against ASTs.
@@ -250,7 +250,7 @@ def build_tour(root: Path = REPO_ROOT) -> dict:
         "producer": {
             "path": PRODUCER,
             "version": 1,
-            "command": "uv run --no-project python tools/build_execution_tour.py",
+            "command": "uv run --no-project python tools/execution_tour/build_execution_tour.py",
         },
         "snapshot": {
             "id": hashlib.sha256(json_bytes(files)).hexdigest(),

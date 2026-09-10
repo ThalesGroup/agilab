@@ -38,6 +38,7 @@ small { display: block; color: #53697c; font-size: .74rem; }
 summary { cursor: pointer; color: #075c85; padding: .5rem 0; }
 pre { overflow: auto; max-height: 34rem; font-size: .78rem; background: #152d45; color: #edf5fb; padding: 1rem; border-radius: 6px; }
 code { font-family: ui-monospace, monospace; }
+p code { overflow-wrap: anywhere; }
 footer { padding: 2rem 0; color: #53697c; }
 @media (max-width: 850px) { .layout { display: block; padding: 1.25rem; } aside { position: static; } nav ol { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; } .step { padding: 1.25rem; } .references { grid-template-columns: 1fr; gap: .5rem; } }
 @media print { .layout { display: block; padding: 0; } aside, .skip { display: none; } .step { break-inside: avoid; } }
@@ -56,7 +57,7 @@ footer { padding: 2rem 0; color: #53697c; }
 <section id="snapshot"><h2>Inspect the source snapshot</h2><p>{{limitations}}</p>
 <p class="snapshot"><strong>Snapshot SHA-256</strong><br><code>{{snapshot_id}}</code></p>
 <p><a href="tour.json">Machine-readable tour and source hashes</a></p>
-<p>Check against the checkout with <code>uv run --no-project python tools/build_execution_tour.py --check</code>.
+<p>Check against the checkout with <code>uv run --no-project python tools/execution_tour/build_execution_tour.py --check</code>.
 For a custom output directory, add <code>--output-dir PATH</code>.</p>
 {{sources}}</section>
 <footer>Generated from repository sources and AGILAB's existing package responsibility maps.</footer>

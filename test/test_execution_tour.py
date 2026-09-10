@@ -11,7 +11,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "execution_tour_test_module", ROOT / "tools/build_execution_tour.py"
+    "execution_tour_test_module", ROOT / "tools/execution_tour/build_execution_tour.py"
 )
 tour = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = tour

@@ -4,8 +4,8 @@ Build a five-step walkthrough from project selection through preparation, worker
 execution, manifest recording, and evidence verification:
 
 ```sh
-uv run --no-project python tools/build_execution_tour.py
-uv run --no-project python tools/build_execution_tour.py --check
+uv run --no-project python tools/execution_tour/build_execution_tour.py
+uv run --no-project python tools/execution_tour/build_execution_tour.py --check
 ```
 
 Open `reports/execution-tour/index.html` in a browser. The page works offline:

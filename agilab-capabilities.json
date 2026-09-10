@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-09T14:00:01Z",
+  "generated_at_utc": "2026-09-10T09:22:52Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 245,
+    "evidence_schema_count": 246,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1576,6 +1576,13 @@
       "schema": "agilab.example.voila_notebook_proof.widget_to_args.v1",
       "sources": [
         "src/agilab/examples/voila_notebook_proof/preview_voila_notebook_proof.py"
+      ]
+    },
+    {
+      "schema": "agilab.execution-tour.v1",
+      "sources": [
+        "tools/execution_tour/README.md",
+        "tools/execution_tour/build_execution_tour.py"
       ]
     },
     {
