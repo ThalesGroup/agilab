@@ -36,6 +36,7 @@ from learning_assessment.domain.learning import (  # noqa: E402
     probability_density_svg,
 )
 from learning_assessment.exports import diagnostic_report_to_markdown  # noqa: E402
+from learning_assessment.ui.guided_lesson import render_guided_lesson  # noqa: E402
 
 
 def _cache_data(func):
@@ -707,8 +708,17 @@ def render(
         args_model=runtime_args,
     )
 
-    catalog_tab, answer_tab, classroom_tab, authoring_tab, coverage_tab = st.tabs(
-        ["Catalog", "Self-check", "Live class", "Authoring", "Coverage"]
+    catalog_tab, answer_tab, lesson_tab, classroom_tab, authoring_tab, coverage_tab = (
+        st.tabs(
+            [
+                "Catalog",
+                "Self-check",
+                "Guided lesson",
+                "Live class",
+                "Authoring",
+                "Coverage",
+            ]
+        )
     )
 
     with catalog_tab:
@@ -823,6 +833,14 @@ def render(
                     width="stretch",
                     key="tescia_answer_correction_download",
                 )
+
+    with lesson_tab:
+        if selected_track_id in {"all", "data_science_2026"}:
+            render_guided_lesson(active_app_path)
+        else:
+            st.info(
+                "Choose Data science 2026 or All paths to open the guided drift lesson."
+            )
 
     with classroom_tab:
         actions, refresh_options = st.columns([1.2, 2.0])
