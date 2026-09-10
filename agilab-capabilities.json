@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T11:05:25Z",
+  "generated_at_utc": "2026-09-10T11:31:48Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 250,
+    "evidence_schema_count": 251,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1685,6 +1685,13 @@
         "src/agilab/pipeline/pipeline_lab.py",
         "tools/global_pipeline_dispatch_state_report.py",
         "tools/robustness_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.guided_lesson.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/README.md",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/guided_lesson.py"
       ]
     },
     {

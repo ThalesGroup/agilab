@@ -138,6 +138,16 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "writes classroom intake files; focused TeSciA tests cover upload handling without mutating generic robot state",
         ("test/test_learning_assessment_project.py",),
     ),
+    "Save explanation": (
+        "trial-only",
+        "records guided lesson progress in browser session state; focused lesson tests cover validation and same-event saves",
+        ("test/test_learning_assessment_guided_lesson.py",),
+    ),
+    "Start a new lesson": (
+        "trial-only",
+        "resets guided lesson progress in browser session state; focused lesson tests cover restart and prediction gates",
+        ("test/test_learning_assessment_guided_lesson.py",),
+    ),
     "Start GPT-OSS server": (
         "ignored",
         "starts an external local service and is not deterministic in CI robots",
