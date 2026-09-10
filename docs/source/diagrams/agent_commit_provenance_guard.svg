@@ -50,7 +50,7 @@
   <text class="label" x="88" y="392">Old failure mode</text>
   <text class="body" x="88" y="422">
     <tspan x="88" dy="0">Local Git config kept a</tspan>
-    <tspan x="88" dy="24">human name and email, so</tspan>
+    <tspan x="88" dy="24">a human display name, so</tspan>
     <tspan x="88" dy="24">agent commits looked human.</tspan>
   </text>
 
@@ -59,17 +59,17 @@
   <text class="badgeText" x="524" y="171" text-anchor="middle">PRE-COMMIT</text>
   <text class="label" x="472" y="206">Config guard</text>
   <text class="body" x="472" y="236">
-    <tspan x="472" dy="0">Rejects human Git identity</tspan>
-    <tspan x="472" dy="24">before a commit is created</tspan>
-    <tspan x="472" dy="24">on an agent branch.</tspan>
+    <tspan x="472" dy="0">Checks effective Git names</tspan>
+    <tspan x="472" dy="24">and identity overrides</tspan>
+    <tspan x="472" dy="24">before an agent commit.</tspan>
   </text>
 
   <rect class="guard" x="448" y="352" width="290" height="132" rx="18"/>
   <text class="label" x="472" y="392">Required identity</text>
   <text class="body" x="472" y="422">
     <tspan x="472" dy="0">AGILAB Codex Agent</tspan>
-    <tspan x="472" dy="24">&lt;codex-agent@users.</tspan>
-    <tspan x="472" dy="24">noreply.github.com&gt;</tspan>
+    <tspan x="472" dy="24">Operator's verified email</tspan>
+    <tspan x="472" dy="24">and matching signing key</tspan>
   </text>
 
   <rect class="guard" x="862" y="132" width="290" height="190" rx="18"/>
