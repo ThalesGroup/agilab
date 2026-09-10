@@ -24,6 +24,20 @@ def _write_task(path: Path, payload: dict[str, object]) -> None:
     )
 
 
+def _run_until_task_moved(monkeypatch, source: Path, destination: Path):
+    """Stop after the real quarantine move, without racing filesystem timing."""
+    original_replace = Path.replace
+
+    def _replace(path, target):
+        result = original_replace(path, target)
+        if path == source and target == destination:
+            assert BaseWorker.break_loop() is True
+        return result
+
+    monkeypatch.setattr(Path, "replace", _replace)
+    return BaseWorker.loop(poll_interval=0.05)
+
+
 def _read_json_with_permission_retry(
     path: Path,
     *,
@@ -152,7 +166,7 @@ def test_heartbeat_json_reader_retries_only_transient_permission_errors(tmp_path
 
 
 def test_service_loop_without_worker_override_stops_cleanly():
-    worker = DummyWorker()
+    DummyWorker()
     result: dict[str, object] = {}
 
     def _run_loop():
@@ -180,6 +194,7 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
 
     def _works(plan, metadata):
         calls.append((plan, metadata))
+        assert BaseWorker.break_loop() is True
 
     worker.works = _works
 
@@ -207,29 +222,16 @@ def test_service_loop_consumes_queued_tasks(tmp_path):
     task_file = pending / "000001-batch-1-000-worker.task.json"
     _write_task(task_file, payload)
 
-    result: dict[str, object] = {}
-
-    def _run_loop():
-        result["payload"] = BaseWorker.loop(poll_interval=0.05)
-
-    thread = threading.Thread(target=_run_loop, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 2.0
+    payload_out = BaseWorker.loop(poll_interval=0.05)
     done_file = queue_root / "done" / task_file.name
-    while time.time() < deadline and not done_file.exists():
-        time.sleep(0.05)
 
     assert done_file.exists(), "Service queue task was not moved to done"
     assert len(calls) == 1
 
-    assert BaseWorker.break_loop() is True
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "Service loop did not stop after break_loop"
-
-    payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
+    assert payload_out.get("status") == "stopped"
     assert payload_out.get("processed") == 1
+    assert payload_out.get("failed") == 0
 
 
 def test_service_loop_refreshes_heartbeat_during_long_task(tmp_path):
@@ -449,7 +451,7 @@ def test_service_loop_unique_running_claim_does_not_overwrite_duplicate_name(tmp
     assert list(running.glob("*.claim-*.task.json")) == []
 
 
-def test_service_loop_moves_unreadable_task_to_failed(tmp_path):
+def test_service_loop_moves_unreadable_task_to_failed(tmp_path, monkeypatch):
     worker = DummyWorker()
     BaseWorker._worker_id = 0
     BaseWorker._worker = "127.0.0.1:8787"
@@ -462,31 +464,18 @@ def test_service_loop_moves_unreadable_task_to_failed(tmp_path):
     task_file = pending / "000002-bad.task.json"
     task_file.write_text("not-json", encoding="utf-8")
 
-    result: dict[str, object] = {}
-
-    def _run_loop():
-        result["payload"] = BaseWorker.loop(poll_interval=0.05)
-
-    thread = threading.Thread(target=_run_loop, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 2.0
     failed_file = queue_root / "failed" / task_file.name
-    while time.time() < deadline and not failed_file.exists():
-        time.sleep(0.05)
+    payload_out = _run_until_task_moved(monkeypatch, task_file, failed_file)
 
     assert failed_file.exists(), "Unreadable task was not moved to failed"
-
-    assert BaseWorker.break_loop() is True
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "Service loop did not stop after break_loop"
-
-    payload_out = result.get("payload")
+    assert failed_file.read_text(encoding="utf-8") == "not-json"
+    assert not task_file.exists()
     assert isinstance(payload_out, dict)
+    assert payload_out.get("status") == "stopped"
     assert payload_out.get("failed") == 0
 
 
-def test_service_loop_rejects_legacy_pickle_task_without_loading(tmp_path):
+def test_service_loop_rejects_legacy_pickle_task_without_loading(tmp_path, monkeypatch):
     worker = DummyWorker()
     BaseWorker._worker_id = 0
     BaseWorker._worker = "127.0.0.1:8787"
@@ -501,25 +490,15 @@ def test_service_loop_rejects_legacy_pickle_task_without_loading(tmp_path):
     legacy_task = pending / "000002-legacy.task.pkl"
     legacy_task.write_bytes(b"\x80\x04legacy-pickle-payload")
 
-    result: dict[str, object] = {}
-
-    def _run_loop():
-        result["payload"] = BaseWorker.loop(poll_interval=0.05)
-
-    thread = threading.Thread(target=_run_loop, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 2.0
     failed_file = queue_root / "failed" / legacy_task.name
-    while time.time() < deadline and not failed_file.exists():
-        time.sleep(0.05)
+    payload_out = _run_until_task_moved(monkeypatch, legacy_task, failed_file)
 
     assert failed_file.exists(), "Legacy pickle task was not quarantined"
+    assert failed_file.read_bytes() == b"\x80\x04legacy-pickle-payload"
+    assert not legacy_task.exists()
     assert calls == []
-
-    assert BaseWorker.break_loop() is True
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "Service loop did not stop after break_loop"
+    assert payload_out["status"] == "stopped"
+    assert payload_out["processed"] == 0
 
 
 def test_service_loop_records_worker_failures(tmp_path):
@@ -529,6 +508,9 @@ def test_service_loop_records_worker_failures(tmp_path):
     worker.args = SimpleNamespace(_agi_service_queue_dir=str(tmp_path / "service_queue"))
 
     def _raise(*_args, **_kwargs):
+        # Stop after this task; the loop must still publish its failure before
+        # returning. Run synchronously so slow CI I/O is not a test deadline.
+        assert BaseWorker.break_loop() is True
         raise RuntimeError("boom")
 
     worker.works = _raise
@@ -557,19 +539,8 @@ def test_service_loop_records_worker_failures(tmp_path):
     task_file = pending / "000003-batch-fail-000-worker.task.json"
     _write_task(task_file, payload)
 
-    result: dict[str, object] = {}
-
-    def _run_loop():
-        result["payload"] = BaseWorker.loop(poll_interval=0.05)
-
-    thread = threading.Thread(target=_run_loop, daemon=True)
-    thread.start()
-
-    deadline = time.time() + 2.0
+    payload_out = BaseWorker.loop(poll_interval=0.05)
     failed_file = queue_root / "failed" / task_file.name
-    while time.time() < deadline and not failed_file.exists():
-        time.sleep(0.05)
-
     assert failed_file.exists(), "Failed task was not moved to failed"
 
     failed_payload = json.loads(failed_file.read_text(encoding="utf-8"))
@@ -577,13 +548,14 @@ def test_service_loop_records_worker_failures(tmp_path):
     assert failed_payload["error"] == "boom"
     assert "RuntimeError: boom" in failed_payload["traceback"]
 
-    assert BaseWorker.break_loop() is True
-    thread.join(timeout=2)
-    assert not thread.is_alive(), "Service loop did not stop after break_loop"
-
-    payload_out = result.get("payload")
     assert isinstance(payload_out, dict)
+    assert payload_out.get("status") == "stopped"
     assert payload_out.get("failed") == 1
+    assert payload_out.get("processed") == 0
+    assert not task_file.exists()
+    assert list((queue_root / "running").glob("*.task.json")) == []
+    assert BaseWorker._service_stop_events == {}
+    assert BaseWorker._service_active == {}
 
 
 def test_service_loop_skips_tasks_for_other_workers(tmp_path):
