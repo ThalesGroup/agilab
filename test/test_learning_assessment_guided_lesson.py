@@ -227,6 +227,15 @@ def test_guided_browser_state_requires_predictions_and_survives_reruns(lesson):
     state = app.session_state[prefix + "_progress"]
     assert lesson.import_lesson(lesson.export_lesson(state)) == state
     assert len(state["attempts"]) == 2
+    _element(app.button, "Start a new lesson").click().run()
+    assert not app.exception
+    restarted = app.session_state[prefix + "_progress"]
+    assert restarted["attempts"] == []
+    assert restarted["explanation"] == ""
+    assert _element(app.button, "Run baseline").disabled
+    assert not app.text_area
+    assert not app.success
+    assert len(state["attempts"]) == 2  # Restart leaves exported progress intact.
 
 
 def test_progress_is_scoped_to_active_project(lesson):
