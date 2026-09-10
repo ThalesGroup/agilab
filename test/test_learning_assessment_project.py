@@ -164,7 +164,7 @@ class _FakeStreamlit:
         return False
 
     def file_uploader(self, *_args, **_kwargs):
-        return []
+        return [] if _kwargs.get("accept_multiple_files") else None
 
     def text_input(self, *_args, **kwargs):
         return kwargs.get("value", "")
@@ -1932,7 +1932,7 @@ def test_tescia_app_surface_render_covers_classroom_upload_and_partial_status(
             return label == "Save classroom uploads"
 
         def file_uploader(self, *_args, **_kwargs):
-            return self.uploads
+            return self.uploads if _kwargs.get("accept_multiple_files") else None
 
         def success(self, message, *_args, **_kwargs) -> None:
             self.successes.append(str(message))
