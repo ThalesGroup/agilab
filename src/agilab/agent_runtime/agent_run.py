@@ -293,11 +293,13 @@ def _file_payload(path: Path) -> dict[str, object]:
             "size_bytes": 0,
             "line_count": 0,
         }
-    text = path.read_text(encoding="utf-8", errors="replace")
+    data = path.read_bytes()
+    text = data.decode("utf-8", errors="replace")
     return {
         "path": str(path),
         "exists": True,
-        "size_bytes": path.stat().st_size,
+        "size_bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
         "line_count": len(text.splitlines()),
     }
 

@@ -3,7 +3,7 @@ name: agilab-evidence-contracts
 description: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-08
+  updated: 2026-09-10
 ---
 
 # AGILAB Evidence Contracts
@@ -76,6 +76,34 @@ the normal source/code GitHub Release assets.
 - Treating UI success as run success without backend evidence.
 - Mixing local developer state into public release proof.
 - Updating docs, badges, or scorecards without checking the current evidence.
+
+## Skill Receipts and Graph Explanations
+
+Use `agilab.skill_evaluation_plan.v1` to freeze skill inputs and the case cohort,
+then `agilab.skill_evaluation_receipt.v1` to retain observations from a linked
+`agilab.agent_run.v1` manifest. Follow the
+[evaluation receipt workflow](../agilab-prompt-eval-regression/references/evaluation-receipts.md).
+Receipt references remain relative to the declared root when the complete bundle
+moves; native manifests retain their original local metadata and bytes. Keep
+verification status separate from evaluation status: failed evaluations can have
+valid, verifiable receipts. Evaluator versions are declared configuration, and
+plan metadata establishes association rather than execution of the frozen source.
+
+Workflow evidence graphs attach JSON source pointers and `declared` or `derived`
+bases to relationships. The source digest hashes the canonical JSON manifest,
+not its on-disk formatting. Inspect a bounded neighborhood with:
+
+```bash
+uv --preview-features extra-build-dependencies run python -m agilab.evidence.evidence_graph --manifest path/to/workflow_run_manifest.json
+uv --preview-features extra-build-dependencies run python -m agilab.evidence.evidence_graph --manifest path/to/workflow_run_manifest.json --node stage:prepare --direction incoming --max-depth 3 --max-nodes 50 --max-edges 100
+```
+
+Use a node id from the first command. `incoming` follows supporting relationships;
+`outgoing` follows dependents. Check `truncated` before treating a neighborhood as
+complete. The API accepts older graphs, but `source_verified` is true only when
+the original manifest is supplied and reconstructs the same graph. Relationship
+evidence explains manifest declarations and derived structure; it does not prove
+causation, artifact content, execution, or successful validation.
 
 ## External Inspiration Gate
 
