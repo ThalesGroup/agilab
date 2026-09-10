@@ -39,10 +39,10 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
   guard with useful output, classify whether the failure belongs to the current
   diff, a real repository contract, or polluted local filesystem state, then
   fix the right layer or document the exact unrelated failure before pushing.
-- When changing visible UI action labels, audit sibling pages for semantic
-  collisions before closing. The same visible button text must not mean
-  different operations across pages; use scoped labels and update page tests and
-  robot click-label coverage with the split.
+- When adding or changing visible UI actions, audit sibling pages for semantic collisions;
+  the same button text must not mean different operations. Update page tests and robot labels.
+  Before pushing, run `python3 tools/ui_robot_action_contract.py`; register stateful actions
+  with selected-click coverage or an explicit disposition backed by focused tests.
 - Product-copy renames must not force stable API renames. For ORCHESTRATE,
   explain that `Deploy workers` still calls `AGI.install` because it prepares
   manager/worker runtime environments and reuses an already-ready local manager

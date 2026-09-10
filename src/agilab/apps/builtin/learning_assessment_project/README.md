@@ -164,6 +164,54 @@ proof that a lab was executed or a competency was mastered.
 
 ## Change One Thing
 
+### Guided drift lesson
+
+Open **ANALYSIS → Guided lesson** with **All paths** or **Data science 2026**
+selected. This lesson uses the bundled uncertainty-and-drift case and its
+existing deterministic decision evaluator. It runs locally without a model,
+network service, or worker deployment.
+
+1. Predict the action for the healthy baseline: drift `0.10`, coverage `0.95`.
+2. Select **Run baseline** to record the actual policy decision.
+3. Change exactly one observation and predict again. For example, change drift
+   to `0.30` while keeping coverage at `0.95`, then select **Run changed input**.
+4. Compare the recorded inputs, predictions, decisions, and threshold triggers.
+   Explain why the action changed or stayed the same, including what happens at
+   equality, then select **Save explanation**.
+5. Select **Download lesson evidence** to keep `drift_decision_lesson.json`.
+   **Resume saved lesson** accepts this same file, including partially completed
+   lessons. Browser-session progress alone does not survive a server restart.
+
+The `agilab.guided_lesson.v1` export contains the source case and evaluator
+fingerprints, timestamped predictions and observed decisions, explanation,
+review queue, and next-practice suggestion. A checksum covers the payload.
+Incorrect predictions select threshold practice; completing the activity keeps
+`learner_mastery = "not_assessed"` and the explanation pending human review.
+
+From the AGILAB source checkout, verify a downloaded file with:
+
+```bash
+PYTHONPATH=src/agilab/apps/builtin/learning_assessment_project/src \
+uv --preview-features extra-build-dependencies run python \
+  -m learning_assessment.domain.guided_lesson \
+  --verify /path/to/drift_decision_lesson.json
+```
+
+Verification checks the checksum, source fingerprints, checkpoint order,
+single-input change, replayed decisions, and derived progress. It rejects stale
+or inconsistent evidence instead of replacing it. Keep the old export and start
+a new lesson when the source case or evaluator changes.
+
+This evidence demonstrates deterministic policy behavior on synthetic inputs.
+It does not establish forecasting quality, conformal coverage on a real dataset,
+learner identity, independently attested execution, or practical mastery. The
+checksum detects changes; it is not a digital signature. The guided sequence is
+inspired by the predict/run/explain/check pattern in
+[AI Engineering from Scratch's learning skills](https://github.com/rohitg00/ai-engineering-from-scratch/tree/main/skills);
+the case and evaluator remain AGILAB-owned.
+
+### Adapt the diagnostic cases
+
 After the default run works, filter the catalog to `data-scientist candidate`,
 change one `student_answer`, or add one diagnostic case with a weaker proposed
 fix. The feedback should identify missing evidence, wrong fix choice, or
