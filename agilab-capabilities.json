@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T11:31:48Z",
+  "generated_at_utc": "2026-09-10T13:16:51Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 251,
+    "evidence_schema_count": 252,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1600,6 +1600,13 @@
       ]
     },
     {
+      "schema": "agilab.feature-evidence.v1",
+      "sources": [
+        "src/agilab/examples/telemetry_features/README.md",
+        "src/agilab/examples/telemetry_features/preview_telemetry_features.py"
+      ]
+    },
+    {
       "schema": "agilab.first_launch_robot.v1",
       "sources": [
         "docs/source/features.rst",
@@ -1709,6 +1716,7 @@
         "src/agilab/apps/builtin/uav_queue_project/lab_stages.toml",
         "src/agilab/apps/builtin/uav_relay_queue_project/lab_stages.toml",
         "src/agilab/apps/builtin/weather_forecast_project/lab_stages.toml",
+        "src/agilab/examples/telemetry_features/lab_stages.toml",
         "src/agilab/workflow/lab_stages_contract.py",
         "tools/agilab_widget_robot.py",
         "tools/notebook_roundtrip_report.py"
