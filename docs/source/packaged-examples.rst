@@ -19,6 +19,9 @@ Catalog
    * - Example
      - Route
      - What it proves
+   * - ``telemetry_features``
+     - Read-only preview with optional Featuretools
+     - Computes three features from synthetic telemetry with an explicit availability-time cutoff. Saves definitions, input/output hashes, and readable feature lineage; verifies and replays the saved recipe locally.
    * - ``flight_telemetry``
      - Executable app helper
      - First proof for ``flight_telemetry_project``: install, run, and inspect

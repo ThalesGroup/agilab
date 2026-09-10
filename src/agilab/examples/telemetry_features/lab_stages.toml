@@ -1,0 +1,32 @@
+[__meta__]
+schema = "agilab.lab_stages.v1"
+version = 1
+
+[[telemetry_features]]
+id = "generate_features"
+runtime_role = "manager"
+produces = ["reports/telemetry-features-workflow/feature_manifest.json", "reports/telemetry-features-workflow/feature_matrix.csv"]
+D = "Generate telemetry feature evidence"
+Q = "Use a bounded feature recipe and only information available before the cutoff."
+C = """from pathlib import Path
+from agilab.examples.telemetry_features.preview_telemetry_features import build_preview
+
+feature_bundle = Path("reports/telemetry-features-workflow")
+feature_manifest = build_preview(feature_bundle)
+print(feature_manifest["run_id"])
+"""
+M = ""
+
+[[telemetry_features]]
+id = "replay_features"
+runtime_role = "manager"
+depends_on = ["generate_features"]
+consumes = ["reports/telemetry-features-workflow/feature_manifest.json", "reports/telemetry-features-workflow/feature_matrix.csv"]
+D = "Verify and replay saved feature definitions"
+Q = "Recompute the saved recipe and compare feature values and lineage."
+C = """from agilab.examples.telemetry_features.preview_telemetry_features import verify_evidence
+
+feature_verification = verify_evidence(feature_bundle, replay=True)
+print(feature_verification)
+"""
+M = ""

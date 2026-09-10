@@ -8,6 +8,12 @@ or multi-app work.
 
 ## Learning Path
 
+For a bounded feature-engineering experiment, use
+[`telemetry_features`](telemetry_features/README.md). It computes three features
+from synthetic related tables with explicit time cutoffs, saves their definitions,
+and verifies or replays the resulting evidence. Its optional Featuretools
+environment is selected by the script's inline dependency metadata.
+
 Start with the examples in this order. Each step adds one concept while keeping
 the command shape stable.
 

@@ -175,6 +175,8 @@ packages = [
     "notebook_to_dask/*.json",
     "notebook_to_dask/*.toml",
     "notebook_to_dask/*.ipynb",
+    "telemetry_features/*.py",
+    "telemetry_features/*.toml",
     "parallel_stage/*.py",
     "parallel_stage/*.toml",
     "sqlite_connector_proof/*.py",

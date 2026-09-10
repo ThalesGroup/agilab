@@ -66,6 +66,7 @@ EXAMPLE_PREVIEWS = {
     ),
     "service_mode": ("preview_service_mode.py",),
     "sqlite_connector_proof": ("preview_sqlite_connector_proof.py",),
+    "telemetry_features": ("preview_telemetry_features.py", "lab_stages.toml"),
     "train_then_serve": ("preview_train_then_serve.py",),
     "voila_notebook_proof": ("preview_voila_notebook_proof.py",),
 }
@@ -1273,6 +1274,8 @@ def test_packaged_example_readmes_are_included_as_package_data() -> None:
     assert "notebook_to_dask/*.json" in package_data
     assert "notebook_to_dask/*.toml" in package_data
     assert "notebook_to_dask/*.ipynb" in package_data
+    assert "telemetry_features/*.py" in package_data
+    assert "telemetry_features/*.toml" in package_data
     assert "voila_notebook_proof/*.py" in package_data
     assert "notebook_quickstart/*.ipynb" in package_data
     assert "notebook_migrations/*/README.md" in package_data
