@@ -13,6 +13,8 @@ from typing import Any
 
 import pandas as pd
 
+from .quality_rules import evaluate_rules, normalize_rules
+
 
 SCHEMA = "agilab.app.data_quality_gate.v1"
 CONTRACT_SCHEMA = "agilab.app.data_quality_gate.contract.v1"
@@ -74,6 +76,7 @@ def default_contract() -> dict[str, Any]:
         "identifier_columns": list(DEFAULT_IDENTIFIER_COLUMNS),
         "leakage_name_patterns": list(DEFAULT_LEAKAGE_NAME_PATTERNS),
         "target_column": DEFAULT_TARGET_COLUMN,
+        "rules": [],
     }
 
 
@@ -113,10 +116,27 @@ def _optional_path(value: str | Path | None) -> Path | None:
     return Path(raw).expanduser()
 
 
+def _unique_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(_value: str) -> None:
+    raise ValueError("non-finite JSON numbers are unsupported")
+
+
 def _read_json(path: Path, *, label: str) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_unique_json_object,
+            parse_constant=_reject_json_constant,
+        )
+    except ValueError as exc:
         raise ValueError(f"Invalid {label} JSON in {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"{label} JSON in {path} must be an object")
@@ -182,6 +202,7 @@ def _normalize_contract(payload: dict[str, Any] | None = None) -> dict[str, Any]
         raw_patterns = [raw_patterns]
     if isinstance(raw_patterns, list):
         base["leakage_name_patterns"] = [str(value).strip() for value in raw_patterns if str(value).strip()]
+    base["rules"] = normalize_rules(payload.get("rules", []), base["columns"])
     return base
 
 
@@ -568,10 +589,14 @@ def _contract_result(
     unexpected = sorted(candidate_columns - defined)
     baseline_columns = set(baseline.columns)
     return {
+        "schema": CONTRACT_SCHEMA,
+        "rules": contract["rules"],
         "allow_unexpected_columns": bool(contract.get("allow_unexpected_columns")),
         "expected_columns": columns,
         "missing_columns": missing,
-        "unexpected_columns": [] if contract.get("allow_unexpected_columns") else unexpected,
+        "unexpected_columns": []
+        if contract.get("allow_unexpected_columns")
+        else unexpected,
         "observed_unexpected_columns": unexpected,
         "baseline_missing_columns": sorted(expected - baseline_columns),
         "type_issues": [
@@ -589,6 +614,7 @@ def _gate_decision(
     contract: dict[str, Any],
     drift_rows: list[dict[str, Any]],
     thresholds: dict[str, float],
+    rule_results: dict[str, Any],
 ) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
@@ -615,6 +641,17 @@ def _gate_decision(
     if leakage_columns:
         blockers.append("potential leakage columns: " + ", ".join(leakage_columns))
 
+    for rule in rule_results["rules"]:
+        if rule["status"] != "pass":
+            message = (
+                f"rule {rule['id']} on {rule['column']}: {rule['status']} "
+                f"({rule['failed_count']}/{rule['checked_count']} evaluated rows failed; "
+                f"{rule['skipped_count']} skipped)"
+            )
+            if rule["missing_columns"]:
+                message += "; missing columns: " + ", ".join(rule["missing_columns"])
+            (blockers if rule["severity"] == "block" else warnings).append(message)
+
     for row in drift_rows:
         if row["severity"] == "block":
             blockers.append(f"{row['feature']} drift blocks promotion")
@@ -627,6 +664,7 @@ def _gate_decision(
         "decision": decision,
         "blockers": blockers,
         "warnings": warnings,
+        "rule_status_counts": rule_results["status_counts"],
         "quality": {
             "candidate_null_rate_max": round(null_rate, 6),
             "candidate_duplicate_rate": round(duplicate_rate, 6),
@@ -634,10 +672,16 @@ def _gate_decision(
             "leakage_columns": leakage_columns,
         },
         "drift": {
-            "warn_feature_count": sum(1 for row in drift_rows if row["severity"] == "warn"),
-            "block_feature_count": sum(1 for row in drift_rows if row["severity"] == "block"),
+            "warn_feature_count": sum(
+                1 for row in drift_rows if row["severity"] == "warn"
+            ),
+            "block_feature_count": sum(
+                1 for row in drift_rows if row["severity"] == "block"
+            ),
             "max_psi": max((float(row["psi"]) for row in drift_rows), default=0.0),
-            "max_ks_statistic": max((float(row["ks_statistic"]) for row in drift_rows), default=0.0),
+            "max_ks_statistic": max(
+                (float(row["ks_statistic"]) for row in drift_rows), default=0.0
+            ),
         },
     }
 
@@ -664,7 +708,7 @@ def _recommended_action(decision: str) -> str:
     if decision == "promote":
         return "Promote the candidate data to the next workflow step."
     if decision == "manual-review":
-        return "Hold promotion until an owner reviews drift and row-count warnings."
+        return "Hold promotion until an owner reviews the gate warnings."
     return "Block promotion until blockers are fixed and the gate is rerun."
 
 
@@ -699,6 +743,7 @@ def _write_report(
     drift_rows: list[dict[str, Any]],
     input_mode: str,
     contract: dict[str, Any],
+    rule_results: dict[str, Any],
 ) -> None:
     top_rows = sorted(drift_rows, key=lambda row: (row["severity"] != "block", -float(row["psi"])))[:5]
     lines = [
@@ -734,6 +779,19 @@ def _write_report(
     lines.extend(
         [
             "",
+            "## Contract rules",
+            "",
+            *(
+                f"- `{row['id']}` ({row['kind']}, {row['severity']}): **{row['status']}**; "
+                f"{row['passed_count']}/{row['checked_count']} evaluated rows passed, "
+                f"{row['skipped_count']} skipped."
+                for row in rule_results["rules"]
+            ),
+            *([] if rule_results["rules"] else ["No row rules configured."]),
+            "",
+            "Inspect `rule_results.json` for failure counts and bounded row positions; "
+            "positions start at zero and exclude the CSV header. No observed cell values are included.",
+            "",
             "The gate is deterministic and local. It does not call external services or certify production use.",
             "",
         ]
@@ -747,6 +805,7 @@ def _write_dashboard(
     decision_card: dict[str, Any],
     drift_rows: list[dict[str, Any]],
     contract: dict[str, Any],
+    rule_results: dict[str, Any],
 ) -> None:
     badge_color = {"promote": "#137333", "manual-review": "#b06000", "block": "#b42318"}.get(
         str(decision_card["decision"]),
@@ -770,6 +829,26 @@ def _write_dashboard(
     warning_items = "\n".join(
         f"<li>{html.escape(str(value))}</li>" for value in decision_card.get("warnings", [])
     ) or "<li>none</li>"
+    rule_rows = (
+        "\n".join(
+            "<tr>"
+            + "".join(
+                f"<td>{html.escape(str(row[key]))}</td>"
+                for key in (
+                    "id",
+                    "column",
+                    "status",
+                    "severity",
+                    "checked_count",
+                    "failed_count",
+                    "skipped_count",
+                )
+            )
+            + "</tr>"
+            for row in rule_results["rules"]
+        )
+        or '<tr><td colspan="7">No row rules configured.</td></tr>'
+    )
     content = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -802,6 +881,11 @@ def _write_dashboard(
   <ul>{blocker_items}</ul>
   <h2>Warnings</h2>
   <ul>{warning_items}</ul>
+  <h2>Contract rules</h2>
+  <table>
+    <thead><tr><th>Rule</th><th>Column</th><th>Status</th><th>Severity</th><th>Checked</th><th>Failed</th><th>Skipped</th></tr></thead>
+    <tbody>{rule_rows}</tbody>
+  </table>
   <h2>Drift signals</h2>
   <table>
     <thead><tr><th>Feature</th><th>Kind</th><th>Severity</th><th>PSI</th><th>KS</th><th>Mean shift</th><th>Category delta</th></tr></thead>
@@ -905,6 +989,20 @@ def build_data_quality_gate_artifacts(
     )
     contract_path.write_text(json.dumps(contract_result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
+    rule_results = evaluate_rules(candidate, contract["rules"])
+    rule_results["inputs"] = {
+        "candidate": _artifact(
+            candidate_path, role="evaluated candidate dataset", output_dir=output_dir
+        ),
+        "contract": _artifact(
+            contract_path, role="evaluated normalized contract", output_dir=output_dir
+        ),
+    }
+    rules_path = output_dir / "rule_results.json"
+    rules_path.write_text(
+        json.dumps(rule_results, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
     drift_rows = _drift_rows(baseline, candidate, contract=contract, thresholds=thresholds)
     drift_path = output_dir / "drift_metrics.csv"
     _write_csv(drift_path, drift_rows)
@@ -915,6 +1013,7 @@ def build_data_quality_gate_artifacts(
         contract=contract_result,
         drift_rows=drift_rows,
         thresholds=thresholds,
+        rule_results=rule_results,
     )
     decision["recommended_action"] = _recommended_action(decision["decision"])
     decision["risk_score"] = _risk_score(decision)
@@ -934,26 +1033,62 @@ def build_data_quality_gate_artifacts(
         drift_rows=drift_rows,
         input_mode=input_mode,
         contract=contract_result,
+        rule_results=rule_results,
     )
 
     dashboard_path = output_dir / "data_quality_dashboard.html"
-    _write_dashboard(dashboard_path, decision_card=decision_card, drift_rows=drift_rows, contract=contract_result)
+    _write_dashboard(
+        dashboard_path,
+        decision_card=decision_card,
+        drift_rows=drift_rows,
+        contract=contract_result,
+        rule_results=rule_results,
+    )
 
     input_sources_path = output_dir / "input_sources.json"
     input_sources_path.write_text(json.dumps(input_sources, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
     artifacts = {
-        "baseline": _artifact(baseline_path, role="baseline dataset", output_dir=output_dir),
-        "candidate": _artifact(candidate_path, role="candidate dataset", output_dir=output_dir),
-        "baseline_profile": _artifact(baseline_profile_path, role="baseline profile", output_dir=output_dir),
-        "candidate_profile": _artifact(candidate_profile_path, role="candidate profile", output_dir=output_dir),
-        "contract": _artifact(contract_path, role="data contract", output_dir=output_dir),
-        "drift_metrics": _artifact(drift_path, role="drift metrics", output_dir=output_dir),
-        "gate_decision": _artifact(decision_path, role="gate decision", output_dir=output_dir),
-        "decision_card": _artifact(decision_card_path, role="operator decision card", output_dir=output_dir),
-        "report": _artifact(report_path, role="human-readable evidence summary", output_dir=output_dir),
-        "dashboard": _artifact(dashboard_path, role="self-contained HTML dashboard", output_dir=output_dir),
-        "input_sources": _artifact(input_sources_path, role="input and configuration source hashes", output_dir=output_dir),
+        "baseline": _artifact(
+            baseline_path, role="baseline dataset", output_dir=output_dir
+        ),
+        "candidate": _artifact(
+            candidate_path, role="candidate dataset", output_dir=output_dir
+        ),
+        "baseline_profile": _artifact(
+            baseline_profile_path, role="baseline profile", output_dir=output_dir
+        ),
+        "candidate_profile": _artifact(
+            candidate_profile_path, role="candidate profile", output_dir=output_dir
+        ),
+        "contract": _artifact(
+            contract_path, role="data contract", output_dir=output_dir
+        ),
+        "rule_results": _artifact(
+            rules_path,
+            role="per-rule candidate validation evidence",
+            output_dir=output_dir,
+        ),
+        "drift_metrics": _artifact(
+            drift_path, role="drift metrics", output_dir=output_dir
+        ),
+        "gate_decision": _artifact(
+            decision_path, role="gate decision", output_dir=output_dir
+        ),
+        "decision_card": _artifact(
+            decision_card_path, role="operator decision card", output_dir=output_dir
+        ),
+        "report": _artifact(
+            report_path, role="human-readable evidence summary", output_dir=output_dir
+        ),
+        "dashboard": _artifact(
+            dashboard_path, role="self-contained HTML dashboard", output_dir=output_dir
+        ),
+        "input_sources": _artifact(
+            input_sources_path,
+            role="input and configuration source hashes",
+            output_dir=output_dir,
+        ),
     }
     manifest_path = output_dir / "run_manifest.json"
     manifest = {

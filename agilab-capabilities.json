@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T13:16:51Z",
+  "generated_at_utc": "2026-09-10T13:33:43Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 252,
+    "evidence_schema_count": 253,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1178,7 +1178,15 @@
     {
       "schema": "agilab.app.data_quality_gate.contract.v1",
       "sources": [
+        "src/agilab/apps/builtin/data_quality_gate_project/README.md",
         "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/domain/core.py"
+      ]
+    },
+    {
+      "schema": "agilab.app.data_quality_gate.rule_results.v1",
+      "sources": [
+        "src/agilab/apps/builtin/data_quality_gate_project/README.md",
+        "src/agilab/apps/builtin/data_quality_gate_project/src/data_quality_gate/domain/quality_rules.py"
       ]
     },
     {
