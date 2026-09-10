@@ -1,0 +1,9 @@
+name: Configure Ubuntu APT sources
+description: Use the runner's Ubuntu archive for CI dependencies, preserving APT verification.
+
+runs:
+  using: composite
+  steps:
+    - name: Select Ubuntu package sources
+      shell: bash
+      run: sudo bash "$GITHUB_ACTION_PATH/configure.sh"

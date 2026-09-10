@@ -1,6 +1,11 @@
 import ast
 import importlib.util
 import sys
+import shutil
+import subprocess
+
+import pytest
+import yaml
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -613,3 +618,115 @@ def test_dev_extra_installs_ruff_for_local_linting() -> None:
     # Exact version bounds belong to dependency-policy tests. This contract only
     # requires the local lint tool to remain present exactly once.
     assert len(ruff_dependencies) == 1
+
+
+UBUNTU_APT_ACTION = Path('.github/actions/configure-ubuntu-apt')
+
+
+def _ubuntu_apt_fixture(tmp_path: Path) -> Path:
+    apt_dir = tmp_path / 'apt'
+    sources = apt_dir / 'sources.list.d'
+    sources.mkdir(parents=True)
+    (sources / 'ubuntu.sources').write_text(
+        'Types: deb\nURIs: http://archive.ubuntu.com/ubuntu\n'
+        'Suites: noble noble-updates\nComponents: main universe\n'
+        'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n',
+        encoding='utf-8',
+    )
+    (sources / 'google-chrome.list').write_text('malformed third-party source\n', encoding='utf-8')
+    return apt_dir
+
+
+def _configure_ubuntu_apt(apt_dir: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ['bash', str(UBUNTU_APT_ACTION / 'configure.sh'), str(apt_dir)],
+        text=True, capture_output=True, check=False,
+    )
+
+
+def test_ubuntu_apt_configuration_preserves_sources_and_verification(tmp_path: Path) -> None:
+    apt_dir = _ubuntu_apt_fixture(tmp_path)
+    sources = {path: path.read_bytes() for path in sorted((apt_dir / 'sources.list.d').iterdir())}
+    result = _configure_ubuntu_apt(apt_dir)
+    assert result.returncode == 0, result.stderr
+    assert all(path.read_bytes() == content for path, content in sources.items())
+    config = (apt_dir / 'apt.conf.d/99-agilab-ubuntu-sources').read_text(encoding='utf-8')
+    assert f'Dir::Etc::sourcelist "{apt_dir}/sources.list.d/ubuntu.sources";' in config
+    assert 'Dir::Etc::sourceparts "-";' in config
+    assert 'APT::Update::Error-Mode "any";' in config
+    assert 'AllowInsecure' not in config
+    assert 'AllowUnauthenticated' not in config
+
+
+@pytest.mark.parametrize("source_content", [None, ""])
+def test_ubuntu_apt_missing_source_fails_without_changing_configuration(tmp_path: Path, source_content) -> None:
+    apt_dir = tmp_path / 'apt'
+    config = apt_dir / 'apt.conf.d/99-agilab-ubuntu-sources'
+    config.parent.mkdir(parents=True)
+    config.write_text('existing config\n', encoding='utf-8')
+    if source_content is not None:
+        source = apt_dir / 'sources.list.d/ubuntu.sources'
+        source.parent.mkdir()
+        source.write_text(source_content, encoding='utf-8')
+    result = _configure_ubuntu_apt(apt_dir)
+    assert result.returncode != 0
+    assert 'Expected Ubuntu runner source file' in result.stderr
+    assert config.read_text(encoding='utf-8') == 'existing config\n'
+
+
+def test_ubuntu_apt_ignores_malformed_third_party_source_with_real_apt(tmp_path: Path) -> None:
+    apt_get = shutil.which('apt-get')
+    if apt_get is None:
+        pytest.skip('Real APT source selection is validated on Ubuntu CI runners')
+    apt_dir = _ubuntu_apt_fixture(tmp_path)
+    before_config = tmp_path / 'before.conf'
+    before_config.write_text(
+        f'Dir::Etc::sourcelist "/dev/null";\nDir::Etc::sourceparts "{apt_dir}/sources.list.d";\n',
+        encoding='utf-8',
+    )
+    lists = tmp_path / 'lists'
+    (lists / 'partial').mkdir(parents=True)
+
+    def planned_downloads(config: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [apt_get, '-c', str(config), '-o', f'Dir::State::lists={lists}',
+             '--print-uris', 'update'],
+            text=True, capture_output=True, check=False,
+        )
+
+    before = planned_downloads(before_config)
+    assert before.returncode != 0
+    assert 'google-chrome.list' in before.stderr
+    assert _configure_ubuntu_apt(apt_dir).returncode == 0
+    after = planned_downloads(apt_dir / 'apt.conf.d/99-agilab-ubuntu-sources')
+    assert after.returncode == 0, after.stderr
+    assert 'archive.ubuntu.com' in after.stdout
+    assert 'google-chrome' not in after.stdout + after.stderr
+
+    # Isolating vendor sources must still reject a broken Ubuntu source.
+    (apt_dir / 'sources.list.d/ubuntu.sources').write_text('invalid deb822 source\n', encoding='utf-8')
+    broken = planned_downloads(apt_dir / 'apt.conf.d/99-agilab-ubuntu-sources')
+    assert broken.returncode != 0
+    assert 'ubuntu.sources' in broken.stderr
+
+
+def test_all_ubuntu_dependency_steps_select_the_archive_first() -> None:
+    action_ref = './.github/actions/configure-ubuntu-apt'
+    consumers = set()
+    for path in sorted(Path('.github/workflows').glob('*')):
+        if path.suffix not in {'.yml', '.yaml'}:
+            continue
+        workflow = yaml.safe_load(path.read_text(encoding='utf-8'))
+        for job in workflow.get('jobs', {}).values():
+            steps = job.get('steps', [])
+            for index, step in enumerate(steps):
+                command = step.get('run', '')
+                if 'apt-get update' not in command and 'playwright install --with-deps' not in command:
+                    continue
+                setups = [item for item in steps[:index] if item.get('uses') == action_ref]
+                assert len(setups) == 1, f'{path}: missing Ubuntu source setup before {step.get("name")}'
+                assert 'if' not in setups[0], 'APT configuration must also run on browser cache hits'
+                consumers.add(path)
+    assert consumers == {WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH,
+                         PYPI_PUBLISH_WORKFLOW_PATH, UI_ROBOT_MATRIX_WORKFLOW_PATH}
+    assert "'.github/actions/configure-ubuntu-apt/**'" in DOCS_PUBLISH_WORKFLOW_PATH.read_text(encoding='utf-8')

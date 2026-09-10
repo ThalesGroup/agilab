@@ -161,6 +161,7 @@ jobs:
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --extra dev pytest -q -o addopts='' \
+            test/test_ci_workflow.py \
             test/test_package_split_contract.py \
             test/test_pypi_publish_workflow.py \
             test/test_compat_shim_inventory.py \
@@ -185,6 +186,9 @@ jobs:
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --extra ui python tools/first_launch_robot.py --json --output first-launch-robot.json
+
+      - name: Configure Ubuntu APT sources
+        uses: ./.github/actions/configure-ubuntu-apt
 
       - name: Install Playwright browser for frontend smoke
         run: |
