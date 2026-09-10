@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T09:22:52Z",
+  "generated_at_utc": "2026-09-10T11:05:25Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 246,
+    "evidence_schema_count": 250,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -812,7 +812,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "path": ".claude/skills/agilab-evidence-contracts/SKILL.md",
-      "updated": "2026-09-08"
+      "updated": "2026-09-10"
     },
     {
       "name": "agilab-example-maturity",
@@ -854,7 +854,7 @@
       "name": "agilab-prompt-eval-regression",
       "description": "Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX.",
       "path": ".claude/skills/agilab-prompt-eval-regression/SKILL.md",
-      "updated": "2026-05-30"
+      "updated": "2026-09-10"
     },
     {
       "name": "agilab-pypi-release-maintenance",
@@ -1089,6 +1089,7 @@
         "README.pypi.md",
         "docs/source/agent-workflows.rst",
         "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/evidence/skill_evaluation.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py",
         "tools/controlled_pilot_readiness_report.py"
@@ -1482,6 +1483,12 @@
     },
     {
       "schema": "agilab.evidence_graph.v1",
+      "sources": [
+        "src/agilab/evidence/evidence_graph.py"
+      ]
+    },
+    {
+      "schema": "agilab.evidence_graph_explanation.v1",
       "sources": [
         "src/agilab/evidence/evidence_graph.py"
       ]
@@ -2340,6 +2347,24 @@
       "schema": "agilab.simple_app_template.manifest.v1",
       "sources": [
         "src/agilab/apps/templates/simple_app_template/src/simple_app/simple_app.py"
+      ]
+    },
+    {
+      "schema": "agilab.skill_evaluation_plan.v1",
+      "sources": [
+        "src/agilab/evidence/skill_evaluation.py"
+      ]
+    },
+    {
+      "schema": "agilab.skill_evaluation_receipt.v1",
+      "sources": [
+        "src/agilab/evidence/skill_evaluation.py"
+      ]
+    },
+    {
+      "schema": "agilab.skill_evaluation_results.v1",
+      "sources": [
+        "src/agilab/evidence/skill_evaluation.py"
       ]
     },
     {
