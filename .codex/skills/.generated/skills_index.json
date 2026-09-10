@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T09:53:42Z",
+  "generated_at_utc": "2026-09-10T12:24:51Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -141,11 +141,11 @@
     },
     {
       "name": "agilab-testing",
-      "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
+      "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-17",
+      "updated": "2026-09-10",
       "path": ".codex/skills/agilab-testing/SKILL.md",
-      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\n## Philosophy\n- For non-trivial diffs, start with"
+      "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\nFor benchmark work or changes to generated test inputs, read the relevant section\nof [benchmark and generator review](references/benchmark-and-generator-review.md)."
     },
     {
       "name": "agilab-ui-robot-validation",

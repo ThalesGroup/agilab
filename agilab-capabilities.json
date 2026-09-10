@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T13:33:43Z",
+  "generated_at_utc": "2026-09-10T13:47:38Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -888,9 +888,9 @@
     },
     {
       "name": "agilab-testing",
-      "description": "Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).",
+      "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "path": ".claude/skills/agilab-testing/SKILL.md",
-      "updated": "2026-06-17"
+      "updated": "2026-09-10"
     },
     {
       "name": "agilab-ui-robot-validation",
