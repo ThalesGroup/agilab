@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+<title>{{title}} · AGILAB execution tour</title>
+<style>
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #152d45; background: #f2f5f7; }
+* { box-sizing: border-box; }
+body { margin: 0; line-height: 1.65; }
+a { color: #075c85; text-underline-offset: .2em; }
+a:focus-visible, summary:focus-visible { outline: 3px solid #c16b23; outline-offset: 4px; }
+.skip { position: absolute; top: -5rem; left: 1rem; background: white; padding: .5rem; }
+.skip:focus { top: 1rem; }
+.layout { max-width: 1380px; margin: auto; display: grid; grid-template-columns: 245px minmax(0,1fr); gap: 3rem; padding: 3rem; }
+aside { position: sticky; top: 2rem; align-self: start; }
+.brand { font-size: 1.5rem; font-weight: 800; letter-spacing: .12em; }
+.eyebrow { font-size: .76rem; font-weight: 700; letter-spacing: .12em; color: #4b657c; }
+nav ol { list-style: none; padding: 0; }
+nav a { display: block; padding: .6rem 0; }
+header { padding: 1rem 0 2rem; }
+h1 { font-size: clamp(2.2rem,4vw,3.7rem); line-height: 1.1; letter-spacing: -.035em; margin: .5rem 0 1.4rem; }
+h2 { font-size: 1.75rem; line-height: 1.25; margin: .35rem 0 1rem; }
+h3 { font-size: 1rem; margin: 0 0 .5rem; overflow-wrap: anywhere; }
+p { max-width: 75ch; }
+.intro { font-size: 1.2rem; }
+.step { background: white; border: 1px solid #d7e1e8; border-top: 4px solid #197e88; border-radius: 8px; padding: 2rem; margin-bottom: 2rem; scroll-margin-top: 1rem; }
+.step:target, .source:target { outline: 3px solid #c16b23; outline-offset: 4px; }
+dl { display: grid; grid-template-columns: 5rem minmax(0,1fr); gap: .6rem 1rem; background: #f2f6f8; border-radius: 6px; padding: 1rem; }
+dt { font-weight: 700; } dd { margin: 0; }
+.references { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin: 1.5rem 0; }
+.references ul { padding-left: 1.2rem; } .references li { margin: .6rem 0; overflow-wrap: anywhere; }
+small { display: block; color: #53697c; font-size: .74rem; }
+.source { padding: 1.5rem 0; border-bottom: 1px solid #ccd8e0; scroll-margin-top: 1rem; }
+.source p, .snapshot { overflow-wrap: anywhere; }
+.context { font-size: .85rem; color: #53697c; }
+summary { cursor: pointer; color: #075c85; padding: .5rem 0; }
+pre { overflow: auto; max-height: 34rem; font-size: .78rem; background: #152d45; color: #edf5fb; padding: 1rem; border-radius: 6px; }
+code { font-family: ui-monospace, monospace; }
+p code { overflow-wrap: anywhere; }
+footer { padding: 2rem 0; color: #53697c; }
+@media (max-width: 850px) { .layout { display: block; padding: 1.25rem; } aside { position: static; } nav ol { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; } .step { padding: 1.25rem; } .references { grid-template-columns: 1fr; gap: .5rem; } }
+@media print { .layout { display: block; padding: 0; } aside, .skip { display: none; } .step { break-inside: avoid; } }
+</style>
+</head>
+<body id="top">
+<a class="skip" href="#project">Skip to the first step</a>
+<div class="layout">
+<aside><p class="brand">AGILAB</p><p class="eyebrow">EXECUTION TOUR</p>
+<nav aria-label="Tour steps"><ol>{{nav}}</ol><a href="#snapshot">Source snapshot</a></nav>
+<p><small>Works offline. Open any source link to inspect the captured definition.</small></p></aside>
+<main>
+<header><p class="eyebrow">PROJECT → EXECUTION → EVIDENCE</p><h1>{{title}}</h1>
+<p class="intro">{{description}}</p><p>{{scope}}</p></header>
+{{steps}}
+<section id="snapshot"><h2>Inspect the source snapshot</h2><p>{{limitations}}</p>
+<p class="snapshot"><strong>Snapshot SHA-256</strong><br><code>{{snapshot_id}}</code></p>
+<p><a href="tour.json">Machine-readable tour and source hashes</a></p>
+<p>Check against the checkout with <code>uv run --no-project python tools/execution_tour/build_execution_tour.py --check</code>.
+For a custom output directory, add <code>--output-dir PATH</code>.</p>
+{{sources}}</section>
+<footer>Generated from repository sources and AGILAB's existing package responsibility maps.</footer>
+</main></div></body></html>

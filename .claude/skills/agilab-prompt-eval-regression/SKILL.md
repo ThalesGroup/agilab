@@ -3,7 +3,7 @@ name: agilab-prompt-eval-regression
 description: Design and maintain regression evaluations for AGILAB prompts, local/remote LLM flows, notebook import classification, generated-code routing, agent-skill behavior, and prompt-driven repair or analysis features. Use when a change touches prompt templates, model defaults, local LLM readiness, notebook-to-project import, code generation, or AI-assisted UX.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-30
+  updated: 2026-09-10
 ---
 
 # AGILAB Prompt Eval Regression
@@ -56,6 +56,15 @@ expected cost, timeout, and failure mode.
 - Redact secrets before storing prompt, response, or traceback evidence.
 
 ## AGILAB-Specific Checks
+
+For versioned skill evaluations, use the existing agent-run producer and the
+native [evaluation receipt workflow](references/evaluation-receipts.md). Freeze
+the complete skill, fixtures, grader, declared evaluator configuration, and case
+cohort before execution. Record installation, routing, task, and persistence
+observations separately; retain failed runs and missing observations in the
+original denominator. Verify the saved receipt before reporting its outcome.
+A verified receipt establishes content consistency; it does not independently
+prove that a host selected the skill or executed the frozen grader.
 
 - Notebook import must fail closed when manager/worker role is ambiguous and no
   metadata or user decision exists.
