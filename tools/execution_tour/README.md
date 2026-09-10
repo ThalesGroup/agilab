@@ -52,5 +52,13 @@ repository dependency graph. Extend `STEPS` with source and test selectors when
 the maintained first-proof path changes, then regenerate and validate:
 
 ```sh
-uv run pytest -q -o addopts='' test/test_execution_tour.py
+uv run pytest -q -o addopts='' test/test_execution_tour.py test/test_tools_surface_contract.py test/test_agilab_capabilities_manifest.py test/test_agenticweb_manifest.py
+```
+
+When changing the tour's schema or schema-bearing file paths, regenerate the
+discovery inventory and its derived front door in dependency order:
+
+```sh
+uv run --no-project python tools/agilab_capabilities_manifest.py --apply
+uv run --no-project python tools/agenticweb_manifest.py --apply
 ```
