@@ -1,14 +1,19 @@
 ---
 name: agilab-testing
-description: Quick, targeted test strategy for AGILAB (core unit tests, app smoke tests, regression).
+description: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-17
+  updated: 2026-09-10
 ---
 
 # Testing Skill (AGILAB)
 
 Use this skill when validating changes.
+
+For benchmark work or changes to generated test inputs, read the relevant section
+of [benchmark and generator review](references/benchmark-and-generator-review.md).
+It covers measurement contracts and the input domains a test actually exercises.
+Ordinary unit/app validation follows the workflow below.
 
 ## Philosophy
 

@@ -28,7 +28,7 @@ repo mirror exists.
 - `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
 - `agilab-ui-robot-validation`: Validate AGILAB Streamlit user journeys with the repo browser/widget robots.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
-- `agilab-testing`: Test strategy and quick commands to validate changes.
+- `agilab-testing`: Targeted test strategy, benchmark evidence, and generated-test input-domain review.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.
 - `agilab-deep-audit`: Produce evidence-backed AGILAB audit/code-review artifacts with architecture context, blast-radius tracing, and prioritized recommendations.
 - `agilab-evidence-contracts`: Maintain evidence, proof, replay, artifact hash, and verification contracts across AGILAB runs, notebooks, agent traces, releases, and docs.
