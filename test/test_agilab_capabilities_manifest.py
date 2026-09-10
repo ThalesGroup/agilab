@@ -153,3 +153,12 @@ def test_capability_manifest_is_valid_json() -> None:
     assert payload["summary"]["cli_command_count"] == len(payload["cli_commands"])
     assert payload["summary"]["public_app_count"] == len(payload["public_apps"])
     assert payload["generated_by"]["command"] == "python3 tools/agilab_capabilities_manifest.py --apply"
+
+
+def test_capability_catalog_includes_mcp_preview_implementation():
+    module = _load_module()
+    schemas = {row["schema"]: row for row in module.collect_evidence_schemas()}
+    assert (
+        "src/agilab_mcp/artifact_preview.py"
+        in schemas["agilab.mcp.artifact_preview.v1"]["sources"]
+    )

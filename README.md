@@ -55,6 +55,28 @@ read-only and returns the safety boundary, recommended workflow, live tool list,
 and compact capability overview. The same entry point is advertised by the MCP
 `initialize` response and `agenticweb.md`.
 
+To inspect a saved figure, install `agilab[preview]` in the MCP server environment,
+then call `preview_artifact` with `manifest_path` and an `artifact_name` from
+`list_artifacts`. The tool returns a PNG thumbnail and
+`agilab.mcp.artifact_preview.v1` metadata containing the original artifact's
+verified SHA-256, the thumbnail's separate SHA-256, and recorded run/validation
+outcomes. Producers opt into storing hashes with
+`RunManifestArtifact.from_path(path, include_sha256=True)` before writing the run
+manifest. Existing manifests still load; a preview requires a recorded hash.
+
+The preview is read-only and accepts existing, single-frame PNG files inside the
+configured `AGILAB_MCP_ALLOWED_ROOTS`. It refuses missing or changed artifacts,
+ambiguous names, malformed images, manifests above 1 MiB, inputs above 5 MiB,
+dimensions above 4096 per side or 4 million pixels, and encoded previews above
+2 MiB. Thumbnails fit within 1280 × 1280 and omit embedded metadata. SVG sources
+remain editable; export and register a PNG derivative for this tool. Text metadata
+is redacted, but visible image pixels are shared with the calling client as-is.
+Matching hashes establish byte identity against the supplied manifest, not producer
+authenticity, image meaning, or a fresh validation run. Recorded validation rows
+are limited to 20 with an explicit omitted count. Keep the configured roots under
+trusted local control: path resolution is not filesystem isolation against a
+concurrent writer replacing directories or symlinks.
+
 <p>
   <a href="https://pypi.org/project/agilab/"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/pypi-version-agilab.svg" alt="PyPI version" /></a>
   <a href="https://pypi.org/project/agilab/#files"><img src="https://img.shields.io/badge/wheel-yes-0F766E" alt="Wheel: yes" /></a>

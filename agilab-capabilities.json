@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T13:47:38Z",
+  "generated_at_utc": "2026-09-10T15:14:13Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 253,
+    "evidence_schema_count": 270,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1776,6 +1776,109 @@
       "schema": "agilab.manifest_index.v1",
       "sources": [
         "src/agilab/apps-pages/view_release_decision/src/view_release_decision/view_release_decision.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.agent_context.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.agent_handoff.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.agent_lineage.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.agent_next_actions.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.artifact_preview.v1",
+      "sources": [
+        "README.md",
+        "src/agilab_mcp/artifact_preview.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.compare_agent_runs.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.compare_runs.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.list_agent_runs.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.list_artifacts.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.list_projects.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.list_runs.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.read_agent_run.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.read_manifest.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.server.v1",
+      "sources": [
+        "src/agilab_mcp/server.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.summarize_agent_run.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.summarize_run.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.validate_agent_run.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
       ]
     },
     {

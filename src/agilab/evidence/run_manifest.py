@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+import hashlib
+import os
+import re
 import json
 import platform
 from pathlib import Path
@@ -130,15 +133,27 @@ class RunManifestArtifact:
     kind: str
     exists: bool
     size_bytes: int | None = None
+    sha256: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.sha256, str) or (
+            self.sha256 and not re.fullmatch(r"[0-9a-fA-F]{64}", self.sha256)
+        ):
+            raise ValueError(
+                "Artifact sha256 must be empty or a 64-character hexadecimal digest."
+            )
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "name": self.name,
             "path": self.path,
             "kind": self.kind,
             "exists": self.exists,
             "size_bytes": self.size_bytes,
         }
+        if self.sha256:
+            payload["sha256"] = self.sha256
+        return payload
 
     @classmethod
     def from_path(
@@ -147,9 +162,15 @@ class RunManifestArtifact:
         *,
         name: str | None = None,
         kind: str | None = None,
+        include_sha256: bool = False,
     ) -> "RunManifestArtifact":
         exists = path.exists()
         size_bytes = path.stat().st_size if exists and path.is_file() else None
+        digest = ""
+        if include_sha256 and exists and path.is_file():
+            with path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                size_bytes = os.fstat(stream.fileno()).st_size
         if kind is None:
             kind = "directory" if exists and path.is_dir() else "file"
         return cls(
@@ -158,6 +179,7 @@ class RunManifestArtifact:
             kind=kind,
             exists=exists,
             size_bytes=size_bytes,
+            sha256=digest,
         )
 
     @classmethod
@@ -169,6 +191,7 @@ class RunManifestArtifact:
             kind=str(payload.get("kind", "")),
             exists=bool(payload.get("exists", False)),
             size_bytes=None if size is None else int(size),
+            sha256=payload.get("sha256", ""),
         )
 
 

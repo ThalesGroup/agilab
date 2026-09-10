@@ -27,6 +27,7 @@ SCHEMA_VERSION = 1
 
 SCHEMA_SCAN_ROOTS = (
     REPO_ROOT / "src" / "agilab",
+    REPO_ROOT / "src" / "agilab_mcp",
     REPO_ROOT / "tools",
     REPO_ROOT / "docs" / "source",
 )

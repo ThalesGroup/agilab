@@ -1,11 +1,39 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import pytest
 import sys
 from pathlib import Path
 
 
 MODULE_PATH = Path("src/agilab/run_manifest.py").resolve()
+
+
+def test_artifact_hash_capture_is_opt_in_and_round_trips(tmp_path):
+    module = _load_module()
+    path = tmp_path / "plot.png"
+    path.write_bytes(b"a saved artifact")
+    legacy = module.RunManifestArtifact.from_path(path)
+    assert legacy.as_dict() == {
+        "name": "plot.png",
+        "path": str(path),
+        "kind": "file",
+        "exists": True,
+        "size_bytes": len(b"a saved artifact"),
+    }
+    hashed = module.RunManifestArtifact.from_path(path, include_sha256=True)
+    assert hashed.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+    assert module.RunManifestArtifact.from_dict(hashed.as_dict()) == hashed
+    path.write_bytes(b"a changed artifact")
+    assert hashed.sha256 != hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize("value", [None, False, 123, "bad", "g" * 64])
+def test_artifact_rejects_malformed_supplied_hash(value):
+    module = _load_module()
+    with pytest.raises(ValueError, match="sha256"):
+        module.RunManifestArtifact.from_dict({"name": "plot", "sha256": value})
 
 
 def _load_module():
