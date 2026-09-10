@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
+import re
+import stat
 from collections.abc import Mapping
 from copy import deepcopy
 from pathlib import Path
@@ -11,6 +14,12 @@ from typing import Any
 
 from agilab import agent_run, bridge_cli, run_manifest
 from agilab.secret_uri import redact_mapping, redact_text
+from agilab_mcp.artifact_preview import (
+    ArtifactPreview,
+    MAX_SOURCE_BYTES,
+    PREVIEW_SCHEMA,
+    render_png,
+)
 
 _ALLOWED_ROOTS_ENV = "AGILAB_MCP_ALLOWED_ROOTS"
 _ALLOW_CWD_ENV = "AGILAB_MCP_ALLOW_CWD"
@@ -340,9 +349,24 @@ def _load_mcp_run_manifest(
     path: str | Path,
     *,
     purpose: str,
+    max_bytes: int | None = None,
 ) -> tuple[run_manifest.RunManifest, dict[str, Any], Path]:
     input_path = _mcp_read_path(path, purpose=purpose)
-    _manifest, payload, resolved = bridge_cli._load_run_manifest(input_path)
+    if max_bytes is None:
+        _manifest, payload, resolved = bridge_cli._load_run_manifest(input_path)
+    else:
+        if not input_path.is_file():
+            raise ValueError("Preview manifest must be an existing regular JSON file.")
+        with input_path.open("rb") as stream:
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+                raise ValueError("Preview manifest must be a regular JSON file.")
+            content = stream.read(max_bytes + 1)
+        if len(content) > max_bytes:
+            raise ValueError("Preview manifest exceeds the 1 MiB limit.")
+        payload = json.loads(content)
+        if not isinstance(payload, dict):
+            raise ValueError("Preview manifest must contain a JSON object.")
+        resolved = input_path
     safe_payload = _canonicalize_run_manifest_resources(
         payload,
         manifest_path=resolved,
@@ -659,6 +683,106 @@ def list_artifacts(manifest_path: str | Path) -> dict[str, Any]:
             bridge_cli._artifact_rows(manifest, resolved)
         ),
     }
+
+
+def preview_artifact(manifest_path: str | Path, artifact_name: str) -> ArtifactPreview:
+    """Preview one recorded PNG after checking the bytes against its saved hash."""
+    if (
+        not isinstance(artifact_name, str)
+        or not artifact_name.strip()
+        or len(artifact_name) > 256
+    ):
+        raise ValueError(
+            "artifact_name must be a nonempty name of at most 256 characters from list_artifacts."
+        )
+    manifest, _, resolved = _load_mcp_run_manifest(
+        manifest_path, purpose="preview manifest", max_bytes=1024 * 1024
+    )
+    matches = [
+        artifact for artifact in manifest.artifacts if artifact.name == artifact_name
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "artifact_name must match exactly one manifest entry; check list_artifacts."
+        )
+    artifact = matches[0]
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", artifact.sha256):
+        raise ValueError(
+            "Artifact has no valid recorded SHA-256. Recreate the manifest with "
+            "RunManifestArtifact.from_path(..., include_sha256=True)."
+        )
+    path = _mcp_resource_path(
+        artifact.path, manifest_path=resolved, purpose="preview artifact"
+    )
+    if path.suffix.lower() != ".png":
+        raise ValueError(
+            "Only existing PNG artifacts can be previewed; export and register a PNG."
+        )
+    if not path.is_file():
+        raise ValueError(
+            "PNG artifact is missing or is not a regular file; regenerate it."
+        )
+    # One bounded snapshot supplies both the digest and the decoder. Do not
+    # hash a path and then reopen it to construct an image from different bytes.
+    with path.open("rb") as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("PNG artifact must be a regular file.")
+        if info.st_size > MAX_SOURCE_BYTES:
+            raise ValueError("PNG artifact exceeds the 5 MiB source limit.")
+        source = stream.read(MAX_SOURCE_BYTES + 1)
+    if len(source) > MAX_SOURCE_BYTES:
+        raise ValueError("PNG artifact exceeds the 5 MiB source limit.")
+    digest = hashlib.sha256(source).hexdigest()
+    if digest != artifact.sha256.lower():
+        raise ValueError(
+            "Artifact SHA-256 mismatch; preview refused. Regenerate trusted run evidence."
+        )
+    png, source_size, preview_size = render_png(source)
+    try:
+        artifact_path = os.path.relpath(path, resolved.parent)
+        path_basis = "manifest-relative"
+    except ValueError:
+        # Windows cannot express a relative path across allowed drives.
+        artifact_path = str(path)
+        path_basis = "local-absolute"
+    evidence = {
+        "schema": PREVIEW_SCHEMA,
+        "run_id": redact_text(manifest.run_id)[:256],
+        "manifest_path": str(resolved),
+        "artifact": {
+            "name": artifact.name,
+            "path": artifact_path,
+            "path_basis": path_basis,
+            "size_bytes": len(source),
+            "sha256": digest,
+            "recorded_sha256": artifact.sha256.lower(),
+            "integrity": "pass",
+            "width": source_size[0],
+            "height": source_size[1],
+        },
+        "preview": {
+            "mime_type": "image/png",
+            "sha256": hashlib.sha256(png).hexdigest(),
+            "size_bytes": len(png),
+            "width": preview_size[0],
+            "height": preview_size[1],
+            "transformation": "RGBA thumbnail; embedded metadata removed",
+        },
+        "recorded_run_status": manifest.status,
+        "recorded_manifest_passed": run_manifest.manifest_passed(manifest),
+        "recorded_validations": [
+            {
+                "label": redact_text(item.label)[:256],
+                "status": redact_text(item.status)[:32],
+            }
+            for item in manifest.validations[:20]
+        ],
+        "recorded_validation_count": len(manifest.validations),
+        "omitted_validation_count": max(0, len(manifest.validations) - 20),
+        "validation_basis": "Manifest declarations; validations were not rerun.",
+    }
+    return ArtifactPreview(evidence=_redact_evidence_payload(evidence), png=png)
 
 
 def compare_runs(

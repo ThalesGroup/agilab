@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import inspect
 import json
 import sys
 from typing import Any, Callable, Mapping
 
 from agilab_mcp import manifest_tools
+from agilab_mcp.artifact_preview import ArtifactPreview
+from agilab.secret_uri import redact_text
 
 
-ToolFn = Callable[..., dict[str, Any]]
+ToolFn = Callable[..., dict[str, Any] | ArtifactPreview]
 
 # Standard JSON-RPC 2.0 error codes. Every failure previously reported -32000,
 # so clients could not tell a malformed request from a server fault.
@@ -53,6 +56,7 @@ TOOLS: dict[str, ToolFn] = {
     "read_manifest": manifest_tools.read_manifest,
     "summarize_run": manifest_tools.summarize_run,
     "list_artifacts": manifest_tools.list_artifacts,
+    "preview_artifact": manifest_tools.preview_artifact,
     "compare_runs": manifest_tools.compare_runs,
 }
 
@@ -236,6 +240,28 @@ def tool_descriptors() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "preview_artifact",
+            "description": (
+                "Preview one manifest-registered PNG as an inline image with verified source "
+                "SHA-256 and recorded validation status. Requires agilab[preview]. "
+                "Local read-only tool: 5 MiB input, 4 million pixels, 1280-side thumbnail. "
+                "Image pixels are shared with the calling client and are not redacted."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "manifest_path": {"type": "string"},
+                    "artifact_name": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 256,
+                    },
+                },
+                "required": ["manifest_path", "artifact_name"],
+                "additionalProperties": False,
+            },
+        },
+        {
             "name": "compare_runs",
             "description": "Compare two AGILAB run manifests.",
             "inputSchema": {
@@ -284,7 +310,9 @@ def read_boundary_warning() -> str | None:
     )
 
 
-def call_tool(name: str, arguments: Mapping[str, Any]) -> dict[str, Any]:
+def call_tool(
+    name: str, arguments: Mapping[str, Any]
+) -> dict[str, Any] | ArtifactPreview:
     if name not in TOOLS:
         raise ValueError(f"Unknown AGILAB MCP tool: {name}")
     return TOOLS[name](**dict(arguments))
@@ -313,7 +341,20 @@ def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
     entitled to treat as a transport fault.
     """
 
+    if isinstance(payload, ArtifactPreview) and not is_error:
+        return {
+            "content": [
+                {"type": "text", "text": json.dumps(payload.evidence, sort_keys=True)},
+                {
+                    "type": "image",
+                    "mimeType": "image/png",
+                    "data": base64.b64encode(payload.png).decode("ascii"),
+                },
+            ]
+        }
     text = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
+    if is_error:
+        text = redact_text(text)
     result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
     if is_error:
         result["isError"] = True
@@ -475,6 +516,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "call-tool":
         payload = call_tool(args.name, json.loads(args.arguments))
+        if isinstance(payload, ArtifactPreview):
+            payload = _tool_content(payload)
         print(json.dumps(payload, indent=2 if args.json else None, sort_keys=True))
         return 0
     raise SystemExit(f"Unsupported command: {args.command}")
