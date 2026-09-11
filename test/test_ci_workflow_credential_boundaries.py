@@ -60,6 +60,7 @@ LOCK_INTEGRITY_TRIGGER_PATHS = {
     "tools/pypi_*.py",
     "tools/release_*.py",
     "tools/sync_docs_source.py",
+    "tools/testing/pypi_metadata_smoke.py",
 }
 
 EXPECTED_DIRECT_PINS = {
@@ -73,7 +74,7 @@ EXPECTED_DIRECT_PINS = {
         "packaging==26.2",
         "pyyaml==6.0.3",
         "tomlkit==0.15.1",
-        "twine==6.2.0",
+        "twine==7.0.0",
     ],
     "ci-pypi-web.in": [
         "packaging==26.2",
@@ -239,7 +240,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
     test_pypi = _load_yaml(WORKFLOW_ROOT / "test-pypi-publish.yaml")
     allowed_release_actions = {
         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
-        "pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247",
+        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
     }
 
     for job_name in ("publish-library-packages", "publish-agilab"):
@@ -281,7 +282,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
     assert all("run" not in step for step in test_job["steps"])
     assert [step["uses"] for step in test_job["steps"]] == [
         "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
-        "pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247",
+        "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
     ]
     assert "environment" not in test_job
     publish_step = test_job["steps"][-1]
