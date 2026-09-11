@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T12:24:51Z",
+  "generated_at_utc": "2026-09-11T09:49:19Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-24",
+      "updated": "2026-09-11",
       "path": ".codex/skills/agilab-deep-audit/SKILL.md",
       "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
     },
@@ -165,11 +165,11 @@
     },
     {
       "name": "codex-session-learning",
-      "description": "Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
+      "description": "Turn past coding-agent debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from Codex or another agent's sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-11",
+      "updated": "2026-09-11",
       "path": ".codex/skills/codex-session-learning/SKILL.md",
-      "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
+      "body_preview": "# Codex Session Learning\nUse this skill to convert prior Codex or other coding-agent work into explicit reusable assets.\nThe goal is not to pretend the agent has hidden long-term memory. The goal is to\nextract structured cases, reusable prompt patterns, and validation rules from"
     },
     {
       "name": "docs-publish-github-pages",
@@ -215,7 +215,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-09-08",
+      "updated": "2026-09-11",
       "path": ".codex/skills/repo-skill-maintenance/SKILL.md",
       "body_preview": "# Repo Skill Maintenance\nUse this skill when working on the shared skill trees in `agilab`.\nThe goal is to keep one canonical source for shared skills, keep the repo Codex\nmirror valid, and avoid the accidental bulk-sync regressions that can overwrite"
     },
