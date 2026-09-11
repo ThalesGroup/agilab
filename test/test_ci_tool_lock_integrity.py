@@ -57,7 +57,7 @@ def test_ci_tool_lock_workflow_audits_release_locks() -> None:
     assert "--disable-pip" in workflow
     assert (
         workflow.index("Clean-install publishing lock")
-        < workflow.index("python tools/pypi_metadata_smoke.py")
+        < workflow.index("python tools/testing/pypi_metadata_smoke.py")
         < workflow.index("Clean-install PyPI web lock")
     )
 

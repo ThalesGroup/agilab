@@ -19,6 +19,7 @@ on:
       - "tools/pypi_*.py"
       - "tools/release_*.py"
       - "tools/sync_docs_source.py"
+      - "tools/testing/pypi_metadata_smoke.py"
   push:
     branches:
       - main
@@ -38,6 +39,7 @@ on:
       - "tools/pypi_*.py"
       - "tools/release_*.py"
       - "tools/sync_docs_source.py"
+      - "tools/testing/pypi_metadata_smoke.py"
 
 permissions:
   contents: read
@@ -105,7 +107,7 @@ jobs:
       - name: Validate wheel metadata with publishing tools
         env:
           PIP_NO_INDEX: "1"
-        run: python tools/pypi_metadata_smoke.py
+        run: python tools/testing/pypi_metadata_smoke.py
 
       - name: Clean-install PyPI web lock
         uses: ./.github/actions/setup-locked-python-tools

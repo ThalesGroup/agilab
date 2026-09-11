@@ -60,6 +60,7 @@ LOCK_INTEGRITY_TRIGGER_PATHS = {
     "tools/pypi_*.py",
     "tools/release_*.py",
     "tools/sync_docs_source.py",
+    "tools/testing/pypi_metadata_smoke.py",
 }
 
 EXPECTED_DIRECT_PINS = {
