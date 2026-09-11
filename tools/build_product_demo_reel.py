@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageColor, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 
 W = 1920
@@ -2098,6 +2098,36 @@ def crossfade(a: Image.Image, b: Image.Image, frames: int) -> Iterable[Image.Ima
         yield Image.blend(a, b, alpha)
 
 
+def draw_ml_workflow_poster(poster_path: Path) -> Image.Image:
+    """Keep the full portrait poster visible with legible landscape callouts."""
+    paper = "#F5F2E9"
+    navy = "#142334"
+    blue = "#3159F5"
+    canvas = Image.new("RGB", (W, H), paper)
+    draw = ImageDraw.Draw(canvas)
+    for x, color in ((0, blue), (640, "#F47755"), (1280, "#46B895")):
+        draw.rectangle((x, 0, x + 640, 10), fill=color)
+    with Image.open(poster_path) as source:
+        poster = ImageOps.contain(source.convert("RGB"), (665, 940), Image.Resampling.LANCZOS)
+    canvas.paste(poster, (60 + (665 - poster.width) // 2, (H - poster.height) // 2))
+    draw.line((760, 90, 760, 990), fill="#D5DAD7", width=2)
+    draw.text((825, 100), "TOKKI × CODEX × AGILAB", font=load_font(30, bold=True), fill=navy)
+    draw.text((825, 170), "FROM INTENT", font=load_font(70, bold=True), fill=navy)
+    draw.text((825, 255), "TO A PYTHON APP.", font=load_font(70, bold=True), fill=blue)
+    draw.text((825, 362), "Build your ML app in the AGILAB framework.", font=load_font(34), fill=navy)
+    for y, name, action, color in (
+        (485, "TOKKI", "Focus the context.", blue),
+        (610, "CODEX", "Write the Python app.", "#F47755"),
+        (735, "AGILAB", "Run it in the framework.", "#46B895"),
+    ):
+        draw.rounded_rectangle((825, y, 835, y + 70), radius=5, fill=color)
+        draw.text((860, y), name, font=load_font(34, bold=True), fill=navy)
+        draw.text((1110, y), action, font=load_font(34), fill=navy)
+    draw.text((825, 910), "YOUR DATA. YOUR MODEL. YOUR PYTHON APP.", font=load_font(28, bold=True), fill=blue)
+    draw.text((825, 958), "Compare. Refine. Rerun.", font=load_font(32), fill=navy)
+    return canvas
+
+
 def save_video_from_frames(
     frames_dir: Path,
     mp4_path: Path,
@@ -2214,6 +2244,7 @@ def build(
     voiceover: bool = True,
     voice: str = "Alex",
     voice_rate: int = 172,
+    ml_workflow_poster: Path | None = None,
 ) -> tuple[Path | None, Path | None, Path | None]:
     variant = VARIANTS[variant_key]
     scenes = variant.scenes
@@ -2222,6 +2253,7 @@ def build(
     srt_path: Path | None = None
     audio_path: Path | None = None
     transition_frames = 8
+    closing_frame = draw_ml_workflow_poster(ml_workflow_poster) if ml_workflow_poster else None
     with tempfile.TemporaryDirectory(prefix="agilab_product_reel_") as tmp:
         frames_dir = Path(tmp)
         frame_no = 0
@@ -2266,6 +2298,17 @@ def build(
                 frame_no = extend_frames_to_duration(frames_dir, frame_no, FPS, audio_duration + 0.35)
                 duration = frame_no / FPS
 
+        if closing_frame is not None:
+            with Image.open(frames_dir / f"frame_{frame_no - 1:04d}.png") as previous:
+                for frame in crossfade(previous.convert("RGB"), closing_frame, transition_frames):
+                    frame.save(frames_dir / f"frame_{frame_no:04d}.png")
+                    frame_no += 1
+            for _ in range(8 * FPS):
+                closing_frame.save(frames_dir / f"frame_{frame_no:04d}.png")
+                frame_no += 1
+            closing_frame.save(out_poster)
+            duration = frame_no / FPS
+
         save_video_from_frames(frames_dir, out_mp4, out_gif, FPS, audio_path=audio_path, duration=duration)
     return transcript_path, srt_path, audio_path
 
@@ -2279,6 +2322,10 @@ def main() -> int:
     parser.add_argument("--voiceover", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--voice", default="Alex")
     parser.add_argument("--voice-rate", type=int, default=172)
+    parser.add_argument(
+        "--ml-workflow-poster", type=Path,
+        help="Append the Tokki/Codex/AGILAB Python ML poster as an eight-second closing card (PNG).",
+    )
     args = parser.parse_args()
     transcript_path, srt_path, audio_path = build(
         Path(args.mp4),
@@ -2288,6 +2335,7 @@ def main() -> int:
         voiceover=args.voiceover,
         voice=args.voice,
         voice_rate=args.voice_rate,
+        ml_workflow_poster=args.ml_workflow_poster,
     )
     print(Path(args.mp4).resolve())
     print(Path(args.gif).resolve())
