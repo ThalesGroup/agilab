@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-10T15:14:13Z",
+  "generated_at_utc": "2026-09-11T06:35:11Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -584,7 +584,7 @@
       "name": "agi-app-data-quality-gate",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.07.31",
+      "version": "2026.09.09",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate",
       "project": "src/agilab/lib/agi-app-data-quality-gate",
       "pyproject": "src/agilab/lib/agi-app-data-quality-gate/pyproject.toml",
@@ -606,7 +606,7 @@
       "name": "agi-app-learning-assessment",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.09.07",
+      "version": "2026.09.09",
       "description": "AGILAB learning and assessment workflow with evidence scoring and regression-plan artifacts",
       "project": "src/agilab/lib/agi-app-learning-assessment",
       "pyproject": "src/agilab/lib/agi-app-learning-assessment/pyproject.toml",
@@ -675,7 +675,7 @@
       "package": "agi-app-data-quality-gate",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-data-quality-gate",
-      "version": "2026.07.31",
+      "version": "2026.09.09",
       "description": "AGILAB deterministic data contract, drift, leakage, and promotion gate"
     },
     {
@@ -707,7 +707,7 @@
       "package": "agi-app-learning-assessment",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-learning-assessment",
-      "version": "2026.09.07",
+      "version": "2026.09.09",
       "description": "AGILAB learning and assessment workflow with evidence scoring and regression-plan artifacts"
     },
     {

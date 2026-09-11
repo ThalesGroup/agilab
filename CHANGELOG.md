@@ -28,6 +28,15 @@ await package publication.
 
 ### Changed
 
+- Added an offline first-proof execution tour and a replayable guided drift
+  lesson in Learning & Assessment.
+- Added frozen skill receipts, source-linked evidence graph explanations, and
+  replayable telemetry feature analysis.
+- Added declarative data-quality rules with hashed evaluation evidence.
+- Added read-only MCP and CLI artifact previews linked to saved manifests and
+  verified against the recorded artifact hash.
+- Corrected agent commit signing attribution and recorded the confirmed
+  operator separately from agent/runtime metadata.
 - Improved DAG execution selection, stage navigation, and inspection of run
   evidence and neighboring stages.
 - Kept analysis artifacts consistent and fresh across forecast, live-artifact,
