@@ -45,36 +45,36 @@ expected_app_count = 14
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "30618909264"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/30618909264"
-head_sha = "bae393fe6aef1b5dce7130f278867ddd9812900b"
+run_id = "34586112200"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/34586112200"
+head_sha = "a98b63c77d37633cb41744f22edc6e7c4c356596"
 summary = "passed repository guardrails; skipped jobs remain out of scope unless separately evidenced"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "30618909234"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/30618909234"
-head_sha = "bae393fe6aef1b5dce7130f278867ddd9812900b"
+run_id = "34501192329"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/34501192329"
+head_sha = "5dd3651b8ed88e111917bcb37b9fdf395eb76c77"
 summary = "passed docs mirror and release-proof consistency checks; canonical private-source drift is not checked by public CI"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "30619166574"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/30619166574"
-head_sha = "81797b8193f6ffe7e6a163a8f19c1d630674a2df"
+run_id = "34501192332"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/34501192332"
+head_sha = "5dd3651b8ed88e111917bcb37b9fdf395eb76c77"
 summary = "built the public documentation from the managed docs mirror"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "30618909177"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/30618909177"
-head_sha = "bae393fe6aef1b5dce7130f278867ddd9812900b"
+run_id = "34577976386"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/34577976386"
+head_sha = "1dc1002246fa4e6ff94411cf5a2ca1263217bffd"
 summary = "passed component coverage and badge freshness checks"
 
 [[ci_runs]]

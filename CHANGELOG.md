@@ -23,12 +23,11 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
-## [2026.09.09] - 2026-09-09
+## [2026.09.09] - 2026-09-11
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
 
-Release target: **2026.09.09**. The changes below are merged in source and
-await package publication.
+Publication evidence: [successful recovery workflow](https://github.com/ThalesGroup/agilab/actions/runs/34578309790).
 
 ### Changed
 
