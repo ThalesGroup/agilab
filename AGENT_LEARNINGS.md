@@ -35,10 +35,11 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 - Before installing third-party agent skills, inspect the install mode and
   filesystem result. Run `streamlit skills --global` because project mode adds
   repo-local symlinks; verify the home copy and project discovery separately.
-- When a pre-push guard fails, do not bypass it silently. Re-run the underlying
-  guard with useful output, classify whether the failure belongs to the current
-  diff, a real repository contract, or polluted local filesystem state, then
-  fix the right layer or document the exact unrelated failure before pushing.
+- When a pre-push guard fails, rerun it with useful output; classify diff,
+  contract, or local-pollution causes, then fix or document it before pushing.
+  For release approvals, verify live reviewer eligibility and each environment's
+  rules; admin access and documented button names do not prove an available route.
+  Apply only authorized exceptions and verify temporary protections are restored.
 - When adding or changing visible UI actions, audit sibling pages for semantic collisions;
   the same button text must not mean different operations. Update page tests and robot labels.
   Before pushing, run `python3 tools/ui_robot_action_contract.py`; register stateful actions
@@ -53,10 +54,9 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
-- When asked for token-saving or workflow-saving tactics and a repo-local
-  default is clear, do not end with a broad clarification menu. State the
-  assumed target, choose the highest-leverage applicable mechanism, and either
-  implement it or name the exact blocker that prevents implementation.
+- When asked for token-saving or workflow-saving tactics and a repo-local default
+  is clear, state the assumed target, choose the highest-leverage applicable
+  mechanism, and implement it or name the exact blocker; avoid broad clarification menus.
 - When a product or code fix was designed or implemented with model assistance,
   request a review from a stronger model before closing, pushing, or merging
   when that is available. If no stronger model is available, say so explicitly
