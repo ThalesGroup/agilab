@@ -1,5 +1,30 @@
 # AGILAB flight teaser upload pack
 
+## Local cut with the Python ML workflow poster
+
+The `agilab_flight_ml_workflow` cut adds the Tokki × Codex × AGILAB poster after
+the flight teaser. The eight-second closing card preserves the complete poster
+and adds large callouts: Tokki focuses context, Codex writes the Python app, and
+AGILAB runs it in the framework. The example app remains generic.
+
+- MP4: `artifacts/demo_media/flight/agilab_flight_ml_workflow.mp4`
+- GIF: `artifacts/demo_media/flight/agilab_flight_ml_workflow.gif`
+- Closing still: `artifacts/demo_media/flight/agilab_flight_ml_workflow_poster.png`
+- Duration: 24.60 seconds, including the poster transition and closing card.
+- Format: 1920×1080, 30 fps, with the existing instrumental sound bed.
+- This is a local export; the published YouTube video below is unchanged.
+
+Regenerate from the AGILAB repository root, supplying the poster PNG:
+
+```bash
+uv run --no-project --with pillow python tools/build_product_demo_reel.py \
+  --variant flight --no-voiceover \
+  --ml-workflow-poster /path/to/tokki-codex-agilab-ml.png \
+  --mp4 artifacts/demo_media/flight/agilab_flight_ml_workflow.mp4 \
+  --gif artifacts/demo_media/flight/agilab_flight_ml_workflow.gif \
+  --poster artifacts/demo_media/flight/agilab_flight_ml_workflow_poster.png
+```
+
 ## Video
 
 - Latest public video: https://youtu.be/RQE0S6Wqt94
