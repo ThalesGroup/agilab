@@ -55,6 +55,11 @@ def test_ci_tool_lock_workflow_audits_release_locks() -> None:
     assert '--requirement "$requirements"' in workflow
     assert "--no-deps" in workflow
     assert "--disable-pip" in workflow
+    assert (
+        workflow.index("Clean-install publishing lock")
+        < workflow.index("python tools/pypi_metadata_smoke.py")
+        < workflow.index("Clean-install PyPI web lock")
+    )
 
 
 def test_ci_tool_lock_integrity_rejects_stale_direct_version(tmp_path: Path) -> None:

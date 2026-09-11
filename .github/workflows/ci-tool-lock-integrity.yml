@@ -102,6 +102,11 @@ jobs:
           import tools.pypi_publish
           PY
 
+      - name: Validate wheel metadata with publishing tools
+        env:
+          PIP_NO_INDEX: "1"
+        run: python tools/pypi_metadata_smoke.py
+
       - name: Clean-install PyPI web lock
         uses: ./.github/actions/setup-locked-python-tools
         with:
