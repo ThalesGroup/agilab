@@ -148,10 +148,43 @@ python tools/agent_context_router.py \
   --json
 ```
 
-The `context_profile` block returns the bounded baseline files, matched context
-packs, estimated token budget, and follow-up validation commands. The profile is
-advisory: it narrows context selection, while `tools/impact_validate.py` remains
-the validation source of truth.
+The `context_profile` block returns baseline files, matched context packs,
+configured token allowances, and follow-up validation commands. The legacy
+`estimated_token_budget` field sums reservations; `budget_kind` explicitly marks
+that it is not a measurement of file contents. The profile is advisory, while
+`tools/impact_validate.py` remains the validation source of truth. Run its compact
+output instead of routinely reading the validation tool's implementation.
+
+Whole-repo context requires an explicit phrase such as `whole repo` or
+`repo-wide`. A single built-in file stays in its project scope; multiple project
+owners or explicit `all projects` requests expand that scope. Applicable
+evidence and safety rules remain independent of this narrowing. Canonical
+`agent_runtime` and `evidence` paths retain dedicated evidence context.
+
+For measured source context, use the existing router's materialization mode:
+
+```bash
+uv --preview-features extra-build-dependencies run --with tiktoken \
+  python tools/agent_context_router.py --profile tokki --materialize \
+  --excerpt src/agilab/agent_runtime/verification.py::validate_agent_run \
+  --context-tokens 24000 --reserve-tokens 2000 --json
+```
+
+Selectors accept a file, `path::symbol` (including nested definitions), or
+`path#L20-L40`. `materialized_context` contains the measured `context_text`,
+source SHA-256 values, selected line ranges, and an omission ledger. Directories
+are never recursively read. Duplicate content is included once. Mandatory
+policy is collected before optional pack limits. With explicit files/excerpts,
+other pack sources remain deferred pointers instead of filling the spare budget.
+Mandatory
+baseline and applicable skill files are included intact or the command exits
+with `context-blocked`; increase the allowance or separately inspect required
+policy rather than treating an incomplete packet as sufficient authorization.
+The counter is the `o200k_base` reference encoding, excluding protocol framing,
+task text, already-loaded instructions and actual model billing. The reserve
+leaves capacity for those external inputs and the answer; callers must choose
+it for their own model and workflow. This does not waive `AGENTS.md` or any
+approval, validation, or evidence requirement.
 
 Validate the rule file with:
 
