@@ -265,10 +265,15 @@ AGILAB keeps the agent evidence layer deliberately small and provider-neutral:
   should stay out of public JSON.
 - The read side can produce redacted continuation cards, deterministic
   next-action cards, filtered context packs, follow-up lineage graphs, and
-  pairwise run comparisons. It can also validate manifest structure, trace
-  sequence, and referenced artifact presence before another agent trusts the
-  evidence. These surfaces point to local artifacts but do not embed
-  stdout/stderr contents.
+  pairwise run comparisons. Validation checks manifest structure, trace
+  sequence, terminal status/return-code consistency, and recorded stdout/stderr
+  and ownership-claim hashes and sizes. A late runner publication failure keeps
+  the command's earlier outcome separate from the final infrastructure failure.
+  Inspect ``content_integrity.status`` separately from the command outcome:
+  legacy records without hashes remain readable with ``unverified`` integrity.
+  Matching recorded bytes does not establish producer authenticity, exact
+  executed source, or task quality. These surfaces do not embed stdout/stderr
+  contents.
 
 The base package records protocol bridges as evidence labels only. Add
 ``--protocol-adapter mcp`` or ``--capability app-as-tool`` when experimenting
