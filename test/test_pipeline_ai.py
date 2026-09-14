@@ -4750,3 +4750,123 @@ def test_ensure_uoaic_runtime_defaults_db_path_from_data_dir(monkeypatch, tmp_pa
     assert fake_st.session_state[pipeline_ai.UOAIC_DB_STATE_KEY] == expected_db
     assert runtime["vector_store"]["path"] == expected_db
     assert expected_db in seen["resolved"]
+
+
+@pytest.mark.parametrize(
+    "provider,target",
+    [
+        ("openai", "chat_online"),
+        ("gpt-oss", "chat_offline"),
+        (pipeline_ai.OPENAI_COMPAT_PROVIDER, "chat_openai_compatible"),
+        (pipeline_ai.MISTRAL_PROVIDER, "chat_mistral_online"),
+        *[
+            (provider, "chat_ollama_local")
+            for provider in sorted(pipeline_ai.OLLAMA_LOCAL_PROVIDER_FAMILIES)
+        ],
+    ],
+)
+def test_provider_dispatch_uses_same_bounded_project_context(
+    monkeypatch, provider, target
+):
+    from agilab.pipeline.prompt_context import assemble_prompt_context
+
+    prompt = [
+        {"role": "system", "content": "Required guard."},
+        *[
+            {"role": "user", "content": f"Example {i}: " + "x" * 16000}
+            for i in range(4)
+        ],
+    ]
+    state = {"lab_llm_provider": provider}
+    monkeypatch.setattr(pipeline_ai, "st", SimpleNamespace(session_state=state))
+    calls = []
+
+    def capture(question, messages, envars, **kwargs):
+        calls.append((question, messages, kwargs))
+        return "code", "model"
+
+    monkeypatch.setattr(pipeline_ai, target, capture)
+    assert pipeline_ai._call_selected_provider(
+        "Actual task", prompt, {}, system_instructions="Return code."
+    ) == ("code", "model")
+    expected = assemble_prompt_context(
+        "Actual task", prompt, instructions="Return code."
+    )
+    assert calls == [
+        (
+            "Actual task",
+            list(expected.messages),
+            {"system_instructions": "Return code."},
+        )
+    ]
+    assert (
+        state["lab_prompt_context"]["input_bytes"]
+        <= state["lab_prompt_context"]["input_budget_bytes"]
+    )
+
+
+def test_oversized_required_request_never_reaches_provider_and_resets_receipt(
+    monkeypatch,
+):
+    state = {"lab_llm_provider": "openai", "lab_prompt_context": {"status": "pass"}}
+    monkeypatch.setattr(pipeline_ai, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(
+        pipeline_ai,
+        "chat_online",
+        lambda *args, **kwargs: pytest.fail("provider must not run"),
+    )
+    with pytest.raises(pipeline_ai.JumpToMain, match="input budget"):
+        pipeline_ai._call_selected_provider("request " * 20000, [], {})
+    assert state["lab_prompt_context"]["status"] == "blocked"
+
+
+@pytest.mark.parametrize(
+    "instructions,example_sizes",
+    [
+        ("Return code.", [28127]),
+        (None, [16000, 16000, 16000, 16000]),
+    ],
+)
+def test_ollama_adapter_preserves_dispatch_selection_and_receipt(
+    monkeypatch, instructions, example_sizes
+):
+    from agilab.pipeline.prompt_context import assemble_prompt_context
+    from agilab.pipeline.pipeline_ai_support import prompt_to_plaintext
+
+    prompt = [
+        {"role": "user", "content": f"Example {i}: " + "x" * size}
+        for i, size in enumerate(example_sizes)
+    ]
+    state = {"lab_llm_provider": sorted(pipeline_ai.OLLAMA_LOCAL_PROVIDER_FAMILIES)[0]}
+    monkeypatch.setattr(pipeline_ai, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(
+        pipeline_ai, "_default_ollama_model", lambda *args, **kwargs: "test-model"
+    )
+    calls = []
+
+    def generate(**kwargs):
+        calls.append(kwargs["prompt"])
+        return "code"
+
+    monkeypatch.setattr(pipeline_ai, "_ollama_generate", generate)
+    effective_instructions = instructions or pipeline_ai.CODE_STRICT_INSTRUCTIONS
+    expected = assemble_prompt_context(
+        "Actual task", prompt, instructions=effective_instructions
+    )
+
+    pipeline_ai._call_selected_provider(
+        "Actual task", prompt, {}, system_instructions=instructions
+    )
+
+    assert calls == [
+        effective_instructions
+        + "\n\n"
+        + prompt_to_plaintext(list(expected.messages), "Actual task")
+    ]
+    assert state["lab_prompt_context"] == {**expected.receipt, "status": "pass"}
+    if instructions:
+        assert "Example 0:" in calls[0]
+        assert not expected.receipt["omitted_indices"]
+    else:
+        assert len(expected.receipt["omitted_indices"]) == 3
+        assert calls[0].count("source sha256=") == 1
