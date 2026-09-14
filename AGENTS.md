@@ -8,6 +8,9 @@ consistent launch, validation, and troubleshooting steps.
 > **Agent MCP start here**: When using `agilab-mcp`, call `agent_quickstart`
 > first. It is read-only and returns the safety boundary, recommended workflow,
 > live tool list, and compact capability overview.
+> Task execution requires explicit `--task-root` opt-in and local approval of the
+> exact plan digest and attempt. Keep interrupted commands unverified until their
+> termination evidence exists; stale mutation requests must not affect retries.
 
 Use this runbook whenever you:
 - Launch Streamlit or CLI flows from PyCharm run configurations.

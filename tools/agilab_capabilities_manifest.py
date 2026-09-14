@@ -64,6 +64,15 @@ SCHEMA_PATTERN = re.compile(r"\bagilab[._-][A-Za-z0-9_.-]+\.v1\b")
 
 CLI_COMMANDS: tuple[dict[str, Any], ...] = (
     {
+        "id": "agent-tasks",
+        "command": "python -m agilab.agent_runtime.tasks --help",
+        "kind": "agent-evidence",
+        "maturity": "local-proof",
+        "description": "Persist selected experiment tasks with exact-attempt approval, worker leases, cancellation, reconciliation and explicit retry; optional MCP adapter uses --task-root.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_task.v1", "agilab.agent_task_action.v1"],
+    },
+    {
         "id": "agent-experiment",
         "command": "python -m agilab.agent_runtime.experiment prepare|run|verify ...",
         "kind": "agent-evidence",

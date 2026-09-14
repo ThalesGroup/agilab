@@ -289,7 +289,7 @@ agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<fol
 agilab agent-run validate ~/log/agents/codex/<run-id> --json
 ```
 
-The read-only MCP bridge exposes the same agent-run evidence to external
+The default read-only MCP bridge exposes the same agent-run evidence to external
 coding agents without enabling shell execution:
 
 Handoffs include 20 bounded recent events and explicit omission counts. Use
@@ -376,3 +376,24 @@ for the packaged baseline/candidate pilot. Both processes exit zero; independent
 acceptance rejects the baseline. The comparison retains the failed attempt and
 unknown model usage. Optional single-terminal Codex usage must come from a
 verified registered output; missing cache counts remain unknown.
+
+### Durable selected tasks
+
+Prepare experiments under `<store>/experiments/<name>`, then use
+`python -m agilab.agent_runtime.tasks register <store> <action> experiments/<name>`
+and `submit <store> <action> <stable-request-key>`. Local `approve`/`deny` require
+the exact `--plan-sha256` and observed `--attempt`; `start`/`cancel` bind that
+attempt too. Read `status` without side effects. `reconcile` inspects retained
+receipts after worker death; `resume` respects existing native claims, while
+`retry` creates a fresh attempt requiring new approval. Both require `--attempt`.
+
+Worker leases and immutable state revisions prevent competing workers from
+replaying a claim. A released lease does not establish child termination;
+missing termination evidence remains interrupted. Inspect external side effects
+before explicit continuation. Approval records describe local operator actions,
+not authenticated identities, and trusted Python is not sandboxed.
+
+`agilab-mcp serve --task-root <store>` opts into registered task selection, status,
+start and cancellation. Default tools stay read-only; MCP has no registration,
+approval, arbitrary-command or retry tool. Start/cancel require the observed
+attempt. `agent_quickstart` describes the enabled connection's exact boundary.
