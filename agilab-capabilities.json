@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T08:07:36Z",
+  "generated_at_utc": "2026-09-14T08:32:51Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,15 +17,42 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 13,
+    "cli_command_count": 15,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 272,
+    "evidence_schema_count": 279,
     "catalog_file_count": 12
   },
   "cli_commands": [
+    {
+      "id": "agent-experiment",
+      "command": "python -m agilab.agent_runtime.experiment prepare|run|verify ...",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Execute selected frozen Python inputs and independently grade outputs with verifiable attempt receipts.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_experiment_plan.v1",
+        "agilab.agent_experiment_receipt.v1"
+      ]
+    },
+    {
+      "id": "agent-experiment-pilot",
+      "command": "python -m agilab.agent_runtime.experiment_demo --output <new-directory>",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Compare a deterministic baseline and candidate on a frozen cohort, retaining failed acceptance and unknown model usage.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_experiment_comparison.v1"
+      ]
+    },
     {
       "id": "ui",
       "command": "agilab",
@@ -1035,6 +1062,53 @@
       "schema": "agilab.agent_context_rules_validation.v1",
       "sources": [
         "tools/agent_context_router.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_acceptance.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py",
+        "src/agilab/resources/agent_experiment/grader.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_checkpoint.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_comparison.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment_comparison.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_launch.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_plan.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_receipt.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "src/agilab/agent_runtime/experiment.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_verification.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
       ]
     },
     {

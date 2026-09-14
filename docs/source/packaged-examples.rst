@@ -6,7 +6,7 @@ This page is the rendered public catalog for examples shipped under
 :doc:`demos` when you need a shorter route chooser.
 
 The examples are split into executable app helpers, deterministic read-only
-previews, and notebook migration assets. The read-only previews intentionally
+previews, agent experiments, and notebook migration assets. The read-only previews intentionally
 avoid hidden services, private data, and long-lived workers.
 
 Catalog
@@ -19,6 +19,9 @@ Catalog
    * - Example
      - Route
      - What it proves
+   * - ``agent_experiment``
+     - Executable agent experiment
+     - Frozen baseline/candidate Python execution with an independent grader, native evidence, verified receipts and unknown model usage. See :doc:`agent-workflows`.
    * - ``telemetry_features``
      - Read-only preview with optional Featuretools
      - Computes three features from synthetic telemetry with an explicit availability-time cutoff. Saves definitions, input/output hashes, and readable feature lineage; verifies and replays the saved recipe locally.
