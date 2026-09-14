@@ -25,7 +25,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   secrets, inherited stdin, open descendant pipes, and late-publication failures;
   carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
-  After schema or package-version changes, run the workflow parity `skills` profile;
+  After schema additions, source moves or package-version changes, run the `skills` parity profile;
   commit generated discovery artifacts and rerun it to prove there is no drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
