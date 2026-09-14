@@ -29,9 +29,7 @@
       "baseline_token_budget": 1200,
       "max_rule_packs": 3,
       "baseline_files": [
-        "AGENT_CONVENTIONS.md",
-        "AGENT_SKILLS.md",
-        "agent-context-rules.json"
+        "AGENT_CONVENTIONS.md"
       ],
       "commands": [
         "python3 tools/agent_context_router.py --profile agilab --files <paths> --prompt <task> --json",
@@ -89,9 +87,7 @@
       "baseline_token_budget": 1200,
       "max_rule_packs": 3,
       "baseline_files": [
-        "AGENT_CONVENTIONS.md",
-        "agent-context-rules.json",
-        "tools/impact_validate.py"
+        "AGENT_CONVENTIONS.md"
       ],
       "commands": [
         "python tools/agent_context_router.py --profile tokki --files <paths> --prompt <task> --json",
@@ -259,14 +255,18 @@
         "trusted publisher",
         "hugging face",
         "hf sync",
-        "coverage badge"
+        "coverage badge",
+        "releases"
       ],
       "skills": [
         "agilab-release-verification",
         "agilab-pypi-release-maintenance",
         "agilab-evidence-contracts"
       ],
-      "reason": "Release claims require current PyPI/GitHub/docs/Hugging Face evidence and changelog accuracy."
+      "reason": "Release claims require current PyPI/GitHub/docs/Hugging Face evidence and changelog accuracy.",
+      "required_runbooks": [
+        "AGENTS.md"
+      ]
     },
     {
       "id": "agent-skills",
@@ -294,7 +294,9 @@
         "opencode",
         "aider",
         "context profile",
-        "token saving"
+        "token saving",
+        "skills",
+        "agents"
       ],
       "skills": [
         "repo-skill-maintenance",
@@ -313,7 +315,9 @@
         "src/agilab/*page*.py",
         "tools/agilab_widget_robot.py",
         "test/test_*ui*.py",
-        "test/test_*page*.py"
+        "test/test_*page*.py",
+        "src/agilab/pipeline/**",
+        "src/agilab/orchestrate/**"
       ],
       "terms": [
         "streamlit",
@@ -321,7 +325,10 @@
         "button",
         "wizard",
         "page",
-        "ui robot"
+        "ui robot",
+        "buttons",
+        "wizards",
+        "pages"
       ],
       "skills": [
         "agilab-streamlit-pages",
@@ -342,7 +349,9 @@
         "tools/*evidence*.py",
         "tools/*proof*.py",
         "test/test_*evidence*.py",
-        "test/test_*proof*.py"
+        "test/test_*proof*.py",
+        "src/agilab/agent_runtime/**",
+        "src/agilab/evidence/**"
       ],
       "terms": [
         "evidence",
@@ -350,7 +359,8 @@
         "manifest",
         "attestation",
         "replay",
-        "run report"
+        "run report",
+        "manifests"
       ],
       "skills": [
         "agilab-evidence-contracts",
@@ -374,7 +384,8 @@
         "ipynb",
         "import notebook",
         "export to notebook",
-        "lab_stages"
+        "lab_stages",
+        "notebooks"
       ],
       "skills": [
         "notebook-to-agilab-project",
@@ -398,7 +409,9 @@
         "example",
         "demo",
         "public app",
-        "pypi app"
+        "pypi app",
+        "apps",
+        "examples"
       ],
       "skills": [
         "agilab-example-maturity",
@@ -439,13 +452,16 @@
         "src/agilab/examples/**",
         "src/agilab/lib/**",
         "src/agilab/projects/**",
-        "docs/source/data/**"
+        "docs/source/data/**",
+        "src/agilab/apps-pages/**"
       ],
       "terms": [
         "all projects",
         "project suite",
         "example suite",
-        "app library"
+        "app library",
+        "all apps",
+        "all examples"
       ],
       "skills": [
         "agilab-example-maturity",
@@ -466,8 +482,7 @@
       "terms": [
         "repo-wide",
         "whole repo",
-        "everything",
-        "all"
+        "everything"
       ],
       "skills": [
         "agilab-testing",
@@ -495,14 +510,18 @@
         "worker",
         "ssh",
         "sshfs",
-        "shared core"
+        "shared core",
+        "workers"
       ],
       "skills": [
         "agilab-installer",
         "agilab-security-review-patterns",
         "agilab-testing"
       ],
-      "reason": "Install and cluster changes need manifest comparison, fail-fast share checks, and explicit shared-core approval when core paths are touched."
+      "reason": "Install and cluster changes need manifest comparison, fail-fast share checks, and explicit shared-core approval when core paths are touched.",
+      "required_runbooks": [
+        "AGENTS.md"
+      ]
     },
     {
       "id": "frontend-visuals",

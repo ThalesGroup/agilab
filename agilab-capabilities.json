@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T08:52:56Z",
+  "generated_at_utc": "2026-09-14T13:37:20Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 282,
+    "evidence_schema_count": 283,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1051,6 +1051,12 @@
       "schema": "agilab.agent_context.v1",
       "sources": [
         "src/agilab/agent_runtime/agent_run.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_context_materialization.v1",
+      "sources": [
+        "tools/agent_context/materialize.py"
       ]
     },
     {
