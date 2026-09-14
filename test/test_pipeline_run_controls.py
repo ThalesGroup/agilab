@@ -1384,3 +1384,48 @@ def test_utc_timestamp_is_timezone_aware_utc_with_legacy_z_format(monkeypatch):
     assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", stamp)
     # No timezone offset leaked into the string.
     assert "+00:00" not in stamp
+
+
+@pytest.mark.parametrize('cancelled', [False, True])
+def test_run_all_stages_releases_lock_and_restores_view_when_publication_fails(tmp_path, monkeypatch, cancelled):
+    module = _import_pipeline_run_controls()
+    state = {'page': [9, '', '', '', '', '', 0], 'snippet_file': str(tmp_path / 'snippet.py'),
+             'lab_selected_venv': '', 'lab_selected_engine': 'original'}
+    fake_st = _FakeStreamlit(state)
+    monkeypatch.setattr(module, 'st', fake_st)
+    handle = {'token': 'owned'}
+    released = []
+    published = []
+    monkeypatch.setattr(module, '_acquire_pipeline_run_lock', lambda *args, **kwargs: handle)
+    monkeypatch.setattr(module, '_refresh_pipeline_run_lock', lambda *args: None)
+    monkeypatch.setattr(module, '_release_pipeline_run_lock', lambda lock, *args: released.append(lock))
+    @contextmanager
+    def tracker(*args, **kwargs):
+        yield None
+    monkeypatch.setattr(module._pipeline_runtime, 'start_tracker_run', tracker)
+    cancellation = KeyboardInterrupt('cancelled by operator')
+    def run(*args, **kwargs):
+        if cancelled:
+            raise cancellation
+        return ''
+    monkeypatch.setattr(module, 'run_lab', run)
+    def publish(**kwargs):
+        published.append(kwargs)
+        raise OSError('manifest write failed')
+    monkeypatch.setattr(module, '_write_pipeline_automation_manifest', publish)
+    stages_file = tmp_path / 'lab_stages.toml'
+    stages_file.write_text('')
+    env = SimpleNamespace(app='demo', active_app='', copilot_file=tmp_path / 'copilot.py')
+    stages = [{'Q': 'first', 'C': 'print(1)'}, {'Q': 'second', 'C': 'print(2)'}]
+    with pytest.raises(KeyboardInterrupt if cancelled else OSError) as found:
+        module.run_all_stages(tmp_path, 'page', stages_file, tmp_path / 'module.py', env,
+                              load_all_stages_fn=lambda *args: stages, stream_run_command_fn=lambda *args, **kwargs: '')
+    assert released == [handle]
+    assert state['page'][0] == 9
+    assert state['lab_selected_engine'] == 'original'
+    assert state['page__q_rev'] == 1
+    assert published[0]['status'] == ('failed' if cancelled else 'completed')
+    if cancelled:
+        assert found.value is cancellation
+        assert 'manifest write failed' in '\n'.join(found.value.__notes__)
+        assert [item['status'] for item in published[0]['stages']] == ['failed', 'skipped_after_failure']

@@ -649,7 +649,11 @@ def undo_pipeline_delete_command(
         return PipelineCommandResult(
             status=PipelineCommandStatus.FAILED,
             message=f"Undo failed: {restore_error}",
-            details={"index_page": index_page, "undo_key": undo_key, "error": str(restore_error)},
+            details={
+                "index_page": index_page,
+                "undo_key": undo_key,
+                "error": str(restore_error),
+            },
         )
 
     session_state.pop(undo_key, None)
@@ -658,3 +662,77 @@ def undo_pipeline_delete_command(
         message="Deleted stages restored.",
         details={"index_page": index_page, "undo_key": undo_key},
     )
+
+
+def prepare_pipeline_editor_updates(
+    session_state: MutableMapping[str, Any],
+    safe_prefix: str,
+    stage: int,
+) -> bool:
+    """Queue edits before widget hydration; report when existing widgets need rerun."""
+    q_key = f"{safe_prefix}_q_stage_{stage}"
+    code_key = f"{safe_prefix}_code_stage_{stage}"
+    pending_q = session_state.pop(f"{safe_prefix}_pending_q_{stage}", None)
+    pending_c = session_state.pop(f"{safe_prefix}_pending_c_{stage}", None)
+    if pending_q is not None:
+        session_state[f"{q_key}_apply_pending"] = pending_q
+    if pending_c is not None:
+        session_state[f"{code_key}_apply_pending"] = pending_c
+    rerun = (pending_q is not None or pending_c is not None) and (
+        q_key in session_state or code_key in session_state
+    )
+    if rerun:
+        session_state.pop(q_key, None)
+        session_state.pop(code_key, None)
+    return rerun
+
+
+def hydrate_pipeline_editor_values(
+    session_state: MutableMapping[str, Any],
+    safe_prefix: str,
+    stage: int,
+    entry: Mapping[str, Any],
+) -> None:
+    """Hydrate the persisted editor model without importing or rendering widgets."""
+    q_key = f"{safe_prefix}_q_stage_{stage}"
+    code_val_key = f"{safe_prefix}_code_stage_{stage}"
+    rev_key = f"{safe_prefix}_editor_rev_{stage}"
+    undo_key = f"{safe_prefix}_undo_{stage}"
+    apply_q_key = f"{q_key}_apply_pending"
+    apply_c_key = f"{code_val_key}_apply_pending"
+    initial_q = entry.get("Q", "")
+    initial_c = entry.get("C", "")
+    apply_q = session_state.pop(apply_q_key, None)
+    apply_c = session_state.pop(apply_c_key, None)
+    init_key = f"{safe_prefix}_stage_init_{stage}"
+    resync_sig_key = f"{safe_prefix}_editor_resync_sig_{stage}"
+    ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{stage}"
+    seeded_c: str | None = None
+    if not session_state.get(init_key):
+        session_state[q_key] = apply_q if apply_q is not None else initial_q
+        seeded_code = apply_c if apply_c is not None else initial_c
+        session_state[code_val_key] = seeded_code
+        seeded_c = seeded_code or None
+        session_state[init_key] = True
+    else:
+        if apply_q is not None or q_key not in session_state:
+            session_state[q_key] = apply_q if apply_q is not None else initial_q
+        if apply_c is not None:
+            seeded_c = apply_c
+            session_state[code_val_key] = apply_c
+        else:
+            current_c = session_state.get(code_val_key, "")
+            if code_val_key not in session_state or (not current_c and initial_c):
+                seeded_c = initial_c
+                session_state[code_val_key] = initial_c
+    if seeded_c is not None:
+        last_sig = session_state.get(resync_sig_key)
+        if last_sig != seeded_c:
+            session_state[resync_sig_key] = seeded_c
+            session_state[ignore_blank_key] = True
+            session_state[rev_key] = session_state.get(rev_key, 0) + 1
+    if rev_key not in session_state:
+        session_state[rev_key] = 0
+    if undo_key not in session_state or not session_state[undo_key]:
+        initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
+        session_state[undo_key] = [initial_snapshot]
