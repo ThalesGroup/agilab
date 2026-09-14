@@ -192,6 +192,32 @@ Validate the rule file with:
 python tools/agent_context_router.py --check
 ```
 
+To repeat the fixed retrieval-context benchmark with verified local experiment
+receipts (five tasks, three baseline/candidate observations):
+
+```bash
+uv --preview-features extra-build-dependencies run --with tiktoken==0.12.0 \
+  python -m tools.agent_context.benchmark \
+  --output reports/context-benchmark --repeats 3 --context-budget 24000
+```
+
+It compares full owner files with explicit excerpts from the same source bytes,
+keeps required policy intact, recounts token measurements in the grader, and
+rejects source drift between reads. The common budget covers source/policy
+context only; reserve task, tool and response space separately. Results include
+source hashes, acceptance receipts and a summary. Existing output directories
+are refused. A nonzero result preserves evidence of incomplete or oversized
+context. A project-local `worker` reference alone does not imply deployment;
+explicit operations, unknown worker scope and shared runtime paths retain
+installer guidance.
+
+This is a source retrieval microbenchmark. It does not solve the five coding
+tasks, establish model quality, measure provider cache behavior, or claim billed
+token savings. Actual model usage stays `not observed`; the experiment comparison
+contract can attach a registered usage artifact when one exists. The tokenizer
+is pinned, while its local cache is unmanaged; counting timings exclude initial
+tokenizer loading and should not be treated as agent latency.
+
 ## Demo an agentic workflow
 
 For a live demo, run the provider-neutral AGILAB workflow helper from the

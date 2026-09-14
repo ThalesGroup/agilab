@@ -511,7 +511,14 @@
         "ssh",
         "sshfs",
         "shared core",
-        "workers"
+        "workers",
+        "runtime",
+        "environment",
+        "environments",
+        "deploy",
+        "deployment",
+        "deployments",
+        "lifecycle"
       ],
       "skills": [
         "agilab-installer",

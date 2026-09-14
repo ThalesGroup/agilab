@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T13:54:57Z",
+  "generated_at_utc": "2026-09-14T13:59:06Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1088,7 +1088,8 @@
       "schema": "agilab.agent_experiment_acceptance.v1",
       "sources": [
         "src/agilab/agent_runtime/experiment.py",
-        "src/agilab/resources/agent_experiment/grader.py"
+        "src/agilab/resources/agent_experiment/grader.py",
+        "tools/agent_context/benchmark_fixture/grader.py"
       ]
     },
     {

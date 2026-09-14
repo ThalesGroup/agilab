@@ -358,3 +358,28 @@ def test_mandatory_policy_survives_dropped_optional_packs() -> None:
         if profile_name == "tokki":
             assert "installer-cluster" in profile["dropped_rule_ids"]
         assert "AGENTS.md" in profile["mandatory_files"]
+
+
+def test_known_app_worker_does_not_imply_installer_operations():
+    worker = 'src/agilab/apps/builtin/minimal_app_project/src/minimal_app_worker/minimal_app_worker.py'
+    for prompt in ["Adjust a return value in the minimal worker", "fix these workers"]:
+        payload = agent_context_router.recommend_context(
+            files=[worker], prompt=prompt, skills=_skill_index(), profile="agilab"
+        )
+        assert "installer-cluster" not in {
+            rule["id"] for rule in payload["matched_rules"]
+        }
+    for files, prompt in [
+        ([worker], "fix worker runtime deployment"),
+        ([worker], "Fix worker environments"),
+        ([worker], "Deploy the minimal worker"),
+        ([worker], "Fix workers runtime"),
+        ([worker], "install workers"),
+        ([], "fix workers"),
+        (["src/agilab/core/agi-node/base_worker.py"], "fix worker"),
+    ]:
+        payload = agent_context_router.recommend_context(
+            files=files, prompt=prompt, skills=_skill_index(), profile="agilab"
+        )
+        assert "installer-cluster" in {rule["id"] for rule in payload["matched_rules"]}
+        assert "AGENTS.md" in payload["context_profile"]["mandatory_files"]
