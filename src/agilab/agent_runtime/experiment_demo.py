@@ -1,7 +1,6 @@
 """Run the deterministic baseline/candidate experiment pilot without model services."""
 
 import argparse
-from importlib.resources import files
 import json
 from pathlib import Path
 
@@ -10,8 +9,13 @@ from agilab.agent_runtime.experiment_comparison import compare_experiments
 from agilab.evidence.skill_evaluation import persist_evaluation
 
 
+def demo_source() -> Path:
+    """Resolve assets beside this runtime, even under the repo's root package."""
+    return Path(__file__).resolve().parents[1] / "resources" / "agent_experiment"
+
+
 def run_demo(output: Path) -> dict:
-    source = Path(str(files("agilab").joinpath("resources/agent_experiment")))
+    source = demo_source()
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     for variant in ("baseline", "candidate"):
