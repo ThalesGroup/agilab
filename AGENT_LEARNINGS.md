@@ -1,19 +1,16 @@
 # AGILAB Agent Learnings
 
-This compact correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md`,
-and repo-managed skills. It records recurring agent mistakes, not task logs.
+This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skills; it records recurring mistakes, not task logs.
 
 ## When to add a rule
 
 - Add a rule only after a user, reviewer, or failed validation corrects an agent
   behavior that is not already covered by the repo runbooks.
-- Write one concrete rule that changes future behavior; avoid generic warnings
-  such as "be careful".
+- Write one concrete rule that changes behavior; avoid generic warnings such as "be careful".
 - Tighten an existing rule instead of adding a duplicate.
 - Promote durable workflow rules into `AGENTS.md`, `AGENT_CONVENTIONS.md`,
   skills, or tests when they become more than a correction note.
-- Prune entries when the underlying issue is fixed by code, tooling, or a
-  clearer upstream contract.
+- Prune entries when code, tooling or a clearer upstream contract fixes the issue.
 
 ## Maintenance contract
 
@@ -24,6 +21,9 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 
 ## Current rules
 
+- When replacing buffered logs with streaming capture, regress split and multiline
+  secrets, inherited stdin, open descendant pipes, and late-publication failures;
+  carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
   After schema or package-version changes, run the workflow parity `skills` profile;
   commit generated discovery artifacts and rerun it to prove there is no drift.

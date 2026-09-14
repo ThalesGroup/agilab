@@ -6,6 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import base64
+import hashlib
+from collections import deque
 from datetime import datetime, timezone
 from contextlib import contextmanager
 import json
@@ -394,40 +397,161 @@ def repair_jsonl_tail(path: Path | str) -> Path | None:
         return None
 
 
-def load_trace_events(path: Path | str) -> list[AgentTraceEvent]:
-    """Load trace events, tolerating only an unterminated crash tail."""
+MAX_TRACE_RECORD_BYTES = 1024 * 1024
 
+
+def _events_path(path: Path | str) -> Path:
     candidate = Path(path).expanduser()
-    events_path = candidate / EVENTS_FILENAME if candidate.is_dir() else candidate
-    if not events_path.exists():
-        return []
+    return candidate / EVENTS_FILENAME if candidate.is_dir() else candidate
 
-    raw = events_path.read_bytes()
-    has_unterminated_tail = bool(raw) and not raw.endswith(b"\n")
-    encoded_lines = raw.splitlines()
-    events: list[AgentTraceEvent] = []
-    for index, encoded_line in enumerate(encoded_lines):
-        if not encoded_line.strip():
-            continue
-        try:
-            payload = json.loads(encoded_line.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            if has_unterminated_tail and index == len(encoded_lines) - 1:
+
+def _read_event(handle, path: Path):
+    raw = handle.readline(MAX_TRACE_RECORD_BYTES + 1)
+    if not raw:
+        return None
+    if len(raw) > MAX_TRACE_RECORD_BYTES:
+        raise ValueError(f"Agent trace record exceeds {MAX_TRACE_RECORD_BYTES} bytes: {path}")
+    if not raw.strip():
+        return False
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        if not raw.endswith(b"\n"):
+            return None  # Only an unterminated crash tail is tolerated.
+        raise ValueError(f"Invalid agent trace JSONL record: {path}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Agent trace JSONL record must be an object: {path}")
+    try:
+        return _event_from_mapping(payload)
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid agent trace event record: {path}") from exc
+
+
+def iter_trace_events(path: Path | str):
+    """Stream records with a 1 MiB per-record memory limit."""
+    events_path = _events_path(path)
+    if not events_path.exists():
+        return
+    with events_path.open("rb") as handle:
+        index = 0
+        while True:
+            index += 1
+            try:
+                event = _read_event(handle, events_path)
+            except ValueError as exc:
+                raise ValueError(f"Invalid agent trace record {index}: {exc}") from exc
+            if event is None:
                 break
-            raise ValueError(
-                f"Invalid agent trace JSONL record {index + 1}: {events_path}"
-            ) from exc
-        if not isinstance(payload, dict):
-            raise ValueError(
-                f"Agent trace JSONL record {index + 1} must be an object: {events_path}"
-            )
-        try:
-            events.append(_event_from_mapping(payload))
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError(
-                f"Invalid agent trace event record {index + 1}: {events_path}"
-            ) from exc
-    return events
+            if event is not False:
+                yield event
+
+
+def load_trace_events(path: Path | str) -> list[AgentTraceEvent]:
+    """Compatibility reader; use trace pages for agent-facing requests."""
+    return list(iter_trace_events(path))
+
+
+def trace_tail(path: Path | str, *, limit: int = 20) -> dict[str, Any]:
+    """Return bounded recent messages while counting the complete trace."""
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("limit must be an integer between 1 and 100")
+    events = deque(maxlen=limit)
+    count = 0
+    for event in iter_trace_events(path):
+        count += 1
+        message = redact_text(event.message)
+        item = {"sequence": event.sequence, "event": redact_text(event.event),
+                "status": redact_text(event.status), "message": message,
+                "message_truncated": False}
+        for key, budget in (("event", 128), ("status", 128), ("message", 512)):
+            while len(json.dumps(item[key]).encode()) > budget:
+                item[key] = item[key][:len(item[key]) // 2]
+                item["message_truncated"] = True
+        events.append(item)
+    return {"event_count": count, "events": list(events),
+            "omitted_events": count - len(events),
+            "truncated": count > len(events) or any(e["message_truncated"] for e in events)}
+
+
+def _cursor(handle, offset: int) -> str:
+    handle.seek(max(0, offset - 64))
+    anchor = hashlib.sha256(handle.read(min(offset, 64))).hexdigest()
+    stat = os.fstat(handle.fileno())
+    payload = [offset, stat.st_dev, stat.st_ino, anchor]
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+
+def trace_page(path: Path | str, *, cursor: str = "", limit: int = 50,
+               max_bytes: int = 32768) -> dict[str, Any]:
+    """Read a byte-bounded page. Cursors detect replaced or truncated traces.
+
+    The cursor is a continuation marker, not an authenticity credential.
+    """
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("limit must be an integer between 1 and 100")
+    if type(max_bytes) is not int or not 2048 <= max_bytes <= 65536:
+        raise ValueError("max_bytes must be an integer between 2048 and 65536")
+    events_path = _events_path(path)
+    events = []
+    # Reserve space for the envelope and cursor, including JSON escaping.
+    remaining = max_bytes - 768
+    with events_path.open("rb") as handle:
+        offset = 0
+        incomplete_tail = False
+        if cursor:
+            try:
+                fields = json.loads(base64.urlsafe_b64decode(cursor))
+                offset = fields[0]
+                if type(offset) is not int or offset < 0 or offset > os.fstat(handle.fileno()).st_size:
+                    raise ValueError("offset")
+                if _cursor(handle, offset) != cursor:
+                    raise ValueError("identity or anchor")
+                if offset:
+                    handle.seek(offset - 1)
+                    if handle.read(1) != b"\n":
+                        raise ValueError("record boundary")
+            except (ValueError, TypeError, IndexError, KeyError) as exc:
+                raise ValueError("Stale or invalid trace cursor; restart pagination") from exc
+        handle.seek(offset)
+        for _ in range(limit):
+            before = handle.tell()
+            event = _read_event(handle, events_path)
+            if event is None:
+                handle.seek(before)  # An append can complete a crash tail later.
+                incomplete_tail = bool(handle.read(1))
+                handle.seek(before)
+                break
+            if event is False:
+                continue
+            item = redact_mapping(asdict(event))
+            encoded = json.dumps(item, ensure_ascii=True).encode()
+            if len(encoded) > remaining and events:
+                handle.seek(before)
+                break
+            if len(encoded) > remaining:
+                item = {"sequence": event.sequence, "event": item["event"],
+                        "status": item["status"], "message": item["message"][:128],
+                        "truncated": True, "omitted_bytes": len(encoded)}
+                encoded = json.dumps(item, ensure_ascii=True).encode()
+                while len(encoded) > remaining:
+                    key = max(("event", "status", "message"), key=lambda k: len(item[k]))
+                    if not item[key]:
+                        raise ValueError("Trace event identifier exceeds the response budget")
+                    item[key] = item[key][:len(item[key]) // 2]
+                    encoded = json.dumps(item, ensure_ascii=True).encode()
+            events.append(item)
+            remaining -= len(encoded) + 2
+            if remaining < 1024:
+                break
+        offset = handle.tell()
+        has_more = bool(handle.read(1)) and not incomplete_tail
+        next_cursor = _cursor(handle, offset) if has_more else None
+        resume_cursor = _cursor(handle, offset) if incomplete_tail else None
+    return {"schema": "agilab.agent_trace_page.v1", "events": events,
+            "returned_events": len(events), "next_cursor": next_cursor,
+            "has_more": has_more, "max_bytes": max_bytes,
+            "incomplete_tail": incomplete_tail, "resume_cursor": resume_cursor,
+            "truncated": any(e.get("truncated", False) for e in events)}
 
 
 class AgentTraceStore:
@@ -547,17 +671,22 @@ def summarize_trace(path: Path | str) -> AgentTraceSummary:
     candidate = Path(path).expanduser()
     root = candidate if candidate.is_dir() else candidate.parent
     meta = _read_json(root / META_FILENAME)
-    events = load_trace_events(candidate)
+    first = last = None
+    count = 0
+    for event in iter_trace_events(candidate):
+        first = first or event
+        last = event
+        count += 1
     return AgentTraceSummary(
-        run_id=str(meta.get("run_id") or (events[0].run_id if events else "")),
+        run_id=str(meta.get("run_id") or (first.run_id if first else "")),
         agent=str(meta.get("agent") or ""),
         label=str(meta.get("label") or ""),
-        event_count=len(events),
+        event_count=count,
         events_path=root / EVENTS_FILENAME,
         meta_path=root / META_FILENAME,
-        first_event=events[0].event if events else "",
-        last_event=events[-1].event if events else "",
-        status=events[-1].status if events else "",
+        first_event=first.event if first else "",
+        last_event=last.event if last else "",
+        status=last.status if last else "",
     )
 
 
@@ -567,14 +696,20 @@ def trace_artifact_payload(root: Path | str) -> dict[str, Any]:
     root_path = Path(root).expanduser()
     events_path = root_path / EVENTS_FILENAME
     meta_path = root_path / META_FILENAME
-    events = load_trace_events(events_path)
+    event_types = []
+    count = 0
+    for event in iter_trace_events(events_path):
+        count += 1
+        if len(event_types) < 128:
+            event_types.append(event.event)
     return {
         "schema": TRACE_SCHEMA,
         "meta": str(meta_path),
         "events": str(events_path),
         "tool_output_dir": str(root_path / TOOL_OUTPUT_DIRNAME),
-        "event_count": len(events),
-        "event_types": [event.event for event in events],
+        "event_count": count,
+        "event_types": event_types,
+        "omitted_event_types": max(0, count - len(event_types)),
         "exists": events_path.exists(),
     }
 
