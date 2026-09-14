@@ -55,6 +55,15 @@ read-only and returns the safety boundary, recommended workflow, live tool list,
 and compact capability overview. The same entry point is advertised by the MCP
 `initialize` response and `agenticweb.md`.
 
+Before reusing an agent run, call `validate_agent_run` through MCP or run
+`agilab agent-run validate <run-directory> --json`. Validation rejects
+contradictory terminal status/return codes, terminal trace disagreements, and
+changes to recorded stdout/stderr or ownership-claim hashes and sizes. Inspect
+`content_integrity.status` separately from the command's outcome: legacy records
+without hashes remain readable with `unverified` integrity. Matching recorded
+bytes do not establish producer authenticity, exact executed source, or task
+quality.
+
 To inspect a saved figure, install `agilab[preview]` in the MCP server environment,
 then call `preview_artifact` with `manifest_path` and an `artifact_name` from
 `list_artifacts`. The tool returns a PNG thumbnail and
