@@ -166,7 +166,7 @@ For measured source context, use the existing router's materialization mode:
 ```bash
 uv --preview-features extra-build-dependencies run --with tiktoken \
   python tools/agent_context_router.py --profile tokki --materialize \
-  --excerpt src/agilab/agent_runtime/agent_run.py::validate_agent_run \
+  --excerpt src/agilab/agent_runtime/verification.py::validate_agent_run \
   --context-tokens 24000 --reserve-tokens 2000 --json
 ```
 
