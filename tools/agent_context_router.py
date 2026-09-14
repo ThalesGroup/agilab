@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import fnmatch
 import json
+import re
 import subprocess
 import sys
 from collections import OrderedDict
@@ -43,7 +44,9 @@ def _load_json(path: Path) -> Any:
         raise ValueError(f"invalid JSON in {_rel(path)}: {exc}") from exc
 
 
-def _expect_mapping(value: Any, *, path: str, issues: list[dict[str, str]]) -> Mapping[str, Any]:
+def _expect_mapping(
+    value: Any, *, path: str, issues: list[dict[str, str]]
+) -> Mapping[str, Any]:
     if isinstance(value, Mapping):
         return value
     issues.append({"severity": "error", "path": path, "message": "expected an object"})
@@ -131,6 +134,25 @@ def _matches_any(path: str, patterns: Iterable[str]) -> bool:
     return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
 
 
+def _matches_term(prompt: str, term: str) -> bool:
+    phrase = r"\s+".join(re.escape(word) for word in term.split())
+    return bool(re.search(r"(?<!\w)" + phrase + r"(?!\w)", prompt, re.IGNORECASE))
+
+
+def _project_owner(path: str) -> str | None:
+    for prefix in (
+        "src/agilab/apps/builtin/",
+        "src/agilab/apps/",
+        "src/agilab/apps-pages/",
+        "src/agilab/examples/",
+        "src/agilab/lib/",
+        "src/agilab/projects/",
+    ):
+        if path.startswith(prefix):
+            return prefix + path[len(prefix) :].split("/", 1)[0]
+    return None
+
+
 def _git_changed_files(*, staged: bool, changed: bool) -> list[str]:
     if not staged and not changed:
         return []
@@ -153,7 +175,9 @@ def _git_changed_files(*, staged: bool, changed: bool) -> list[str]:
     return [path for path in completed.stdout.split("\0") if path]
 
 
-def load_skill_index(capabilities_path: Path = DEFAULT_CAPABILITIES) -> dict[str, dict[str, str]]:
+def load_skill_index(
+    capabilities_path: Path = DEFAULT_CAPABILITIES,
+) -> dict[str, dict[str, str]]:
     payload = _load_json(capabilities_path)
     if not isinstance(payload, Mapping):
         return {}
@@ -188,10 +212,16 @@ def validate_rules(
                 "message": f"expected {RULES_SCHEMA!r}, got {schema!r}",
             }
         )
-    baseline = _expect_mapping(rules_payload.get("baseline"), path="baseline", issues=issues)
-    runbooks = _expect_list(baseline.get("runbooks"), path="baseline.runbooks", issues=issues)
+    baseline = _expect_mapping(
+        rules_payload.get("baseline"), path="baseline", issues=issues
+    )
+    runbooks = _expect_list(
+        baseline.get("runbooks"), path="baseline.runbooks", issues=issues
+    )
     for index, raw in enumerate(runbooks):
-        runbook = _expect_mapping(raw, path=f"baseline.runbooks[{index}]", issues=issues)
+        runbook = _expect_mapping(
+            raw, path=f"baseline.runbooks[{index}]", issues=issues
+        )
         path = runbook.get("path")
         if not isinstance(path, str) or not path.strip():
             issues.append(
@@ -210,7 +240,9 @@ def validate_rules(
                 }
             )
     known_skills = skills or load_skill_index()
-    baseline_skills = _string_list(baseline.get("skills"), path="baseline.skills", issues=issues)
+    baseline_skills = _string_list(
+        baseline.get("skills"), path="baseline.skills", issues=issues
+    )
     for name in baseline_skills:
         if name not in known_skills:
             issues.append(
@@ -243,8 +275,12 @@ def validate_rules(
             )
         else:
             seen_ids.add(rule_id)
-        paths = _string_list(rule.get("paths"), path=f"rules[{index}].paths", issues=issues)
-        terms = _string_list(rule.get("terms"), path=f"rules[{index}].terms", issues=issues)
+        paths = _string_list(
+            rule.get("paths"), path=f"rules[{index}].paths", issues=issues
+        )
+        terms = _string_list(
+            rule.get("terms"), path=f"rules[{index}].terms", issues=issues
+        )
         if not paths and not terms:
             issues.append(
                 {
@@ -253,6 +289,11 @@ def validate_rules(
                     "message": "expected at least one path pattern or prompt term",
                 }
             )
+        _string_list(
+            rule.get("required_runbooks", []),
+            path=f"rules[{index}].required_runbooks",
+            issues=issues,
+        )
         for field in ("label", "reason"):
             value = rule.get(field)
             if not isinstance(value, str) or not value.strip():
@@ -263,7 +304,9 @@ def validate_rules(
                         "message": "expected a non-empty string",
                     }
                 )
-        for name in _string_list(rule.get("skills"), path=f"rules[{index}].skills", issues=issues):
+        for name in _string_list(
+            rule.get("skills"), path=f"rules[{index}].skills", issues=issues
+        ):
             if name not in known_skills:
                 issues.append(
                     {
@@ -320,7 +363,9 @@ def validate_rules(
                 issues=issues,
             )
             for field in ("baseline_files", "commands"):
-                for item in _string_list(profile.get(field), path=f"{profile_path}.{field}", issues=issues):
+                for item in _string_list(
+                    profile.get(field), path=f"{profile_path}.{field}", issues=issues
+                ):
                     if field == "baseline_files" and not (REPO_ROOT / item).exists():
                         issues.append(
                             {
@@ -350,7 +395,9 @@ def validate_rules(
                     path=f"{pack_path}.token_budget",
                     issues=issues,
                 )
-                for item in _string_list(pack.get("files"), path=f"{pack_path}.files", issues=issues):
+                for item in _string_list(
+                    pack.get("files"), path=f"{pack_path}.files", issues=issues
+                ):
                     if not (REPO_ROOT / item).exists():
                         issues.append(
                             {
@@ -359,7 +406,9 @@ def validate_rules(
                                 "message": f"profile file does not exist: {item}",
                             }
                         )
-                _string_list(pack.get("commands"), path=f"{pack_path}.commands", issues=issues)
+                _string_list(
+                    pack.get("commands"), path=f"{pack_path}.commands", issues=issues
+                )
                 why = pack.get("why")
                 if not isinstance(why, str) or not why.strip():
                     issues.append(
@@ -420,11 +469,22 @@ def _context_profile_payload(
     rule_packs = rule_packs if isinstance(rule_packs, Mapping) else {}
     selected_packs: list[dict[str, Any]] = []
     dropped_rule_ids: list[str] = []
+    mandatory_files: list[str] = []
     for matched_rule in matched_rules:
+        mandatory_files.extend(matched_rule.get("required_runbooks", []))
         rule_id = str(matched_rule.get("id", "") or "")
         raw_pack = rule_packs.get(rule_id)
         if not isinstance(raw_pack, Mapping):
             continue
+        mandatory_files.extend(
+            path
+            for path in raw_pack.get("files", [])
+            if isinstance(path, str)
+            and (
+                path.endswith("/SKILL.md")
+                or Path(path).name in {"AGENTS.md", "AGENT_CONVENTIONS.md"}
+            )
+        )
         if max_rule_packs and len(selected_packs) >= max_rule_packs:
             dropped_rule_ids.append(rule_id)
             continue
@@ -438,8 +498,14 @@ def _context_profile_payload(
                 "rule_id": rule_id,
                 "label": str(matched_rule.get("label", "") or ""),
                 "token_budget": token_budget,
-                "files": [item for item in raw_pack.get("files", []) if isinstance(item, str)],
-                "commands": [item for item in raw_pack.get("commands", []) if isinstance(item, str)],
+                "files": [
+                    item for item in raw_pack.get("files", []) if isinstance(item, str)
+                ],
+                "commands": [
+                    item
+                    for item in raw_pack.get("commands", [])
+                    if isinstance(item, str)
+                ],
                 "why": str(raw_pack.get("why", "") or ""),
             }
         )
@@ -449,12 +515,18 @@ def _context_profile_payload(
         "label": str(profile.get("label", "") or ""),
         "description": str(profile.get("description", "") or ""),
         "max_total_tokens": max_total_tokens,
+        "mandatory_files": list(dict.fromkeys(mandatory_files)),
         "baseline_token_budget": baseline_token_budget,
         "estimated_token_budget": baseline_token_budget
         + sum(int(pack["token_budget"]) for pack in selected_packs),
+        "budget_kind": "configured_allowance_not_measured_content",
         "remaining_token_budget": remaining_tokens,
-        "baseline_files": [item for item in profile.get("baseline_files", []) if isinstance(item, str)],
-        "commands": [item for item in profile.get("commands", []) if isinstance(item, str)],
+        "baseline_files": [
+            item for item in profile.get("baseline_files", []) if isinstance(item, str)
+        ],
+        "commands": [
+            item for item in profile.get("commands", []) if isinstance(item, str)
+        ],
         "matched_packs": selected_packs,
         "dropped_rule_ids": dropped_rule_ids,
     }
@@ -473,12 +545,20 @@ def recommend_context(
         raise ValueError(f"rules root must be a JSON object: {_rel(rules_path)}")
     skill_index = dict(skills or load_skill_index())
     validation = validate_rules(rules_payload, skills=skill_index)
-    normalized_files = [item for item in (normalize_file(path) for path in files) if item]
+    normalized_files = [
+        item for item in (normalize_file(path) for path in files) if item
+    ]
     prompt_text = prompt.strip()
     prompt_lower = prompt_text.lower()
-    baseline = _expect_mapping(rules_payload.get("baseline"), path="baseline", issues=[])
-    baseline_skills = [item for item in baseline.get("skills", []) if isinstance(item, str)]
-    skill_sources: "OrderedDict[str, list[str]]" = OrderedDict((name, ["baseline"]) for name in baseline_skills)
+    baseline = _expect_mapping(
+        rules_payload.get("baseline"), path="baseline", issues=[]
+    )
+    baseline_skills = [
+        item for item in baseline.get("skills", []) if isinstance(item, str)
+    ]
+    skill_sources: "OrderedDict[str, list[str]]" = OrderedDict(
+        (name, ["baseline"]) for name in baseline_skills
+    )
     matched_rules: list[dict[str, Any]] = []
     for raw_rule in rules_payload.get("rules", []):
         if not isinstance(raw_rule, Mapping):
@@ -486,11 +566,19 @@ def recommend_context(
         paths = [item for item in raw_rule.get("paths", []) if isinstance(item, str)]
         terms = [item for item in raw_rule.get("terms", []) if isinstance(item, str)]
         matched_paths = [path for path in normalized_files if _matches_any(path, paths)]
-        matched_terms = [term for term in terms if term.lower() in prompt_lower]
+        matched_terms = [term for term in terms if _matches_term(prompt_lower, term)]
+        rule_id = str(raw_rule.get("id") or "")
+        if rule_id == "all" and not matched_terms:
+            continue
+        if rule_id == "all-projects" and not matched_terms:
+            owners = {_project_owner(path) for path in matched_paths} - {None}
+            if len(owners) < 2:
+                continue
         if not matched_paths and not matched_terms:
             continue
-        rule_id = str(raw_rule.get("id") or "")
-        rule_skills = [item for item in raw_rule.get("skills", []) if isinstance(item, str)]
+        rule_skills = [
+            item for item in raw_rule.get("skills", []) if isinstance(item, str)
+        ]
         for name in rule_skills:
             source = f"rule:{rule_id}"
             sources = skill_sources.setdefault(name, [])
@@ -504,6 +592,11 @@ def recommend_context(
                 "skills": rule_skills,
                 "matched_paths": matched_paths,
                 "matched_terms": matched_terms,
+                "required_runbooks": [
+                    path
+                    for path in raw_rule.get("required_runbooks", [])
+                    if isinstance(path, str)
+                ],
             }
         )
     result = {
@@ -573,24 +666,63 @@ def render_text(payload: Mapping[str, Any]) -> str:
             lines.append("Context packs:")
             for pack in packs:
                 if isinstance(pack, Mapping):
-                    lines.append(f"- {pack.get('rule_id')}: {pack.get('token_budget')} tokens")
+                    lines.append(
+                        f"- {pack.get('rule_id')}: {pack.get('token_budget')} tokens"
+                    )
     return "\n".join(lines) + "\n"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--rules", type=Path, default=DEFAULT_RULES, help="Context routing rules JSON.")
-    parser.add_argument("--files", nargs="*", default=(), help="Changed or target files to classify.")
-    parser.add_argument("--prompt", default="", help="Natural-language task text to classify.")
+    parser.add_argument(
+        "--rules", type=Path, default=DEFAULT_RULES, help="Context routing rules JSON."
+    )
+    parser.add_argument(
+        "--files", nargs="*", default=(), help="Changed or target files to classify."
+    )
+    parser.add_argument(
+        "--prompt", default="", help="Natural-language task text to classify."
+    )
     parser.add_argument(
         "--profile",
         default="",
         help="Optional compact context profile, for example 'agilab' or 'tokki'.",
     )
-    parser.add_argument("--staged", action="store_true", help="Include staged git paths.")
-    parser.add_argument("--changed", action="store_true", help="Include paths changed against HEAD.")
-    parser.add_argument("--check", action="store_true", help="Validate the routing rules and exit.")
-    parser.add_argument("--json", action="store_true", help="Emit JSON instead of text.")
+    parser.add_argument(
+        "--staged", action="store_true", help="Include staged git paths."
+    )
+    parser.add_argument(
+        "--changed", action="store_true", help="Include paths changed against HEAD."
+    )
+    parser.add_argument(
+        "--check", action="store_true", help="Validate the routing rules and exit."
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Emit JSON instead of text."
+    )
+    parser.add_argument(
+        "--materialize",
+        action="store_true",
+        help="Emit measured excerpts; requires --profile and tiktoken.",
+    )
+    parser.add_argument(
+        "--excerpt",
+        nargs="*",
+        default=[],
+        help="Explicit path, path::symbol, or path#Lstart-Lend selectors.",
+    )
+    parser.add_argument(
+        "--context-tokens",
+        type=int,
+        default=None,
+        help="Override profile context allowance.",
+    )
+    parser.add_argument(
+        "--reserve-tokens",
+        type=int,
+        default=1000,
+        help="Reserve tokens for task/output outside excerpts.",
+    )
     return parser.parse_args(argv)
 
 
@@ -612,9 +744,49 @@ def main(argv: list[str] | None = None) -> int:
                 print(f" - {issue['path']}: {issue['message']}", file=sys.stderr)
         return 0 if report["status"] == "pass" else 2
     files = list(args.files)
+    files.extend(
+        selector.split("::", 1)[0].split("#L", 1)[0] for selector in args.excerpt
+    )
     files.extend(_git_changed_files(staged=args.staged, changed=args.changed))
     try:
-        payload = recommend_context(files=files, prompt=args.prompt, rules_path=rules_path, profile=args.profile)
+        payload = recommend_context(
+            files=files, prompt=args.prompt, rules_path=rules_path, profile=args.profile
+        )
+        if args.materialize:
+            if not args.profile:
+                raise ValueError("--materialize requires --profile")
+            try:
+                from tools.agent_context.materialize import (
+                    materialize_context,
+                    reference_counter,
+                )
+            except ModuleNotFoundError:  # direct tools/ execution
+                from agent_context.materialize import (
+                    materialize_context,
+                    reference_counter,
+                )
+            payload["materialized_context"] = materialize_context(
+                payload,
+                root=REPO_ROOT,
+                count_tokens=reference_counter(),
+                selectors=[
+                    *args.excerpt,
+                    *(
+                        path
+                        for path in files
+                        if path
+                        not in {
+                            selector.split("::", 1)[0].split("#L", 1)[0]
+                            for selector in args.excerpt
+                        }
+                    ),
+                ],
+                max_tokens=args.context_tokens,
+                reserve_tokens=args.reserve_tokens,
+                counter_name="o200k_base",
+            )
+            if payload["materialized_context"]["status"] != "pass":
+                payload["status"] = "context-blocked"
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -622,6 +794,8 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         print(render_text(payload), end="")
+        if args.materialize:
+            print(json.dumps(payload["materialized_context"], indent=2, sort_keys=True))
     return 0 if payload["status"] == "pass" else 2
 
 

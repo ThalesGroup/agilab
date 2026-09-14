@@ -54,9 +54,9 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
-- When asked for token-saving or workflow-saving tactics and a repo-local default
-  is clear, state the assumed target, choose the highest-leverage applicable
-  mechanism, and implement it or name the exact blocker; avoid broad clarification menus.
+- For token-saving work, use existing scoped mechanisms and name blockers instead of broad clarification menus.
+  Preserve canonical-path safety/evidence ownership after moves; regress narrow requests as well as broad ones.
+  Measure selected excerpts and report omissions; configured allowances are not usage, and mandatory policy must remain intact.
 - When a product or code fix was designed or implemented with model assistance,
   request a review from a stronger model before closing, pushing, or merging
   when that is available. If no stronger model is available, say so explicitly
