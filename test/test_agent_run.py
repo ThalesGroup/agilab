@@ -541,6 +541,7 @@ def test_agent_run_publication_failure_recommits_terminal_failure_evidence(
         output_dir=tmp_path,
         run_id="publication-failure",
         permission_level="standard",
+        runner=lambda *args, **kwargs: subprocess.run(*args, **kwargs),
     )
 
     assert publication_failed is True

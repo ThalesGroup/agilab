@@ -196,13 +196,17 @@ def _canonicalize_agent_manifest_resources(
         for name in ("meta", "events", "tool_output_dir"):
             raw_path = safe_trace.get(name)
             if isinstance(raw_path, str) and raw_path:
-                safe_trace[name] = str(
-                    _mcp_resource_path(
+                resource = _mcp_resource_path(
                         raw_path,
                         manifest_path=manifest_path,
                         purpose=f"agent trace {name} resource",
                     )
-                )
+                if name == "events" and resource.is_dir():
+                    # Readers accept trace directories; validate the concrete
+                    # file after that expansion, including nested symlinks.
+                    resource = _mcp_read_path(resource / "agent_events.ndjson",
+                                              purpose="expanded agent trace events")
+                safe_trace[name] = str(resource)
         safe_artifacts["agent_trace"] = safe_trace
     safe_manifest["artifacts"] = safe_artifacts
     return safe_manifest
@@ -258,7 +262,7 @@ def _agent_manifest_records(
         )
         if safe_candidate.is_file():
             candidates.append(safe_candidate)
-    candidates.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    candidates.sort(key=lambda path: (-path.stat().st_mtime_ns, str(path)))
 
     required_tags = set(agent_run._normalize_tags((tag,) if tag else ()))
     required_metadata = dict(metadata or {})
@@ -446,9 +450,12 @@ def list_agent_runs(
     protocol_adapter: str = "",
     capability: str = "",
     limit: int = 20,
+    offset: int = 0,
 ) -> dict[str, Any]:
-    if limit < 0:
-        raise ValueError("limit must be >= 0")
+    if type(limit) is not int or not 0 <= limit <= 100:
+        raise ValueError("limit must be an integer between 0 and 100")
+    if type(offset) is not int or not 0 <= offset <= 100000:
+        raise ValueError("offset must be an integer between 0 and 100000")
     root = (
         _mcp_read_path(log_root, purpose="agent log root")
         if log_root not in (None, "")
@@ -462,10 +469,16 @@ def list_agent_runs(
         metadata=metadata,
         protocol_adapter=protocol_adapter,
         capability=capability,
-        limit=limit,
+        limit=offset + limit + 1 if limit else 0,
     )
     return {
         "schema": "agilab.mcp.list_agent_runs.v1",
+        "offset": offset,
+        "next_offset": (offset + limit if limit and len(records) > offset + limit
+                        and offset + limit <= 100000 else None),
+        "truncated": bool(limit and len(records) > offset + limit and offset + limit > 100000),
+        "pagination_limit_hint": "Narrow filters if the 100000 start-offset limit is reached.",
+        "ordering": "mtime descending, path ascending; inventory may change between requests",
         "log_root": str(root) if root is not None else "~/log/agents",
         "agent": agent or None,
         "status": status or None,
@@ -475,7 +488,7 @@ def list_agent_runs(
         "capability": capability or None,
         "runs": [
             _agent_run_summary_payload(summary)
-            for _manifest, _path, summary in records
+            for _manifest, _path, summary in records[offset:offset + limit]
         ],
     }
 
@@ -886,6 +899,7 @@ def agent_quickstart(
     """
     limit = max(1, int(max_items))
     overview: dict[str, Any] = {
+        "schema": "agilab.mcp.agent_quickstart.v1",
         "tool": "agilab",
         "read_only_boundary": {
             "local_files_only": True,
@@ -964,3 +978,16 @@ def agent_quickstart(
         f"Read {path.name} for full detail (evidence_schemas, packages, schemas)."
     )
     return overview
+
+
+def read_agent_trace(manifest_path: str | Path, *, cursor: str = "",
+                     limit: int = 50, max_bytes: int = 32768) -> dict[str, Any]:
+    """Page only the trace registered by a confined agent manifest."""
+    from agilab.agent_runtime.agent_trace import trace_page
+
+    manifest, _ = _load_mcp_agent_manifest(manifest_path)
+    summary = agent_run.summarize_agent_run(manifest)
+    if not summary.trace_events_path:
+        raise ValueError("Manifest has no agent trace")
+    return _redact_evidence_payload(trace_page(summary.trace_events_path,
+        cursor=cursor, limit=limit, max_bytes=max_bytes))

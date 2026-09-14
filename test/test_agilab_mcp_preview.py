@@ -178,9 +178,16 @@ def test_unsupported_artifact_contract_is_explicit(manifest, mutation):
     assert result["isError"] is True and len(result["content"]) == 1
 
 
-@pytest.mark.parametrize("name", ["unknown", "", "x" * 257, None])
-def test_invalid_artifact_selection_fails(manifest, name):
-    assert _call(manifest, name)["isError"] is True
+def test_unknown_artifact_selection_fails(manifest):
+    assert _call(manifest, "unknown")["isError"] is True
+
+
+@pytest.mark.parametrize("name", ["", "x" * 257, None])
+def test_invalid_artifact_argument_is_rejected_before_execution(manifest, name):
+    result = server.handle_jsonrpc({"jsonrpc": "2.0", "id": 1,
+        "method": "tools/call", "params": {"name": "preview_artifact",
+        "arguments": {"manifest_path": str(manifest), "artifact_name": name}}})
+    assert result["error"]["code"] == -32602
 
 
 @pytest.mark.parametrize("escape", ["relative", "absolute", "symlink"])

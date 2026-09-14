@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-11T06:35:11Z",
+  "generated_at_utc": "2026-09-14T08:07:36Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 270,
+    "evidence_schema_count": 272,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1132,6 +1132,12 @@
       ]
     },
     {
+      "schema": "agilab.agent_trace_page.v1",
+      "sources": [
+        "src/agilab/agent_runtime/agent_trace.py"
+      ]
+    },
+    {
       "schema": "agilab.agenticweb_discovery.v1",
       "sources": [
         "agenticweb.md",
@@ -1798,6 +1804,12 @@
     },
     {
       "schema": "agilab.mcp.agent_next_actions.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
+      "schema": "agilab.mcp.agent_quickstart.v1",
       "sources": [
         "src/agilab_mcp/manifest_tools.py"
       ]

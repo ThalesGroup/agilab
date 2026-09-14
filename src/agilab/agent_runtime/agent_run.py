@@ -28,9 +28,11 @@ from agilab.agent_runtime.agent_trace import (
     AgentTraceStore,
     load_trace_events,
     trace_artifact_payload,
+    trace_tail,
     validate_event_sequence,
 )
 from agilab.security.secret_uri import redact_text
+from agilab.agent_runtime.process_capture import capture_command
 
 TRACE_KIND = "agilab.agent_run.v1"
 MANIFEST_FILENAME = "agent_run_manifest.json"
@@ -137,6 +139,8 @@ class _AgentRunTransaction:
     permission: dict[str, object] | None = None
     trace_store: AgentTraceStore | None = None
     trace_initialized: bool = False
+    streamed_outputs: bool = False
+    output_capture: dict[str, object] | None = None
 
 
 def _utc_now() -> str:
@@ -293,15 +297,18 @@ def _file_payload(path: Path) -> dict[str, object]:
             "size_bytes": 0,
             "line_count": 0,
         }
-    data = path.read_bytes()
-    text = data.decode("utf-8", errors="replace")
-    return {
-        "path": str(path),
-        "exists": True,
-        "size_bytes": len(data),
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "line_count": len(text.splitlines()),
-    }
+    digest = hashlib.sha256()
+    size = lines = 0
+    last = b""
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(65536), b""):
+            digest.update(chunk)
+            size += len(chunk)
+            lines += chunk.count(b"\n")
+            last = chunk[-1:]
+    return {"path": str(path), "exists": True, "size_bytes": size,
+            "sha256": digest.hexdigest(),
+            "line_count": lines + int(bool(last) and last != b"\n")}
 
 
 def _argv_hash(command: Sequence[str]) -> str:
@@ -683,8 +690,16 @@ def _record_terminal_agent_run_failure(
         except Exception as trace_exc:
             trace_error = redact_text(str(trace_exc)) or type(trace_exc).__name__
 
-    _ensure_atomic_failure_artifact(artifacts["stdout"], transaction.stdout)
-    _ensure_atomic_failure_artifact(artifacts["stderr"], stderr)
+    if transaction.streamed_outputs:
+        if not artifacts["stdout"].exists():
+            _ensure_atomic_failure_artifact(artifacts["stdout"], "")
+        with artifacts["stderr"].open("a", encoding="utf-8") as stream:
+            stream.write("\n" + terminal_message[:4096] + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    else:
+        _ensure_atomic_failure_artifact(artifacts["stdout"], transaction.stdout)
+        _ensure_atomic_failure_artifact(artifacts["stderr"], stderr)
 
     permission = transaction.permission or {
         "action": _command_permission_action(config),
@@ -773,6 +788,12 @@ def _record_terminal_agent_run_failure(
             "Command output artifacts are redacted by default; pass --include-raw-output only for safe local diagnostics.",
         ],
     }
+    if transaction.streamed_outputs:
+        manifest["output_capture"] = transaction.output_capture or {
+            name: {"truncated": True, "stream_complete": False,
+                   "observed_bytes": None, "completeness": "unknown after capture failure"}
+            for name in ("stdout", "stderr")
+        }
     _ensure_atomic_failure_artifact(
         artifacts["manifest"],
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
@@ -938,6 +959,7 @@ def run_agent_command(
     *,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     perf_counter: Callable[[], float] = time.perf_counter,
+    cancelled: Callable[[], bool] | None = None,
 ) -> AgentRunResult:
     """Execute an agent command and write a local trace manifest."""
 
@@ -950,6 +972,7 @@ def run_agent_command(
             transaction=transaction,
             runner=runner,
             perf_counter=perf_counter,
+            cancelled=cancelled,
         )
     except BaseException as exc:
         if isinstance(exc, Exception):
@@ -979,6 +1002,7 @@ def _run_claimed_agent_command(
     transaction: _AgentRunTransaction,
     runner: Callable[..., subprocess.CompletedProcess[str]],
     perf_counter: Callable[[], float],
+    cancelled: Callable[[], bool] | None = None,
 ) -> AgentRunResult:
     """Execute a command after its output directory has been claimed."""
 
@@ -1133,30 +1157,40 @@ def _run_claimed_agent_command(
         return AgentRunResult(manifest=manifest, returncode=returncode)
 
     transaction.phase = "command launch"
-    try:
-        proc = runner(
-            list(config.command),
-            cwd=str(config.cwd),
-            env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=config.timeout_seconds,
-            check=False,
-        )
-        returncode = int(proc.returncode)
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
-    except subprocess.TimeoutExpired as exc:
-        timed_out = True
-        returncode = 124
-        raw_stdout = exc.stdout or ""
-        raw_stderr = exc.stderr or ""
-        stdout = raw_stdout if isinstance(raw_stdout, str) else raw_stdout.decode("utf-8", "replace")
-        stderr = raw_stderr if isinstance(raw_stderr, str) else raw_stderr.decode("utf-8", "replace")
-        stderr = (stderr + f"\nTimed out after {config.timeout_seconds:.0f}s").strip()
-    transaction.stdout = redact_text(stdout) if config.redact_output else stdout
-    transaction.stderr = redact_text(stderr) if config.redact_output else stderr
+    capture = None
+    if runner is subprocess.run:
+        transaction.streamed_outputs = True
+        capture = capture_command(list(config.command), cwd=str(config.cwd), env=env,
+            timeout=config.timeout_seconds, stdout_path=stdout_path,
+            stderr_path=stderr_path, redact=config.redact_output, cancelled=cancelled)
+        transaction.output_capture = capture["streams"]
+        returncode = int(capture["returncode"])
+        timed_out = capture["termination"] == "timeout"
+    else:
+        try:
+            proc = runner(
+                list(config.command),
+                cwd=str(config.cwd),
+                env=env,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=config.timeout_seconds,
+                check=False,
+            )
+            returncode = int(proc.returncode)
+            stdout = proc.stdout or ""
+            stderr = proc.stderr or ""
+        except subprocess.TimeoutExpired as exc:
+            timed_out = True
+            returncode = 124
+            raw_stdout = exc.stdout or ""
+            raw_stderr = exc.stderr or ""
+            stdout = raw_stdout if isinstance(raw_stdout, str) else raw_stdout.decode("utf-8", "replace")
+            stderr = raw_stderr if isinstance(raw_stderr, str) else raw_stderr.decode("utf-8", "replace")
+            stderr = (stderr + f"\nTimed out after {config.timeout_seconds:.0f}s").strip()
+        transaction.stdout = redact_text(stdout) if config.redact_output else stdout
+        transaction.stderr = redact_text(stderr) if config.redact_output else stderr
     duration_seconds = perf_counter() - started
     finished_at = _utc_now()
     events.append(
@@ -1173,8 +1207,9 @@ def _run_claimed_agent_command(
     output_stdout = transaction.stdout
     output_stderr = transaction.stderr
     transaction.phase = "artifact publication"
-    _atomic_write_text(stdout_path, output_stdout)
-    _atomic_write_text(stderr_path, output_stderr)
+    if capture is None:
+        _atomic_write_text(stdout_path, output_stdout)
+        _atomic_write_text(stderr_path, output_stderr)
     status = "pass" if returncode == 0 else "timeout" if timed_out else "fail"
     events.append(
         _event_payload(
@@ -1239,6 +1274,10 @@ def _run_claimed_agent_command(
             "Agent trace events are stored as append-only NDJSON when trace_enabled is true.",
         ],
     }
+    if capture is not None:
+        manifest["output_capture"] = capture["streams"]
+        manifest["capture_outcome"] = {"process_returncode": capture["process_returncode"],
+                                       "reason": capture["termination"]}
     transaction.phase = "manifest publication"
     _atomic_write_text(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return AgentRunResult(manifest=manifest, returncode=returncode)
@@ -1390,7 +1429,7 @@ def find_agent_run_manifests(
         for path in search_root.rglob(MANIFEST_FILENAME)
         if path.is_file()
     ]
-    candidates.sort(key=lambda path: path.stat().st_mtime_ns, reverse=True)
+    candidates.sort(key=lambda path: (-path.stat().st_mtime_ns, str(path)))
     if (
         agent
         or status
@@ -1646,17 +1685,8 @@ def agent_handoff_payload(manifest_or_path: dict[str, object] | Path | str) -> d
     command_map = command if isinstance(command, dict) else {}
     permission = manifest.get("permission", {})
     permission_map = permission if isinstance(permission, dict) else {}
-    trace_events: list[dict[str, object]] = []
-    if summary.trace_events_path:
-        for event in load_trace_events(summary.trace_events_path):
-            trace_events.append(
-                {
-                    "sequence": event.sequence,
-                    "event": event.event,
-                    "status": event.status,
-                    "message": event.message,
-                }
-            )
+    trace = (trace_tail(summary.trace_events_path) if summary.trace_events_path else
+             {"event_count": 0, "events": [], "omitted_events": 0, "truncated": False})
     manifest_path = str(summary.manifest_path)
     continue_prompt = (
         "Continue from AGILAB agent-run evidence "
@@ -1681,10 +1711,7 @@ def agent_handoff_payload(manifest_or_path: dict[str, object] | Path | str) -> d
             "level": permission_map.get("level"),
             "reason": permission_map.get("reason"),
         },
-        "trace": {
-            "event_count": len(trace_events),
-            "events": trace_events,
-        },
+        "trace": trace,
         "handoff": {
             "continue_prompt": continue_prompt,
             "artifact_policy": "Manifest paths and counts only; stdout/stderr contents are not embedded.",

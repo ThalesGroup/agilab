@@ -292,8 +292,22 @@ agilab agent-run validate ~/log/agents/codex/<run-id> --json
 The read-only MCP bridge exposes the same agent-run evidence to external
 coding agents without enabling shell execution:
 
+Handoffs include 20 bounded recent events and explicit omission counts. Use
+`read_agent_trace` with a manifest path and continuation cursor for bounded pages;
+an incomplete tail has `has_more=false` and a separate `resume_cursor`. Run lists
+support `offset`/`next_offset`, with stable timestamp/path ordering. MCP negotiates
+versions per connection and includes typed structured results for clients using
+2025-06-18 or later, while retaining text content for older clients.
+
+Real command capture stores redacted prefixes capped at 8 MiB per stream and
+omits lines over 64 KiB. Check `output_capture` before treating a log as complete.
+The capture timeout also covers inherited pipes. Incomplete capture is a failed
+evidence outcome even when the direct process exits successfully; detached
+descendants and external side effects are outside the lifetime guarantee.
+
 ```bash
 agilab-mcp list-tools --json
+agilab-mcp call-tool read_agent_trace --arguments '{"manifest_path":"~/log/agents/codex/<run-id>","limit":20,"max_bytes":8192}' --json
 agilab-mcp call-tool list_agent_runs --arguments '{"agent":"codex","tag":"review","metadata":{"branch":"main"},"limit":5}' --json
 agilab-mcp call-tool summarize_agent_run --arguments '{"manifest_path":"~/log/agents/codex/<run-id>/agent_run_manifest.json"}' --json
 agilab-mcp call-tool agent_handoff --arguments '{"manifest_path":"~/log/agents/codex/<run-id>"}' --json

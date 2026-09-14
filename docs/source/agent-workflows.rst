@@ -424,6 +424,36 @@ AGILAB: ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``, ``qwen3-coder``,
 vLLM or another OpenAI-compatible gateway instead of Ollama, configure the
 AGILAB assistant with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
 
+Bounded evidence for agent clients
+----------------------------------
+
+``agent_handoff`` includes the latest 20 trace messages, bounded by encoded size,
+with total and omitted event counts. Use the read-only ``read_agent_trace`` MCP
+tool for earlier details: supply ``manifest_path``, then follow ``next_cursor``.
+Pages default to 50 events and 32 KiB of JSON, with configurable limits of 100
+events and 64 KiB. Oversized events are marked as truncated. An incomplete crash
+tail stops pagination and supplies a ``resume_cursor`` for a later read; it is
+not an endless next page. Records larger than 1 MiB are rejected explicitly.
+``list_agent_runs`` supports ``offset`` and ``next_offset`` with stable timestamp
+and path ordering; the inventory can change between requests.
+
+Real command output is captured incrementally. Each stdout/stderr artifact holds
+at most 8 MiB of complete redacted lines; lines exceeding 64 KiB are omitted.
+``output_capture`` records observed/stored bytes, oversized lines and incomplete
+streams. Tokens split across read chunks and multiline Bearer credentials retain
+redaction. A failed capture or a timeout with open inherited pipes cannot count
+as successful evidence. Cancellation signals only the process/group launched by
+the active capture; Windows cleanup covers the direct child. Detached descendants
+and external side effects are outside this lifetime guarantee.
+
+The MCP stdio server negotiates supported protocol versions per connection.
+Clients using 2025-06-18 or 2025-11-25 receive ``structuredContent`` and output
+schemas alongside compatible text content. Older clients retain text results.
+Input schemas are checked before execution; malformed parameters, tool failures
+and evidence-integrity failures remain distinct. Error text is redacted and
+bounded. Read-only annotations describe behavior; configured read roots remain
+the access boundary. The server does not advertise experimental MCP Tasks.
+
 Where to read the repo-local files
 ----------------------------------
 

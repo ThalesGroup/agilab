@@ -11,6 +11,7 @@ from typing import Any, Callable, Mapping
 
 from agilab_mcp import manifest_tools
 from agilab_mcp.artifact_preview import ArtifactPreview
+from agilab_mcp.tool_contract import complete_descriptors, validate_schema
 from agilab.secret_uri import redact_text
 
 
@@ -46,6 +47,7 @@ TOOLS: dict[str, ToolFn] = {
     "list_runs": manifest_tools.list_runs,
     "list_agent_runs": manifest_tools.list_agent_runs,
     "read_agent_run": manifest_tools.read_agent_run,
+    "read_agent_trace": manifest_tools.read_agent_trace,
     "summarize_agent_run": manifest_tools.summarize_agent_run,
     "agent_handoff": manifest_tools.agent_handoff,
     "agent_next_actions": manifest_tools.agent_next_actions,
@@ -62,7 +64,14 @@ TOOLS: dict[str, ToolFn] = {
 
 
 def tool_descriptors() -> list[dict[str, Any]]:
-    return [
+    return complete_descriptors([
+        {"name": "read_agent_trace",
+         "description": "Read a bounded page of a registered agent trace; follow next_cursor for more.",
+         "inputSchema": {"type": "object", "required": ["manifest_path"],
+             "properties": {"manifest_path": {"type": "string"},
+                 "cursor": {"type": "string", "maxLength": 512},
+                 "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                 "max_bytes": {"type": "integer", "minimum": 2048, "maximum": 65536}}}},
         {
             "name": "agent_quickstart",
             "description": (
@@ -117,6 +126,7 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "protocol_adapter": {"type": "string"},
                     "capability": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 0},
+                    "offset": {"type": "integer", "minimum": 0, "maximum": 100000},
                 },
             },
         },
@@ -273,7 +283,7 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "required": ["left_manifest", "right_manifest"],
             },
         },
-    ]
+    ])
 
 
 def server_manifest() -> dict[str, Any]:
@@ -315,6 +325,8 @@ def call_tool(
 ) -> dict[str, Any] | ArtifactPreview:
     if name not in TOOLS:
         raise ValueError(f"Unknown AGILAB MCP tool: {name}")
+    descriptor = next(item for item in tool_descriptors() if item["name"] == name)
+    validate_schema(dict(arguments), descriptor["inputSchema"])
     return TOOLS[name](**dict(arguments))
 
 
@@ -326,13 +338,20 @@ def _jsonrpc_response(
 ) -> dict[str, Any]:
     response = {"jsonrpc": "2.0", "id": request_id}
     if error is not None:
-        response["error"] = {"code": error_code, "message": str(error)}
+        response["error"] = {"code": error_code, "message": _error_text(error)}
     else:
         response["result"] = result
     return response
 
 
-def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
+def _error_text(error: Any) -> str:
+    message = redact_text(str(error))
+    if len(message) > 1000:
+        return message[:1000] + " [truncated]"
+    return message
+
+
+def _tool_content(payload: Any, *, is_error: bool = False, structured: bool = False) -> dict[str, Any]:
     """Wrap a tool outcome in an MCP ``tools/call`` result.
 
     Tool *execution* failures are reported here with ``isError`` rather than as
@@ -342,7 +361,7 @@ def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
     """
 
     if isinstance(payload, ArtifactPreview) and not is_error:
-        return {
+        result = {
             "content": [
                 {"type": "text", "text": json.dumps(payload.evidence, sort_keys=True)},
                 {
@@ -352,16 +371,21 @@ def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
                 },
             ]
         }
+        if structured:
+            result["structuredContent"] = payload.evidence
+        return result
     text = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
     if is_error:
-        text = redact_text(text)
+        text = _error_text(text)
     result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
+    if structured and isinstance(payload, dict) and not is_error:
+        result["structuredContent"] = payload
     if is_error:
         result["isError"] = True
     return result
 
 
-def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
+def _handle_tools_call(request_id: Any, params: Any, *, structured: bool = False) -> dict[str, Any]:
     if not isinstance(params, Mapping):
         return _jsonrpc_response(
             request_id,
@@ -378,7 +402,7 @@ def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
             error_code=JSONRPC_INVALID_PARAMS,
         )
 
-    arguments = params.get("arguments") or {}
+    arguments = params.get("arguments", {})
     if not isinstance(arguments, Mapping):
         return _jsonrpc_response(
             request_id,
@@ -390,21 +414,35 @@ def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
     # params, and is not confused with a TypeError raised inside the tool.
     try:
         inspect.signature(tool).bind(**dict(arguments))
-    except TypeError as exc:
+        descriptor = next(item for item in tool_descriptors() if item["name"] == name)
+        validate_schema(dict(arguments), descriptor["inputSchema"])
+    except (TypeError, ValueError) as exc:
         return _jsonrpc_response(
             request_id, error=exc, error_code=JSONRPC_INVALID_PARAMS
         )
 
     try:
         result = tool(**dict(arguments))
+        validate_schema(result.evidence if isinstance(result, ArtifactPreview) else result,
+                        descriptor["outputSchema"], "result")
     except Exception as exc:  # noqa: BLE001 - surfaced to the model as a tool error
         return _jsonrpc_response(
             request_id, _tool_content(f"{type(exc).__name__}: {exc}", is_error=True)
         )
-    return _jsonrpc_response(request_id, _tool_content(result))
+    return _jsonrpc_response(request_id, _tool_content(result, structured=structured))
 
 
-def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+SUPPORTED_PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
+
+
+class ProtocolSession:
+    """Negotiation belongs to one connection, never a module-global client."""
+    def __init__(self) -> None:
+        self.version = SUPPORTED_PROTOCOLS[0]
+
+
+def handle_jsonrpc(payload: Mapping[str, Any], *, session: ProtocolSession | None = None) -> dict[str, Any] | None:
+    session = session if session is not None else ProtocolSession()
     method = payload.get("method")
     if "id" not in payload:
         # JSON-RPC notifications never receive responses. The server currently
@@ -413,10 +451,19 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
     request_id = payload.get("id")
     try:
         if method == "initialize":
+            params = payload.get("params", {})
+            if not isinstance(params, Mapping):
+                return _jsonrpc_response(request_id, error="initialize params must be an object",
+                                         error_code=JSONRPC_INVALID_PARAMS)
+            requested = params.get("protocolVersion", SUPPORTED_PROTOCOLS[0])
+            if not isinstance(requested, str):
+                return _jsonrpc_response(request_id, error="protocolVersion must be a string",
+                                         error_code=JSONRPC_INVALID_PARAMS)
+            session.version = requested if requested in SUPPORTED_PROTOCOLS else SUPPORTED_PROTOCOLS[-1]
             return _jsonrpc_response(
                 request_id,
                 {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": session.version,
                     "capabilities": {"tools": {}},
                     "serverInfo": {"name": "agilab-mcp", "version": "0.1.0"},
                     "instructions": (
@@ -427,9 +474,16 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
                 },
             )
         if method == "tools/list":
-            return _jsonrpc_response(request_id, {"tools": tool_descriptors()})
+            descriptors = tool_descriptors()
+            for descriptor in descriptors:
+                if session.version < "2025-06-18":
+                    descriptor.pop("outputSchema", None)
+                if session.version < "2025-03-26":
+                    descriptor.pop("annotations", None)
+            return _jsonrpc_response(request_id, {"tools": descriptors})
         if method == "tools/call":
-            return _handle_tools_call(request_id, payload.get("params") or {})
+            return _handle_tools_call(request_id, payload.get("params", {}),
+                                      structured=session.version >= "2025-06-18")
         if method == "notifications/initialized":
             return None
         return _jsonrpc_response(
@@ -453,6 +507,7 @@ def serve_stdio(
         stream = sys.stderr if stderr is None else stderr
         print(warning, file=stream)
         stream.flush()
+    session = ProtocolSession()
     for line in stdin:
         if not line.strip():
             continue
@@ -472,7 +527,7 @@ def serve_stdio(
                     error_code=JSONRPC_INVALID_REQUEST,
                 )
             else:
-                response = handle_jsonrpc(payload)
+                response = handle_jsonrpc(payload, session=session)
         if response is not None:
             stdout.write(json.dumps(response, sort_keys=True) + "\n")
             stdout.flush()
