@@ -6,12 +6,13 @@ import sys
 
 def agent_run_process(output_dir: str, start, results) -> None:
     source = str(Path(__file__).resolve().parents[1] / "src")
-    if source not in sys.path:
-        sys.path.insert(0, source)
-    from agilab.agent_runtime.agent_run import trace_agent_run
-
-    start.wait(timeout=10)
     try:
+        # Spawn inherits the parent's entire path order. A prior installation
+        # test can leave another agilab ahead of an already-present source path.
+        sys.path[:] = [source, *(entry for entry in sys.path if entry != source)]
+        from agilab.agent_runtime.agent_run import trace_agent_run
+
+        start.wait(timeout=10)
         result = trace_agent_run(
             [sys.executable, "-c", "import time; time.sleep(0.2)"],
             agent="codex",
