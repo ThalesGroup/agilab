@@ -1,7 +1,6 @@
 """Durable approvals and real command claims survive worker interruption."""
 
 from concurrent.futures import ThreadPoolExecutor
-from importlib.resources import files
 import json
 import shutil
 import time
@@ -9,11 +8,12 @@ import time
 import pytest
 
 from agilab.agent_runtime import experiment, tasks
+from agilab.agent_runtime.experiment_demo import demo_source
 
 
 def prepare(tmp_path, *, code=""):
     source = tmp_path / "source"
-    shutil.copytree(str(files("agilab").joinpath("resources/agent_experiment")), source)
+    shutil.copytree(demo_source(), source)
     counter = tmp_path / "executions.txt"
     path = source / "candidate.py"
     path.write_text(

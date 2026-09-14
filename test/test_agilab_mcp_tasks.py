@@ -1,6 +1,5 @@
 """MCP selects registered tasks but cannot register, approve or replay commands."""
 
-from importlib.resources import files
 import io
 import json
 import shutil
@@ -8,6 +7,7 @@ import time
 
 import pytest
 
+from agilab.agent_runtime.experiment_demo import demo_source
 from agilab.agent_runtime.experiment import prepare_experiment
 from agilab.agent_runtime.tasks import TaskStore
 from agilab_mcp import server
@@ -15,7 +15,7 @@ from agilab_mcp import server
 
 def setup(tmp_path):
     source = tmp_path / "source"
-    shutil.copytree(str(files("agilab").joinpath("resources/agent_experiment")), source)
+    shutil.copytree(demo_source(), source)
     root = tmp_path / "store"
     prepare_experiment(
         source_root=source,
