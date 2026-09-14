@@ -286,6 +286,7 @@ exclude = [
 agilab = [
     "resources/*.*",
     "resources/notebook_import_samples/*.ipynb",
+    "resources/agent_experiment/*",
     "resources/help/*",
     "pages/*.py",
     "*.toml",

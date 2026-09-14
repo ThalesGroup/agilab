@@ -8,6 +8,11 @@ or multi-app work.
 
 ## Learning Path
 
+For a complete agent experiment loop, start with
+[`agent_experiment`](agent_experiment/README.md): frozen local inputs, real
+baseline/candidate execution, independent acceptance, bounded traces and verified
+comparison receipts. The fixture uses no model service and reports no token usage.
+
 For a bounded feature-engineering experiment, use
 [`telemetry_features`](telemetry_features/README.md). It computes three features
 from synthetic related tables with explicit time cutoffs, saves their definitions,
@@ -46,6 +51,7 @@ app execution from read-only contract previews.
 
 | Class | Examples | What actually runs | Primary output |
 |---|---|---|---|
+| Executable agent experiment | `agent_experiment` | Frozen baseline and candidate Python commands plus a separate grader through the lean runtime. | Native runs, acceptance receipts and paired comparison under the selected new output directory. |
 | Notebook route assets | `notebook_quickstart` | Jupyter notebooks for local, Colab, Kaggle, source, and PyPI `agi-core` first runs. | Notebook-visible `AgiEnv` / `RunRequest` proof, without installing a full AGILAB app helper. |
 | Installed `AGI_*.py` helpers | `flight_telemetry`, `minimal_app`, `weather_forecast`, `sklearn_pipeline`, `mission_decision` | Real `AGI.install` / `AGI.run` calls from `~/log/execute/<app>/` after the app installer seeds the scripts. | App artifacts in AGILAB share/export paths plus execution logs. |
 | Source/package read-only previews | `notebook_to_dask`, `parallel_stage`, `excel_workbook_proof`, `sqlite_connector_proof`, `voila_notebook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, SQLite database, notebook, dashboard-plan, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |

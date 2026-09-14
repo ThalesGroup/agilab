@@ -64,6 +64,24 @@ SCHEMA_PATTERN = re.compile(r"\bagilab[._-][A-Za-z0-9_.-]+\.v1\b")
 
 CLI_COMMANDS: tuple[dict[str, Any], ...] = (
     {
+        "id": "agent-experiment",
+        "command": "python -m agilab.agent_runtime.experiment prepare|run|verify ...",
+        "kind": "agent-evidence",
+        "maturity": "local-proof",
+        "description": "Execute selected frozen Python inputs and independently grade outputs with verifiable attempt receipts.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_experiment_plan.v1", "agilab.agent_experiment_receipt.v1"],
+    },
+    {
+        "id": "agent-experiment-pilot",
+        "command": "python -m agilab.agent_runtime.experiment_demo --output <new-directory>",
+        "kind": "agent-evidence",
+        "maturity": "local-proof",
+        "description": "Compare a deterministic baseline and candidate on a frozen cohort, retaining failed acceptance and unknown model usage.",
+        "docs": ["docs/source/agent-workflows.rst"],
+        "evidence_outputs": ["agilab.agent_experiment_comparison.v1"],
+    },
+    {
         "id": "ui",
         "command": "agilab",
         "kind": "streamlit-ui",

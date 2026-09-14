@@ -454,6 +454,47 @@ and evidence-integrity failures remain distinct. Error text is redacted and
 bounded. Read-only annotations describe behavior; configured read roots remain
 the access boundary. The server does not advertise experimental MCP Tasks.
 
+Frozen experiments and independent acceptance
+---------------------------------------------
+
+The packaged pilot compares a baseline that treats missing measurements as zero
+with a candidate that excludes them. Both commands exit successfully; a separate
+grader accepts only the correct result. Run it without a model service or apps
+workspace:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.experiment_demo --output /tmp/agilab-agent-pilot
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.experiment verify /tmp/agilab-agent-pilot/candidate attempts/pilot/receipt.json
+
+Use a new output directory. ``comparison.json`` retains both attempts and their
+acceptance outcomes. Unobserved model usage stays null. The comparison API can
+observe a single complete terminal Codex usage report from a registered output
+artifact; malformed, repeated or incomplete reports remain unmeasured. Missing
+cache breakdowns stay unknown. These are local provider reports, not billing
+attestation, and this deterministic pilot is not a model-quality benchmark.
+
+For your own trusted Python experiment, use ``python -m
+agilab.agent_runtime.experiment prepare --help`` to select source and input files,
+a separate grader, declared outputs and acceptance check identifiers. Preparation
+freezes the selected bytes in ``snapshot/`` and seals ``plan.json``. Execution
+rejects changed original inputs, copies the snapshot, records the interpreter and
+actual command, and launches the grader from a separate frozen copy. Run with
+``run <root> --attempt-id <id>``; ``--resume`` reuses only matching completed
+checkpoints. An ambiguous native command claim cannot be replayed under that id.
+
+Each attempt retains native command evidence, launch and grader-input checkpoints,
+output hashes and an ``agilab.agent_experiment_receipt.v1`` receipt. Verification
+checks content and execution binding independently of whether acceptance passed.
+Failed evaluations can have valid receipts. Complete bundles can move on the same
+operating system; cross-OS path translation is not supported. Original source
+availability is reported separately from retained receipt verification.
+
+This local executor runs trusted code with the operator's permissions. It does
+not sandbox code, isolate networking, freeze installed dependencies or attest
+producer identity. Selected source/input snapshots may contain private data and
+stay in the operator's local evidence store.
+
 Where to read the repo-local files
 ----------------------------------
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 import hashlib
@@ -76,6 +76,10 @@ def _ensure_repo_on_path(repo_root: Path) -> None:
 _ensure_repo_on_path(REPO_ROOT)
 
 from agilab.agent_runtime.agent_run import trace_agent_run  # noqa: E402
+from agilab.agent_runtime.usage import (  # noqa: E402
+    parse_codex_jsonl,
+    nonnegative_integer as _integer,
+)
 
 
 def _canonical_json(value: object) -> str:
@@ -543,92 +547,6 @@ def _run_verification(
             }
         )
     return {"passed": passed, "commands": command_results}
-
-
-def _walk_mappings(value: object) -> Iterable[Mapping[str, object]]:
-    if isinstance(value, Mapping):
-        yield value
-        for nested in value.values():
-            yield from _walk_mappings(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            yield from _walk_mappings(nested)
-
-
-def _integer(value: object) -> int | None:
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        return None
-    return value
-
-
-def _normalize_usage(raw: Mapping[str, object]) -> dict[str, int] | None:
-    input_tokens = _integer(raw.get("input_tokens"))
-    output_tokens = _integer(raw.get("output_tokens"))
-    total_tokens = _integer(raw.get("total_tokens"))
-    cached_input_tokens = _integer(raw.get("cached_input_tokens"))
-    input_details = raw.get("input_tokens_details")
-    if cached_input_tokens is None and isinstance(input_details, Mapping):
-        cached_input_tokens = _integer(input_details.get("cached_tokens"))
-    if input_tokens is None and output_tokens is None and total_tokens is None:
-        return None
-    input_tokens = input_tokens or 0
-    output_tokens = output_tokens or 0
-    cached_input_tokens = min(cached_input_tokens or 0, input_tokens)
-    total_tokens = (
-        total_tokens if total_tokens is not None else input_tokens + output_tokens
-    )
-    return {
-        "input_tokens": input_tokens,
-        "cached_input_tokens": cached_input_tokens,
-        "uncached_input_tokens": input_tokens - cached_input_tokens,
-        "output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-    }
-
-
-def parse_codex_jsonl(value: str) -> dict[str, object]:
-    """Read the final structured Codex usage event without double-counting nested events."""
-
-    event_count = 0
-    invalid_line_count = 0
-    usage_candidates: list[dict[str, int]] = []
-    reported_models: list[str] = []
-    event_types: list[str] = []
-    for line in value.splitlines():
-        if not line.strip():
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            invalid_line_count += 1
-            continue
-        if not isinstance(event, dict):
-            invalid_line_count += 1
-            continue
-        event_count += 1
-        event_type = event.get("type")
-        if isinstance(event_type, str):
-            event_types.append(event_type)
-        for mapping in _walk_mappings(event):
-            model = mapping.get("model")
-            if isinstance(model, str) and model not in reported_models:
-                reported_models.append(model)
-            raw_usage = mapping.get("usage")
-            if isinstance(raw_usage, Mapping):
-                usage = _normalize_usage(raw_usage)
-                if usage is not None and (
-                    not usage_candidates or usage != usage_candidates[-1]
-                ):
-                    usage_candidates.append(usage)
-    usage = usage_candidates[-1] if usage_candidates else None
-    return {
-        "status": "available" if usage is not None else "missing",
-        "usage": usage,
-        "event_count": event_count,
-        "invalid_line_count": invalid_line_count,
-        "event_types": sorted(set(event_types)),
-        "reported_models": reported_models,
-    }
 
 
 def build_agent_prompt(task: TaskSpec, condition: str) -> str:

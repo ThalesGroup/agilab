@@ -361,3 +361,18 @@ Agent-run evidence now has a stable low-level contract:
 - [Aider workflow](aider_workflow.md)
 - [OpenCode workflow](opencode_workflow.md)
 - [Mistral Vibe workflow](vibe_workflow.md)
+
+### Frozen agent experiments
+
+Use `python -m agilab.agent_runtime.experiment prepare|run|verify` for explicitly
+selected trusted Python inputs and a separate grader. Preparation freezes bytes;
+execution binds the launched command, interpreter, checkpoints and outputs to
+that plan. Give `run` an explicit `--attempt-id`; `--resume` only reuses matching
+completed evidence and never replays an ambiguous native claim. See the public
+agent-workflows page for the local-only scope and same-OS relocation limits.
+
+Run `python -m agilab.agent_runtime.experiment_demo --output <new-directory>`
+for the packaged baseline/candidate pilot. Both processes exit zero; independent
+acceptance rejects the baseline. The comparison retains the failed attempt and
+unknown model usage. Optional single-terminal Codex usage must come from a
+verified registered output; missing cache counts remain unknown.
