@@ -495,6 +495,68 @@ not sandbox code, isolate networking, freeze installed dependencies or attest
 producer identity. Selected source/input snapshots may contain private data and
 stay in the operator's local evidence store.
 
+Durable selected experiment tasks
+---------------------------------
+
+Use the local task store when an agent experiment needs persistent approval,
+background execution or interruption recovery. First prepare an experiment under
+``<store>/experiments/<name>`` with the preparation command above. Register that
+relative directory and submit a stable request key:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks register /tmp/agilab-tasks demo experiments/demo
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks submit /tmp/agilab-tasks demo request-1
+
+Registration fixes the selected plan digest. Submission returns a task id,
+attempt number and ``awaiting_approval`` status. Reusing that request key returns
+the same task; using it for another action fails. Review the registered plan and
+record the exact digest and observed attempt with the local operator CLI:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks approve /tmp/agilab-tasks <task-id> --plan-sha256 <digest> --attempt 1
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks start /tmp/agilab-tasks <task-id> --attempt 1
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks status /tmp/agilab-tasks <task-id>
+
+``deny`` uses the same digest and attempt arguments. ``cancel`` also requires
+``--attempt`` and persists cancellation intent. A live worker stops only its own
+command; cancellation is terminal only with observed direct-command termination
+or before execution starts. Detached descendants and external side effects remain
+outside this guarantee. A dead worker's released lease alone cannot prove its
+child stopped; such cases remain interrupted with termination unverified.
+
+``reconcile <store> <task-id>`` verifies a retained receipt after worker death
+without executing code. If evidence is incomplete, inspect the command's side
+effects before using ``resume ... --attempt <n>`` or ``retry ... --attempt <n>``.
+Resume reuses only matching checkpoints and respects permanent native claims.
+Retry retains old evidence, creates a new attempt and requires new local approval.
+Old approval, start and cancellation requests cannot affect that new attempt.
+No exactly-once guarantee is made for arbitrary external side effects.
+
+Task states are immutable versioned JSON under ``tasks/<id>/states/``; approval,
+request binding and receipt references survive server restarts. Kernel locks
+serialize state publication and active workers without deleting lock files or
+using remembered PIDs to take over another process. Stores are bounded to 32
+attempts and 512 revisions per task and require local filesystems supporting
+advisory locks and atomic hard-link publication. The store is operator-owned;
+its hashes and approval records do not authenticate the operator.
+
+MCP remains read-only by default. To explicitly enable selected tasks, launch:
+
+.. code-block:: bash
+
+   agilab-mcp serve --task-root /tmp/agilab-tasks
+
+``agent_quickstart`` remains read-only and describes both evidence and task
+boundaries. The per-connection adapter adds ``list_task_actions``,
+``submit_agent_task``, ``read_agent_task``, ``start_agent_task`` and
+``cancel_agent_task``. Start/cancel require the observed ``attempt``. The adapter
+accepts registered action ids, not paths, commands or new arguments; approval,
+registration, resume and retry remain local operator actions. Prepared trusted
+Python still runs with operator permissions and can access external resources.
+This adapter does not implement or advertise the experimental MCP Tasks protocol.
+
 Where to read the repo-local files
 ----------------------------------
 

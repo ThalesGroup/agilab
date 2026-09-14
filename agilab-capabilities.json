@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T08:32:51Z",
+  "generated_at_utc": "2026-09-14T08:52:56Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,15 +17,29 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 15,
+    "cli_command_count": 16,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 279,
+    "evidence_schema_count": 282,
     "catalog_file_count": 12
   },
   "cli_commands": [
+    {
+      "id": "agent-tasks",
+      "command": "python -m agilab.agent_runtime.tasks --help",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Persist selected experiment tasks with exact-attempt approval, worker leases, cancellation, reconciliation and explicit retry; optional MCP adapter uses --task-root.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_task.v1",
+        "agilab.agent_task_action.v1"
+      ]
+    },
     {
       "id": "agent-experiment",
       "command": "python -m agilab.agent_runtime.experiment prepare|run|verify ...",
@@ -1185,6 +1199,26 @@
       "schema": "agilab.agent_skill_security_scan.v1",
       "sources": [
         "tools/skill_security_scan.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task_action.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task_actions.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py"
       ]
     },
     {
