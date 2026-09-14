@@ -146,6 +146,11 @@ Use this runbook whenever you:
   Standard is compact signal summary, Detailed adds nearby context windows, and
   Debug may point to raw artifacts or include full text only when the log is
   already small enough for prompt-safe use.
+- **Assistant prompt context**: WORKFLOW uses `pipeline.prompt_context` to bound
+  shared request context in UTF-8 bytes, preserve required instructions, and
+  record selection/omission metadata in session-local `lab_prompt_context`.
+  Autofix keeps error-adjacent code and reports omitted ranges. These limits do
+  not establish a model token limit or replace backend retrieval/output limits.
 - **Compact validation close-out rule**: In final user-facing replies, write
   `Validation passed.` without listing every command when all checks are green
   and the command details are not needed for the next action. Include validation

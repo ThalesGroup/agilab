@@ -568,6 +568,17 @@ def recommend_context(
         matched_paths = [path for path in normalized_files if _matches_any(path, paths)]
         matched_terms = [term for term in terms if _matches_term(prompt_lower, term)]
         rule_id = str(raw_rule.get("id") or "")
+        if (
+            rule_id == "installer-cluster"
+            and not matched_paths
+            and matched_terms
+            and set(matched_terms) <= {"worker", "workers"}
+            and normalized_files
+            and all(_project_owner(path) for path in normalized_files)
+        ):
+            # A project worker is also ordinary app code. Explicit operational
+            # terms and shared runtime paths still retain installer safeguards.
+            continue
         if rule_id == "all" and not matched_terms:
             continue
         if rule_id == "all-projects" and not matched_terms:

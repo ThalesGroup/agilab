@@ -17,6 +17,8 @@ import streamlit as st
 from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
 from agi_gui.pagelib import activate_gpt_oss
+from agilab.pipeline.prompt_context import PromptContextError, assemble_prompt_context
+from agilab.pipeline.pipeline_ai_support import CODE_STRICT_INSTRUCTIONS
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location("agilab_import_guard_local", _import_guard_path)
@@ -847,6 +849,21 @@ def _call_selected_provider(
     *,
     system_instructions: Optional[str] = None,
 ) -> Tuple[str, str]:
+    try:
+        context = assemble_prompt_context(
+            question,
+            prompt,
+            instructions=system_instructions or CODE_STRICT_INSTRUCTIONS,
+        )
+    except PromptContextError as exc:
+        st.session_state["lab_prompt_context"] = {
+            "schema": "agilab.prompt_context.v1",
+            "status": "blocked",
+            "reason": str(exc),
+        }
+        raise JumpToMain(exc) from exc
+    st.session_state["lab_prompt_context"] = {**context.receipt, "status": "pass"}
+    prompt = list(context.messages)
     provider = st.session_state.get(
         "lab_llm_provider",
         envars.get("LAB_LLM_PROVIDER", "openai"),
@@ -1155,12 +1172,16 @@ def _maybe_autofix_generated_code(
     current_err = err
 
     for attempt in range(1, max_attempts + 1):
-        fix_question = _build_autofix_prompt(
-            original_request=original_request,
-            failing_code=current_code,
-            traceback_text=current_err,
-            attempt=attempt,
-        )
+        try:
+            fix_question = _build_autofix_prompt(
+                original_request=original_request,
+                failing_code=current_code,
+                traceback_text=current_err,
+                attempt=attempt,
+            )
+        except PromptContextError as exc:
+            push_run_log(index_page, f"Auto-fix stopped: {exc}", placeholder)
+            break
         fix_answer = ask_gpt(fix_question, df_path, index_page, env.envars)
         fix_code = fix_answer[3] if len(fix_answer) > 3 else ""
         fix_detail = (fix_answer[4] or "").strip() if len(fix_answer) > 4 else ""

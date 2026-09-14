@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T13:53:39Z",
+  "generated_at_utc": "2026-09-14T13:59:06Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 283,
+    "evidence_schema_count": 284,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1088,7 +1088,8 @@
       "schema": "agilab.agent_experiment_acceptance.v1",
       "sources": [
         "src/agilab/agent_runtime/experiment.py",
-        "src/agilab/resources/agent_experiment/grader.py"
+        "src/agilab/resources/agent_experiment/grader.py",
+        "tools/agent_context/benchmark_fixture/grader.py"
       ]
     },
     {
@@ -2301,6 +2302,13 @@
       "schema": "agilab.promotion_evidence_manifest.v1",
       "sources": [
         "src/agilab/evidence/promotion_dossier.py"
+      ]
+    },
+    {
+      "schema": "agilab.prompt_context.v1",
+      "sources": [
+        "src/agilab/pipeline/pipeline_ai.py",
+        "src/agilab/pipeline/prompt_context.py"
       ]
     },
     {

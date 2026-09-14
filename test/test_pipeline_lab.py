@@ -4715,7 +4715,8 @@ def test_display_lab_tab_run_pipeline_and_delete_all(monkeypatch, tmp_path):
     assert fake_st.messages.count(("rerun", "called")) >= 2
 
 
-def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path):
+@pytest.mark.parametrize("failure_type", [RuntimeError, KeyboardInterrupt])
+def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path, failure_type):
     finish_calls = []
     history_calls = []
     fake_st = _FakeStreamlit(
@@ -4759,11 +4760,11 @@ def test_display_lab_tab_run_pipeline_records_failure(monkeypatch, tmp_path):
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         prepare_run_log_file=lambda *_args, **_kwargs: (tmp_path / "pipeline.log", None),
         get_run_placeholder=lambda *_args, **_kwargs: None,
-        run_all_stages=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("run boom")),
+        run_all_stages=lambda *_args, **_kwargs: (_ for _ in ()).throw(failure_type("run boom")),
     )
     env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
 
-    with pytest.raises(RuntimeError, match="run boom"):
+    with pytest.raises(failure_type, match="run boom"):
         pipeline_lab.display_lab_tab(
             tmp_path,
             "demo",
