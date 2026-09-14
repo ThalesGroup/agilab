@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T08:52:56Z",
+  "generated_at_utc": "2026-09-14T13:37:21Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1161,13 +1161,15 @@
     {
       "schema": "agilab.agent_run.claim.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
       "schema": "agilab.agent_run.termination.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
@@ -1176,7 +1178,7 @@
         "README.md",
         "README.pypi.md",
         "docs/source/agent-workflows.rst",
-        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py",
         "src/agilab/evidence/skill_evaluation.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py",
@@ -1186,7 +1188,7 @@
     {
       "schema": "agilab.agent_run_validation.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
