@@ -6,7 +6,7 @@ import pytest
 
 from agilab.agent_runtime.experiment import read_json, verify_experiment
 from agilab.agent_runtime.experiment_comparison import compare_experiments
-from agilab.agent_runtime.experiment_demo import run_demo
+from agilab.agent_runtime.experiment_demo import demo_source, run_demo
 from agilab.agent_runtime.usage import parse_codex_jsonl
 
 
@@ -95,12 +95,11 @@ def test_usage_rejects_duplicate_and_nonfinite_json(usage):
 
 
 def test_verified_usage_counts_exact_parsed_artifact(tmp_path, monkeypatch):
-    from importlib.resources import files
     import shutil
     from agilab.agent_runtime import experiment, experiment_comparison
 
     source = tmp_path / "source"
-    shutil.copytree(str(files("agilab").joinpath("resources/agent_experiment")), source)
+    shutil.copytree(demo_source(), source)
     usage = json.dumps(
         {"type": "turn.completed", "usage": {"input_tokens": 4, "output_tokens": 1}}
     )
@@ -142,3 +141,24 @@ def test_verified_usage_counts_exact_parsed_artifact(tmp_path, monkeypatch):
     )
     with pytest.raises(ValueError, match="Usage bytes changed"):
         compare_experiments(**options)
+
+
+def test_pilot_resources_follow_runtime_when_parent_package_spec_is_polluted(
+    tmp_path, monkeypatch
+):
+    import importlib.util
+    import agilab
+
+    shadow = tmp_path / "shadow"
+    shadow.mkdir()
+    (shadow / "__init__.py").write_text("")
+    monkeypatch.setattr(
+        agilab,
+        "__spec__",
+        importlib.util.spec_from_file_location("agilab", shadow / "__init__.py"),
+    )
+    # Root pytest collection can bind agilab's spec to the empty repo package
+    # while its runtime modules still resolve under src/agilab.
+    result = run_demo(tmp_path / "proof")
+    assert result["baseline"]["status"] == "failed"
+    assert result["candidate"]["status"] == "passed"
