@@ -65,13 +65,6 @@ TOOLS: dict[str, ToolFn] = {
 
 def tool_descriptors() -> list[dict[str, Any]]:
     return complete_descriptors([
-        {"name": "read_agent_trace",
-         "description": "Read a bounded page of a registered agent trace; follow next_cursor for more.",
-         "inputSchema": {"type": "object", "required": ["manifest_path"],
-             "properties": {"manifest_path": {"type": "string"},
-                 "cursor": {"type": "string", "maxLength": 512},
-                 "limit": {"type": "integer", "minimum": 1, "maximum": 100},
-                 "max_bytes": {"type": "integer", "minimum": 2048, "maximum": 65536}}}},
         {
             "name": "agent_quickstart",
             "description": (
@@ -88,6 +81,13 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "required": [],
             },
         },
+        {"name": "read_agent_trace",
+         "description": "Read a bounded page of a registered agent trace; follow next_cursor for more.",
+         "inputSchema": {"type": "object", "required": ["manifest_path"],
+             "properties": {"manifest_path": {"type": "string"},
+                 "cursor": {"type": "string", "maxLength": 512},
+                 "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                 "max_bytes": {"type": "integer", "minimum": 2048, "maximum": 65536}}}},
         {
             "name": "list_projects",
             "description": "List AGILAB project directories under an apps root.",
