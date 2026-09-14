@@ -12,10 +12,11 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 import re
@@ -26,6 +27,7 @@ from agi_env import AgiEnv
 from agi_env.snippet_contract import stale_snippet_cleanup_message
 from agi_gui.pagelib import run_lab, save_csv
 from agilab.pipeline.pipeline_run_state import PipelineRunState
+from agilab.pipeline.pipeline_execution import PipelineExecutionPlan, execute_pipeline_lifecycle
 from agilab.pipeline.pipeline_page_state import normalize_execution_sequence
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "security" / "import_guard.py"
@@ -2030,6 +2032,586 @@ def _abort_if_legacy_agi_run_stages(
     return True
 
 
+@dataclass
+class _PipelineExecutionAdapter:
+    """Streamlit, trackers and processes adapt to the pure lifecycle contract."""
+
+    lab_dir: Path
+    index_page_str: str
+    stages_file: Path
+    env: AgiEnv
+    stream_run_command_fn: Callable[..., str]
+    log_placeholder: Any
+    plan: PipelineExecutionPlan
+    selected_map: Dict[int, str]
+    engine_map: Dict[int, str]
+    details_store: Dict[int, Any]
+    original_stage: Any
+    original_selected: str
+    original_engine: str
+    snippet_file: Any
+    lock_handle: Any
+
+    def execute(self, run_state: PipelineRunState) -> None:
+        lab_dir = self.lab_dir
+        index_page_str = self.index_page_str
+        stages_file = self.stages_file
+        env = self.env
+        log_placeholder = self.log_placeholder
+        sequence = self.plan.sequence
+        waves = self.plan.waves
+        pipeline_profile = self.plan.profile
+        pipeline_max_workers = self.plan.max_workers
+        stage_ids_by_idx = self.plan.stage_ids
+        stage_deps_by_idx = self.plan.stage_deps
+        parent_run_name, parent_tags, parent_params, parent_text_artifacts = (
+            _mlflow_parent_payload(
+                env,
+                lab_dir,
+                stages_file,
+                sequence,
+                profile=pipeline_profile,
+                run_id=run_state.run_id,
+                max_workers=pipeline_max_workers,
+                waves=waves,
+                stage_ids=stage_ids_by_idx,
+                stage_deps=stage_deps_by_idx,
+            )
+        )
+        parent_tags["agilab.pipeline_profile"] = pipeline_profile
+        parent_params["pipeline_profile"] = pipeline_profile
+        parent_params["pipeline_max_workers"] = pipeline_max_workers
+        parent_text_artifacts["pipeline_metadata/automation.json"] = json.dumps(
+            _pipeline_automation_metadata(
+                env=env,
+                workflow_source=index_page_str,
+                profile=pipeline_profile,
+                run_id=run_state.run_id,
+                sequence=sequence,
+                max_workers=pipeline_max_workers,
+                waves=waves,
+                stage_ids=stage_ids_by_idx,
+                stage_deps=stage_deps_by_idx,
+            ),
+            indent=2,
+        )
+        parent_text_artifacts["pipeline_metadata/dependency_graph.dot"] = (
+            _pipeline_dependency_dot(
+                stage_ids=stage_ids_by_idx,
+                stage_deps=stage_deps_by_idx,
+                waves=waves,
+            )
+        )
+        pipeline_log_artifact = st.session_state.get(f"{index_page_str}__run_log_file")
+        with _pipeline_runtime.start_tracker_run(
+            env,
+            run_name=parent_run_name,
+            tags=parent_tags,
+            params=parent_params,
+        ) as pipeline_tracker:
+            if pipeline_tracker:
+                pipeline_tracker.log_artifacts(
+                    text_artifacts=parent_text_artifacts,
+                    file_artifacts=[stages_file],
+                )
+            with st.spinner("Running all stages…"):
+                for wave_number, wave in enumerate(waves, start=1):
+                    self._execute_wave(run_state, pipeline_tracker, wave_number, wave)
+            if pipeline_tracker:
+                pipeline_tracker.log_artifacts(
+                    file_artifacts=[pipeline_log_artifact]
+                    if pipeline_log_artifact
+                    else [],
+                    tags={"agilab.status": "completed"},
+                    metrics={
+                        "executed_stages": run_state.executed,
+                        "skipped_stages": run_state.skipped,
+                    },
+                )
+
+        if run_state.executed:
+            st.success(
+                f"Executed {run_state.executed} "
+                f"stage{'s' if run_state.executed != 1 else ''}."
+            )
+            _push_run_log(
+                index_page_str,
+                f"Run workflow completed: {run_state.executed} stage(s) executed.",
+                log_placeholder,
+            )
+        else:
+            st.info("No runnable code found in the stages.")
+            _push_run_log(
+                index_page_str,
+                "Run workflow completed: no runnable code found.",
+                log_placeholder,
+            )
+
+    def _execute_wave(
+        self,
+        run_state: PipelineRunState,
+        pipeline_tracker: Any,
+        wave_number: int,
+        wave: Sequence[int],
+    ) -> None:
+        index_page_str = self.index_page_str
+        stages_file = self.stages_file
+        env = self.env
+        log_placeholder = self.log_placeholder
+        selected_map = self.selected_map
+        engine_map = self.engine_map
+        stages = self.plan.stages
+        waves = self.plan.waves
+        pipeline_profile = self.plan.profile
+        pipeline_max_workers = self.plan.max_workers
+        wave_label = ", ".join(str(stage_idx + 1) for stage_idx in wave)
+        _push_run_log(
+            index_page_str,
+            f"Running workflow wave {wave_number}/{len(waves)}: stage(s) {wave_label}.",
+            log_placeholder,
+        )
+        target_base = Path(stages_file).parent.resolve()
+        if target_base.name == target_base.parent.name:
+            target_base = target_base.parent
+        target_base.mkdir(parents=True, exist_ok=True)
+        default_runtime = st.session_state.get("lab_selected_venv", "")
+        parallel_ineligibility = None
+        if pipeline_max_workers > 1 and len(wave) > 1:
+            parallel_ineligibility = _parallel_agi_wave_ineligibility_reason(
+                stages,
+                wave,
+                profile=pipeline_profile,
+                env=env,
+                stages_file=stages_file,
+                selected_map=selected_map,
+                engine_map=engine_map,
+                default_runtime=default_runtime,
+            )
+        if (
+            pipeline_max_workers > 1
+            and len(wave) > 1
+            and parallel_ineligibility is None
+        ):
+            _push_run_log(
+                index_page_str,
+                f"Wave {wave_number}: running {len(wave)} AGI stage(s) in parallel with max_workers={pipeline_max_workers}.",
+                log_placeholder,
+            )
+            run_state.record_executed(
+                _run_parallel_agi_wave(
+                    stages=stages,
+                    wave=wave,
+                    profile=pipeline_profile,
+                    env=env,
+                    index_page=index_page_str,
+                    stages_file=stages_file,
+                    run_id=run_state.run_id,
+                    selected_map=selected_map,
+                    engine_map=engine_map,
+                    default_runtime=default_runtime,
+                    target_base=target_base,
+                    max_workers=pipeline_max_workers,
+                    manifest_stage_records=run_state.stage_records,
+                    log_placeholder=log_placeholder,
+                )
+            )
+            return
+        if parallel_ineligibility:
+            _push_run_log(
+                index_page_str,
+                f"Wave {wave_number}: serialized because {parallel_ineligibility}.",
+                log_placeholder,
+            )
+        for idx in wave:
+            self._execute_stage(run_state, pipeline_tracker, idx)
+
+    def _execute_stage(
+        self, run_state: PipelineRunState, pipeline_tracker: Any, idx: int
+    ) -> None:
+        lab_dir = self.lab_dir
+        index_page_str = self.index_page_str
+        stages_file = self.stages_file
+        env = self.env
+        stream_run_command_fn = self.stream_run_command_fn
+        log_placeholder = self.log_placeholder
+        selected_map = self.selected_map
+        engine_map = self.engine_map
+        details_store = self.details_store
+        snippet_file = self.snippet_file
+        lock_handle = self.lock_handle
+        stages = self.plan.stages
+        pipeline_profile = self.plan.profile
+        _refresh_pipeline_run_lock(lock_handle)
+        base_entry = stages[idx]
+        entry, profile_override = _apply_stage_profile(base_entry, pipeline_profile)
+        summary = _pipeline_stages.stage_summary(entry)
+        stage_record: Dict[str, Any] = {
+            "stage_index": idx + 1,
+            "status": "pending",
+            "profile": pipeline_profile,
+            "profile_override_applied": bool(profile_override),
+            "profile_override_keys": sorted(str(key) for key in profile_override),
+            "output_skip_rule": _stage_output_skip_rule(entry),
+            "description": str(entry.get("D", "") or ""),
+            "summary": summary,
+            "engine": "",
+            "runtime": "",
+            "code_sha256": hashlib.sha256(
+                str(entry.get("C", "") or "").encode("utf-8")
+            ).hexdigest(),
+            "started_at": "",
+            "finished_at": "",
+            "duration_seconds": None,
+            "outputs": _stage_output_records(entry, env=env, stages_file=stages_file),
+            "error": "",
+        }
+        run_state.stage_records.append(stage_record)
+        if profile_override:
+            _push_run_log(
+                index_page_str,
+                f"Stage {idx + 1}: applied `{pipeline_profile}` profile override.",
+                log_placeholder,
+            )
+        if _stage_disabled(entry):
+            stage_record["status"] = "skipped_disabled"
+            stage_record["finished_at"] = _utc_timestamp()
+            run_state.record_skipped()
+            _push_run_log(
+                index_page_str,
+                f"Stage {idx + 1}: skipped by automation profile.",
+                log_placeholder,
+            )
+            return
+        skip_current, output_records = _should_skip_current_outputs(
+            entry,
+            env=env,
+            stages_file=stages_file,
+        )
+        stage_record["outputs"] = output_records
+        if skip_current:
+            stage_record["status"] = "skipped_outputs_exist"
+            stage_record["finished_at"] = _utc_timestamp()
+            run_state.record_skipped()
+            _push_run_log(
+                index_page_str,
+                f"Stage {idx + 1}: skipped because declared outputs already exist.",
+                log_placeholder,
+            )
+            return
+        code = entry.get("C", "")
+        code, normalized_agi_code = _normalize_legacy_agi_run_request_code(
+            str(code or "")
+        )
+        if normalized_agi_code:
+            entry = {**entry, "C": code}
+            _push_run_log(
+                index_page_str,
+                (
+                    f"Stage {idx + 1}: normalized legacy AGI RunRequest snippet "
+                    "from StepRequest/steps to StageRequest/stages."
+                ),
+                log_placeholder,
+            )
+        if not _pipeline_stages.is_runnable_stage(entry):
+            stage_record["status"] = "skipped_not_runnable"
+            stage_record["finished_at"] = _utc_timestamp()
+            run_state.record_skipped()
+            return
+        _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
+        stage_started = time.time()
+        stage_record["status"] = "running"
+        stage_record["started_at"] = _utc_timestamp()
+
+        raw_runtime = _pipeline_stages.normalize_runtime_path(entry.get("E", ""))
+        venv_path = (
+            raw_runtime if _pipeline_runtime.is_valid_runtime_root(raw_runtime) else ""
+        )
+        if venv_path:
+            selected_map[idx] = venv_path
+            st.session_state["lab_selected_venv"] = venv_path
+        else:
+            selected_map.pop(idx, None)
+        runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
+
+        st.session_state[index_page_str][0] = idx
+        st.session_state[index_page_str][1] = entry.get("D", "")
+        st.session_state[index_page_str][2] = entry.get("Q", "")
+        st.session_state[index_page_str][3] = entry.get("M", "")
+        st.session_state[index_page_str][4] = code
+        st.session_state[index_page_str][5] = details_store.get(idx, "")
+
+        venv_root = runtime_root
+        entry_engine = str(entry.get("R", "") or "")
+        ui_engine = str(engine_map.get(idx) or "")
+        if ui_engine and ui_engine != entry_engine:
+            if entry_engine.startswith("agi.") and ui_engine == "runpy":
+                engine = entry_engine
+            else:
+                engine = ui_engine
+        elif entry_engine:
+            engine = entry_engine
+        else:
+            engine = "agi.run" if venv_root else "runpy"
+        if venv_root and engine == "runpy":
+            engine = "agi.run"
+        if engine.startswith("agi.") and not venv_root:
+            fallback_runtime = _pipeline_stages.normalize_runtime_path(
+                getattr(env, "active_app", "") or ""
+            )
+            if _pipeline_runtime.is_valid_runtime_root(fallback_runtime):
+                venv_root = fallback_runtime
+                st.session_state["lab_selected_venv"] = venv_root
+        stage_record["engine"] = engine
+        stage_record["runtime"] = venv_root or ""
+
+        stage_run_name, stage_tags, stage_params, stage_text_artifacts = (
+            _mlflow_stage_payload(
+                env,
+                lab_dir,
+                stages_file,
+                stage_index=idx,
+                entry=entry,
+                engine=engine,
+                runtime_root=venv_root,
+            )
+        )
+        target_base = Path(stages_file).parent.resolve()
+        if target_base.name == target_base.parent.name:
+            target_base = target_base.parent
+        target_base.mkdir(parents=True, exist_ok=True)
+        script_artifact: Optional[Path] = None
+        export_target = st.session_state.get("df_file_out", "")
+        with _pipeline_runtime.start_tracker_run(
+            env,
+            run_name=stage_run_name,
+            tags=stage_tags,
+            params=stage_params,
+            nested=bool(pipeline_tracker),
+        ) as stage_tracker:
+            stage_env = (
+                _pipeline_runtime.build_mlflow_process_env(
+                    env,
+                    run_id=stage_tracker.run_id,
+                )
+                if stage_tracker
+                else {}
+            )
+            stage_env.update(
+                {
+                    "AGILAB_PIPELINE_PROFILE": pipeline_profile,
+                    "AGILAB_PIPELINE_RUN_ID": run_state.run_id,
+                    "AGILAB_PIPELINE_STAGE_INDEX": str(idx + 1),
+                    "AGILAB_PIPELINE_MANIFEST": str(
+                        _pipeline_manifest_paths(
+                            env,
+                            index_page_str,
+                            run_state.run_id,
+                        )[0]
+                    ),
+                }
+            )
+            if stage_tracker:
+                stage_tracker.log_artifacts(
+                    text_artifacts=stage_text_artifacts,
+                )
+            if engine == "runpy":
+                output = run_lab(
+                    [entry.get("D", ""), entry.get("Q", ""), code],
+                    snippet_file,
+                    env.copilot_file,
+                    env_overrides=stage_env,
+                )
+                script_artifact = Path(snippet_file)
+            else:
+                script_path = _stage_script_path(target_base, idx)
+                script_path.write_text(
+                    _pipeline_runtime.wrap_code_with_mlflow_resume(code)
+                )
+                script_artifact = script_path
+                python_cmd = _pipeline_runtime.python_for_stage(
+                    venv_root,
+                    engine=engine,
+                    code=code,
+                )
+                output = stream_run_command_fn(
+                    env,
+                    index_page_str,
+                    [str(python_cmd), str(script_path)],
+                    cwd=target_base,
+                    placeholder=log_placeholder,
+                    extra_env=stage_env,
+                )
+            _refresh_pipeline_run_lock(lock_handle)
+
+            preview = _redact_stage_output(output).strip()
+            if preview:
+                _push_run_log(
+                    index_page_str,
+                    f"Output (stage {idx + 1}):\n{preview}",
+                    log_placeholder,
+                )
+                if "No such file or directory" in preview:
+                    _push_run_log(
+                        index_page_str,
+                        "Hint: for AGI app stages, input/output data is normally resolved under "
+                        "agi_env.AGI_CLUSTER_SHARE. Check whether the upstream stage created the "
+                        "expected file there before this stage ran.",
+                        log_placeholder,
+                    )
+            else:
+                _push_run_log(
+                    index_page_str,
+                    f"Output (stage {idx + 1}): {engine} executed (no captured stdout)",
+                    log_placeholder,
+                )
+
+            if (
+                isinstance(st.session_state.get("data"), pd.DataFrame)
+                and not st.session_state["data"].empty
+            ):
+                if save_csv(st.session_state["data"], export_target):
+                    st.session_state["df_file_in"] = export_target
+                    st.session_state["stage_checked"] = True
+            summary = _pipeline_stages.stage_summary(
+                {"Q": entry.get("Q", ""), "C": code}
+            )
+            env_label = _pipeline_runtime.label_for_stage_runtime(
+                venv_root,
+                engine=engine,
+                code=code,
+            )
+            _push_run_log(
+                index_page_str,
+                f'Stage {idx + 1}: engine={engine}, env={env_label}, summary="{summary}"',
+                log_placeholder,
+            )
+            if stage_tracker:
+                stage_files = [script_artifact]
+                if export_target:
+                    stage_files.append(export_target)
+                stage_tracker.log_artifacts(
+                    text_artifacts={f"stage_{idx + 1}/stdout.txt": preview or ""},
+                    file_artifacts=stage_files,
+                    tags={
+                        "agilab.status": "completed",
+                        "agilab.output_present": bool(preview),
+                    },
+                )
+            run_state.record_executed()
+            stage_record["status"] = "completed"
+            stage_record["finished_at"] = _utc_timestamp()
+            stage_record["duration_seconds"] = max(time.time() - stage_started, 0.0)
+            stage_record["outputs"] = _stage_output_records(
+                entry,
+                env=env,
+                stages_file=stages_file,
+            )
+
+    def record_failure(self, run_state: PipelineRunState) -> None:
+        stages_file = self.stages_file
+        env = self.env
+        stages = self.plan.stages
+        waves = self.plan.waves
+        pipeline_profile = self.plan.profile
+        recorded = {
+            int(record.get("stage_index", 0)) - 1
+            for record in run_state.stage_records
+            if int(record.get("stage_index", 0) or 0) > 0
+        }
+        for wave in waves:
+            for pending_idx in wave:
+                if pending_idx in recorded:
+                    continue
+                pending_entry, _override = _apply_stage_profile(
+                    stages[pending_idx], pipeline_profile
+                )
+                run_state.stage_records.append(
+                    {
+                        "stage_index": pending_idx + 1,
+                        "status": "skipped_after_failure",
+                        "profile": pipeline_profile,
+                        "profile_override_applied": False,
+                        "profile_override_keys": [],
+                        "output_skip_rule": _stage_output_skip_rule(pending_entry),
+                        "description": str(pending_entry.get("D", "") or ""),
+                        "summary": _pipeline_stages.stage_summary(pending_entry),
+                        "engine": "",
+                        "runtime": "",
+                        "code_sha256": hashlib.sha256(
+                            str(pending_entry.get("C", "") or "").encode("utf-8")
+                        ).hexdigest(),
+                        "started_at": "",
+                        "finished_at": _utc_timestamp(),
+                        "duration_seconds": None,
+                        "outputs": _stage_output_records(
+                            pending_entry, env=env, stages_file=stages_file
+                        ),
+                        "error": "Skipped because an earlier workflow stage failed.",
+                    }
+                )
+
+    def publish(self, run_state: PipelineRunState) -> Path | None:
+        lab_dir = self.lab_dir
+        index_page_str = self.index_page_str
+        stages_file = self.stages_file
+        env = self.env
+        log_placeholder = self.log_placeholder
+        sequence = self.plan.sequence
+        waves = self.plan.waves
+        pipeline_profile = self.plan.profile
+        pipeline_max_workers = self.plan.max_workers
+        stage_ids_by_idx = self.plan.stage_ids
+        stage_deps_by_idx = self.plan.stage_deps
+        manifest_path = _write_pipeline_automation_manifest(
+            env=env,
+            index_page=index_page_str,
+            run_id=run_state.run_id,
+            profile=pipeline_profile,
+            status=run_state.status,
+            lab_dir=lab_dir,
+            stages_file=stages_file,
+            sequence=sequence,
+            waves=waves,
+            max_workers=pipeline_max_workers,
+            stage_ids=stage_ids_by_idx,
+            stage_deps=stage_deps_by_idx,
+            stages=run_state.stage_records,
+            started_at=run_state.started_at,
+            finished_at=_utc_timestamp(),
+            duration_seconds=run_state.duration_seconds(time.time()),
+            executed=run_state.executed,
+            skipped=run_state.skipped,
+            error=run_state.error,
+        )
+        if manifest_path is not None:
+            _push_run_log(
+                index_page_str,
+                f"Pipeline automation manifest: {manifest_path}",
+                log_placeholder,
+            )
+        return manifest_path
+
+    def restore(self, run_state: PipelineRunState) -> None:
+        index_page_str = self.index_page_str
+        original_stage = self.original_stage
+        original_selected = self.original_selected
+        original_engine = self.original_engine
+        st.session_state[index_page_str][0] = original_stage
+        st.session_state["lab_selected_venv"] = _pipeline_stages.normalize_runtime_path(
+            original_selected
+        )
+        st.session_state["lab_selected_engine"] = original_engine
+        st.session_state[f"{index_page_str}__force_blank_q"] = True
+        st.session_state[f"{index_page_str}__q_rev"] = (
+            st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
+        )
+
+    def release(self, run_state: PipelineRunState) -> None:
+        _release_pipeline_run_lock(
+            self.lock_handle, self.index_page_str, self.log_placeholder
+        )
+
+
 def run_all_stages(
     lab_dir: Path,
     index_page_str: str,
@@ -2067,7 +2649,11 @@ def run_all_stages(
     stages = load_all_stages_fn(module_path, stages_file, index_page_str) or []
     if not stages:
         st.info(f"No stages available to run from {stages_file}.")
-        _push_run_log(index_page_str, "Run workflow aborted: no stages available.", log_placeholder)
+        _push_run_log(
+            index_page_str,
+            "Run workflow aborted: no stages available.",
+            log_placeholder,
+        )
         return
 
     selected_map = st.session_state.setdefault(f"{index_page_str}__venv_map", {})
@@ -2082,7 +2668,11 @@ def run_all_stages(
     snippet_file = st.session_state.get("snippet_file")
     if not snippet_file:
         st.error("Snippet file is not configured. Reload the page and try again.")
-        _push_run_log(index_page_str, "Run pipeline aborted: snippet file not configured.", log_placeholder)
+        _push_run_log(
+            index_page_str,
+            "Run pipeline aborted: snippet file not configured.",
+            log_placeholder,
+        )
         return
 
     raw_sequence = st.session_state.get(sequence_state_key)
@@ -2093,7 +2683,9 @@ def run_all_stages(
         _push_run_log(index_page_str, message, log_placeholder)
         return
 
-    if _abort_if_legacy_agi_run_stages(index_page_str, stages_file, stages, sequence, log_placeholder):
+    if _abort_if_legacy_agi_run_stages(
+        index_page_str, stages_file, stages, sequence, log_placeholder
+    ):
         return
 
     waves, dependency_error, stage_ids_by_idx, stage_deps_by_idx = _build_stage_waves(
@@ -2106,11 +2698,12 @@ def run_all_stages(
     )
     if dependency_error:
         st.error(dependency_error)
-        _push_run_log(index_page_str, f"Run workflow aborted: {dependency_error}", log_placeholder)
+        _push_run_log(
+            index_page_str, f"Run workflow aborted: {dependency_error}", log_placeholder
+        )
         return
     st.session_state[f"{index_page_str}__last_pipeline_waves"] = [
-        [stage_idx + 1 for stage_idx in wave]
-        for wave in waves
+        [stage_idx + 1 for stage_idx in wave] for wave in waves
     ]
     if len(waves) != len(sequence):
         _push_run_log(
@@ -2128,447 +2721,34 @@ def run_all_stages(
     if lock_handle is None:
         return
 
-    try:
-        parent_run_name, parent_tags, parent_params, parent_text_artifacts = _mlflow_parent_payload(
-            env,
-            lab_dir,
-            stages_file,
-            sequence,
-            profile=pipeline_profile,
-            run_id=run_state.run_id,
-            max_workers=pipeline_max_workers,
-            waves=waves,
-            stage_ids=stage_ids_by_idx,
-            stage_deps=stage_deps_by_idx,
-        )
-        parent_tags["agilab.pipeline_profile"] = pipeline_profile
-        parent_params["pipeline_profile"] = pipeline_profile
-        parent_params["pipeline_max_workers"] = pipeline_max_workers
-        parent_text_artifacts["pipeline_metadata/automation.json"] = json.dumps(
-            _pipeline_automation_metadata(
-                env=env,
-                workflow_source=index_page_str,
-                profile=pipeline_profile,
-                run_id=run_state.run_id,
-                sequence=sequence,
-                max_workers=pipeline_max_workers,
-                waves=waves,
-                stage_ids=stage_ids_by_idx,
-                stage_deps=stage_deps_by_idx,
-            ),
-            indent=2,
-        )
-        parent_text_artifacts["pipeline_metadata/dependency_graph.dot"] = _pipeline_dependency_dot(
-            stage_ids=stage_ids_by_idx,
-            stage_deps=stage_deps_by_idx,
-            waves=waves,
-        )
-        pipeline_log_artifact = st.session_state.get(f"{index_page_str}__run_log_file")
-        with _pipeline_runtime.start_tracker_run(
-            env,
-            run_name=parent_run_name,
-            tags=parent_tags,
-            params=parent_params,
-        ) as pipeline_tracker:
-            if pipeline_tracker:
-                pipeline_tracker.log_artifacts(
-                    text_artifacts=parent_text_artifacts,
-                    file_artifacts=[stages_file],
-                )
-            with st.spinner("Running all stages…"):
-                for wave_number, wave in enumerate(waves, start=1):
-                    wave_label = ", ".join(str(stage_idx + 1) for stage_idx in wave)
-                    _push_run_log(
-                        index_page_str,
-                        f"Running workflow wave {wave_number}/{len(waves)}: stage(s) {wave_label}.",
-                        log_placeholder,
-                    )
-                    target_base = Path(stages_file).parent.resolve()
-                    if target_base.name == target_base.parent.name:
-                        target_base = target_base.parent
-                    target_base.mkdir(parents=True, exist_ok=True)
-                    default_runtime = st.session_state.get("lab_selected_venv", "")
-                    parallel_ineligibility = None
-                    if pipeline_max_workers > 1 and len(wave) > 1:
-                        parallel_ineligibility = _parallel_agi_wave_ineligibility_reason(
-                            stages,
-                            wave,
-                            profile=pipeline_profile,
-                            env=env,
-                            stages_file=stages_file,
-                            selected_map=selected_map,
-                            engine_map=engine_map,
-                            default_runtime=default_runtime,
-                        )
-                    if (
-                        pipeline_max_workers > 1
-                        and len(wave) > 1
-                        and parallel_ineligibility is None
-                    ):
-                        _push_run_log(
-                            index_page_str,
-                            f"Wave {wave_number}: running {len(wave)} AGI stage(s) in parallel with max_workers={pipeline_max_workers}.",
-                            log_placeholder,
-                        )
-                        run_state.record_executed(_run_parallel_agi_wave(
-                            stages=stages,
-                            wave=wave,
-                            profile=pipeline_profile,
-                            env=env,
-                            index_page=index_page_str,
-                            stages_file=stages_file,
-                            run_id=run_state.run_id,
-                            selected_map=selected_map,
-                            engine_map=engine_map,
-                            default_runtime=default_runtime,
-                            target_base=target_base,
-                            max_workers=pipeline_max_workers,
-                            manifest_stage_records=run_state.stage_records,
-                            log_placeholder=log_placeholder,
-                        ))
-                        continue
-                    if parallel_ineligibility:
-                        _push_run_log(
-                            index_page_str,
-                            f"Wave {wave_number}: serialized because {parallel_ineligibility}.",
-                            log_placeholder,
-                        )
-                    for idx in wave:
-                        _refresh_pipeline_run_lock(lock_handle)
-                        base_entry = stages[idx]
-                        entry, profile_override = _apply_stage_profile(base_entry, pipeline_profile)
-                        summary = _pipeline_stages.stage_summary(entry)
-                        stage_record: Dict[str, Any] = {
-                            "stage_index": idx + 1,
-                            "status": "pending",
-                        "profile": pipeline_profile,
-                        "profile_override_applied": bool(profile_override),
-                        "profile_override_keys": sorted(str(key) for key in profile_override),
-                        "output_skip_rule": _stage_output_skip_rule(entry),
-                        "description": str(entry.get("D", "") or ""),
-                        "summary": summary,
-                        "engine": "",
-                        "runtime": "",
-                            "code_sha256": hashlib.sha256(str(entry.get("C", "") or "").encode("utf-8")).hexdigest(),
-                            "started_at": "",
-                            "finished_at": "",
-                            "duration_seconds": None,
-                            "outputs": _stage_output_records(entry, env=env, stages_file=stages_file),
-                            "error": "",
-                        }
-                        run_state.stage_records.append(stage_record)
-                        if profile_override:
-                            _push_run_log(
-                                index_page_str,
-                                f"Stage {idx + 1}: applied `{pipeline_profile}` profile override.",
-                                log_placeholder,
-                            )
-                        if _stage_disabled(entry):
-                            stage_record["status"] = "skipped_disabled"
-                            stage_record["finished_at"] = _utc_timestamp()
-                            run_state.record_skipped()
-                            _push_run_log(index_page_str, f"Stage {idx + 1}: skipped by automation profile.", log_placeholder)
-                            continue
-                        skip_current, output_records = _should_skip_current_outputs(
-                            entry,
-                            env=env,
-                            stages_file=stages_file,
-                        )
-                        stage_record["outputs"] = output_records
-                        if skip_current:
-                            stage_record["status"] = "skipped_outputs_exist"
-                            stage_record["finished_at"] = _utc_timestamp()
-                            run_state.record_skipped()
-                            _push_run_log(
-                                index_page_str,
-                                f"Stage {idx + 1}: skipped because declared outputs already exist.",
-                                log_placeholder,
-                            )
-                            continue
-                        code = entry.get("C", "")
-                        code, normalized_agi_code = _normalize_legacy_agi_run_request_code(str(code or ""))
-                        if normalized_agi_code:
-                            entry = {**entry, "C": code}
-                            _push_run_log(
-                                index_page_str,
-                                (
-                                    f"Stage {idx + 1}: normalized legacy AGI RunRequest snippet "
-                                    "from StepRequest/steps to StageRequest/stages."
-                                ),
-                                log_placeholder,
-                            )
-                        if not _pipeline_stages.is_runnable_stage(entry):
-                            stage_record["status"] = "skipped_not_runnable"
-                            stage_record["finished_at"] = _utc_timestamp()
-                            run_state.record_skipped()
-                            continue
-                        _push_run_log(index_page_str, f"Running stage {idx + 1}…", log_placeholder)
-                        stage_started = time.time()
-                        stage_record["status"] = "running"
-                        stage_record["started_at"] = _utc_timestamp()
-
-                        raw_runtime = _pipeline_stages.normalize_runtime_path(entry.get("E", ""))
-                        venv_path = (
-                            raw_runtime if _pipeline_runtime.is_valid_runtime_root(raw_runtime) else ""
-                        )
-                        if venv_path:
-                            selected_map[idx] = venv_path
-                            st.session_state["lab_selected_venv"] = venv_path
-                        else:
-                            selected_map.pop(idx, None)
-                        runtime_root = venv_path or st.session_state.get("lab_selected_venv", "")
-
-                        st.session_state[index_page_str][0] = idx
-                        st.session_state[index_page_str][1] = entry.get("D", "")
-                        st.session_state[index_page_str][2] = entry.get("Q", "")
-                        st.session_state[index_page_str][3] = entry.get("M", "")
-                        st.session_state[index_page_str][4] = code
-                        st.session_state[index_page_str][5] = details_store.get(idx, "")
-
-                        venv_root = runtime_root
-                        entry_engine = str(entry.get("R", "") or "")
-                        ui_engine = str(engine_map.get(idx) or "")
-                        if ui_engine and ui_engine != entry_engine:
-                            if entry_engine.startswith("agi.") and ui_engine == "runpy":
-                                engine = entry_engine
-                            else:
-                                engine = ui_engine
-                        elif entry_engine:
-                            engine = entry_engine
-                        else:
-                            engine = "agi.run" if venv_root else "runpy"
-                        if venv_root and engine == "runpy":
-                            engine = "agi.run"
-                        if engine.startswith("agi.") and not venv_root:
-                            fallback_runtime = _pipeline_stages.normalize_runtime_path(
-                                getattr(env, "active_app", "") or ""
-                            )
-                            if _pipeline_runtime.is_valid_runtime_root(fallback_runtime):
-                                venv_root = fallback_runtime
-                                st.session_state["lab_selected_venv"] = venv_root
-                        stage_record["engine"] = engine
-                        stage_record["runtime"] = venv_root or ""
-
-                        stage_run_name, stage_tags, stage_params, stage_text_artifacts = _mlflow_stage_payload(
-                            env,
-                            lab_dir,
-                            stages_file,
-                            stage_index=idx,
-                            entry=entry,
-                            engine=engine,
-                            runtime_root=venv_root,
-                        )
-                        target_base = Path(stages_file).parent.resolve()
-                        if target_base.name == target_base.parent.name:
-                            target_base = target_base.parent
-                        target_base.mkdir(parents=True, exist_ok=True)
-                        script_artifact: Optional[Path] = None
-                        export_target = st.session_state.get("df_file_out", "")
-                        with _pipeline_runtime.start_tracker_run(
-                            env,
-                            run_name=stage_run_name,
-                            tags=stage_tags,
-                            params=stage_params,
-                            nested=bool(pipeline_tracker),
-                        ) as stage_tracker:
-                            stage_env = (
-                                _pipeline_runtime.build_mlflow_process_env(
-                                    env,
-                                    run_id=stage_tracker.run_id,
-                                )
-                                if stage_tracker
-                                else {}
-                            )
-                            stage_env.update(
-                                {
-                                    "AGILAB_PIPELINE_PROFILE": pipeline_profile,
-                                    "AGILAB_PIPELINE_RUN_ID": run_state.run_id,
-                                    "AGILAB_PIPELINE_STAGE_INDEX": str(idx + 1),
-                                    "AGILAB_PIPELINE_MANIFEST": str(
-                                        _pipeline_manifest_paths(
-                                            env,
-                                            index_page_str,
-                                            run_state.run_id,
-                                        )[0]
-                                    ),
-                                }
-                            )
-                            if stage_tracker:
-                                stage_tracker.log_artifacts(
-                                    text_artifacts=stage_text_artifacts,
-                                )
-                            if engine == "runpy":
-                                output = run_lab(
-                                    [entry.get("D", ""), entry.get("Q", ""), code],
-                                    snippet_file,
-                                    env.copilot_file,
-                                    env_overrides=stage_env,
-                                )
-                                script_artifact = Path(snippet_file)
-                            else:
-                                script_path = _stage_script_path(target_base, idx)
-                                script_path.write_text(_pipeline_runtime.wrap_code_with_mlflow_resume(code))
-                                script_artifact = script_path
-                                python_cmd = _pipeline_runtime.python_for_stage(
-                                    venv_root,
-                                    engine=engine,
-                                    code=code,
-                                )
-                                output = stream_run_command_fn(
-                                    env,
-                                    index_page_str,
-                                    [str(python_cmd), str(script_path)],
-                                    cwd=target_base,
-                                    placeholder=log_placeholder,
-                                    extra_env=stage_env,
-                                )
-                            _refresh_pipeline_run_lock(lock_handle)
-
-                            preview = _redact_stage_output(output).strip()
-                            if preview:
-                                _push_run_log(
-                                    index_page_str,
-                                    f"Output (stage {idx + 1}):\n{preview}",
-                                    log_placeholder,
-                                )
-                                if "No such file or directory" in preview:
-                                    _push_run_log(
-                                        index_page_str,
-                                        "Hint: for AGI app stages, input/output data is normally resolved under "
-                                        "agi_env.AGI_CLUSTER_SHARE. Check whether the upstream stage created the "
-                                        "expected file there before this stage ran.",
-                                        log_placeholder,
-                                    )
-                            else:
-                                _push_run_log(
-                                    index_page_str,
-                                    f"Output (stage {idx + 1}): {engine} executed (no captured stdout)",
-                                    log_placeholder,
-                                )
-
-                            if isinstance(st.session_state.get("data"), pd.DataFrame) and not st.session_state["data"].empty:
-                                if save_csv(st.session_state["data"], export_target):
-                                    st.session_state["df_file_in"] = export_target
-                                    st.session_state["stage_checked"] = True
-                            summary = _pipeline_stages.stage_summary({"Q": entry.get("Q", ""), "C": code})
-                            env_label = _pipeline_runtime.label_for_stage_runtime(
-                                venv_root,
-                                engine=engine,
-                                code=code,
-                            )
-                            _push_run_log(
-                                index_page_str,
-                                f"Stage {idx + 1}: engine={engine}, env={env_label}, summary=\"{summary}\"",
-                                log_placeholder,
-                            )
-                            if stage_tracker:
-                                stage_files = [script_artifact]
-                                if export_target:
-                                    stage_files.append(export_target)
-                                stage_tracker.log_artifacts(
-                                    text_artifacts={f"stage_{idx + 1}/stdout.txt": preview or ""},
-                                    file_artifacts=stage_files,
-                                    tags={
-                                        "agilab.status": "completed",
-                                        "agilab.output_present": bool(preview),
-                                    },
-                                )
-                            run_state.record_executed()
-                            stage_record["status"] = "completed"
-                            stage_record["finished_at"] = _utc_timestamp()
-                            stage_record["duration_seconds"] = max(time.time() - stage_started, 0.0)
-                            stage_record["outputs"] = _stage_output_records(
-                                entry,
-                                env=env,
-                                stages_file=stages_file,
-                            )
-            run_state.complete()
-            if pipeline_tracker:
-                pipeline_tracker.log_artifacts(
-                    file_artifacts=[pipeline_log_artifact] if pipeline_log_artifact else [],
-                    tags={"agilab.status": "completed"},
-                    metrics={
-                        "executed_stages": run_state.executed,
-                        "skipped_stages": run_state.skipped,
-                    },
-                )
-
-        if run_state.executed:
-            st.success(
-                f"Executed {run_state.executed} "
-                f"stage{'s' if run_state.executed != 1 else ''}."
-            )
-            _push_run_log(
-                index_page_str,
-                f"Run workflow completed: {run_state.executed} stage(s) executed.",
-                log_placeholder,
-            )
-        else:
-            st.info("No runnable code found in the stages.")
-            _push_run_log(index_page_str, "Run workflow completed: no runnable code found.", log_placeholder)
-    except BaseException as exc:
-        run_state.fail(_redact_stage_output(exc), finished_at=_utc_timestamp())
-        if "waves" in locals():
-            recorded = {
-                int(record.get("stage_index", 0)) - 1
-                for record in run_state.stage_records
-                if int(record.get("stage_index", 0) or 0) > 0
-            }
-            for wave in waves:
-                for pending_idx in wave:
-                    if pending_idx in recorded:
-                        continue
-                    pending_entry, _override = _apply_stage_profile(stages[pending_idx], pipeline_profile)
-                    run_state.stage_records.append(
-                        {
-                            "stage_index": pending_idx + 1,
-                            "status": "skipped_after_failure",
-                            "profile": pipeline_profile,
-                            "profile_override_applied": False,
-                            "profile_override_keys": [],
-                            "output_skip_rule": _stage_output_skip_rule(pending_entry),
-                            "description": str(pending_entry.get("D", "") or ""),
-                            "summary": _pipeline_stages.stage_summary(pending_entry),
-                            "engine": "",
-                            "runtime": "",
-                            "code_sha256": hashlib.sha256(str(pending_entry.get("C", "") or "").encode("utf-8")).hexdigest(),
-                            "started_at": "",
-                            "finished_at": _utc_timestamp(),
-                            "duration_seconds": None,
-                            "outputs": _stage_output_records(pending_entry, env=env, stages_file=stages_file),
-                            "error": "Skipped because an earlier workflow stage failed.",
-                        }
-                    )
-        raise
-    finally:
-        manifest_path = _write_pipeline_automation_manifest(
-            env=env,
-            index_page=index_page_str,
-            run_id=run_state.run_id,
-            profile=pipeline_profile,
-            status=run_state.status,
+    plan = PipelineExecutionPlan(
+        stages=stages,
+        sequence=sequence,
+        waves=waves,
+        profile=pipeline_profile,
+        max_workers=pipeline_max_workers,
+        stage_ids=stage_ids_by_idx,
+        stage_deps=stage_deps_by_idx,
+    )
+    execute_pipeline_lifecycle(
+        run_state,
+        _PipelineExecutionAdapter(
             lab_dir=lab_dir,
+            index_page_str=index_page_str,
             stages_file=stages_file,
-            sequence=sequence if "sequence" in locals() else [],
-            waves=waves if "waves" in locals() else [],
-            max_workers=pipeline_max_workers,
-            stage_ids=stage_ids_by_idx if "stage_ids_by_idx" in locals() else {},
-            stage_deps=stage_deps_by_idx if "stage_deps_by_idx" in locals() else {},
-            stages=run_state.stage_records,
-            started_at=run_state.started_at,
-            finished_at=_utc_timestamp(),
-            duration_seconds=run_state.duration_seconds(time.time()),
-            executed=run_state.executed,
-            skipped=run_state.skipped,
-            error=run_state.error,
-        )
-        if manifest_path is not None:
-            _push_run_log(index_page_str, f"Pipeline automation manifest: {manifest_path}", log_placeholder)
-        st.session_state[index_page_str][0] = original_stage
-        st.session_state["lab_selected_venv"] = _pipeline_stages.normalize_runtime_path(
-            original_selected
-        )
-        st.session_state["lab_selected_engine"] = original_engine
-        st.session_state[f"{index_page_str}__force_blank_q"] = True
-        st.session_state[f"{index_page_str}__q_rev"] = st.session_state.get(f"{index_page_str}__q_rev", 0) + 1
-        _release_pipeline_run_lock(lock_handle, index_page_str, log_placeholder)
+            env=env,
+            stream_run_command_fn=stream_run_command_fn,
+            log_placeholder=log_placeholder,
+            plan=plan,
+            selected_map=selected_map,
+            engine_map=engine_map,
+            details_store=details_store,
+            original_stage=original_stage,
+            original_selected=original_selected,
+            original_engine=original_engine,
+            snippet_file=snippet_file,
+            lock_handle=lock_handle,
+        ),
+        describe_error=_redact_stage_output,
+        timestamp=_utc_timestamp,
+    )
