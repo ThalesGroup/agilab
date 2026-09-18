@@ -56,7 +56,7 @@ def test_runtime_url_matches_hf_space_subdomain() -> None:
 
 
 def _load_notebook_exporter():
-    spec = importlib.util.spec_from_file_location("hf_notebook_demo_export", REPO_ROOT / "tools/hf_notebook_demo_export.py")
+    spec = importlib.util.spec_from_file_location("hf_notebook_demo_export", REPO_ROOT / "tools/demos/hf_notebook_demo_export.py")
     assert spec and spec.loader
     exporter = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(exporter)

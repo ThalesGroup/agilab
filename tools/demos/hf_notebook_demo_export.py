@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 RESOURCE_PATH = "src/agilab/resources/notebook_agent_demo"
 VERIFIED_FILES = {"app.py", "models.py", "solution.ipynb", "lab_stages.toml"}
 SOURCE_FILES = (
