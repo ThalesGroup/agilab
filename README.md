@@ -12,7 +12,7 @@ distributed execution behind the same run evidence contract.
 
 ## Try the autonomous notebook-to-app demo
 
-**[Open the interactive demo →](https://jpmorard-tokki.hf.space)** in the
+**[Open the interactive demo →](https://huggingface.co/spaces/jpmorard/tokki)** in the
 [public Tokki Hugging Face Space](https://huggingface.co/spaces/jpmorard/tokki).
 One request turned a pinned
 [Géron decision-tree notebook](https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb)

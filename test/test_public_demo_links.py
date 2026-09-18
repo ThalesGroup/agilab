@@ -251,7 +251,7 @@ def test_readme_uses_hf_space_badge_and_direct_tokki_demo_link() -> None:
     ) in readme
     # Keep the AGILAB product badge on its Space page. The orchestration demo
     # has its own Tokki Space and opens its standalone app directly.
-    demo_link = "[Open the interactive demo →](https://jpmorard-tokki.hf.space)"
+    demo_link = "[Open the interactive demo →](https://huggingface.co/spaces/jpmorard/tokki)"
     assert readme.count(demo_link) == 1
     assert "https://huggingface.co/spaces/jpmorard/tokki" in readme
     assert HF_RUNTIME_URL not in readme
