@@ -1,0 +1,56 @@
+[[notebook_app_project]]
+D = "Promotion forecast lab"
+Q = "Imported cell-3 from notebook"
+C = "from pathlib import Path\nimport os\nimport sys\n\nproject_root = Path(globals().get(\"PROJECT_ROOT\", os.environ.get(\"PROJECT_ROOT\", \".\"))).resolve()\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\n\nimport numpy as np\nimport pandas as pd\nfrom forecast_core import make_fixture, predict, seasonal_baseline, assemble_results\n\nparameters = dict(seed=42, horizon=28, promotion_start=7, promotion_days=7)\ndata = make_fixture(**parameters)\nprint(\"SYNTHETIC history:\", len(data[\"context\"]), \"days\")\nprint(\"Known future promotion offsets:\", np.flatnonzero(data[\"future_promotion\"]).tolist())\nprint(pd.DataFrame({\n    \"forecast_day\": np.arange(parameters[\"horizon\"]),\n    \"known_promotion\": data[\"future_promotion\"],\n    \"known_weekday_sine\": data[\"future_weekday\"],\n}).head(10).to_string(index=False))"
+M = ""
+NB_CELL_ID = "cell-3"
+NB_CELL_INDEX = 3
+NB_CONTEXT_IDS = [
+    "markdown-1",
+    "markdown-2",
+]
+NB_ENV_HINTS = [
+    "forecast_core",
+    "numpy",
+    "os",
+    "pandas",
+    "pathlib",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = "2. Run real Chronos inference and the seasonal baseline"
+Q = "Imported cell-5 from notebook"
+C = "inference_data = {key: values for key, values in data.items() if key != \"actual\"}\npredictions = predict(inference_data, use_covariates=True)\nwithout_covariates = predict(inference_data, use_covariates=False)\nbaseline = seasonal_baseline(data[\"context\"], parameters[\"horizon\"])\nprint(\"Completed actual Chronos-2 Small inference with and without covariates.\")\nprint(\"Forecast shape:\", predictions[\"forecast\"].shape)"
+M = ""
+NB_CELL_ID = "cell-5"
+NB_CELL_INDEX = 5
+NB_CONTEXT_IDS = [
+    "markdown-4",
+]
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = "3. Evaluate and persist results"
+Q = "Imported cell-7 from notebook"
+C = "import json\n\nresults = assemble_results(data, predictions, baseline, parameters)\nresults[\"without_covariates\"] = {\n    \"predictions\": {key: values.tolist() for key, values in without_covariates.items()},\n    \"mae\": float(np.mean(np.abs(data[\"actual\"] - without_covariates[\"forecast\"]))),\n}\nresults[\"interpretation\"] = (\n    \"Synthetic scenario forecast, not a causal estimate or a production-accuracy claim. \"\n    \"Nominal 80% p10-p90 intervals are not calibrated on this fixture.\"\n)\noutput = Path.cwd() / \"results.json\"\noutput.write_text(json.dumps({\"results\": results}, indent=2, allow_nan=False) + \"\\n\", encoding=\"utf-8\")\nprint(pd.DataFrame([\n    {\"method\": \"Chronos with covariates\", \"mae\": results[\"metrics\"][\"mae\"]},\n    {\"method\": \"Chronos without covariates\", \"mae\": results[\"without_covariates\"][\"mae\"]},\n    {\"method\": \"Seasonal-7\", \"mae\": results[\"metrics\"][\"baseline_mae\"]},\n]).to_string(index=False))\nprint(\"Observed p10-p90 coverage:\", results[\"metrics\"][\"coverage\"])\nprint(\"Fresh artifact:\", output.name)"
+M = ""
+NB_CELL_ID = "cell-7"
+NB_CELL_INDEX = 7
+NB_CONTEXT_IDS = [
+    "markdown-6",
+]
+NB_ENV_HINTS = [
+    "json",
+]
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"

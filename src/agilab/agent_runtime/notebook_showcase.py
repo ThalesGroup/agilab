@@ -39,6 +39,23 @@ def download_bundle() -> bytes:
 
 
 def render() -> None:
+    selected = st.segmented_control(
+        "Choose a demo", ["iris", "forecast"], default="iris", required=True,
+        key="demo", bind="query-params",
+    )
+    if selected == "forecast":
+        try:
+            from agilab.agent_runtime.forecast_showcase import render as render_forecast
+        except ModuleNotFoundError as exc:
+            if exc.name != "agilab.agent_runtime.forecast_showcase":
+                raise
+            st.error("Forecast demo unavailable in this distribution.")
+            return
+        render_forecast()
+        return
+    if selected != "iris":
+        st.error("Choose one of the available demos.")
+        return
     report = load_report()
     st.caption("TOKKI × AGILAB · NOTEBOOK → WORKING APP")
     st.title("Built by an autonomous agent")
