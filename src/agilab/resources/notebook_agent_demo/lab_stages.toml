@@ -1,0 +1,51 @@
+[[decision_lab_project]]
+D = "Iris decision lab"
+Q = "Imported cell-3 from notebook"
+C = "import json\nfrom pathlib import Path\n\nfrom models import build_models, load_split, train_models, evaluate_models\n\nmax_depth = 3\nseed = 42\n"
+M = ""
+NB_CELL_ID = "cell-3"
+NB_CELL_INDEX = 3
+NB_CONTEXT_IDS = [
+    "markdown-1",
+    "markdown-2",
+]
+NB_ENV_HINTS = [
+    "json",
+    "models",
+    "pathlib",
+]
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[decision_lab_project]]
+D = "2. Train"
+Q = "Imported cell-5 from notebook"
+C = "iris, X_train, X_test, y_train, y_test = load_split(seed=seed)\nmodels = train_models(X_train, y_train, max_depth=max_depth, seed=seed)\nprint(f\"Training: {len(y_train)} flowers; held out: {len(y_test)} flowers\")\n"
+M = ""
+NB_CELL_ID = "cell-5"
+NB_CELL_INDEX = 5
+NB_CONTEXT_IDS = [
+    "markdown-4",
+]
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[decision_lab_project]]
+D = "3. Evaluate and export"
+Q = "Imported cell-7 from notebook"
+C = "comparison, predictions = evaluate_models(models, X_train, X_test, y_train, y_test)\nmetrics = [\n    {\"model\": row[\"model\"], \"accuracy\": float(row[\"test_accuracy\"])}\n    for row in comparison.to_dict(orient=\"records\")\n]\nPath(\"metrics.json\").write_text(json.dumps(metrics, indent=2, allow_nan=False) + \"\\n\", encoding=\"utf-8\")\nbest_accuracy = comparison[\"test_accuracy\"].max()\nleaders = comparison.loc[comparison[\"test_accuracy\"] == best_accuracy, \"model\"].tolist()\nprint(comparison.to_string(index=False))\nprint(\"Leader(s) on this split:\", \", \".join(leaders))\nprint(f\"Best held-out accuracy: {best_accuracy:.1%}\")\n"
+M = ""
+NB_CELL_ID = "cell-7"
+NB_CELL_INDEX = 7
+NB_CONTEXT_IDS = [
+    "markdown-6",
+]
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = [
+    "metrics.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"

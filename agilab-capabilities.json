@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-14T13:59:06Z",
+  "generated_at_utc": "2026-09-18T12:43:21Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 284,
+    "evidence_schema_count": 287,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2056,6 +2056,25 @@
         "src/agilab/dag/multi_app_dag_templates.py",
         "src/agilab/examples/inter_project_dag/preview_inter_project_dag.py",
         "tools/robustness_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_adoption.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_adoption.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_adoption_summary.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_adoption.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_agent.public_demo.v1",
+      "sources": [
+        "src/agilab/resources/notebook_agent_demo/result.json",
+        "tools/demos/export_notebook_agent_demo.py"
       ]
     },
     {

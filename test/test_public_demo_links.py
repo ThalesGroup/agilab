@@ -242,13 +242,18 @@ def test_source_package_version_contract_is_explicit_and_proven_release_scoped()
     assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in pypi_readme
 
 
-def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
+def test_readme_uses_hf_space_badge_and_direct_tokki_demo_link() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert (
         f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
         'alt="AGILAB Space" /></a>'
     ) in readme
+    # Keep the AGILAB product badge on its Space page. The orchestration demo
+    # has its own Tokki Space and opens its standalone app directly.
+    demo_link = "[Open the interactive demo →](https://jpmorard-tokki.hf.space)"
+    assert readme.count(demo_link) == 1
+    assert "https://huggingface.co/spaces/jpmorard/tokki" in readme
     assert HF_RUNTIME_URL not in readme
 
 

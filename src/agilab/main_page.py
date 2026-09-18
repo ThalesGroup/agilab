@@ -1270,6 +1270,12 @@ def _render_settings_page_entry() -> None:
     _render_page_load_timing("SETTINGS", started_at)
 
 
+def _render_notebook_agent_demo() -> None:
+    from agilab.agent_runtime.notebook_showcase import render
+
+    render()
+
+
 def _navigation_pages() -> list[Any]:
     """Return fresh Streamlit pages built from cached immutable specifications."""
     root = _AGILAB_ROOT
@@ -1354,6 +1360,12 @@ def _navigation_pages() -> list[Any]:
                 title="ANALYSIS",
                 url_path="ANALYSIS",
                 route_ids=("analysis",),
+            ),
+            _NavigationPageSpec(
+                _render_notebook_agent_demo,
+                title="AGENT DEMO",
+                url_path="AGENT_DEMO",
+                route_ids=("agent_demo",),
             ),
         )
         _NAVIGATION_PAGE_CACHE[navigation_signature] = specs
