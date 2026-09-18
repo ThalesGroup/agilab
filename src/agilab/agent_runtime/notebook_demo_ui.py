@@ -14,6 +14,7 @@ from agilab.agent_runtime.notebook_agent import (
 )
 from agilab.agent_runtime.notebook_adoption import github_report_url
 from agilab.agent_runtime.notebook_app_runtime import run_app
+from agilab.ui.page_bootstrap import configure_page_config
 
 parser = argparse.ArgumentParser(add_help=False)
 parser.add_argument("--output", default=str(Path.home() / "agilab-demo-runs"))
@@ -24,7 +25,7 @@ parser.add_argument("--notebook")
 parser.add_argument("--notebook-url")
 defaults, _ = parser.parse_known_args()
 
-st.set_page_config(page_title="Tokki × AGILAB · Notebook to app", page_icon=":material/rocket_launch:", layout="wide")
+configure_page_config(st, page_title="Tokki × AGILAB · Notebook to app")
 st.caption("TOKKI × AGILAB  /  LIVE BUILD")
 st.title("A notebook goes in. A working app comes out.")
 st.write("Give the agent an objective. Tokki coordinates the build and verification; AGILAB turns the result into a reusable workflow.")

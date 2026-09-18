@@ -242,14 +242,18 @@ def test_source_package_version_contract_is_explicit_and_proven_release_scoped()
     assert "release tag, PyPI package version, docs, CI, coverage, and demo proof" in pypi_readme
 
 
-def test_readme_uses_hf_space_badge_for_primary_link_without_robot_command() -> None:
+def test_readme_uses_hf_space_badge_and_one_direct_agent_demo_link() -> None:
     readme = README.read_text(encoding="utf-8")
 
     assert (
         f'<a href="{PUBLIC_HF_SPACE_URL}"><img src="{PUBLIC_HF_SPACE_BADGE}" '
         'alt="AGILAB Space" /></a>'
     ) in readme
-    assert HF_RUNTIME_URL not in readme
+    # The primary destination remains the Space page. The demo CTA must open
+    # the requested native page directly; permit only this one deep link.
+    demo_link = f"[Open the interactive demo →]({HF_RUNTIME_URL}/AGENT_DEMO)"
+    assert readme.count(demo_link) == 1
+    assert HF_RUNTIME_URL not in readme.replace(demo_link, "")
 
 
 def test_readme_uses_agi_core_notebook_badge_for_api_route() -> None:

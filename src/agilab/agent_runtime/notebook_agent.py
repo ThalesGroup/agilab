@@ -182,7 +182,7 @@ result value from the analysis. Do not fabricate results to satisfy the checker.
 app.py must be a native Streamlit UI with a title, useful controls and a button
 labelled exactly 'Run analysis'. Clicking it must run the analysis and render a
 new or changed visible result with st.metric, st.dataframe, st.json, st.markdown
-or st.text. Preserve relevant source credit. Do not use use_container_width.
+or st.text. Preserve relevant source credit. Use Streamlit's current width API.
 
 Use {python}. Execute {verifier}, inspect failures and repair until it passes.
 The independent check executes the generated notebook in a fresh directory,
@@ -208,7 +208,7 @@ Deliver a real app, not an explanation:
 2. app.py: polished native Streamlit UI, local imports from models.py, title,
    max-depth slider first, train/test comparison dataframe, metric, confusion
    matrix, feature plot, and four measurement inputs for prediction. Credit the
-   source with its URL. Use cached computation. Do not use use_container_width.
+   source with its URL. Use cached computation and Streamlit's current width API.
 3. solution.ipynb: an executable v4 notebook with at least two Python code cells,
    reusable import/train/evaluate stages and markdown explaining the adaptation.
    It must import models via the already available project path, run from any cwd,
