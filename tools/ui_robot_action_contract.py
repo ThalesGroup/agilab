@@ -48,6 +48,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "builds a local notebook-derived app through the explicit agent demo flow; generic robots verify the controls without launching a build",
         ("test/test_notebook_agent.py", "test/test_notebook_agent_sources.py"),
     ),
+    "Run analysis": (
+        "trial-only",
+        "submits a forecast scenario and starts CPU model inference; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
+        ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py"),
+    ),
     "Run model and app checks": (
         "trial-only",
         "runs the notebook demo verification workflow; generic robots verify the gate without starting execution",

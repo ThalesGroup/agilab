@@ -14,6 +14,27 @@ from agilab.agent_runtime import forecast_showcase as showcase
 
 
 @pytest.fixture
+def hub_boundary(monkeypatch):
+    """Provide only the external API used by provisioning, without Hub installed."""
+    hub = ModuleType("huggingface_hub")
+    hub.__path__ = []
+    errors = ModuleType("huggingface_hub.errors")
+
+    class LocalEntryNotFoundError(FileNotFoundError):
+        pass
+
+    def unexpected_download(**_kwargs):
+        raise AssertionError("Tests must explicitly mock model downloads")
+
+    errors.LocalEntryNotFoundError = LocalEntryNotFoundError
+    hub.errors = errors
+    hub.snapshot_download = unexpected_download
+    monkeypatch.setitem(sys.modules, "huggingface_hub", hub)
+    monkeypatch.setitem(sys.modules, "huggingface_hub.errors", errors)
+    return hub
+
+
+@pytest.fixture
 def local_model(tmp_path, monkeypatch):
     root = tmp_path / "model"
     root.mkdir()
@@ -209,9 +230,8 @@ def test_local_model_rejects_adapter_configuration(local_model):
         showcase._validate_model(local_model)
 
 
-def test_model_download_uses_only_pinned_public_artifacts(local_model, monkeypatch):
-    import huggingface_hub
-    from huggingface_hub.errors import LocalEntryNotFoundError
+def test_model_download_uses_only_pinned_public_artifacts(local_model, monkeypatch, hub_boundary):
+    LocalEntryNotFoundError = hub_boundary.errors.LocalEntryNotFoundError
 
     calls = []
 
@@ -223,7 +243,7 @@ def test_model_download_uses_only_pinned_public_artifacts(local_model, monkeypat
 
     prepare = showcase._prepare_model
     prepare.clear()
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", snapshot_download)
+    monkeypatch.setattr(hub_boundary, "snapshot_download", snapshot_download)
     try:
         assert prepare("") == local_model.resolve()
         assert prepare("") == local_model.resolve()
@@ -236,8 +256,7 @@ def test_model_download_uses_only_pinned_public_artifacts(local_model, monkeypat
     assert calls == [{**expected, "local_files_only": True}, expected]
 
 
-def test_partial_cached_snapshot_fetches_missing_weights(local_model, monkeypatch):
-    import huggingface_hub
+def test_partial_cached_snapshot_fetches_missing_weights(local_model, monkeypatch, hub_boundary):
 
     weights = local_model / "model.safetensors"
     original = weights.read_bytes()
@@ -252,7 +271,7 @@ def test_partial_cached_snapshot_fetches_missing_weights(local_model, monkeypatc
 
     prepare = showcase._prepare_model
     prepare.clear()
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", snapshot_download)
+    monkeypatch.setattr(hub_boundary, "snapshot_download", snapshot_download)
     try:
         assert prepare("") == local_model.resolve()
     finally:
@@ -262,15 +281,14 @@ def test_partial_cached_snapshot_fetches_missing_weights(local_model, monkeypatc
     assert "local_files_only" not in calls[1]
 
 
-def test_explicit_local_model_never_requests_a_download(local_model, monkeypatch):
-    import huggingface_hub
+def test_explicit_local_model_never_requests_a_download(local_model, monkeypatch, hub_boundary):
 
     def unexpected_download(**_kwargs):
         raise AssertionError("Local model validation must not use the network")
 
     prepare = showcase._prepare_model
     prepare.clear()
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", unexpected_download)
+    monkeypatch.setattr(hub_boundary, "snapshot_download", unexpected_download)
     try:
         assert prepare(str(local_model)) == local_model.resolve()
     finally:
@@ -338,3 +356,73 @@ def test_forecast_evidence_counts_and_labels_both_check_groups(demo_bundle):
     assert any("Forecast checks" in value.value for value in at.markdown)
     assert at.dataframe[0].value["coverage"].tolist() == [0.5]
     assert any("observed coverage can be lower" in value.value for value in at.caption)
+
+
+@pytest.fixture
+def packaged_forecast_core(monkeypatch):
+    """Load real fixture/result code while leaving expensive inference uncalled."""
+    from importlib import util
+
+    spec = util.spec_from_file_location("forecast_core", showcase.DEMO_ROOT / "forecast_core.py")
+    core = util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "forecast_core", core)
+    spec.loader.exec_module(core)
+    return core
+
+
+def test_packaged_run_analysis_submits_scenario_and_refreshes_results(packaged_forecast_core, monkeypatch):
+    core = packaged_forecast_core
+    calls = []
+
+    def controlled_inference(**parameters):
+        # Real inference is checked by the separate acceptance script. This
+        # boundary stub verifies the actual app's form and result lifecycle.
+        calls.append(parameters)
+        data = core.make_fixture(**parameters)
+        baseline = core.seasonal_baseline(data["context"], parameters["horizon"])
+        forecast = baseline + parameters["promotion_days"]
+        prediction = {"forecast": forecast, "lower": forecast - 5, "upper": forecast + 5}
+        return core.assemble_results(data, prediction, baseline, parameters)
+
+    monkeypatch.setattr(core, "run_analysis", controlled_inference)
+    at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py"), default_timeout=20).run()
+    assert not at.exception
+    assert calls == []
+    assert not at.metric
+
+    at.selectbox[0].set_value(14)
+    next(widget for widget in at.number_input if widget.label == "Promotion duration (days)").set_value(0)
+    next(button for button in at.button if button.label == "Run analysis").click().run()
+    assert not at.exception
+    assert calls == [{"seed": 42, "horizon": 14, "promotion_start": 7, "promotion_days": 0}]
+    assert {metric.label for metric in at.metric} == {
+        "Chronos MAE", "Seasonal-7 MAE", "Observed p10–p90 coverage",
+    }
+    assert len(at.dataframe[0].value) == 14
+    assert set(at.dataframe[0].value["Promotion"]) == {"Off"}
+
+    at.selectbox[0].set_value(56).run()
+    assert not at.exception
+    assert len(calls) == 1
+    assert len(at.dataframe[0].value) == 14
+    next(widget for widget in at.number_input if widget.label == "Promotion duration (days)").set_value(7)
+    next(button for button in at.button if button.label == "Run analysis").click().run()
+    assert not at.exception
+    assert len(calls) == 2
+    assert calls[-1]["horizon"] == 56
+    assert calls[-1]["promotion_days"] == 7
+    assert len(at.dataframe[0].value) == 56
+    assert (at.dataframe[0].value["Promotion"] == "On").sum() == 7
+
+
+def test_packaged_run_analysis_reports_missing_model(packaged_forecast_core, monkeypatch):
+    def missing_model(**_parameters):
+        raise packaged_forecast_core.PrerequisiteError("The prepared model snapshot is unavailable.")
+
+    monkeypatch.setattr(packaged_forecast_core, "run_analysis", missing_model)
+    at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py"), default_timeout=20).run()
+    next(button for button in at.button if button.label == "Run analysis").click().run()
+    assert not at.exception
+    assert at.error[0].value == "The prepared model snapshot is unavailable."
+    assert not at.metric
+    assert not at.dataframe
