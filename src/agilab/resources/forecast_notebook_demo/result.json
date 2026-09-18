@@ -1,0 +1,147 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260918T201601Z-112cb07a",
+  "seconds": 361.0,
+  "workflow_stages": 3,
+  "source": {
+    "repository": "amazon-science/chronos-forecasting",
+    "commit": "10afa9ebe016e514f9d7dc1aa873f66af57e116b",
+    "url": "https://github.com/amazon-science/chronos-forecasting/blob/10afa9ebe016e514f9d7dc1aa873f66af57e116b/notebooks/chronos-2-quickstart.ipynb",
+    "sha256": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559",
+    "license": "Apache-2.0",
+    "author": "Amazon Science",
+    "retrieved_at": "2026-09-18T20:16:01.770924+00:00"
+  },
+  "model": {
+    "id": "autogluon/chronos-2-small",
+    "revision": "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a",
+    "license": "Apache-2.0"
+  },
+  "demo": {
+    "title": "Chronos-2 demand forecasting lab",
+    "description": "Explore synthetic demand with a recent pretrained forecasting model. Change the horizon and promotion schedule, compare a seasonal baseline, and reveal held-out observations.",
+    "request": "Turn Amazon Science's Chronos-2 notebook into an interactive demand forecasting app."
+  },
+  "verification_scope": "execution and interface plus real Chronos inference on three synthetic cases; held-out target invariance, covariate response, quantile ordering and independent metrics",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_names": [
+      "baseline",
+      "data_kind",
+      "fixture",
+      "interpretation",
+      "metrics",
+      "model",
+      "parameters",
+      "predictions",
+      "without_covariates"
+    ],
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "forecast": {
+      "status": "passed",
+      "checks": [
+        "autonomous_run_passed",
+        "autonomous_artifacts_unchanged",
+        "original_source_hash",
+        "three_seed_real_model_inference",
+        "finite_forecast_shapes",
+        "ordered_quantiles",
+        "forecast_matches_instrumented_model_output",
+        "held_out_actual_invariance",
+        "future_promotion_changes_forecast",
+        "independent_mae_seasonal_baseline_and_interval_coverage",
+        "json_analysis_matches_independent_metrics",
+        "artifacts_unchanged_after_inference"
+      ],
+      "measurements": {
+        "cases": [
+          {
+            "seed": 7,
+            "context_length": 256,
+            "horizon": 28,
+            "promotion_start": 7,
+            "promotion_days": 7,
+            "mae": 11.976713725498744,
+            "baseline_mae": 14.679492405482701,
+            "coverage": 0.42857142857142855,
+            "nominal_interval_coverage": 0.8,
+            "seasonal_baseline_period": 7,
+            "future_actual_perturbation": 1000000,
+            "actual_perturbation_predictions_identical": true,
+            "promotion_zeroed_max_absolute_forecast_change": 8.673065185546875
+          },
+          {
+            "seed": 42,
+            "context_length": 256,
+            "horizon": 28,
+            "promotion_start": 7,
+            "promotion_days": 7,
+            "mae": 11.674585887363978,
+            "baseline_mae": 13.134320395333427,
+            "coverage": 0.5,
+            "nominal_interval_coverage": 0.8,
+            "seasonal_baseline_period": 7,
+            "future_actual_perturbation": 1000000,
+            "actual_perturbation_predictions_identical": true,
+            "promotion_zeroed_max_absolute_forecast_change": 8.052947998046875
+          },
+          {
+            "seed": 2026,
+            "context_length": 256,
+            "horizon": 28,
+            "promotion_start": 7,
+            "promotion_days": 7,
+            "mae": 12.196427753993444,
+            "baseline_mae": 13.096966062273298,
+            "coverage": 0.5,
+            "nominal_interval_coverage": 0.8,
+            "seasonal_baseline_period": 7,
+            "future_actual_perturbation": 1000000,
+            "actual_perturbation_predictions_identical": true,
+            "promotion_zeroed_max_absolute_forecast_change": 8.20843505859375
+          }
+        ],
+        "real_model_calls": 10,
+        "model_revision": "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a",
+        "dependency_versions": {
+          "chronos-forecasting": "2.3.2",
+          "torch": "2.14.0",
+          "transformers": "4.57.6",
+          "numpy": "2.5.3",
+          "pandas": "2.3.3",
+          "accelerate": "1.15.0"
+        },
+        "python_version": "3.13.14",
+        "platform": "Darwin",
+        "checked_at": "2026-09-18T20:32:24.813018+00:00",
+        "interpretation": "Three deterministic synthetic cases and one analysis-contract check. MAE and interval coverage are reported without requiring superiority to the baseline. Changing a promotion input demonstrates model sensitivity, not a causal business effect.",
+        "weight_source": "local_model_path",
+        "weight_files_sha256": {
+          "config.json": "f2780468adc8b16322aa0b6e28b26476c9401ecf64ab53292b6d2b0d3f423722",
+          "model.safetensors": "492290ae82bb89f9769e3479ce90b3179de1f33e600c34daa0352531538b23cd"
+        }
+      }
+    }
+  },
+  "files": {
+    "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+    "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+    "NOTICE": "d4290ed64c2edd0fce1d84e3f9dfb2881240fe534def76b8cd29ed6af683e287",
+    "README.md": "361b216a90627e7c66096115eaff42b741e7cee64f9d31a20e0d7da448c23d68",
+    "app.py": "e27cb89540a3b62e52f4849210a38150a90dbdc832ea4e95c38b4af41577b11c",
+    "forecast_core.py": "cc59b3943910366447255b8e3030472337033478c8983ee24ae658d93fce660e",
+    "lab_stages.toml": "5c1732f5cea793d249f29e53091d261a97eb00c8a511c2ead7e213f4327e3073",
+    "requirements.txt": "ac53469f923071e605a1b00f8d90ffa222bd262933378e6078a20a9ab474373b",
+    "solution.ipynb": "a8ce15c433ffb32e929cb32a899241ac288323a775e063019dfe43d80cb79f54",
+    "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+    "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
+  }
+}
