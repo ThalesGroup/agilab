@@ -1620,6 +1620,7 @@ def test_navigation_pages_reuses_cached_specs_but_returns_fresh_pages(monkeypatc
     assert second_routes["project_editor"] is second_pages[3]
     assert second_routes["settings"] is second_pages[1]
     assert second_routes["project_status"] is second_routes["project"]
+    assert second_routes["agent_demo"].kwargs["url_path"] == "AGENT_DEMO"
     assert second_routes["workflow"].kwargs["url_path"] == "WORKFLOW"
     assert len(created_pages) == len(pages) * 2
     assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 1

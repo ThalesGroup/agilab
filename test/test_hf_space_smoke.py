@@ -465,6 +465,8 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
             4.7,
             4.7,
             4.9,
+            4.9,
+            4.9,
         ]
     )
 
@@ -541,6 +543,8 @@ def test_run_smoke_marks_successful_slow_run_outside_target() -> None:
             2.7,
             3.0,
             3.0,
+            3.3,
+            3.3,
             3.3,
         ]
     )

@@ -10,6 +10,60 @@ distributed execution behind the same run evidence contract.
   <a href="https://kaggle.com/kernels/welcome?src=https://github.com/ThalesGroup/agilab/blob/main/src/agilab/examples/notebook_quickstart/agi_core_kaggle_first_run.ipynb"><img src="https://img.shields.io/badge/agi--core-notebook-1D4ED8?style=for-the-badge" alt="agi-core notebook" /></a>
 </p>
 
+## Try the autonomous notebook-to-app demo
+
+**[Open the interactive demo →](https://jpmorard-agilab.hf.space/AGENT_DEMO)** in the
+[public AGILAB Hugging Face Space](https://huggingface.co/spaces/jpmorard/agilab).
+One request turned a pinned
+[Géron decision-tree notebook](https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb)
+into a tested app in **4 min 45 sec**, with three models and three workflow
+stages. Tokki coordinated the autonomous agent and verification. Change the model controls and run the model,
+notebook, and interface checks without an account or provider subscription.
+
+This curated Iris demo shows one completed notebook-to-app workflow. New
+autonomous builds run locally through [Tokki](https://github.com/jpmorard/tokki-public)
+with your configured provider.
+
+### Build from your own notebook
+
+With [Tokki installed locally](https://github.com/jpmorard/tokki-public/blob/main/RELEASES.md),
+your Codex provider configured, and [uv](https://docs.astral.sh/uv/getting-started/installation/):
+
+```bash
+uv tool install "agilab[notebook-agent] @ git+https://github.com/ThalesGroup/agilab.git"
+agilab-notebook-demo --ui
+```
+
+Choose **Local notebook** or **Pinned GitHub notebook**, describe the app, and
+start the build. You can also run `agilab-notebook-demo --notebook analysis.ipynb`.
+Start with a self-contained Python notebook using dependencies and data available
+in the builder environment. The local agent reads the selected notebook through
+your provider and executes generated Python. Checks cover notebook execution,
+fresh results, app startup, and the **Run analysis** interaction; scientific
+correctness still needs your review. The public Space never receives your notebook
+or provider credentials.
+
+### Measure reported first builds
+
+Each finished local build saves a content-free completion receipt. After success,
+the local UI offers an optional **Share this receipt on GitHub (public)** draft.
+Nothing is uploaded automatically. Posting associates the report with your GitHub
+account; the receipt contains random run/workspace IDs, outcome, source type,
+verification scope, duration bucket, and AGILAB version.
+
+Run `agilab-notebook-adoption` for local counts. Maintainers can aggregate voluntary
+reports with:
+
+```bash
+gh issue list --repo ThalesGroup/agilab --state all --limit 1000 \
+  --search '"[Notebook first build]" in:title' --json body > notebook-reports.json
+agilab-notebook-adoption --github-issues notebook-reports.json
+```
+
+Repeated receipts are deduplicated. **Reported first builds** count distinct local
+workspaces with a successful receipt, not unique people or all visitors. These are
+self-reported outcomes; no visitor conversion rate is inferred.
+
 ## One-Minute Proof
 
 Run the smallest public proof first. It installs the examples profile, executes

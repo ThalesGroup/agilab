@@ -216,7 +216,34 @@ def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
 
     assert "src/agilab/apps/install.py" in module.DOCKERFILE_TEMPLATE
     assert "flight_telemetry_project --verbose 0" in module.DOCKERFILE_TEMPLATE
-    assert "streamlit run /app/src/agilab/main_page.py" in module.DOCKERFILE_TEMPLATE
+    assert "streamlit run /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
+
+
+def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
+    module = _load_module()
+    dockerfile = module.DOCKERFILE_TEMPLATE
+    verification = "uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py"
+
+    assert "RUN cd /app/src/agilab/resources/notebook_agent_demo &&" in dockerfile
+    assert dockerfile.index("--extra notebook-agent") < dockerfile.index(verification)
+    assert dockerfile.index(verification) < dockerfile.index('CMD [')
+
+
+def test_space_entrypoint_avoids_legacy_pages_router(tmp_path) -> None:
+    from streamlit.runtime.pages_manager import PagesManager
+
+    module = _load_module()
+    apps, pages = module.profile_entries("first-proof")
+    module.write_profile_assets(tmp_path, "first-proof", apps, pages)
+    entrypoint = tmp_path / "hf_app.py"
+    assert 'runpy.run_module("agilab.main_page", run_name="__main__")' in entrypoint.read_text()
+    previous = PagesManager.uses_pages_directory
+    try:
+        PagesManager.uses_pages_directory = None
+        manager = PagesManager(str(entrypoint))
+        assert manager.uses_pages_directory is False
+    finally:
+        PagesManager.uses_pages_directory = previous
 
 
 def test_first_proof_profile_uses_public_weather_demo() -> None:

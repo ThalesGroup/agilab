@@ -155,6 +155,7 @@ def route_specs(profile: str = "first-proof") -> list[RouteSpec]:
             },
         ),
         RouteSpec("pytorch playground project", query={"active_app": "pytorch_playground_project"}),
+        RouteSpec("autonomous notebook app", path="/AGENT_DEMO"),
     ]
 
 
