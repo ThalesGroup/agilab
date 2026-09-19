@@ -309,6 +309,18 @@ def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
     assert dockerfile.index(verification) < dockerfile.index('CMD [')
 
 
+def test_free_threaded_benchmark_is_isolated_and_verified_before_serving() -> None:
+    dockerfile = _load_module().DOCKERFILE_TEMPLATE
+    assert 'ENV AGI_PYTHON_FREE_THREADED="0"' in dockerfile
+    assert 'ENV AGILAB_FREE_THREADING_PYTHON="/home/user/python3.14t"' in dockerfile
+    assert "uv python install 3.14.6t" in dockerfile
+    assert "assert not sys._is_gil_enabled()" in dockerfile
+    check = "python /app/src/agilab/agent_runtime/notebook_execution_verifier.py"
+    assert "RUN cd /app/src/agilab/resources/free_threading_demo &&" in dockerfile
+    assert dockerfile.index("uv python install 3.14.6t") < dockerfile.index(check)
+    assert dockerfile.index(check) < dockerfile.index('CMD [')
+
+
 def test_space_entrypoint_avoids_legacy_pages_router(tmp_path) -> None:
     from streamlit.runtime.pages_manager import PagesManager
 
