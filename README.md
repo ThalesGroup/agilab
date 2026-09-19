@@ -14,7 +14,7 @@ distributed execution behind the same run evidence contract.
 
 **[Open the interactive demo →](https://huggingface.co/spaces/jpmorard/tokki)** in the
 [public Tokki Hugging Face Space](https://huggingface.co/spaces/jpmorard/tokki).
-One request turned a pinned
+For the original Iris example, one request turned a pinned
 [Géron decision-tree notebook](https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb)
 into a tested app in **4 min 45 sec**, with three models and three workflow
 stages. Tokki coordinated the autonomous agent and verification. Change the model controls and run the model,
@@ -27,6 +27,15 @@ using GIL-on threads, GIL-off threads, and processes. It checks matching image
 hashes and reports repeated timings on the machine's actual CPU allowance.
 The GIL-on control uses the same free-threaded Python build; results describe
 local CPU scaling, not distributed scaling or full-stack free-threading support.
+
+The fifth app, **[MILP Energy Lab](https://huggingface.co/spaces/jpmorard/tokki?demo=milp)**,
+lets you design a synthetic energy system, inspect integer schedules and solver
+bounds, save scenarios, and reproduce results. Its agent build took **24 minutes**
+and produced three workflow stages from a pinned 2026 PyPSA notebook (CC BY 4.0).
+HiGHS solves each scenario with one thread. The lab measures identical batches
+on one and multiple AGILAB workers, including startup overhead; parallel runs
+can be slower. Source, licenses, inputs and the workflow are downloadable.
+
 Each demo preserves its autonomous build receipt and downloadable workflow. New
 autonomous builds run locally through [Tokki](https://github.com/jpmorard/tokki-public)
 with your configured provider.
