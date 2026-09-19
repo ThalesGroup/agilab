@@ -108,6 +108,11 @@ PyPI package: https://pypi.org/project/agilab
 - Apps: `{apps}`
 - Pages: `{pages}`
 
+Open **AGENT DEMO** in the sidebar to use the classifier generated from Géron's
+notebook by a real Tokki autonomous run. The page includes the generated workflow,
+verification results and a check of the deployed app. New autonomous builds require
+a local licensed Tokki environment with provider access.
+
 Use a local source checkout for private apps, mounted data, remote clusters, or
 the heavier advanced proof pack.
 """
@@ -167,6 +172,7 @@ COPY --chown=1000:1000 pyproject.toml ./pyproject.toml
 COPY --chown=1000:1000 uv_config.toml ./uv_config.toml
 COPY --chown=1000:1000 docker/install.sh ./install.sh
 COPY --chown=1000:1000 seed_hf_app_settings.py ./seed_hf_app_settings.py
+COPY --chown=1000:1000 hf_app.py ./hf_app.py
 
 ENV AGI_PYTHON_VERSION="3.14"
 ENV AGI_PYTHON_FREE_THREADED="0"
@@ -210,15 +216,18 @@ RUN if [ -d /home/user/localshare ]; then \\
       cp -a /home/user/localshare/. /home/user/clustershare/; \\
     fi
 
-RUN uv sync --project /app --extra ui && \\
+RUN uv sync --project /app --extra ui --extra notebook-agent && \\
     rm -rf /tmp/uv-cache /home/user/.cache/uv
+
+RUN cd /app/src/agilab/resources/notebook_agent_demo && \\
+    uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py
 
 EXPOSE 7860
 
 CMD ["bash", "-c", \\
     "uv run --project /app --no-sync python /app/src/agilab/apps/install.py /app/src/agilab/apps/builtin/flight_telemetry_project --verbose 0 && \\
      AGILAB_PUBLIC_BIND_OK=1 AGILAB_TLS_TERMINATED=1 \\
-     uv run --project /app --extra ui --no-sync streamlit run /app/src/agilab/main_page.py \\
+     uv run --project /app --extra ui --extra notebook-agent --no-sync streamlit run /app/hf_app.py \\
      --server.port 7860 \\
      --server.address 0.0.0.0 \\
      --server.headless true \\
@@ -458,6 +467,13 @@ def write_profile_assets(stage_dir: Path, profile: str, apps: Sequence[str], pag
     )
     (stage_dir / ".dockerignore").write_text(DOCKERIGNORE, encoding="utf-8")
     (stage_dir / "seed_hf_app_settings.py").write_text(SEED_HF_APP_SETTINGS, encoding="utf-8")
+    # Keep the entry point away from src/agilab/pages: Streamlit otherwise
+    # resolves a cold deep link through its legacy pages-directory router
+    # before main_page can register AGILAB's st.navigation routes.
+    (stage_dir / "hf_app.py").write_text(
+        'import runpy\n\nrunpy.run_module("agilab.main_page", run_name="__main__")\n',
+        encoding="utf-8",
+    )
 
 
 def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[str, Any]:

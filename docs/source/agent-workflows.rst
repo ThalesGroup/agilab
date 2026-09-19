@@ -265,10 +265,15 @@ AGILAB keeps the agent evidence layer deliberately small and provider-neutral:
   should stay out of public JSON.
 - The read side can produce redacted continuation cards, deterministic
   next-action cards, filtered context packs, follow-up lineage graphs, and
-  pairwise run comparisons. It can also validate manifest structure, trace
-  sequence, and referenced artifact presence before another agent trusts the
-  evidence. These surfaces point to local artifacts but do not embed
-  stdout/stderr contents.
+  pairwise run comparisons. Validation checks manifest structure, trace
+  sequence, terminal status/return-code consistency, and recorded stdout/stderr
+  and ownership-claim hashes and sizes. A late runner publication failure keeps
+  the command's earlier outcome separate from the final infrastructure failure.
+  Inspect ``content_integrity.status`` separately from the command outcome:
+  legacy records without hashes remain readable with ``unverified`` integrity.
+  Matching recorded bytes does not establish producer authenticity, exact
+  executed source, or task quality. These surfaces do not embed stdout/stderr
+  contents.
 
 The base package records protocol bridges as evidence labels only. Add
 ``--protocol-adapter mcp`` or ``--capability app-as-tool`` when experimenting
@@ -418,6 +423,139 @@ AGILAB: ``gpt-oss``, ``qwen``, ``deepseek``, ``qwen3``, ``qwen3-coder``,
 ``devstral``, ``ministral``, and ``phi4-mini``. If a model is served through
 vLLM or another OpenAI-compatible gateway instead of Ollama, configure the
 AGILAB assistant with ``AGILAB_LLM_BASE_URL`` and ``AGILAB_LLM_MODEL``.
+
+Bounded evidence for agent clients
+----------------------------------
+
+``agent_handoff`` includes the latest 20 trace messages, bounded by encoded size,
+with total and omitted event counts. Use the read-only ``read_agent_trace`` MCP
+tool for earlier details: supply ``manifest_path``, then follow ``next_cursor``.
+Pages default to 50 events and 32 KiB of JSON, with configurable limits of 100
+events and 64 KiB. Oversized events are marked as truncated. An incomplete crash
+tail stops pagination and supplies a ``resume_cursor`` for a later read; it is
+not an endless next page. Records larger than 1 MiB are rejected explicitly.
+``list_agent_runs`` supports ``offset`` and ``next_offset`` with stable timestamp
+and path ordering; the inventory can change between requests.
+
+Real command output is captured incrementally. Each stdout/stderr artifact holds
+at most 8 MiB of complete redacted lines; lines exceeding 64 KiB are omitted.
+``output_capture`` records observed/stored bytes, oversized lines and incomplete
+streams. Tokens split across read chunks and multiline Bearer credentials retain
+redaction. A failed capture or a timeout with open inherited pipes cannot count
+as successful evidence. Cancellation signals only the process/group launched by
+the active capture; Windows cleanup covers the direct child. Detached descendants
+and external side effects are outside this lifetime guarantee.
+
+The MCP stdio server negotiates supported protocol versions per connection.
+Clients using 2025-06-18 or 2025-11-25 receive ``structuredContent`` and output
+schemas alongside compatible text content. Older clients retain text results.
+Input schemas are checked before execution; malformed parameters, tool failures
+and evidence-integrity failures remain distinct. Error text is redacted and
+bounded. Read-only annotations describe behavior; configured read roots remain
+the access boundary. The server does not advertise experimental MCP Tasks.
+
+Frozen experiments and independent acceptance
+---------------------------------------------
+
+The packaged pilot compares a baseline that treats missing measurements as zero
+with a candidate that excludes them. Both commands exit successfully; a separate
+grader accepts only the correct result. Run it without a model service or apps
+workspace:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.experiment_demo --output /tmp/agilab-agent-pilot
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.experiment verify /tmp/agilab-agent-pilot/candidate attempts/pilot/receipt.json
+
+Use a new output directory. ``comparison.json`` retains both attempts and their
+acceptance outcomes. Unobserved model usage stays null. The comparison API can
+observe a single complete terminal Codex usage report from a registered output
+artifact; malformed, repeated or incomplete reports remain unmeasured. Missing
+cache breakdowns stay unknown. These are local provider reports, not billing
+attestation, and this deterministic pilot is not a model-quality benchmark.
+
+For your own trusted Python experiment, use ``python -m
+agilab.agent_runtime.experiment prepare --help`` to select source and input files,
+a separate grader, declared outputs and acceptance check identifiers. Preparation
+freezes the selected bytes in ``snapshot/`` and seals ``plan.json``. Execution
+rejects changed original inputs, copies the snapshot, records the interpreter and
+actual command, and launches the grader from a separate frozen copy. Run with
+``run <root> --attempt-id <id>``; ``--resume`` reuses only matching completed
+checkpoints. An ambiguous native command claim cannot be replayed under that id.
+
+Each attempt retains native command evidence, launch and grader-input checkpoints,
+output hashes and an ``agilab.agent_experiment_receipt.v1`` receipt. Verification
+checks content and execution binding independently of whether acceptance passed.
+Failed evaluations can have valid receipts. Complete bundles can move on the same
+operating system; cross-OS path translation is not supported. Original source
+availability is reported separately from retained receipt verification.
+
+This local executor runs trusted code with the operator's permissions. It does
+not sandbox code, isolate networking, freeze installed dependencies or attest
+producer identity. Selected source/input snapshots may contain private data and
+stay in the operator's local evidence store.
+
+Durable selected experiment tasks
+---------------------------------
+
+Use the local task store when an agent experiment needs persistent approval,
+background execution or interruption recovery. First prepare an experiment under
+``<store>/experiments/<name>`` with the preparation command above. Register that
+relative directory and submit a stable request key:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks register /tmp/agilab-tasks demo experiments/demo
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks submit /tmp/agilab-tasks demo request-1
+
+Registration fixes the selected plan digest. Submission returns a task id,
+attempt number and ``awaiting_approval`` status. Reusing that request key returns
+the same task; using it for another action fails. Review the registered plan and
+record the exact digest and observed attempt with the local operator CLI:
+
+.. code-block:: bash
+
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks approve /tmp/agilab-tasks <task-id> --plan-sha256 <digest> --attempt 1
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks start /tmp/agilab-tasks <task-id> --attempt 1
+   uv --preview-features extra-build-dependencies run python -m agilab.agent_runtime.tasks status /tmp/agilab-tasks <task-id>
+
+``deny`` uses the same digest and attempt arguments. ``cancel`` also requires
+``--attempt`` and persists cancellation intent. A live worker stops only its own
+command; cancellation is terminal only with observed direct-command termination
+or before execution starts. Detached descendants and external side effects remain
+outside this guarantee. A dead worker's released lease alone cannot prove its
+child stopped; such cases remain interrupted with termination unverified.
+
+``reconcile <store> <task-id>`` verifies a retained receipt after worker death
+without executing code. If evidence is incomplete, inspect the command's side
+effects before using ``resume ... --attempt <n>`` or ``retry ... --attempt <n>``.
+Resume reuses only matching checkpoints and respects permanent native claims.
+Retry retains old evidence, creates a new attempt and requires new local approval.
+Old approval, start and cancellation requests cannot affect that new attempt.
+No exactly-once guarantee is made for arbitrary external side effects.
+
+Task states are immutable versioned JSON under ``tasks/<id>/states/``; approval,
+request binding and receipt references survive server restarts. Kernel locks
+serialize state publication and active workers without deleting lock files or
+using remembered PIDs to take over another process. Stores are bounded to 32
+attempts and 512 revisions per task and require local filesystems supporting
+advisory locks and atomic hard-link publication. The store is operator-owned;
+its hashes and approval records do not authenticate the operator.
+
+MCP remains read-only by default. To explicitly enable selected tasks, launch:
+
+.. code-block:: bash
+
+   agilab-mcp serve --task-root /tmp/agilab-tasks
+
+``agent_quickstart`` remains read-only and describes both evidence and task
+boundaries. The per-connection adapter adds ``list_task_actions``,
+``submit_agent_task``, ``read_agent_task``, ``start_agent_task`` and
+``cancel_agent_task``. Start/cancel require the observed ``attempt``. The adapter
+accepts registered action ids, not paths, commands or new arguments; approval,
+registration, resume and retry remain local operator actions. Prepared trusted
+Python still runs with operator permissions and can access external resources.
+This adapter does not implement or advertise the experimental MCP Tasks protocol.
 
 Where to read the repo-local files
 ----------------------------------

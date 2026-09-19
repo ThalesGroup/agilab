@@ -1,3 +1,4 @@
+from agilab.pipeline.pipeline_lab_contracts import PipelineLabDeps as PipelineLabDeps
 import importlib.util
 import hashlib
 import json
@@ -11,6 +12,10 @@ from typing import Any, Callable, Dict, List, Mapping, Optional
 import pandas as pd
 from agilab.components.code_editor_component import code_editor
 import streamlit as st
+from agilab.pipeline.pipeline_page_state import (
+    prepare_pipeline_editor_updates,
+    hydrate_pipeline_editor_values,
+)
 from agilab.pipeline.pipeline_dag_inspection import (
     _multi_app_dag_stage_links,
     _multi_app_dag_graph_state,
@@ -4144,39 +4149,6 @@ def _render_global_runner_state_panel(
         )
 
 
-@dataclass(frozen=True)
-class PipelineLabDeps:
-    load_all_stages: Callable[..., Any]
-    save_stage: Callable[..., Any]
-    remove_stage: Callable[..., Any]
-    force_persist_stage: Callable[..., Any]
-    capture_pipeline_snapshot: Callable[..., Any]
-    restore_pipeline_snapshot: Callable[..., Any]
-    run_all_stages: Callable[..., Any]
-    prepare_run_log_file: Callable[..., Any]
-    get_run_placeholder: Callable[..., Any]
-    push_run_log: Callable[..., Any]
-    rerun_fragment_or_app: Callable[..., Any]
-    bump_history_revision: Callable[..., Any]
-    ask_gpt: Callable[..., Any]
-    configure_assistant_engine: Callable[..., Any]
-    maybe_autofix_generated_code: Callable[..., Any]
-    load_df_cached: Callable[..., Any]
-    ensure_safe_service_template: Callable[..., Any]
-    inspect_pipeline_run_lock: Callable[..., Any]
-    refresh_pipeline_run_lock: Callable[..., Any]
-    acquire_pipeline_run_lock: Callable[..., Any]
-    release_pipeline_run_lock: Callable[..., Any]
-    label_for_stage_runtime: Callable[..., Any]
-    python_for_stage: Callable[..., Any]
-    python_for_venv: Callable[..., Any]
-    stream_run_command: Callable[..., Any]
-    run_locked_stage: Callable[..., Any]
-    load_pipeline_conceptual_dot: Callable[..., Any]
-    render_pipeline_view: Callable[..., Any]
-    default_df: str
-    safe_service_template_filename: str
-    safe_service_template_marker: str
 
 
 def _stale_snippet_path_key(path: object) -> str:
@@ -4756,58 +4728,12 @@ def display_lab_tab(
         pending_q_key = f"{safe_prefix}_pending_q_{stage}"
         pending_c_key = f"{safe_prefix}_pending_c_{stage}"
         undo_key = f"{safe_prefix}_undo_{stage}"
-        apply_q_key = f"{q_key}_apply_pending"
-        apply_c_key = f"{code_val_key}_apply_pending"
         confirm_delete_key = f"{safe_prefix}_confirm_delete_{stage}"
 
-        # Apply any pending updates (set during a previous run-trigger) before rendering widgets.
-        pending_q = st.session_state.pop(pending_q_key, None)
-        pending_c = st.session_state.pop(pending_c_key, None)
-        if pending_q is not None:
-            st.session_state[apply_q_key] = pending_q
-        if pending_c is not None:
-            st.session_state[apply_c_key] = pending_c
-        if (pending_q is not None or pending_c is not None) and (q_key in st.session_state or code_val_key in st.session_state):
-            st.session_state.pop(q_key, None)
-            st.session_state.pop(code_val_key, None)
+        if prepare_pipeline_editor_updates(st.session_state, safe_prefix, stage):
             _rerun_fragment_or_app()
-
-        initial_q = entry.get("Q", "")
-        initial_c = entry.get("C", "")
-        apply_q = st.session_state.pop(apply_q_key, None)
-        apply_c = st.session_state.pop(apply_c_key, None)
-        init_key = f"{safe_prefix}_stage_init_{stage}"
-        resync_sig_key = f"{safe_prefix}_editor_resync_sig_{stage}"
+        hydrate_pipeline_editor_values(st.session_state, safe_prefix, stage, entry)
         ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{stage}"
-        seeded_c: Optional[str] = None
-        if not st.session_state.get(init_key):
-            st.session_state[q_key] = apply_q if apply_q is not None else initial_q
-            seeded_code = apply_c if apply_c is not None else initial_c
-            st.session_state[code_val_key] = seeded_code
-            seeded_c = seeded_code or None
-            st.session_state[init_key] = True
-        else:
-            if apply_q is not None or q_key not in st.session_state:
-                st.session_state[q_key] = apply_q if apply_q is not None else initial_q
-            if apply_c is not None:
-                seeded_c = apply_c
-                st.session_state[code_val_key] = apply_c
-            else:
-                current_c = st.session_state.get(code_val_key, "")
-                if code_val_key not in st.session_state or (not current_c and initial_c):
-                    seeded_c = initial_c
-                    st.session_state[code_val_key] = initial_c
-        if seeded_c is not None:
-            last_sig = st.session_state.get(resync_sig_key)
-            if last_sig != seeded_c:
-                st.session_state[resync_sig_key] = seeded_c
-                st.session_state[ignore_blank_key] = True
-                st.session_state[rev_key] = st.session_state.get(rev_key, 0) + 1
-        if rev_key not in st.session_state:
-            st.session_state[rev_key] = 0
-        if undo_key not in st.session_state or not st.session_state[undo_key]:
-            initial_snapshot = (entry.get("Q", ""), entry.get("C", ""))
-            st.session_state[undo_key] = [initial_snapshot]
 
         current_path = _valid_runtime_path(selected_map.get(stage, ""))
         if not current_path:
@@ -6179,7 +6105,7 @@ def display_lab_tab(
                         pipeline_max_workers=selected_pipeline_max_workers,
                         pipeline_stage_deps=deps_state,
                     )
-                except Exception:
+                except BaseException:
                     finish_result = finish_pipeline_run_command(
                         session_state=st.session_state,
                         index_page=index_page_str,

@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 import pandas as pd
 
 from agi_env import normalize_path
+from agilab.pipeline.prompt_context import build_repair_prompt
 
 try:
     from agilab.security.untrusted_content_boundary import build_untrusted_content_boundary
@@ -463,7 +464,11 @@ def _ollama_generate(
 
 
 def prompt_to_plaintext(prompt: List[Dict[str, str]], question: str) -> str:
-    """Flatten the conversation history into plaintext for local providers."""
+    """Flatten context already selected by the shared provider dispatcher.
+
+    Selection belongs to the dispatcher, which knows the actual instructions
+    and records the receipt. Formatting must preserve that selected packet.
+    """
     lines: List[str] = []
     for item in prompt or []:
         content = item.get("content", "")
@@ -1343,16 +1348,10 @@ def _build_autofix_prompt(
     traceback_text: str,
     attempt: int,
 ) -> str:
-    clipped_trace = (traceback_text or "").strip()
-    if len(clipped_trace) > 4000:
-        clipped_trace = clipped_trace[-4000:]
-    clipped_code = (failing_code or "").strip()
-    if len(clipped_code) > 6000:
-        clipped_code = clipped_code[:6000]
-    return (
-        f"{CODE_STRICT_INSTRUCTIONS}\n\n"
-        f"You generated Python code for the following request:\n{original_request.strip()}\n\n"
-        f"The code failed when executed (attempt {attempt}). Fix it.\n\n"
-        f"Traceback:\n{clipped_trace}\n\n"
-        f"Failing code:\n```python\n{clipped_code}\n```"
+    return build_repair_prompt(
+        original_request=original_request,
+        failing_code=failing_code,
+        traceback_text=traceback_text,
+        attempt=attempt,
+        instructions=CODE_STRICT_INSTRUCTIONS,
     )

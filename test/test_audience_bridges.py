@@ -1269,7 +1269,7 @@ def test_manifest_tools_reject_invalid_limits_and_manifest_shapes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("AGILAB_MCP_ALLOWED_ROOTS", str(tmp_path))
-    with pytest.raises(ValueError, match="limit must be >= 0"):
+    with pytest.raises(ValueError, match="limit must be an integer between 0 and 100"):
         manifest_tools.list_agent_runs(log_root=tmp_path, limit=-1)
     with pytest.raises(ValueError, match="limit must be >= 0"):
         manifest_tools.agent_context(log_root=tmp_path, limit=-1)

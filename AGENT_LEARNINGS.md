@@ -1,19 +1,16 @@
 # AGILAB Agent Learnings
 
-This compact correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md`,
-and repo-managed skills. It records recurring agent mistakes, not task logs.
+This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skills; it records recurring mistakes, not task logs.
 
 ## When to add a rule
 
 - Add a rule only after a user, reviewer, or failed validation corrects an agent
   behavior that is not already covered by the repo runbooks.
-- Write one concrete rule that changes future behavior; avoid generic warnings
-  such as "be careful".
+- Write one concrete rule that changes behavior; avoid generic warnings such as "be careful".
 - Tighten an existing rule instead of adding a duplicate.
 - Promote durable workflow rules into `AGENTS.md`, `AGENT_CONVENTIONS.md`,
   skills, or tests when they become more than a correction note.
-- Prune entries when the underlying issue is fixed by code, tooling, or a
-  clearer upstream contract.
+- Prune entries when code, tooling or a clearer upstream contract fixes the issue.
 
 ## Maintenance contract
 
@@ -24,8 +21,11 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
 
 ## Current rules
 
+- When replacing buffered logs with streaming capture, regress split and multiline
+  secrets, inherited stdin, open descendant pipes, and late-publication failures;
+  carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
-  After schema or package-version changes, run the workflow parity `skills` profile;
+  After schema additions, source moves or package-version changes, run the `skills` parity profile;
   commit generated discovery artifacts and rerun it to prove there is no drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
@@ -54,9 +54,9 @@ and repo-managed skills. It records recurring agent mistakes, not task logs.
   step after its safety gate, report the result, and provide the next
   recommendation without requiring a second user round trip unless a real
   blocker needs input.
-- When asked for token-saving or workflow-saving tactics and a repo-local default
-  is clear, state the assumed target, choose the highest-leverage applicable
-  mechanism, and implement it or name the exact blocker; avoid broad clarification menus.
+- For token-saving work, use existing scoped mechanisms and name blockers instead of broad clarification menus.
+  Preserve canonical-path safety/evidence ownership after moves; regress narrow requests as well as broad ones.
+  Measure selected excerpts and report omissions; configured allowances are not usage, and mandatory policy must remain intact.
 - When a product or code fix was designed or implemented with model assistance,
   request a review from a stronger model before closing, pushing, or merging
   when that is available. If no stronger model is available, say so explicitly

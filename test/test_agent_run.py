@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import multiprocessing
+import queue
 import subprocess
 import sys
 import types
@@ -39,25 +40,6 @@ def _load_module():
         else:
             sys.modules["agilab"] = previous_package
     return module
-
-
-def _agent_run_process(output_dir: str, start, results) -> None:
-    module = _load_module()
-    start.wait(timeout=10)
-    try:
-        result = module.trace_agent_run(
-            [sys.executable, "-c", "import time; time.sleep(0.2)"],
-            agent="codex",
-            label="Concurrent claim",
-            cwd=ROOT,
-            output_dir=Path(output_dir),
-            run_id="same-run",
-            permission_level="standard",
-        )
-    except BaseException as exc:
-        results.put(("error", type(exc).__name__, str(exc)))
-    else:
-        results.put(("ok", result.returncode, ""))
 
 
 def test_agent_run_print_only_json_is_redacted(tmp_path: Path, capsys) -> None:
@@ -263,28 +245,47 @@ def test_trace_agent_run_public_python_api_executes_and_redacts(tmp_path: Path, 
     assert "sk-secret" not in events
 
 
-def test_agent_run_output_directory_is_exclusively_claimed_across_processes(tmp_path: Path) -> None:
+def test_agent_run_output_directory_is_exclusively_claimed_across_processes(
+    tmp_path: Path,
+) -> None:
+    support_path = str(ROOT / "test")
+    if support_path not in sys.path:
+        sys.path.insert(0, support_path)
+    from _agent_run_process_support import agent_run_process
+
     context = multiprocessing.get_context("spawn")
     start = context.Event()
     results = context.Queue()
     processes = [
-        context.Process(target=_agent_run_process, args=(str(tmp_path), start, results))
+        context.Process(target=agent_run_process, args=(str(tmp_path), start, results))
         for _ in range(2)
     ]
     for process in processes:
         process.start()
     start.set()
-    outcomes = [results.get(timeout=15) for _ in processes]
-    for process in processes:
-        process.join(timeout=15)
-        assert process.exitcode == 0
+    try:
+        outcomes = [results.get(timeout=15) for _ in processes]
+    except queue.Empty:
+        pytest.fail(
+            f"Agent claim workers produced no result: {[(p.pid, p.exitcode) for p in processes]}"
+        )
+    finally:
+        for process in processes:
+            process.join(timeout=5)
+            if process.is_alive():
+                process.terminate()
+                process.join(timeout=5)
+        results.close()
+    assert all(process.exitcode == 0 for process in processes)
 
     assert sum(outcome[0] == "ok" for outcome in outcomes) == 1
     collision = next(outcome for outcome in outcomes if outcome[0] == "error")
     assert collision[1] == "FileExistsError"
     assert "already claimed" in collision[2]
     module = _load_module()
-    claim = json.loads((tmp_path / module.RUN_CLAIM_FILENAME).read_text(encoding="utf-8"))
+    claim = json.loads(
+        (tmp_path / module.RUN_CLAIM_FILENAME).read_text(encoding="utf-8")
+    )
     manifest = module.load_agent_run_manifest(tmp_path)
     assert claim["run_id"] == "same-run"
     assert manifest["run_id"] == "same-run"
@@ -540,6 +541,7 @@ def test_agent_run_publication_failure_recommits_terminal_failure_evidence(
         output_dir=tmp_path,
         run_id="publication-failure",
         permission_level="standard",
+        runner=lambda *args, **kwargs: subprocess.run(*args, **kwargs),
     )
 
     assert publication_failed is True

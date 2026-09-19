@@ -108,6 +108,10 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         Path("src/agilab/ui/page_bootstrap.py"),
         Path("src/agilab/bridge_cli.py"),
         Path("src/agilab/lib/agi-pages/src/agi_pages/runtime.py"),
+        # Immutable, hash-verified output of a standalone agent build. Its
+        # page config belongs to that app, not AGILAB's first-party UI.
+        Path("src/agilab/resources/notebook_agent_demo/app.py"),
+        Path("src/agilab/resources/text_notebook_demo/app.py"),
     }
     ignored_parts = {
         ".mypy_cache",
@@ -1620,6 +1624,7 @@ def test_navigation_pages_reuses_cached_specs_but_returns_fresh_pages(monkeypatc
     assert second_routes["project_editor"] is second_pages[3]
     assert second_routes["settings"] is second_pages[1]
     assert second_routes["project_status"] is second_routes["project"]
+    assert second_routes["agent_demo"].kwargs["url_path"] == "AGENT_DEMO"
     assert second_routes["workflow"].kwargs["url_path"] == "WORKFLOW"
     assert len(created_pages) == len(pages) * 2
     assert main_page._PAGE_CACHE_STATS["navigation_miss"] == 1
@@ -1663,7 +1668,10 @@ def test_navigation_page_registry_is_isolated_between_streamlit_sessions(monkeyp
     assert first_created == first_pages
     assert second_created == second_pages
     assert all(second_routes[key] is not first_routes[key] for key in first_routes)
-    assert second_routes["analysis"] is second_pages[-1]
+    assert second_routes["analysis"] in second_pages
+    assert second_routes["analysis"].kwargs["url_path"] == "ANALYSIS"
+    assert second_routes["agent_demo"] in second_pages
+    assert second_routes["agent_demo"].kwargs["url_path"] == "AGENT_DEMO"
 
     monkeypatch.setattr(main_page, "st", first_st)
     assert dict(main_page._NAVIGATION_PAGE_ROUTES) == first_routes
@@ -3715,7 +3723,7 @@ def test_experiment_page_delete_cancel_fragment_flow(mock_ui_env, tmp_path):
         assert not at.exception
         assert at.text_area(key=f"{safe_prefix}_q_stage_0").value == "demo prompt"
         confirm_state_key = f"{safe_prefix}_confirm_delete_0"
-        assert not at.session_state.filtered_state.get(confirm_state_key, False)
+        assert confirm_state_key not in at.session_state or not at.session_state[confirm_state_key]
 
 
 def test_experiment_page_lab_switch_refreshes_in_virgin_session(mock_ui_env, tmp_path):

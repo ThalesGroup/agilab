@@ -1,2 +1,4 @@
 *.zip filter=lfs diff=lfs merge=lfs -text
 *.7z filter=lfs diff=lfs merge=lfs -text
+# Preserve the exact upstream Apache license bytes, including its final blank line.
+src/agilab/resources/notebook_agent_demo/LICENSE whitespace=-blank-at-eof
