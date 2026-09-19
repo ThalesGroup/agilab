@@ -225,7 +225,13 @@ def test_dead_worker_does_not_prove_candidate_cancelled(tmp_path, order):
     late = tmp_path / "late-effect.txt"
     store, state, _, counter = prepare(
         tmp_path,
-        code=f"import time\ntime.sleep(0.8)\nPath({str(late)!r}).write_text('still ran')\n",
+        # Publish the fixture's completion marker atomically: file creation can
+        # become visible before write_text has written and closed its payload.
+        code=(f"import time\ntime.sleep(0.8)\n"
+              f"marker = Path({str(late)!r})\n"
+              "pending = marker.with_suffix('.pending')\n"
+              "pending.write_text('still ran')\n"
+              "pending.replace(marker)\n"),
     )
     approve(store, state)
     command = [
