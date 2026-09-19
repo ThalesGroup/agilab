@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-11T09:49:20Z",
+  "generated_at_utc": "2026-09-19T16:51:09Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -17,15 +17,56 @@
     "does_not_prove": "It does not prove runtime success, external service reachability, security certification, or production readiness."
   },
   "summary": {
-    "cli_command_count": 13,
+    "cli_command_count": 16,
     "streamlit_page_count": 6,
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 270,
+    "evidence_schema_count": 287,
     "catalog_file_count": 12
   },
   "cli_commands": [
+    {
+      "id": "agent-tasks",
+      "command": "python -m agilab.agent_runtime.tasks --help",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Persist selected experiment tasks with exact-attempt approval, worker leases, cancellation, reconciliation and explicit retry; optional MCP adapter uses --task-root.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_task.v1",
+        "agilab.agent_task_action.v1"
+      ]
+    },
+    {
+      "id": "agent-experiment",
+      "command": "python -m agilab.agent_runtime.experiment prepare|run|verify ...",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Execute selected frozen Python inputs and independently grade outputs with verifiable attempt receipts.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_experiment_plan.v1",
+        "agilab.agent_experiment_receipt.v1"
+      ]
+    },
+    {
+      "id": "agent-experiment-pilot",
+      "command": "python -m agilab.agent_runtime.experiment_demo --output <new-directory>",
+      "kind": "agent-evidence",
+      "maturity": "local-proof",
+      "description": "Compare a deterministic baseline and candidate on a frozen cohort, retaining failed acceptance and unknown model usage.",
+      "docs": [
+        "docs/source/agent-workflows.rst"
+      ],
+      "evidence_outputs": [
+        "agilab.agent_experiment_comparison.v1"
+      ]
+    },
     {
       "id": "ui",
       "command": "agilab",
@@ -1013,6 +1054,12 @@
       ]
     },
     {
+      "schema": "agilab.agent_context_materialization.v1",
+      "sources": [
+        "tools/agent_context/materialize.py"
+      ]
+    },
+    {
       "schema": "agilab.agent_context_recommendation.v1",
       "sources": [
         "docs/source/agent-workflows.rst",
@@ -1035,6 +1082,54 @@
       "schema": "agilab.agent_context_rules_validation.v1",
       "sources": [
         "tools/agent_context_router.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_acceptance.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py",
+        "src/agilab/resources/agent_experiment/grader.py",
+        "tools/agent_context/benchmark_fixture/grader.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_checkpoint.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_comparison.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment_comparison.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_launch.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_plan.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_receipt.v1",
+      "sources": [
+        "docs/source/agent-workflows.rst",
+        "src/agilab/agent_runtime/experiment.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_experiment_verification.v1",
+      "sources": [
+        "src/agilab/agent_runtime/experiment.py"
       ]
     },
     {
@@ -1073,13 +1168,15 @@
     {
       "schema": "agilab.agent_run.claim.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
       "schema": "agilab.agent_run.termination.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
@@ -1088,7 +1185,7 @@
         "README.md",
         "README.pypi.md",
         "docs/source/agent-workflows.rst",
-        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/agent_runtime/verification.py",
         "src/agilab/evidence/skill_evaluation.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py",
@@ -1098,7 +1195,7 @@
     {
       "schema": "agilab.agent_run_validation.v1",
       "sources": [
-        "src/agilab/agent_runtime/agent_run.py"
+        "src/agilab/agent_runtime/verification.py"
       ]
     },
     {
@@ -1111,6 +1208,26 @@
       "schema": "agilab.agent_skill_security_scan.v1",
       "sources": [
         "tools/skill_security_scan.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task_action.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py",
+        "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_task_actions.v1",
+      "sources": [
+        "src/agilab/agent_runtime/tasks.py"
       ]
     },
     {
@@ -1129,6 +1246,12 @@
         "src/agilab/agent_runtime/agent_trace.py",
         "tools/agent_workflows.md",
         "tools/agilab_capabilities_manifest.py"
+      ]
+    },
+    {
+      "schema": "agilab.agent_trace_page.v1",
+      "sources": [
+        "src/agilab/agent_runtime/agent_trace.py"
       ]
     },
     {
@@ -1803,6 +1926,12 @@
       ]
     },
     {
+      "schema": "agilab.mcp.agent_quickstart.v1",
+      "sources": [
+        "src/agilab_mcp/manifest_tools.py"
+      ]
+    },
+    {
       "schema": "agilab.mcp.artifact_preview.v1",
       "sources": [
         "README.md",
@@ -1927,6 +2056,31 @@
         "src/agilab/dag/multi_app_dag_templates.py",
         "src/agilab/examples/inter_project_dag/preview_inter_project_dag.py",
         "tools/robustness_matrix.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_adoption.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_adoption.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_adoption_summary.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_adoption.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_agent.public_demo.v1",
+      "sources": [
+        "src/agilab/agent_runtime/forecast_showcase.py",
+        "src/agilab/agent_runtime/text_showcase.py",
+        "src/agilab/resources/forecast_notebook_demo/result.json",
+        "src/agilab/resources/notebook_agent_demo/result.json",
+        "src/agilab/resources/text_notebook_demo/result.json",
+        "tools/demos/export_forecast_notebook_demo.py",
+        "tools/demos/export_notebook_agent_demo.py",
+        "tools/demos/export_text_notebook_demo.py"
       ]
     },
     {
@@ -2173,6 +2327,13 @@
       "schema": "agilab.promotion_evidence_manifest.v1",
       "sources": [
         "src/agilab/evidence/promotion_dossier.py"
+      ]
+    },
+    {
+      "schema": "agilab.prompt_context.v1",
+      "sources": [
+        "src/agilab/pipeline/pipeline_ai.py",
+        "src/agilab/pipeline/prompt_context.py"
       ]
     },
     {

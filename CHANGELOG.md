@@ -23,11 +23,17 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
-Release target: **2026.09.09**. The changes below are merged in source and
-await package publication.
+## [2026.09.09] - 2026-09-11
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
+
+Publication evidence: [successful recovery workflow](https://github.com/ThalesGroup/agilab/actions/runs/34578309790).
 
 ### Changed
 
+- Published AGILAB `2026.09.09` to PyPI for `agi-env`, `agi-gui`, `agi-page-timeseries-forecast`, `agi-page-live-artifacts`, `agi-page-geospatial-map`, `agi-page-network-map`, `agi-page-feature-attribution`, `agi-page-training-report`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-data-quality-gate`, `agi-app-learning-assessment`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 - Added an offline first-proof execution tour and a replayable guided drift
   lesson in Learning & Assessment.
 - Added frozen skill receipts, source-linked evidence graph explanations, and
@@ -976,3 +982,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.07.17.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.17_1
 [2026.07.31]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31
 [2026.09.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
+[2026.09.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1

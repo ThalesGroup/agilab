@@ -16,7 +16,7 @@ PAGES_ROOT = ROOT / "src" / "agilab" / "pages"
 
 # The user-visible sidebar contract: these labels (and their URLs) must not
 # change without an explicit product decision.
-EXPECTED_VISIBLE_ENTRIES = ("PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS")
+EXPECTED_VISIBLE_ENTRIES = ("PROJECT", "ORCHESTRATE", "WORKFLOW", "ANALYSIS", "AGENT DEMO")
 
 # Deprecated deep-link aliases kept as redirects. This set must only shrink.
 EXPECTED_REDIRECT_ALIASES = {"PROJECT_EDIT", "PROJECT_STATUS"}
@@ -53,7 +53,7 @@ def test_visible_sidebar_labels_are_pinned():
     visible = [spec for spec in specs if spec["visibility"] is None]
     assert tuple(spec["title"] for spec in visible) == EXPECTED_VISIBLE_ENTRIES
     for spec in visible:
-        assert spec["url_path"] == spec["title"], spec
+        assert spec["url_path"] == str(spec["title"]).replace(" ", "_"), spec
 
 
 def test_url_aliases_are_bounded_redirects():

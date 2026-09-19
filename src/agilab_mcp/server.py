@@ -1,4 +1,4 @@
-"""Minimal read-only MCP-style stdio server for AGILAB evidence."""
+"""Read-only MCP evidence by default, with opt-in approved experiment tasks."""
 
 from __future__ import annotations
 
@@ -6,11 +6,13 @@ import argparse
 import base64
 import inspect
 import json
+from pathlib import Path
 import sys
 from typing import Any, Callable, Mapping
 
 from agilab_mcp import manifest_tools
 from agilab_mcp.artifact_preview import ArtifactPreview
+from agilab_mcp.tool_contract import complete_descriptors, validate_schema
 from agilab.secret_uri import redact_text
 
 
@@ -46,6 +48,7 @@ TOOLS: dict[str, ToolFn] = {
     "list_runs": manifest_tools.list_runs,
     "list_agent_runs": manifest_tools.list_agent_runs,
     "read_agent_run": manifest_tools.read_agent_run,
+    "read_agent_trace": manifest_tools.read_agent_trace,
     "summarize_agent_run": manifest_tools.summarize_agent_run,
     "agent_handoff": manifest_tools.agent_handoff,
     "agent_next_actions": manifest_tools.agent_next_actions,
@@ -61,8 +64,8 @@ TOOLS: dict[str, ToolFn] = {
 }
 
 
-def tool_descriptors() -> list[dict[str, Any]]:
-    return [
+def _evidence_descriptors() -> list[dict[str, Any]]:
+    return complete_descriptors([
         {
             "name": "agent_quickstart",
             "description": (
@@ -79,6 +82,13 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "required": [],
             },
         },
+        {"name": "read_agent_trace",
+         "description": "Read a bounded page of a registered agent trace; follow next_cursor for more.",
+         "inputSchema": {"type": "object", "required": ["manifest_path"],
+             "properties": {"manifest_path": {"type": "string"},
+                 "cursor": {"type": "string", "maxLength": 512},
+                 "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                 "max_bytes": {"type": "integer", "minimum": 2048, "maximum": 65536}}}},
         {
             "name": "list_projects",
             "description": "List AGILAB project directories under an apps root.",
@@ -117,6 +127,7 @@ def tool_descriptors() -> list[dict[str, Any]]:
                     "protocol_adapter": {"type": "string"},
                     "capability": {"type": "string"},
                     "limit": {"type": "integer", "minimum": 0},
+                    "offset": {"type": "integer", "minimum": 0, "maximum": 100000},
                 },
             },
         },
@@ -273,24 +284,36 @@ def tool_descriptors() -> list[dict[str, Any]]:
                 "required": ["left_manifest", "right_manifest"],
             },
         },
-    ]
+    ])
 
 
-def server_manifest() -> dict[str, Any]:
-    return {
+def tool_descriptors(task_store=None) -> list[dict[str, Any]]:
+    descriptors = _evidence_descriptors()
+    if task_store is not None:
+        from agilab_mcp.task_tools import descriptors as task_descriptors
+        descriptors.extend(task_descriptors())
+    return descriptors
+
+
+def server_manifest(task_store=None) -> dict[str, Any]:
+    payload = {
         "schema": "agilab.mcp.server.v1",
         "name": "agilab-mcp",
-        "mode": "read-only",
-        "tools": tool_descriptors(),
-        "dangerous_tools": [],
+        "mode": "read-only" if task_store is None else "registered-experiments",
+        "tools": tool_descriptors(task_store),
+        "dangerous_tools": [] if task_store is None else ["submit_agent_task", "start_agent_task", "cancel_agent_task"],
         "policy": {
-            "read_only": True,
-            "local_files_only": True,
-            "execution_tools_enabled": False,
+            "read_only": task_store is None,
+            "local_files_only": task_store is None,
+            "execution_tools_enabled": task_store is not None,
             "shell_enabled": False,
             "read_boundary": manifest_tools.read_boundary(),
         },
     }
+    if task_store is not None:
+        from agilab_mcp.task_tools import BOUNDARY
+        payload["task_boundary"] = dict(BOUNDARY)
+    return payload
 
 
 def read_boundary_warning() -> str | None:
@@ -311,11 +334,14 @@ def read_boundary_warning() -> str | None:
 
 
 def call_tool(
-    name: str, arguments: Mapping[str, Any]
+    name: str, arguments: Mapping[str, Any], *, task_store=None
 ) -> dict[str, Any] | ArtifactPreview:
-    if name not in TOOLS:
+    session = ProtocolSession(task_store=task_store)
+    if name not in session.tools:
         raise ValueError(f"Unknown AGILAB MCP tool: {name}")
-    return TOOLS[name](**dict(arguments))
+    descriptor = next(item for item in session.descriptors() if item["name"] == name)
+    validate_schema(dict(arguments), descriptor["inputSchema"])
+    return session.tools[name](**dict(arguments))
 
 
 def _jsonrpc_response(
@@ -326,13 +352,20 @@ def _jsonrpc_response(
 ) -> dict[str, Any]:
     response = {"jsonrpc": "2.0", "id": request_id}
     if error is not None:
-        response["error"] = {"code": error_code, "message": str(error)}
+        response["error"] = {"code": error_code, "message": _error_text(error)}
     else:
         response["result"] = result
     return response
 
 
-def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
+def _error_text(error: Any) -> str:
+    message = redact_text(str(error))
+    if len(message) > 1000:
+        return message[:1000] + " [truncated]"
+    return message
+
+
+def _tool_content(payload: Any, *, is_error: bool = False, structured: bool = False) -> dict[str, Any]:
     """Wrap a tool outcome in an MCP ``tools/call`` result.
 
     Tool *execution* failures are reported here with ``isError`` rather than as
@@ -342,7 +375,7 @@ def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
     """
 
     if isinstance(payload, ArtifactPreview) and not is_error:
-        return {
+        result = {
             "content": [
                 {"type": "text", "text": json.dumps(payload.evidence, sort_keys=True)},
                 {
@@ -352,16 +385,22 @@ def _tool_content(payload: Any, *, is_error: bool = False) -> dict[str, Any]:
                 },
             ]
         }
+        if structured:
+            result["structuredContent"] = payload.evidence
+        return result
     text = payload if isinstance(payload, str) else json.dumps(payload, sort_keys=True)
     if is_error:
-        text = redact_text(text)
+        text = _error_text(text)
     result: dict[str, Any] = {"content": [{"type": "text", "text": text}]}
+    if structured and isinstance(payload, dict) and not is_error:
+        result["structuredContent"] = payload
     if is_error:
         result["isError"] = True
     return result
 
 
-def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
+def _handle_tools_call(request_id: Any, params: Any, *, structured: bool = False, session=None) -> dict[str, Any]:
+    session = session if session is not None else ProtocolSession()
     if not isinstance(params, Mapping):
         return _jsonrpc_response(
             request_id,
@@ -370,7 +409,7 @@ def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
         )
 
     name = str(params.get("name", ""))
-    tool = TOOLS.get(name)
+    tool = session.tools.get(name)
     if tool is None:
         return _jsonrpc_response(
             request_id,
@@ -378,7 +417,7 @@ def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
             error_code=JSONRPC_INVALID_PARAMS,
         )
 
-    arguments = params.get("arguments") or {}
+    arguments = params.get("arguments", {})
     if not isinstance(arguments, Mapping):
         return _jsonrpc_response(
             request_id,
@@ -390,21 +429,53 @@ def _handle_tools_call(request_id: Any, params: Any) -> dict[str, Any]:
     # params, and is not confused with a TypeError raised inside the tool.
     try:
         inspect.signature(tool).bind(**dict(arguments))
-    except TypeError as exc:
+        descriptor = next(item for item in session.descriptors() if item["name"] == name)
+        validate_schema(dict(arguments), descriptor["inputSchema"])
+    except (TypeError, ValueError) as exc:
         return _jsonrpc_response(
             request_id, error=exc, error_code=JSONRPC_INVALID_PARAMS
         )
 
     try:
         result = tool(**dict(arguments))
+        validate_schema(result.evidence if isinstance(result, ArtifactPreview) else result,
+                        descriptor["outputSchema"], "result")
     except Exception as exc:  # noqa: BLE001 - surfaced to the model as a tool error
         return _jsonrpc_response(
             request_id, _tool_content(f"{type(exc).__name__}: {exc}", is_error=True)
         )
-    return _jsonrpc_response(request_id, _tool_content(result))
+    return _jsonrpc_response(request_id, _tool_content(result, structured=structured))
 
 
-def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+SUPPORTED_PROTOCOLS = ("2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25")
+
+
+class ProtocolSession:
+    """Negotiation belongs to one connection, never a module-global client."""
+    def __init__(self, *, task_store=None) -> None:
+        self.version = SUPPORTED_PROTOCOLS[0]
+        self.task_store = task_store
+        self.tools = dict(TOOLS)
+        if task_store is not None:
+            from agilab_mcp.task_tools import TaskTools
+            self.tools.update(TaskTools(task_store).tools)
+            self.tools["agent_quickstart"] = self.quickstart
+
+    def descriptors(self):
+        return tool_descriptors(self.task_store)
+
+    def quickstart(self, **kwargs):
+        from agilab_mcp.task_tools import BOUNDARY
+        result = manifest_tools.agent_quickstart(**kwargs)
+        result["read_only_boundary"]["scope"] = "Evidence tools only; selected task tools have the separate boundary below"
+        result["task_boundary"] = dict(BOUNDARY)
+        result["mcp_tools"] = [{"name": d["name"], "description": d["description"]} for d in self.descriptors()]
+        result["recommended_workflow"].append("For registered experiments: list_task_actions, submit_agent_task, local operator approval, start_agent_task, then read_agent_task; cancellation is persistent.")
+        return result
+
+
+def handle_jsonrpc(payload: Mapping[str, Any], *, session: ProtocolSession | None = None) -> dict[str, Any] | None:
+    session = session if session is not None else ProtocolSession()
     method = payload.get("method")
     if "id" not in payload:
         # JSON-RPC notifications never receive responses. The server currently
@@ -413,10 +484,19 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
     request_id = payload.get("id")
     try:
         if method == "initialize":
+            params = payload.get("params", {})
+            if not isinstance(params, Mapping):
+                return _jsonrpc_response(request_id, error="initialize params must be an object",
+                                         error_code=JSONRPC_INVALID_PARAMS)
+            requested = params.get("protocolVersion", SUPPORTED_PROTOCOLS[0])
+            if not isinstance(requested, str):
+                return _jsonrpc_response(request_id, error="protocolVersion must be a string",
+                                         error_code=JSONRPC_INVALID_PARAMS)
+            session.version = requested if requested in SUPPORTED_PROTOCOLS else SUPPORTED_PROTOCOLS[-1]
             return _jsonrpc_response(
                 request_id,
                 {
-                    "protocolVersion": "2024-11-05",
+                    "protocolVersion": session.version,
                     "capabilities": {"tools": {}},
                     "serverInfo": {"name": "agilab-mcp", "version": "0.1.0"},
                     "instructions": (
@@ -427,9 +507,16 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
                 },
             )
         if method == "tools/list":
-            return _jsonrpc_response(request_id, {"tools": tool_descriptors()})
+            descriptors = session.descriptors()
+            for descriptor in descriptors:
+                if session.version < "2025-06-18":
+                    descriptor.pop("outputSchema", None)
+                if session.version < "2025-03-26":
+                    descriptor.pop("annotations", None)
+            return _jsonrpc_response(request_id, {"tools": descriptors})
         if method == "tools/call":
-            return _handle_tools_call(request_id, payload.get("params") or {})
+            return _handle_tools_call(request_id, payload.get("params", {}),
+                                      structured=session.version >= "2025-06-18", session=session)
         if method == "notifications/initialized":
             return None
         return _jsonrpc_response(
@@ -444,7 +531,7 @@ def handle_jsonrpc(payload: Mapping[str, Any]) -> dict[str, Any] | None:
 
 
 def serve_stdio(
-    stdin: Any = sys.stdin, stdout: Any = sys.stdout, stderr: Any = None
+    stdin: Any = sys.stdin, stdout: Any = sys.stdout, stderr: Any = None, *, task_store=None
 ) -> int:
     # Diagnostics must never touch stdout: it carries the JSON-RPC stream, and
     # a stray line would desynchronise the client.
@@ -453,6 +540,7 @@ def serve_stdio(
         stream = sys.stderr if stderr is None else stderr
         print(warning, file=stream)
         stream.flush()
+    session = ProtocolSession(task_store=task_store)
     for line in stdin:
         if not line.strip():
             continue
@@ -472,7 +560,7 @@ def serve_stdio(
                     error_code=JSONRPC_INVALID_REQUEST,
                 )
             else:
-                response = handle_jsonrpc(payload)
+                response = handle_jsonrpc(payload, session=session)
         if response is not None:
             stdout.write(json.dumps(response, sort_keys=True) + "\n")
             stdout.flush()
@@ -481,11 +569,12 @@ def serve_stdio(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Serve read-only AGILAB evidence tools."
+        description="Serve AGILAB evidence; explicitly opt in to locally approved experiment tasks."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     serve = subparsers.add_parser("serve")
-    serve.add_argument("--read-only", action="store_true", default=True)
+    serve.add_argument("--read-only", action="store_true", default=False)
+    serve.add_argument("--task-root", type=Path, help="Opt in to registered experiments with local approval in this operator-owned store")
     serve.add_argument(
         "--json",
         action="store_true",
@@ -495,8 +584,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--once", action="store_true", help="Alias for --json for smoke tests."
     )
     tools = subparsers.add_parser("list-tools")
+    tools.add_argument("--task-root", type=Path)
     tools.add_argument("--json", action="store_true")
     call = subparsers.add_parser("call-tool")
+    call.add_argument("--task-root", type=Path)
     call.add_argument("name")
     call.add_argument("--arguments", default="{}")
     call.add_argument("--json", action="store_true")
@@ -505,17 +596,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    task_store = None
+    if getattr(args, "task_root", None) is not None:
+        if getattr(args, "read_only", False):
+            raise ValueError("--read-only cannot be combined with --task-root")
+        from agilab.agent_runtime.tasks import TaskStore
+        task_store = TaskStore(args.task_root)
     if args.command == "serve":
         if args.json or args.once:
-            print(json.dumps(server_manifest(), indent=2, sort_keys=True))
+            print(json.dumps(server_manifest(task_store), indent=2, sort_keys=True))
             return 0
-        return serve_stdio()
+        return serve_stdio() if task_store is None else serve_stdio(task_store=task_store)
     if args.command == "list-tools":
-        payload = {"tools": tool_descriptors()}
+        payload = {"tools": tool_descriptors(task_store)}
         print(json.dumps(payload, indent=2 if args.json else None, sort_keys=True))
         return 0
     if args.command == "call-tool":
-        payload = call_tool(args.name, json.loads(args.arguments))
+        payload = call_tool(args.name, json.loads(args.arguments), task_store=task_store)
         if isinstance(payload, ArtifactPreview):
             payload = _tool_content(payload)
         print(json.dumps(payload, indent=2 if args.json else None, sort_keys=True))

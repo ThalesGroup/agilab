@@ -8,6 +8,9 @@ consistent launch, validation, and troubleshooting steps.
 > **Agent MCP start here**: When using `agilab-mcp`, call `agent_quickstart`
 > first. It is read-only and returns the safety boundary, recommended workflow,
 > live tool list, and compact capability overview.
+> Task execution requires explicit `--task-root` opt-in and local approval of the
+> exact plan digest and attempt. Keep interrupted commands unverified until their
+> termination evidence exists; stale mutation requests must not affect retries.
 
 Use this runbook whenever you:
 - Launch Streamlit or CLI flows from PyCharm run configurations.
@@ -143,6 +146,11 @@ Use this runbook whenever you:
   Standard is compact signal summary, Detailed adds nearby context windows, and
   Debug may point to raw artifacts or include full text only when the log is
   already small enough for prompt-safe use.
+- **Assistant prompt context**: WORKFLOW uses `pipeline.prompt_context` to bound
+  shared request context in UTF-8 bytes, preserve required instructions, and
+  record selection/omission metadata in session-local `lab_prompt_context`.
+  Autofix keeps error-adjacent code and reports omitted ranges. These limits do
+  not establish a model token limit or replace backend retrieval/output limits.
 - **Compact validation close-out rule**: In final user-facing replies, write
   `Validation passed.` without listing every command when all checks are green
   and the command details are not needed for the next action. Include validation
@@ -407,6 +415,17 @@ Use this runbook whenever you:
   the old and new wording before closing the task. When a page title is asserted by tests, prefer a
   small side-effect-free metadata module (for example `page_meta.py`) so the page and tests do not
   drift on duplicated strings.
+- **Notebook demo build evidence**: Every public notebook demo must call
+  `agent_runtime.notebook_demo_evidence.render_build_evidence` after verifying its
+  original build receipt. Keep the autonomous-agent heading and recorded build
+  duration visible above the app, outside expanders, tabs, and sidebars. Use the
+  receipt's duration; never substitute inference, page-load, or deployment time.
+  Preserve the shared public/local explanation and **Build from your own notebook**
+  section with working install and launch commands on every demo. Audit the whole
+  shared experience when adding a demo rather than copying selected UI elements.
+  When adding a selector option, run
+  `test/test_notebook_showcase.py::test_every_selectable_demo_shows_build_evidence_without_expanding`
+  and verify the live embedded demo on desktop and mobile before closing the task.
 - **Deterministic filesystem behavior**: Never rely on implicit filesystem iteration order
   (`glob`, `rglob`, `iterdir`, `os.scandir`) in runtime code or tests. If order matters to users,
   sort in the implementation. If order is not part of the contract, assert on sorted values or sets

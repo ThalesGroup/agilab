@@ -1,0 +1,120 @@
+"""Public deployment must use fixed verified code and exclude local run details."""
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+from streamlit.testing.v1 import AppTest
+
+from agilab.agent_runtime import notebook_showcase as showcase
+
+
+def test_public_bundle_has_verified_hashes_and_no_private_run_paths():
+    report = showcase.load_report()
+    assert report["status"] == "passed"
+    assert "project" not in report
+    assert "/Users/" not in json.dumps(report)
+    assert not (showcase.DEMO_ROOT / "agent").exists()
+    assert not (showcase.DEMO_ROOT / "request.txt").exists()
+
+
+def test_public_app_renders_and_depth_changes_without_provider():
+    at = AppTest.from_file(showcase.__file__, default_timeout=30).run()
+    assert not at.exception
+    assert any(title.value == "Iris decision lab" for title in at.title)
+    assert len(at.number_input) == 4
+    assert all(button.label != "Build my app" for button in at.button)
+    at.slider[0].set_value(4).run()
+    assert not at.exception
+
+
+def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatch, tmp_path):
+    """Read the real selector so a newly added demo cannot skip this contract."""
+    from agilab.agent_runtime import forecast_showcase
+
+    # Keep real receipt verification and presentation; avoid network/model inference.
+    monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _path: tmp_path)
+    monkeypatch.setattr(forecast_showcase, "_validate_model", lambda path: path)
+    monkeypatch.setattr(forecast_showcase, "_run_verified_app", lambda _payload, _path: None)
+    initial = AppTest.from_file(showcase.__file__, default_timeout=30).run()
+    assert not initial.exception and not initial.error
+    for demo in initial.segmented_control(key="demo").options:
+        at = AppTest.from_file(showcase.__file__, default_timeout=30)
+        at.query_params["demo"] = demo
+        at.run()
+        assert not at.exception and not at.error, demo
+        assert at.segmented_control(key="demo").value == demo
+        assert sum(title.value == "Built by an autonomous agent" for title in at.main.title) == 1, demo
+        timings = [item for item in at.main.metric if item.label == "Autonomous build"]
+        assert len(timings) == 1, demo
+        assert timings[0].value.endswith(" min") and float(timings[0].value[:-4]) > 0, demo
+        assert any(item.label == "AGILAB workflow stages" for item in at.main.metric), demo
+        # AppTest 1.58 represents an expander with an icon as a Status block.
+        disclosures = [*at.main.expander, *at.main.get("status")]
+        builders = [item for item in disclosures if item.label == "Build from your own notebook"]
+        assert len(builders) == 1, demo
+        assert any("agilab-notebook-demo --ui" in item.value for item in builders[0].code), demo
+        assert any("uv tool install" in item.value for item in builders[0].code), demo
+        assert any("This public Space runs the completed app" in item.value for item in at.main.caption), demo
+        for hidden_container in (*at.expander, *at.get("status"), *at.get("tab"), at.sidebar):
+            assert all(title.value != "Built by an autonomous agent" for title in hidden_container.title), demo
+            assert all(item.label != "Autonomous build" for item in hidden_container.metric), demo
+            assert all(
+                item is hidden_container or getattr(item, "label", None) != "Build from your own notebook"
+                for item in hidden_container
+            ), demo
+
+
+def test_export_rejects_tampered_verified_code(tmp_path):
+    script = Path(__file__).parents[1] / "tools" / "demos" / "export_notebook_agent_demo.py"
+    spec = importlib.util.spec_from_file_location("export_demo_test", script)
+    exporter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(exporter)
+    report = showcase.load_report()
+    (tmp_path / "result.json").write_text(json.dumps(report))
+    project = tmp_path / "decision_lab_project"
+    project.mkdir()
+    (project / "app.py").write_text("tampered")
+    with pytest.raises(ValueError, match="Verified artifact changed"):
+        exporter.export_demo(tmp_path, tmp_path / "public")
+
+
+def test_forecast_query_selects_second_demo_and_can_return_to_iris(monkeypatch):
+    from agilab.agent_runtime import forecast_showcase
+    import streamlit as st
+
+    monkeypatch.setattr(forecast_showcase, "render", lambda: st.title("Forecast fixture"))
+    at = AppTest.from_file(showcase.__file__, default_timeout=30)
+    at.query_params["demo"] = "forecast"
+    at.run()
+    assert not at.exception
+    assert [title.value for title in at.title] == ["Forecast fixture"]
+    assert at.segmented_control(key="demo").value == "forecast"
+    at.segmented_control(key="demo").set_value("iris").run()
+    assert not at.exception
+    assert any(title.value == "Iris decision lab" for title in at.title)
+    at.slider[0].set_value(4).run()
+    assert not at.exception
+
+
+def test_unknown_demo_query_falls_back_to_iris():
+    at = AppTest.from_file(showcase.__file__, default_timeout=30)
+    at.query_params["demo"] = "unknown"
+    at.run()
+    assert not at.exception
+    assert any(title.value == "Iris decision lab" for title in at.title)
+
+
+
+def test_iris_only_distribution_reports_forecast_unavailability(monkeypatch):
+    import sys
+
+    monkeypatch.setitem(sys.modules, "agilab.agent_runtime.forecast_showcase", None)
+    at = AppTest.from_file(showcase.__file__, default_timeout=30)
+    at.query_params["demo"] = "forecast"
+    at.run()
+    assert not at.exception
+    assert at.error[0].value == "Forecast demo unavailable in this distribution."
+    at.segmented_control(key="demo").set_value("iris").run()
+    assert not at.exception
+    assert any(title.value == "Iris decision lab" for title in at.title)

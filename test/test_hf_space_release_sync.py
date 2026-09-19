@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
+import shutil
 import subprocess
 import sys
 import types
+import os
 from pathlib import Path
 
 import pytest
@@ -49,6 +53,82 @@ def test_runtime_url_matches_hf_space_subdomain() -> None:
 
     assert module.runtime_url_for_space("jpmorard/agilab") == "https://jpmorard-agilab.hf.space"
     assert module.runtime_url_for_space("team-name/agilab-demo") == "https://team-name-agilab-demo.hf.space"
+
+
+def _load_notebook_exporter():
+    spec = importlib.util.spec_from_file_location("hf_notebook_demo_export", REPO_ROOT / "tools/demos/hf_notebook_demo_export.py")
+    assert spec and spec.loader
+    exporter = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(exporter)
+    return exporter
+
+
+def test_notebook_demo_export_is_allowlisted_and_hash_verified(tmp_path: Path) -> None:
+    exporter = _load_notebook_exporter()
+    destination = tmp_path / "space"
+    report = exporter.export(destination)
+    expected = set(exporter.SOURCE_FILES) | set(exporter.GENERATED_FILES) | {"PUBLIC_HASHES.json"}
+    assert set(report["files"]) == expected == set(report["sha256"])
+    assert {p.relative_to(destination).as_posix() for p in destination.rglob("*") if p.is_file()} == expected
+    for name, digest in report["sha256"].items():
+        assert hashlib.sha256((destination / name).read_bytes()).hexdigest() == digest
+    assert (destination / "LICENSE").read_bytes() == (REPO_ROOT / "LICENSE").read_bytes()
+    assert "sdk: docker" in (destination / "README.md").read_text()
+    dockerfile = (destination / "Dockerfile").read_text()
+    assert "PYTHONPATH=/app/src" in dockerfile
+    assert f"cd /app/{exporter.RESOURCE_PATH} && python /app/src/agilab/agent_runtime/notebook_verifier.py" in dockerfile
+
+
+def test_notebook_demo_export_smoke_verifies_and_runs_staged_app(tmp_path: Path) -> None:
+    exporter = _load_notebook_exporter()
+    destination = tmp_path / "space"
+    exporter.export(destination)
+    env = {**os.environ, "PYTHONPATH": str(destination / "src")}
+    result = subprocess.run([sys.executable, str(destination / "src/agilab/agent_runtime/notebook_verifier.py")], cwd=destination / exporter.RESOURCE_PATH, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout.strip().splitlines()[-1])["status"] == "passed"
+    code = """
+from pathlib import Path
+from streamlit.testing.v1 import AppTest
+from agilab.agent_runtime import notebook_showcase
+assert Path(notebook_showcase.__file__).resolve().is_relative_to(Path.cwd())
+app = AppTest.from_file('hf_app.py', default_timeout=30).run()
+assert not app.exception, app.exception
+assert any(title.value == 'Iris decision lab' for title in app.title)
+"""
+    result = subprocess.run([sys.executable, "-c", code], cwd=destination, env=env, capture_output=True, text=True, timeout=90)
+    assert result.returncode == 0, result.stderr
+
+
+def test_notebook_demo_export_preserves_nonempty_destination(tmp_path: Path) -> None:
+    exporter = _load_notebook_exporter()
+    destination = tmp_path / "space"
+    destination.mkdir()
+    (destination / "keep").write_text("x")
+    with pytest.raises(ValueError, match="new or empty"):
+        exporter.export(destination)
+    assert (destination / "keep").read_text() == "x"
+
+
+@pytest.mark.parametrize("tamper", ["app", "missing_hashes", "failed_report"])
+def test_notebook_demo_export_rejects_unverified_sources(tmp_path: Path, tamper: str) -> None:
+    exporter = _load_notebook_exporter()
+    source_root = tmp_path / "source"
+    for name in exporter.SOURCE_FILES:
+        target = source_root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(REPO_ROOT / name, target)
+    resources = source_root / exporter.RESOURCE_PATH
+    if tamper == "app":
+        (resources / "app.py").write_text("tampered")
+    else:
+        report_path = resources / "result.json"
+        report = json.loads(report_path.read_text())
+        report["files" if tamper == "missing_hashes" else "status"] = {} if tamper == "missing_hashes" else "failed"
+        report_path.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="Demo artifact changed|complete verified demo report"):
+        exporter.export(tmp_path / "space", source_root=source_root)
+    assert not (tmp_path / "space").exists()
 
 
 def test_parse_upload_commit_url() -> None:
@@ -216,7 +296,34 @@ def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
 
     assert "src/agilab/apps/install.py" in module.DOCKERFILE_TEMPLATE
     assert "flight_telemetry_project --verbose 0" in module.DOCKERFILE_TEMPLATE
-    assert "streamlit run /app/src/agilab/main_page.py" in module.DOCKERFILE_TEMPLATE
+    assert "streamlit run /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
+
+
+def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
+    module = _load_module()
+    dockerfile = module.DOCKERFILE_TEMPLATE
+    verification = "uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py"
+
+    assert "RUN cd /app/src/agilab/resources/notebook_agent_demo &&" in dockerfile
+    assert dockerfile.index("--extra notebook-agent") < dockerfile.index(verification)
+    assert dockerfile.index(verification) < dockerfile.index('CMD [')
+
+
+def test_space_entrypoint_avoids_legacy_pages_router(tmp_path) -> None:
+    from streamlit.runtime.pages_manager import PagesManager
+
+    module = _load_module()
+    apps, pages = module.profile_entries("first-proof")
+    module.write_profile_assets(tmp_path, "first-proof", apps, pages)
+    entrypoint = tmp_path / "hf_app.py"
+    assert 'runpy.run_module("agilab.main_page", run_name="__main__")' in entrypoint.read_text()
+    previous = PagesManager.uses_pages_directory
+    try:
+        PagesManager.uses_pages_directory = None
+        manager = PagesManager(str(entrypoint))
+        assert manager.uses_pages_directory is False
+    finally:
+        PagesManager.uses_pages_directory = previous
 
 
 def test_first_proof_profile_uses_public_weather_demo() -> None:

@@ -1,0 +1,48 @@
+[[notebook_app_project]]
+D = "Text atlas"
+Q = "Imported cell-2 from notebook"
+C = "# Stage 1 — Load the unchanged corpus\nimport json\nimport os\nimport sys\nfrom pathlib import Path\n\nproject_root = Path(globals().get(\"PROJECT_ROOT\", os.environ.get(\"PROJECT_ROOT\", \".\"))).resolve()\nif not (project_root / \"text_core.py\").is_file():\n    raise FileNotFoundError(\"Supply PROJECT_ROOT pointing to the Text atlas project.\")\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\nfrom text_core import load_corpus, analyze\n\ncorpus = load_corpus()\nprint(f\"Loaded {len(corpus):,} historical Wikinews articles in original CSV order.\")\n"
+M = ""
+NB_CELL_ID = "cell-2"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+]
+NB_ENV_HINTS = [
+    "json",
+    "os",
+    "pathlib",
+    "sys",
+    "text_core",
+]
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = ""
+Q = "Imported cell-3 from notebook"
+C = "# Stage 2 — Run the same analysis as the app\nanalysis = analyze(min_df=5, max_df=0.8, n_clusters=5, seed=42)\nprint(f\"Retained {analysis['parameters']['n_components']} centered PCA components.\")\n"
+M = ""
+NB_CELL_ID = "cell-3"
+NB_CELL_INDEX = 3
+NB_CONTEXT_IDS = []
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = ""
+Q = "Imported cell-4 from notebook"
+C = "# Stage 3 — Report metrics and overwrite results.json in the execution directory\nmetrics = {\n    \"articles\": len(corpus),\n    \"vocabulary_size\": len(analysis[\"vocabulary\"]),\n    \"silhouette\": analysis[\"silhouette\"],\n    \"displayed_variance\": analysis[\"displayed_variance\"],\n    \"retained_variance\": analysis[\"retained_variance\"],\n}\nresults = {\n    **metrics,\n    \"parameters\": analysis[\"parameters\"],\n    \"coordinates\": analysis[\"coordinates\"].tolist(),\n    \"labels\": analysis[\"labels\"].tolist(),\n    \"vocabulary\": analysis[\"vocabulary\"],\n    \"top_terms\": analysis[\"top_terms\"],\n    \"cluster_document_counts\": {\n        cluster: int((analysis[\"labels\"] == int(cluster)).sum())\n        for cluster in analysis[\"top_terms\"]\n    },\n}\nPath(\"results.json\").write_text(\n    json.dumps({\"results\": results}, indent=2, allow_nan=False) + \"\\n\",\n    encoding=\"utf-8\",\n)\nprint(json.dumps(metrics, indent=2, allow_nan=False))\nprint(\"Wrote fresh results.json in the current execution directory.\")\n"
+M = ""
+NB_CELL_ID = "cell-4"
+NB_CELL_INDEX = 4
+NB_CONTEXT_IDS = []
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"

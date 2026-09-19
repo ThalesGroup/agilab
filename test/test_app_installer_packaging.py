@@ -1061,6 +1061,7 @@ def test_packaged_example_catalog_is_documented() -> None:
 
 def test_packaged_example_readmes_have_explicit_execution_class() -> None:
     expected_classes = {
+        "agent_experiment": "Executable agent experiment",
         **{example_name: "Runnable app project" for example_name in EXAMPLE_APPS},
         **{example_name: "Read-only preview" for example_name in EXAMPLE_PREVIEWS},
         **{example_name: "Notebook import asset" for example_name in EXAMPLE_NOTEBOOK_ASSETS},
