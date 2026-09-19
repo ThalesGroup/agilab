@@ -53,6 +53,21 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "submits a notebook analysis and starts CPU computation; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
         ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py", "test/test_text_showcase.py"),
     ),
+    "Save current scenario": (
+        "trial-only",
+        "stores a copy of the last solved MILP scenario in browser-session state; focused app tests cover saving and duplicate names",
+        ("test/test_milp_energy_showcase.py",),
+    ),
+    "Clear saved scenarios": (
+        "trial-only",
+        "clears only the MILP browser-session comparison list; focused app tests verify saved scenarios clear while the solved result remains",
+        ("test/test_milp_energy_showcase.py",),
+    ),
+    "Run scaling experiment": (
+        "trial-only",
+        "starts bounded local MILP worker processes; focused tests cover dispatch, CPU gating and failure reporting, while the live lab check measures a real batch",
+        ("test/test_milp_energy_showcase.py",),
+    ),
     "Run model and app checks": (
         "trial-only",
         "runs the notebook demo verification workflow; generic robots verify the gate without starting execution",

@@ -1,6 +1,7 @@
 """Receipt integrity, public routing, and isolation for the fifth build-agent app."""
 import hashlib
 import io
+import importlib.util
 import json
 from pathlib import Path
 import shutil
@@ -167,3 +168,75 @@ def test_independent_physical_check_rejects_invalid_solutions(defect):
         result["solver"]["threads"] = 2
     with pytest.raises(ValueError):
         validate_physics(result)
+
+
+@pytest.fixture
+def lab_controls(monkeypatch):
+    """Exercise the sealed UI with deterministic solver boundaries, without optional solvers."""
+    for name in ("agilab_pool", "energy_core"):
+        spec = importlib.util.spec_from_file_location(name, showcase.DEMO_ROOT / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, name, module)
+        spec.loader.exec_module(module)
+    core = sys.modules["energy_core"]
+    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": 2, "limits": {"fixture": 2}})
+    runner = ModuleType("energy_runner")
+    calls = []
+
+    def unexpected_solve(*args, **kwargs):
+        raise AssertionError("Saving, clearing and rendering must not solve a scenario")
+
+    def bounded_failure(batch, workers, *, progress):
+        calls.append((batch, workers))
+        raise TimeoutError("Fixture worker deadline reached")
+
+    runner.run_scenario = unexpected_solve
+    runner.run_benchmark = bounded_failure
+    monkeypatch.setitem(sys.modules, "energy_runner", runner)
+    return core, calls
+
+
+def test_milp_save_and_clear_keep_solved_inputs(lab_controls):
+    core, calls = lab_controls
+    at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py")).run()
+    assert not at.exception
+    assert at.button(key="milp_energy_save").disabled
+    settings = core.default_settings()
+    settings["max_modules"] = 20
+    result = core._empty_result(settings)
+    result["status"] = "infeasible"
+    at.session_state["milp_energy_result"] = result
+    at.run()
+    at.text_input(key="milp_energy_scenario_name").set_value("Capacity limited")
+    at.button(key="milp_energy_save").click().run()
+    assert not at.exception
+    saved = at.session_state["milp_energy_saved"]
+    assert len(saved) == 1 and saved[0]["name"] == "Capacity limited"
+    assert saved[0]["result"]["settings"]["max_modules"] == 20
+    assert saved[0]["result"] is not at.session_state["milp_energy_result"]
+    assert saved[0]["result"]["settings"] is not at.session_state["milp_energy_result"]["settings"]
+    at.button(key="milp_energy_save").click().run()
+    assert len(at.session_state["milp_energy_saved"]) == 1
+    assert any("already saved" in item.value for item in at.warning)
+    at.button(key="milp_energy_clear").click().run()
+    assert not at.exception
+    assert at.session_state["milp_energy_saved"] == []
+    assert at.session_state["milp_energy_result"]["settings"]["max_modules"] == 20
+    assert calls == []
+
+
+@pytest.mark.parametrize("cpus", [1, 2])
+def test_milp_scaling_dispatch_and_cpu_gate(lab_controls, monkeypatch, cpus):
+    core, calls = lab_controls
+    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": cpus, "limits": {"fixture": cpus}})
+    at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py")).run()
+    assert not at.exception and calls == []
+    button = at.button(key="milp_energy_scale_run")
+    assert button.disabled is (cpus == 1)
+    if cpus == 1:
+        assert any("one effective CPU" in item.value for item in at.info)
+        return
+    button.click().run()
+    assert not at.exception
+    assert len(calls) == 1 and len(calls[0][0]) == 4 and calls[0][1] == 2
+    assert any("Fixture worker deadline reached" in item.value for item in at.error)
