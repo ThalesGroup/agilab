@@ -50,8 +50,8 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     ),
     "Run analysis": (
         "trial-only",
-        "submits a forecast scenario and starts CPU model inference; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
-        ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py"),
+        "submits a notebook analysis and starts CPU computation; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
+        ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py", "test/test_text_showcase.py"),
     ),
     "Run model and app checks": (
         "trial-only",

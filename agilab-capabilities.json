@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-18T20:50:27Z",
+  "generated_at_utc": "2026-09-19T15:03:49Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2074,10 +2074,13 @@
       "schema": "agilab.notebook_agent.public_demo.v1",
       "sources": [
         "src/agilab/agent_runtime/forecast_showcase.py",
+        "src/agilab/agent_runtime/text_showcase.py",
         "src/agilab/resources/forecast_notebook_demo/result.json",
         "src/agilab/resources/notebook_agent_demo/result.json",
+        "src/agilab/resources/text_notebook_demo/result.json",
         "tools/demos/export_forecast_notebook_demo.py",
-        "tools/demos/export_notebook_agent_demo.py"
+        "tools/demos/export_notebook_agent_demo.py",
+        "tools/demos/export_text_notebook_demo.py"
       ]
     },
     {

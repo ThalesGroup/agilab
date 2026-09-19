@@ -40,7 +40,7 @@ def download_bundle() -> bytes:
 
 def render() -> None:
     selected = st.segmented_control(
-        "Choose a demo", ["iris", "forecast"], default="iris", required=True,
+        "Choose a demo", ["iris", "forecast", "text"], default="iris", required=True,
         key="demo", bind="query-params",
     )
     if selected == "forecast":
@@ -52,6 +52,16 @@ def render() -> None:
             st.error("Forecast demo unavailable in this distribution.")
             return
         render_forecast()
+        return
+    if selected == "text":
+        try:
+            from agilab.agent_runtime.text_showcase import render as render_text
+        except ModuleNotFoundError as exc:
+            if exc.name != "agilab.agent_runtime.text_showcase":
+                raise
+            st.error("Text demo unavailable in this distribution.")
+            return
+        render_text()
         return
     if selected != "iris":
         st.error("Choose one of the available demos.")

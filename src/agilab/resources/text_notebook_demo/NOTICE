@@ -1,0 +1,26 @@
+Text atlas — adaptation of INRIA/scikit-learn-mooc, dimred_text.ipynb
+Source contributors: INRIA scikit-learn MOOC contributors.
+Notebook license: Creative Commons Attribution 4.0 International (LICENSE).
+Pinned source:
+https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29dfea36587c/notebooks/dimred_text.ipynb
+Lesson introduced 2026-08-05; pinned notebook updated 2026-09-02.
+
+Adaptation modifications:
+- Shared text_core.py implementation for the Streamlit app and three-stage notebook.
+- The lesson's English stop-word TF-IDF variant is used throughout.
+- Centered randomized PCA retains at most 50 components in place of the lesson's
+  broader experiments (including 300-component clustering and 900-component
+  variance exploration). The first two retained coordinates form the map.
+- Dense float32 TF-IDF, fixed seeds, and two-thread limits bound resource use.
+- KMeans runs in all retained components; silhouette is reported in that space.
+- Top words use mean ORIGINAL TF-IDF weights of cluster members rather than
+  inverse-transformed PCA-space centroids. Six terms per cluster are displayed.
+- Native Altair replaces Plotly; pair plots and t-SNE experiments are omitted.
+- Added bounded controls/cache, article inspection, variance metrics, and JSON output.
+
+The supplied source directory is unchanged and is not executed.
+The 1,250-row historical Wikinews CSV is redistributed byte-for-byte unchanged.
+Dataset attribution: Wikinews contributors; curated by The Mega Rhyme Rhyming
+Dictionary, then subsampled by INRIA's scikit-learn MOOC.
+The corpus has its own CC BY 2.5 notice in DATA_LICENSE; it is separate from
+the notebook's CC BY 4.0 license. DATA_SOURCES.md preserves upstream notices.
