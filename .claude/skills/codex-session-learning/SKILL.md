@@ -1,14 +1,14 @@
 ---
 name: codex-session-learning
-description: Turn past Codex debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from prior sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.
+description: Turn past coding-agent debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from Codex or another agent's sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-11
+  updated: 2026-09-11
 ---
 
 # Codex Session Learning
 
-Use this skill to convert prior Codex work into explicit reusable assets.
+Use this skill to convert prior Codex or other coding-agent work into explicit reusable assets.
 The goal is not to pretend the agent has hidden long-term memory. The goal is to
 extract structured cases, reusable prompt patterns, and validation rules from
 earlier sessions so future bug fixing starts from a stronger prompt.
@@ -86,6 +86,37 @@ Then feed those results into a future prompt as explicit guidance.
 6. Close the loop after the next session.
    - Mark whether the routed prompt improved first-pass success.
    - Update the case if the new session revealed a better diagnosis path.
+
+## Evidence for learned procedures
+
+Keep the learning claim proportional to the session evidence:
+
+| Source evidence | Suitable output |
+| --- | --- |
+| A failure with an established cause | A postmortem or a candidate prevention rule, even if the final repair is unfinished. |
+| A plan, interrupted run, or assistant statement without a completed check | An unvalidated procedure proposal with the missing evidence named. |
+| Completed command/test results tied to the executed revision and inputs | A procedure validated for that recorded scope and environment. |
+
+Before describing a procedure as validated, inspect its actual completion
+results and bind them to the source revision, relevant local diff, inputs, and
+output artifacts. Record stable relative artifact references and content hashes
+where available. Do not pair an earlier passing run with later untested edits,
+infer success from missing errors, or treat a hash as proof of execution.
+Separate local validation, remote publication, and installed/runtime activation
+when those are different steps of the procedure.
+
+Generalize checkout paths, provider-specific tool identifiers, branch names,
+and transient targets into parameters or explicit discovery steps. Preserve
+the required ordering, validation, and authority boundaries. Do not turn
+provider-specific tool calls into commands another agent is assumed to have.
+Keep credentials and unrelated transcript content out of reusable assets.
+
+Compare the proposal with the current owner skill or rule before adding it.
+Record it as a candidate until the user has authorized the durable change and
+the relevant checks pass. An instruction to review sessions alone does not
+authorize activation or writing to personal memory stores. An explicit request
+to update the identified repository skills already authorizes that scoped edit;
+do not request the same approval again.
 
 ## Recommended outputs
 

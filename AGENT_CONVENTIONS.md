@@ -25,6 +25,8 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
   `BUILTIN_APPS`; do not substitute a root reinstall, manual `.env` edits, or
   ad-hoc pytest loops.
 - Keep edits narrow and validate with the smallest relevant proof first.
+- MCP task execution is opt-in; approval and mutations bind the exact attempt.
+  A released worker lease alone does not prove its commands terminated.
 - Agent commits need explicit agent author and committer display names. Use the
   confirmed operator's verified email and matching signing key, and record the
   operator separately in PR metadata. Do not invent a bot noreply address or

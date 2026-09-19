@@ -148,16 +148,75 @@ python tools/agent_context_router.py \
   --json
 ```
 
-The `context_profile` block returns the bounded baseline files, matched context
-packs, estimated token budget, and follow-up validation commands. The profile is
-advisory: it narrows context selection, while `tools/impact_validate.py` remains
-the validation source of truth.
+The `context_profile` block returns baseline files, matched context packs,
+configured token allowances, and follow-up validation commands. The legacy
+`estimated_token_budget` field sums reservations; `budget_kind` explicitly marks
+that it is not a measurement of file contents. The profile is advisory, while
+`tools/impact_validate.py` remains the validation source of truth. Run its compact
+output instead of routinely reading the validation tool's implementation.
+
+Whole-repo context requires an explicit phrase such as `whole repo` or
+`repo-wide`. A single built-in file stays in its project scope; multiple project
+owners or explicit `all projects` requests expand that scope. Applicable
+evidence and safety rules remain independent of this narrowing. Canonical
+`agent_runtime` and `evidence` paths retain dedicated evidence context.
+
+For measured source context, use the existing router's materialization mode:
+
+```bash
+uv --preview-features extra-build-dependencies run --with tiktoken \
+  python tools/agent_context_router.py --profile tokki --materialize \
+  --excerpt src/agilab/agent_runtime/verification.py::validate_agent_run \
+  --context-tokens 24000 --reserve-tokens 2000 --json
+```
+
+Selectors accept a file, `path::symbol` (including nested definitions), or
+`path#L20-L40`. `materialized_context` contains the measured `context_text`,
+source SHA-256 values, selected line ranges, and an omission ledger. Directories
+are never recursively read. Duplicate content is included once. Mandatory
+policy is collected before optional pack limits. With explicit files/excerpts,
+other pack sources remain deferred pointers instead of filling the spare budget.
+Mandatory
+baseline and applicable skill files are included intact or the command exits
+with `context-blocked`; increase the allowance or separately inspect required
+policy rather than treating an incomplete packet as sufficient authorization.
+The counter is the `o200k_base` reference encoding, excluding protocol framing,
+task text, already-loaded instructions and actual model billing. The reserve
+leaves capacity for those external inputs and the answer; callers must choose
+it for their own model and workflow. This does not waive `AGENTS.md` or any
+approval, validation, or evidence requirement.
 
 Validate the rule file with:
 
 ```bash
 python tools/agent_context_router.py --check
 ```
+
+To repeat the fixed retrieval-context benchmark with verified local experiment
+receipts (five tasks, three baseline/candidate observations):
+
+```bash
+uv --preview-features extra-build-dependencies run --with tiktoken==0.12.0 \
+  python -m tools.agent_context.benchmark \
+  --output reports/context-benchmark --repeats 3 --context-budget 24000
+```
+
+It compares full owner files with explicit excerpts from the same source bytes,
+keeps required policy intact, recounts token measurements in the grader, and
+rejects source drift between reads. The common budget covers source/policy
+context only; reserve task, tool and response space separately. Results include
+source hashes, acceptance receipts and a summary. Existing output directories
+are refused. A nonzero result preserves evidence of incomplete or oversized
+context. A project-local `worker` reference alone does not imply deployment;
+explicit operations, unknown worker scope and shared runtime paths retain
+installer guidance.
+
+This is a source retrieval microbenchmark. It does not solve the five coding
+tasks, establish model quality, measure provider cache behavior, or claim billed
+token savings. Actual model usage stays `not observed`; the experiment comparison
+contract can attach a registered usage artifact when one exists. The tokenizer
+is pinned, while its local cache is unmanaged; counting timings exclude initial
+tokenizer loading and should not be treated as agent latency.
 
 ## Demo an agentic workflow
 
@@ -289,7 +348,7 @@ agilab agent-run compare ~/log/agents/codex/<failed-run> ~/log/agents/codex/<fol
 agilab agent-run validate ~/log/agents/codex/<run-id> --json
 ```
 
-The read-only MCP bridge exposes the same agent-run evidence to external
+The default read-only MCP bridge exposes the same agent-run evidence to external
 coding agents without enabling shell execution:
 
 Handoffs include 20 bounded recent events and explicit omission counts. Use
@@ -376,3 +435,24 @@ for the packaged baseline/candidate pilot. Both processes exit zero; independent
 acceptance rejects the baseline. The comparison retains the failed attempt and
 unknown model usage. Optional single-terminal Codex usage must come from a
 verified registered output; missing cache counts remain unknown.
+
+### Durable selected tasks
+
+Prepare experiments under `<store>/experiments/<name>`, then use
+`python -m agilab.agent_runtime.tasks register <store> <action> experiments/<name>`
+and `submit <store> <action> <stable-request-key>`. Local `approve`/`deny` require
+the exact `--plan-sha256` and observed `--attempt`; `start`/`cancel` bind that
+attempt too. Read `status` without side effects. `reconcile` inspects retained
+receipts after worker death; `resume` respects existing native claims, while
+`retry` creates a fresh attempt requiring new approval. Both require `--attempt`.
+
+Worker leases and immutable state revisions prevent competing workers from
+replaying a claim. A released lease does not establish child termination;
+missing termination evidence remains interrupted. Inspect external side effects
+before explicit continuation. Approval records describe local operator actions,
+not authenticated identities, and trusted Python is not sandboxed.
+
+`agilab-mcp serve --task-root <store>` opts into registered task selection, status,
+start and cancellation. Default tools stay read-only; MCP has no registration,
+approval, arbitrary-command or retry tool. Start/cancel require the observed
+attempt. `agent_quickstart` describes the enabled connection's exact boundary.

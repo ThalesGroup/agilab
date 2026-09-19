@@ -728,3 +728,25 @@ def test_undo_pipeline_delete_command_reports_restore_errors(tmp_path):
     assert result.status is pipeline_page_state.PipelineCommandStatus.FAILED
     assert result.message == "Undo failed: restore boom"
     assert "demo__undo_delete_snapshot" in session_state
+
+
+def test_editor_model_preserves_unsaved_edits_and_two_phase_pending_updates():
+    from agilab.pipeline.pipeline_page_state import hydrate_pipeline_editor_values, prepare_pipeline_editor_updates
+    state = {'p_stage_init_0': True, 'p_q_stage_0': 'unsaved question', 'p_code_stage_0': 'unsaved code', 'unrelated': 'keep'}
+    entry = {'Q': 'saved question', 'C': 'saved code'}
+    hydrate_pipeline_editor_values(state, 'p', 0, entry)
+    assert state['p_q_stage_0'] == 'unsaved question'
+    assert state['p_code_stage_0'] == 'unsaved code'
+    state['p_pending_q_0'] = ''
+    state['p_pending_c_0'] = 'fixed code'
+    assert prepare_pipeline_editor_updates(state, 'p', 0)
+    assert 'p_q_stage_0' not in state
+    assert 'p_code_stage_0' not in state
+    assert not prepare_pipeline_editor_updates(state, 'p', 0)
+    hydrate_pipeline_editor_values(state, 'p', 0, entry)
+    assert state['p_q_stage_0'] == ''
+    assert state['p_code_stage_0'] == 'fixed code'
+    revision = state['p_editor_rev_0']
+    hydrate_pipeline_editor_values(state, 'p', 0, entry)
+    assert state['p_editor_rev_0'] == revision
+    assert state['unrelated'] == 'keep'

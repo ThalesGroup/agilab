@@ -7,7 +7,7 @@ import yaml
 
 AUTOMATION_GLOBS = ("*.yml", "*.yaml")
 AUTOMATION_DIRS = (Path(".github/workflows"), Path(".github/actions"))
-SETUP_UV_SHA = "c771a70e6277c0a99b617c7a806ffedaca235ff9"
+SETUP_UV_SHA = "bec219d24cd3e171d82865faccec33120bb574f4"
 
 NODE24_COMPATIBLE_ACTIONS = {
     "actions/cache/restore": {"v5"},
@@ -20,7 +20,7 @@ NODE24_COMPATIBLE_ACTIONS = {
     "actions/upload-pages-artifact": {"v5"},
     "actions/deploy-pages": {"v5"},
     "actions/github-script": {"v8", "v9"},
-    "astral-sh/setup-uv": {"v7", "v8", "v9"},
+    "astral-sh/setup-uv": {"v7", "v8", "v9", "v10"},
     "codecov/codecov-action": {"v6"},
 }
 
@@ -77,7 +77,7 @@ def test_github_actions_use_node24_compatible_major_versions() -> None:
     assert failures == []
 
 
-def test_setup_uv_v9_preserves_cache_pruning() -> None:
+def test_setup_uv_preserves_cache_pruning() -> None:
     failures: list[str] = []
     setup_steps = 0
     expected_use = f"astral-sh/setup-uv@{SETUP_UV_SHA}"

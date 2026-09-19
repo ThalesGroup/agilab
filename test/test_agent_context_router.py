@@ -15,7 +15,11 @@ SPEC.loader.exec_module(agent_context_router)
 
 def _skill_index() -> dict[str, dict[str, str]]:
     return {
-        name: {"name": name, "path": f".claude/skills/{name}/SKILL.md", "description": name}
+        name: {
+            "name": name,
+            "path": f".claude/skills/{name}/SKILL.md",
+            "description": name,
+        }
         for name in [
             "advanced-svg-system-design",
             "agilab-docs",
@@ -62,9 +66,7 @@ def test_recommend_context_matches_docs_and_evidence_rules() -> None:
 
 def test_docs_context_command_is_honest_without_canonical_checkout() -> None:
     rules = json.loads(agent_context_router.DEFAULT_RULES.read_text(encoding="utf-8"))
-    docs_pack = rules["context_profiles"]["tokki"]["rule_packs"][
-        "docs-public-claims"
-    ]
+    docs_pack = rules["context_profiles"]["tokki"]["rule_packs"]["docs-public-claims"]
 
     assert docs_pack["commands"] == [
         "uv --preview-features extra-build-dependencies run python "
@@ -102,9 +104,7 @@ def test_absolute_canonical_docs_path_matches_from_registered_worktree_layout(
     docs_rule = next(
         rule for rule in payload["matched_rules"] if rule["id"] == "docs-public-claims"
     )
-    assert docs_rule["matched_paths"] == [
-        "../thales_agilab/docs/source/faq.rst"
-    ]
+    assert docs_rule["matched_paths"] == ["../thales_agilab/docs/source/faq.rst"]
 
 
 def test_recommend_context_matches_release_prompt_without_files() -> None:
@@ -135,15 +135,16 @@ def test_recommend_context_can_emit_tokki_profile_packs() -> None:
 
     assert profile["id"] == "tokki"
     assert profile["estimated_token_budget"] <= profile["max_total_tokens"]
-    assert profile["baseline_files"] == [
-        "AGENT_CONVENTIONS.md",
-        "agent-context-rules.json",
-        "tools/impact_validate.py",
-    ]
+    assert profile["baseline_files"] == ["AGENT_CONVENTIONS.md"]
+    assert profile["budget_kind"] == "configured_allowance_not_measured_content"
     pack_ids = [pack["rule_id"] for pack in profile["matched_packs"]]
     assert "streamlit-ui" in pack_ids
     assert "notebook-import-export" in pack_ids
-    notebook_pack = next(pack for pack in profile["matched_packs"] if pack["rule_id"] == "notebook-import-export")
+    notebook_pack = next(
+        pack
+        for pack in profile["matched_packs"]
+        if pack["rule_id"] == "notebook-import-export"
+    )
     assert "test/test_pipeline_editor.py" in notebook_pack["files"]
 
 
@@ -162,11 +163,7 @@ def test_recommend_context_can_emit_agilab_profile_packs() -> None:
     profile = payload["context_profile"]
 
     assert profile["id"] == "agilab"
-    assert profile["baseline_files"] == [
-        "AGENT_CONVENTIONS.md",
-        "AGENT_SKILLS.md",
-        "agent-context-rules.json",
-    ]
+    assert profile["baseline_files"] == ["AGENT_CONVENTIONS.md"]
     pack_ids = [pack["rule_id"] for pack in profile["matched_packs"]]
     assert "builtin-project" in pack_ids
     assert "all-projects" in pack_ids
@@ -181,7 +178,9 @@ def test_recommend_context_routes_tokki_prompt_to_context_profile_pack() -> None
     )
 
     matched_ids = [rule["id"] for rule in payload["matched_rules"]]
-    profile_pack_ids = [pack["rule_id"] for pack in payload["context_profile"]["matched_packs"]]
+    profile_pack_ids = [
+        pack["rule_id"] for pack in payload["context_profile"]["matched_packs"]
+    ]
 
     assert "agent-skills" in matched_ids
     assert "agent-skills" in profile_pack_ids
@@ -254,3 +253,133 @@ def test_cli_json_output_is_machine_readable(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["schema"] == "agilab.agent_context_recommendation.v1"
     assert any(rule["id"] == "streamlit-ui" for rule in payload["matched_rules"])
+
+
+def test_small_task_does_not_match_all_substring_or_broad_path() -> None:
+    for files, prompt in [
+        ([], "small color change"),
+        (
+            [
+                "src/agilab/apps/builtin/minimal_app_project/src/minimal_app_worker/minimal_app_worker.py"
+            ],
+            "adjust one return value",
+        ),
+    ]:
+        payload = agent_context_router.recommend_context(
+            files=files, prompt=prompt, skills=_skill_index(), profile="agilab"
+        )
+        ids = {rule["id"] for rule in payload["matched_rules"]}
+        assert "all" not in ids
+        assert "all-projects" not in ids
+        if files:
+            assert "builtin-project" in ids
+            assert "agilab-evidence-contracts" in {
+                s["name"] for s in payload["recommended_skills"]
+            }
+
+
+def test_multiple_project_owners_expand_without_matching_whole_repo() -> None:
+    payload = agent_context_router.recommend_context(
+        files=[
+            "src/agilab/apps/builtin/first_project/a.py",
+            "src/agilab/apps/builtin/second_project/a.py",
+        ],
+        skills=_skill_index(),
+        profile="agilab",
+    )
+    ids = {rule["id"] for rule in payload["matched_rules"]}
+    assert "all-projects" in ids
+    assert "all" not in ids
+    explicit = agent_context_router.recommend_context(
+        prompt="review the whole repo", skills=_skill_index(), profile="agilab"
+    )
+    assert "all" in {rule["id"] for rule in explicit["matched_rules"]}
+
+
+def test_canonical_evidence_paths_keep_legacy_dedicated_pack() -> None:
+    for path in [
+        "src/agilab/agent_run.py",
+        "src/agilab/agent_runtime/agent_run.py",
+        "src/agilab/evidence/evidence_contract.py",
+    ]:
+        payload = agent_context_router.recommend_context(
+            files=[path], skills=_skill_index(), profile="tokki"
+        )
+        assert "evidence-proof" in {
+            pack["rule_id"] for pack in payload["context_profile"]["matched_packs"]
+        }
+
+
+def test_cli_materialize_requires_profile(capsys) -> None:
+    assert agent_context_router.main(["--materialize"]) == 2
+    assert "requires --profile" in capsys.readouterr().err
+
+
+def test_plural_prompt_aliases_preserve_specific_routing() -> None:
+    for prompt, expected in [
+        ("update skills", "agent-skills"),
+        ("fix notebooks", "notebook-import-export"),
+        ("fix workers", "installer-cluster"),
+        ("fix all apps", "all-projects"),
+    ]:
+        result = agent_context_router.recommend_context(
+            prompt=prompt, skills=_skill_index(), profile="tokki"
+        )
+        ids = {rule["id"] for rule in result["matched_rules"]}
+        assert expected in ids
+        assert "all" not in ids
+
+
+def test_cross_page_projects_expand_scope() -> None:
+    result = agent_context_router.recommend_context(
+        files=[
+            "src/agilab/apps-pages/view_one/src/view_one/page.py",
+            "src/agilab/apps-pages/view_two/src/view_two/page.py",
+        ],
+        skills=_skill_index(),
+        profile="agilab",
+    )
+    assert "all-projects" in {rule["id"] for rule in result["matched_rules"]}
+
+
+def test_mandatory_policy_survives_dropped_optional_packs() -> None:
+    for profile_name in ("tokki", "agilab"):
+        payload = agent_context_router.recommend_context(
+            files=[
+                "docs/source/faq.rst",
+                "tools/agent_context_router.py",
+                "src/agilab/pages/1_PROJECT.py",
+                "install.sh",
+            ],
+            skills=_skill_index(),
+            profile=profile_name,
+        )
+        profile = payload["context_profile"]
+        if profile_name == "tokki":
+            assert "installer-cluster" in profile["dropped_rule_ids"]
+        assert "AGENTS.md" in profile["mandatory_files"]
+
+
+def test_known_app_worker_does_not_imply_installer_operations():
+    worker = 'src/agilab/apps/builtin/minimal_app_project/src/minimal_app_worker/minimal_app_worker.py'
+    for prompt in ["Adjust a return value in the minimal worker", "fix these workers"]:
+        payload = agent_context_router.recommend_context(
+            files=[worker], prompt=prompt, skills=_skill_index(), profile="agilab"
+        )
+        assert "installer-cluster" not in {
+            rule["id"] for rule in payload["matched_rules"]
+        }
+    for files, prompt in [
+        ([worker], "fix worker runtime deployment"),
+        ([worker], "Fix worker environments"),
+        ([worker], "Deploy the minimal worker"),
+        ([worker], "Fix workers runtime"),
+        ([worker], "install workers"),
+        ([], "fix workers"),
+        (["src/agilab/core/agi-node/base_worker.py"], "fix worker"),
+    ]:
+        payload = agent_context_router.recommend_context(
+            files=files, prompt=prompt, skills=_skill_index(), profile="agilab"
+        )
+        assert "installer-cluster" in {rule["id"] for rule in payload["matched_rules"]}
+        assert "AGENTS.md" in payload["context_profile"]["mandatory_files"]
