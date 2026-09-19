@@ -113,6 +113,7 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         Path("src/agilab/resources/notebook_agent_demo/app.py"),
         Path("src/agilab/resources/text_notebook_demo/app.py"),
         Path("src/agilab/resources/free_threading_demo/app.py"),
+        Path("src/agilab/resources/milp_energy_demo/app.py"),
     }
     ignored_parts = {
         ".mypy_cache",

@@ -108,9 +108,11 @@ PyPI package: https://pypi.org/project/agilab
 - Apps: `{apps}`
 - Pages: `{pages}`
 
-Open **AGENT DEMO** in the sidebar for four apps built through Tokki's autonomous
-notebook workflow: Iris decision lab, demand forecast, Text atlas, and
-Free-threading lab. The fourth compares identical CPU work across AGILAB's thread
+Open **AGENT DEMO** in the sidebar for five apps built through Tokki's autonomous
+notebook workflow: Iris decision lab, demand forecast, Text atlas,
+Free-threading lab, and MILP Energy Lab. The fifth explores energy capacity planning
+and compares identical MILP scenario batches through AGILAB, using HiGHS with
+one solver thread per scenario. The fourth compares identical CPU work across AGILAB's thread
 and process pools, with the GIL enabled or disabled. It measures local CPU scaling
 on the Space's actual CPU allowance. Each app includes its recorded build timing,
 generated workflow, and verification evidence. New autonomous builds require a
@@ -233,6 +235,9 @@ RUN cd /app/src/agilab/resources/notebook_agent_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py
 
 RUN cd /app/src/agilab/resources/free_threading_demo && \\
+    uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_execution_verifier.py
+
+RUN cd /app/src/agilab/resources/milp_energy_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_execution_verifier.py
 
 EXPOSE 7860

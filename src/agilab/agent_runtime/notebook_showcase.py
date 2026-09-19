@@ -42,9 +42,19 @@ def download_bundle() -> bytes:
 
 def render() -> None:
     selected = st.segmented_control(
-        "Choose a demo", ["iris", "forecast", "text", "threading"], default="iris", required=True,
+        "Choose a demo", ["iris", "forecast", "text", "threading", "milp"], default="iris", required=True,
         key="demo", bind="query-params",
     )
+    if selected == "milp":
+        try:
+            from agilab.agent_runtime.milp_energy_showcase import render as render_milp
+        except ModuleNotFoundError as exc:
+            if exc.name != "agilab.agent_runtime.milp_energy_showcase":
+                raise
+            st.error("MILP energy lab unavailable in this distribution.")
+            return
+        render_milp()
+        return
     if selected == "threading":
         try:
             from agilab.agent_runtime.free_threading_showcase import render as render_threading

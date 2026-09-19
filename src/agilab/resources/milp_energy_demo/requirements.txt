@@ -1,0 +1,8 @@
+pypsa==1.2.4
+highspy==1.15.1
+linopy==0.9.1
+streamlit>=1.57,<2
+pandas>=2.3,<3
+numpy>=2.3,<3
+altair>=6,<7
+psutil>=7,<8

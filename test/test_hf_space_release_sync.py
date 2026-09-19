@@ -321,6 +321,13 @@ def test_free_threaded_benchmark_is_isolated_and_verified_before_serving() -> No
     assert dockerfile.index(check) < dockerfile.index('CMD [')
 
 
+def test_milp_lab_is_verified_before_serving() -> None:
+    dockerfile = _load_module().DOCKERFILE_TEMPLATE
+    start = dockerfile.index("RUN cd /app/src/agilab/resources/milp_energy_demo &&")
+    check = dockerfile.index("python /app/src/agilab/agent_runtime/notebook_execution_verifier.py", start)
+    assert dockerfile.index("--extra notebook-agent") < start < check < dockerfile.index('CMD [')
+
+
 def test_space_entrypoint_avoids_legacy_pages_router(tmp_path) -> None:
     from streamlit.runtime.pages_manager import PagesManager
 

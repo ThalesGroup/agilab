@@ -195,6 +195,12 @@ def test_python_support_floor_is_312_or_newer() -> None:
         classifiers = set(project.get("classifiers", []))
         rel = path.relative_to(REPO_ROOT)
 
+        if rel == Path("src/agilab/resources/milp_energy_demo/pyproject.toml"):
+            # Immutable standalone notebook-agent output, with its own Python
+            # contract. Receipt tests bind its exact bytes; it is not an AGILAB
+            # package. Keep it compatible with AGILAB's supported floor.
+            assert SpecifierSet(requires_python).contains("3.12")
+            continue
         if floor is not None and floor < (3, 12):
             violations.append(f"{rel}: requires-python={requires_python}")
         if "Programming Language :: Python :: 3.11" in classifiers:
