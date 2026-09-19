@@ -20,7 +20,14 @@ into a tested app in **4 min 45 sec**, with three models and three workflow
 stages. Tokki coordinated the autonomous agent and verification. Change the model controls and run the model,
 notebook, and interface checks without an account or provider subscription.
 
-This curated Iris demo shows one completed notebook-to-app workflow. New
+The gallery also includes demand forecasting, an INRIA text atlas, and a
+**[Free-threading lab](https://huggingface.co/spaces/jpmorard/tokki?demo=threading)**.
+The fourth app renders the same fractal through AGILAB's unchanged pool engine
+using GIL-on threads, GIL-off threads, and processes. It checks matching image
+hashes and reports repeated timings on the machine's actual CPU allowance.
+The GIL-on control uses the same free-threaded Python build; results describe
+local CPU scaling, not distributed scaling or full-stack free-threading support.
+Each demo preserves its autonomous build receipt and downloadable workflow. New
 autonomous builds run locally through [Tokki](https://github.com/jpmorard/tokki-public)
 with your configured provider.
 

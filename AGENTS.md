@@ -426,6 +426,10 @@ Use this runbook whenever you:
   When adding a selector option, run
   `test/test_notebook_showcase.py::test_every_selectable_demo_shows_build_evidence_without_expanding`
   and verify the live embedded demo on desktop and mobile before closing the task.
+  Free-threading demo timings must come from the unchanged, hash-bound AGILAB pool
+  engine in isolated child processes. Verify the actual GIL state and equal
+  results, respect CPU quotas, and keep the web application on its normal runtime.
+  Report this as local pool-engine evidence, not full-stack free-threading support.
 - **Deterministic filesystem behavior**: Never rely on implicit filesystem iteration order
   (`glob`, `rglob`, `iterdir`, `os.scandir`) in runtime code or tests. If order matters to users,
   sort in the implementation. If order is not part of the contract, assert on sorted values or sets

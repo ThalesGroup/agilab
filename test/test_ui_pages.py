@@ -112,6 +112,7 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         # page config belongs to that app, not AGILAB's first-party UI.
         Path("src/agilab/resources/notebook_agent_demo/app.py"),
         Path("src/agilab/resources/text_notebook_demo/app.py"),
+        Path("src/agilab/resources/free_threading_demo/app.py"),
     }
     ignored_parts = {
         ".mypy_cache",

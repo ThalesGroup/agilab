@@ -294,6 +294,8 @@ agilab = [
     "resources/text_notebook_demo/*",
     "resources/text_notebook_demo/data/*",
     "resources/text_notebook_demo/source/*",
+    "resources/free_threading_demo/*",
+    "resources/free_threading_demo/source/*",
     "resources/help/*",
     "pages/*.py",
     "*.toml",

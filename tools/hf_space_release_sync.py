@@ -108,10 +108,13 @@ PyPI package: https://pypi.org/project/agilab
 - Apps: `{apps}`
 - Pages: `{pages}`
 
-Open **AGENT DEMO** in the sidebar to use the classifier generated from Géron's
-notebook by a real Tokki autonomous run. The page includes the generated workflow,
-verification results and a check of the deployed app. New autonomous builds require
-a local licensed Tokki environment with provider access.
+Open **AGENT DEMO** in the sidebar for four apps built through Tokki's autonomous
+notebook workflow: Iris decision lab, demand forecast, Text atlas, and
+Free-threading lab. The fourth compares identical CPU work across AGILAB's thread
+and process pools, with the GIL enabled or disabled. It measures local CPU scaling
+on the Space's actual CPU allowance. Each app includes its recorded build timing,
+generated workflow, and verification evidence. New autonomous builds require a
+local licensed Tokki environment with provider access.
 
 Use a local source checkout for private apps, mounted data, remote clusters, or
 the heavier advanced proof pack.
@@ -176,6 +179,7 @@ COPY --chown=1000:1000 hf_app.py ./hf_app.py
 
 ENV AGI_PYTHON_VERSION="3.14"
 ENV AGI_PYTHON_FREE_THREADED="0"
+ENV AGILAB_FREE_THREADING_PYTHON="/home/user/python3.14t"
 ENV UV_CACHE_DIR="/tmp/uv-cache"
 ENV CLUSTER_CREDENTIALS="user:password"
 ENV OPENAI_API_KEY=""
@@ -219,8 +223,17 @@ RUN if [ -d /home/user/localshare ]; then \\
 RUN uv sync --project /app --extra ui --extra notebook-agent && \\
     rm -rf /tmp/uv-cache /home/user/.cache/uv
 
+# Only the bounded CPU benchmark uses this interpreter. The web application and
+# full AGILAB dependency stack keep the normal interpreter installed above.
+RUN uv python install 3.14.6t && \\
+    ln -s "$(uv python find 3.14.6t)" /home/user/python3.14t && \\
+    /home/user/python3.14t -c "import sys; assert not sys._is_gil_enabled()"
+
 RUN cd /app/src/agilab/resources/notebook_agent_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py
+
+RUN cd /app/src/agilab/resources/free_threading_demo && \\
+    uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_execution_verifier.py
 
 EXPOSE 7860
 
