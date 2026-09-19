@@ -15,6 +15,8 @@ import zipfile
 
 import streamlit as st
 
+from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "forecast_notebook_demo"
 _REQUIRED_FILES = {"app.py", "forecast_core.py", "solution.ipynb", "lab_stages.toml", "LICENSE"}
 _APP_LOCK = threading.RLock()
@@ -187,16 +189,14 @@ def render() -> None:
         st.error(f"Forecast demo unavailable: {exc}")
         return
     st.caption("TOKKI × AGILAB · FORECASTING DEMO")
-    st.title("Built by an autonomous agent")
-    st.subheader(report["demo"]["title"])
-    st.write(report["demo"]["description"])
     notebook_checks = report["verification"]["checks"]
     forecast_verification = report["verification"].get("forecast", {})
     forecast_checks = forecast_verification.get("checks", [])
-    with st.container(horizontal=True):
-        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min")
-        st.metric("AGILAB workflow stages", report["workflow_stages"])
-        st.metric("Recorded checks", len(notebook_checks) + len(forecast_checks))
+    render_build_evidence(report, extra_metrics=(
+        ("Recorded checks", len(notebook_checks) + len(forecast_checks)),
+    ))
+    st.subheader(report["demo"]["title"])
+    st.write(report["demo"]["description"])
     with st.expander("Source and verification"):
         source, model = report["source"], report["model"]
         st.markdown(f"Source: [{source['repository']}]({source['url']}) · {source['license']}")

@@ -14,6 +14,8 @@ import zipfile
 
 import streamlit as st
 
+from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "text_notebook_demo"
 PUBLIC_FILES = frozenset({
     "app.py", "text_core.py", "solution.ipynb", "lab_stages.toml", "pyproject.toml",
@@ -122,10 +124,7 @@ def render() -> None:
         st.error(f"Text demo unavailable: {exc}")
         return
     st.caption("TOKKI × AGILAB · NOTEBOOK TO APP")
-    st.title("Built by an autonomous agent")
-    with st.container(horizontal=True, wrap=True):
-        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min", width=200)
-        st.metric("AGILAB workflow stages", report["workflow_stages"], width=200)
+    render_build_evidence(report)
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
         st.markdown(f"Source: [{source['repository']}]({source['url']}) · {source['license']}")

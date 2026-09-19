@@ -13,6 +13,8 @@ import zipfile
 
 import streamlit as st
 
+from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+
 _APP_LOCK = threading.RLock()
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "notebook_agent_demo"
 
@@ -68,25 +70,13 @@ def render() -> None:
         return
     report = load_report()
     st.caption("TOKKI × AGILAB · NOTEBOOK → WORKING APP")
-    st.title("Built by an autonomous agent")
+    render_build_evidence(report, extra_metrics=(
+        ("Models checked", len({row["model"] for row in report["verification"]["scores"]})),
+    ))
     st.write(
         "One request turned Géron's decision-tree notebook into the interactive app below. "
         "Tokki coordinated the agent and verification; AGILAB imported the resulting workflow."
     )
-    st.caption(
-        "This public Space runs the completed app. New autonomous builds run in a local "
-        "Tokki environment with your configured provider."
-    )
-    with st.container(horizontal=True):
-        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min")
-        st.metric("Models checked", len({row['model'] for row in report['verification']['scores']}))
-        st.metric("AGILAB workflow stages", report["workflow_stages"])
-    with st.expander("Build from your own notebook", icon=":material/rocket_launch:"):
-        st.write("Run the builder on your computer with your own Tokki installation and configured Codex provider. Start with a self-contained Python notebook using data and dependencies available locally.")
-        st.markdown("1. Set up your licensed [Tokki installation](https://github.com/jpmorard/tokki-public/blob/main/RELEASES.md) and provider.\n2. Install the AGILAB builder with [uv](https://docs.astral.sh/uv/getting-started/installation/).\n3. Open the local interface and choose **Local notebook** or **Pinned GitHub notebook**.")
-        st.code('uv tool install "agilab[notebook-agent] @ git+https://github.com/ThalesGroup/agilab.git"\nagilab-notebook-demo --ui', language="bash")
-        st.caption("Your notebook and provider credentials stay out of this public Space. The local agent reads your notebook through your provider and executes generated Python on your computer. Checks establish execution and interface behavior; review scientific conclusions yourself.")
-        st.write("After your first successful build, the local app offers a completion receipt you can voluntarily report on GitHub. It contains no notebook or credentials. Nothing is uploaded automatically; a public report is associated with your GitHub account.")
     with st.expander("The request and the proof"):
         st.markdown(
             "> Turn the Iris decision-tree example into an interactive decision lab. "

@@ -415,6 +415,17 @@ Use this runbook whenever you:
   the old and new wording before closing the task. When a page title is asserted by tests, prefer a
   small side-effect-free metadata module (for example `page_meta.py`) so the page and tests do not
   drift on duplicated strings.
+- **Notebook demo build evidence**: Every public notebook demo must call
+  `agent_runtime.notebook_demo_evidence.render_build_evidence` after verifying its
+  original build receipt. Keep the autonomous-agent heading and recorded build
+  duration visible above the app, outside expanders, tabs, and sidebars. Use the
+  receipt's duration; never substitute inference, page-load, or deployment time.
+  Preserve the shared public/local explanation and **Build from your own notebook**
+  section with working install and launch commands on every demo. Audit the whole
+  shared experience when adding a demo rather than copying selected UI elements.
+  When adding a selector option, run
+  `test/test_notebook_showcase.py::test_every_selectable_demo_shows_build_evidence_without_expanding`
+  and verify the live embedded demo on desktop and mobile before closing the task.
 - **Deterministic filesystem behavior**: Never rely on implicit filesystem iteration order
   (`glob`, `rglob`, `iterdir`, `os.scandir`) in runtime code or tests. If order matters to users,
   sort in the implementation. If order is not part of the contract, assert on sorted values or sets

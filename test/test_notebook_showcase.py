@@ -28,6 +28,43 @@ def test_public_app_renders_and_depth_changes_without_provider():
     assert not at.exception
 
 
+def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatch, tmp_path):
+    """Read the real selector so a newly added demo cannot skip this contract."""
+    from agilab.agent_runtime import forecast_showcase
+
+    # Keep real receipt verification and presentation; avoid network/model inference.
+    monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _path: tmp_path)
+    monkeypatch.setattr(forecast_showcase, "_validate_model", lambda path: path)
+    monkeypatch.setattr(forecast_showcase, "_run_verified_app", lambda _payload, _path: None)
+    initial = AppTest.from_file(showcase.__file__, default_timeout=30).run()
+    assert not initial.exception and not initial.error
+    for demo in initial.segmented_control(key="demo").options:
+        at = AppTest.from_file(showcase.__file__, default_timeout=30)
+        at.query_params["demo"] = demo
+        at.run()
+        assert not at.exception and not at.error, demo
+        assert at.segmented_control(key="demo").value == demo
+        assert sum(title.value == "Built by an autonomous agent" for title in at.main.title) == 1, demo
+        timings = [item for item in at.main.metric if item.label == "Autonomous build"]
+        assert len(timings) == 1, demo
+        assert timings[0].value.endswith(" min") and float(timings[0].value[:-4]) > 0, demo
+        assert any(item.label == "AGILAB workflow stages" for item in at.main.metric), demo
+        # AppTest 1.58 represents an expander with an icon as a Status block.
+        disclosures = [*at.main.expander, *at.main.get("status")]
+        builders = [item for item in disclosures if item.label == "Build from your own notebook"]
+        assert len(builders) == 1, demo
+        assert any("agilab-notebook-demo --ui" in item.value for item in builders[0].code), demo
+        assert any("uv tool install" in item.value for item in builders[0].code), demo
+        assert any("This public Space runs the completed app" in item.value for item in at.main.caption), demo
+        for hidden_container in (*at.expander, *at.get("status"), *at.get("tab"), at.sidebar):
+            assert all(title.value != "Built by an autonomous agent" for title in hidden_container.title), demo
+            assert all(item.label != "Autonomous build" for item in hidden_container.metric), demo
+            assert all(
+                item is hidden_container or getattr(item, "label", None) != "Build from your own notebook"
+                for item in hidden_container
+            ), demo
+
+
 def test_export_rejects_tampered_verified_code(tmp_path):
     script = Path(__file__).parents[1] / "tools" / "demos" / "export_notebook_agent_demo.py"
     spec = importlib.util.spec_from_file_location("export_demo_test", script)
