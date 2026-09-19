@@ -194,7 +194,7 @@ def test_forecast_controls_render_and_update_without_provider(demo_bundle):
     assert not at.exception
     assert at.metric[-1].value == "12"
     assert any("recorded forecast and interface" in item.value for item in at.markdown)
-    assert all("autonomous" not in title.value.lower() for title in at.title)
+    assert sum(title.value == "Built by an autonomous agent" for title in at.title) == 1
 
 
 def test_import_state_is_restored_after_app_failure(demo_bundle, monkeypatch):

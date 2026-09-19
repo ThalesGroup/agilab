@@ -187,6 +187,7 @@ def render() -> None:
         st.error(f"Forecast demo unavailable: {exc}")
         return
     st.caption("TOKKI × AGILAB · FORECASTING DEMO")
+    st.title("Built by an autonomous agent")
     st.subheader(report["demo"]["title"])
     st.write(report["demo"]["description"])
     notebook_checks = report["verification"]["checks"]

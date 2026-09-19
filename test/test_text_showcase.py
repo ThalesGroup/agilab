@@ -93,6 +93,7 @@ def test_real_app_submits_changes_and_keeps_submitted_parameters():
     pytest.importorskip("sklearn")
     at = AppTest.from_function(page, default_timeout=90).run()
     assert not at.exception and not at.error
+    assert sum(title.value == "Built by an autonomous agent" for title in at.title) == 1
     assert any("Run analysis" in item.value for item in at.info)
     assert not any(item.label == "Articles" for item in at.metric)
     at.button(key="run_analysis").click().run()

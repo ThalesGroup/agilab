@@ -122,6 +122,7 @@ def render() -> None:
         st.error(f"Text demo unavailable: {exc}")
         return
     st.caption("TOKKI × AGILAB · NOTEBOOK TO APP")
+    st.title("Built by an autonomous agent")
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
         st.markdown(f"Source: [{source['repository']}]({source['url']}) · {source['license']}")
