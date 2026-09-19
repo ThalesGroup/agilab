@@ -123,14 +123,14 @@ def render() -> None:
         return
     st.caption("TOKKI × AGILAB · NOTEBOOK TO APP")
     st.title("Built by an autonomous agent")
+    with st.container(horizontal=True, wrap=True):
+        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min", width=200)
+        st.metric("AGILAB workflow stages", report["workflow_stages"], width=200)
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
         st.markdown(f"Source: [{source['repository']}]({source['url']}) · {source['license']}")
         st.caption("Lesson introduced August 5, 2026 · pinned notebook updated September 2, 2026")
         st.write(f"Corpus: {report['data']['attribution']} · {report['data']['license']}")
-        with st.container(horizontal=True, wrap=True):
-            st.metric("Recorded build", f"{report['seconds']:.0f} s", width=200)
-            st.metric("Workflow stages", report["workflow_stages"], width=200)
         st.caption(f"Run: {report['run_id']} · source commit: {source['commit']}")
         st.write("Interface checks: " + ", ".join(report["verification"]["checks"]))
         st.write("Independent checks: " + ", ".join(report["verification"]["text"]["checks"]))

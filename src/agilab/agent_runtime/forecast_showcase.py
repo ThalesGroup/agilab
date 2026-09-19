@@ -194,7 +194,7 @@ def render() -> None:
     forecast_verification = report["verification"].get("forecast", {})
     forecast_checks = forecast_verification.get("checks", [])
     with st.container(horizontal=True):
-        st.metric("Recorded run", f"{report['seconds']:.0f} s")
+        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min")
         st.metric("AGILAB workflow stages", report["workflow_stages"])
         st.metric("Recorded checks", len(notebook_checks) + len(forecast_checks))
     with st.expander("Source and verification"):

@@ -188,6 +188,8 @@ def test_missing_executable_is_not_a_verified_bundle(demo_bundle):
 def test_forecast_controls_render_and_update_without_provider(demo_bundle):
     at = AppTest.from_function(_forecast_page).run()
     assert not at.exception
+    assert {item.label: item.value for item in at.metric}["Autonomous build"] == "0.17 min"
+    assert all(item.label != "Autonomous build" for expander in at.expander for item in expander.metric)
     assert any(heading.value == "Forecast lab" for heading in at.subheader)
     assert at.metric[-1].value == "10"
     at.slider(key="forecast_horizon").set_value(5).run()
