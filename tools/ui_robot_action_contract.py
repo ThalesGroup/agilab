@@ -63,6 +63,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "clears only the MILP browser-session comparison list; focused app tests verify saved scenarios clear while the solved result remains",
         ("test/test_milp_energy_showcase.py",),
     ),
+    "Run benchmark": (
+        "trial-only",
+        "starts bounded local CPU benchmarks; focused tests cover explicit submission and runner errors, while bundled tests and dedicated browser checks exercise real workers",
+        ("test/test_free_threading_showcase.py", "src/agilab/resources/free_threading_demo/tests.py"),
+    ),
     "Run scaling experiment": (
         "trial-only",
         "starts bounded local MILP worker processes; focused tests cover dispatch, CPU gating and failure reporting, while the live lab check measures a real batch",

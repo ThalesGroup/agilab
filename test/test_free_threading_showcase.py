@@ -263,3 +263,28 @@ def test_busy_demo_can_retry_after_other_session_releases_lock():
     assert any(title.value == "Free-threading lab" for title in at.title)
     assert any(button.label == "Run analysis" for button in at.button)
     assert not any("Another notebook demo session" in info.value for info in at.info)
+
+
+def test_benchmark_requires_explicit_action_and_reports_runner_failure(monkeypatch):
+    calls = []
+    fake = ModuleType("benchmark")
+    fake.effective_cpus = lambda: {"effective_cpus": 1}
+
+    def unavailable(**parameters):
+        calls.append(parameters)
+        raise RuntimeError("fixture interpreter unavailable")
+
+    fake.run_benchmark = unavailable
+    monkeypatch.setitem(sys.modules, "benchmark", fake)
+    monkeypatch.syspath_prepend(str(showcase.DEMO_ROOT))
+    at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py"), default_timeout=30).run()
+    assert not at.exception and not calls
+    assert not any(button.label == "Run benchmark" for button in at.button)
+    next(button for button in at.button if button.label == "Run analysis").click().run()
+    assert not at.exception and not calls
+    next(button for button in at.button if button.label == "Run benchmark").click().run()
+    assert not at.exception and len(calls) == 1
+    assert calls[0]["workers"] == 1
+    assert any("fixture interpreter unavailable" in error.value for error in at.error)
+    at.run()
+    assert not at.exception and len(calls) == 1
