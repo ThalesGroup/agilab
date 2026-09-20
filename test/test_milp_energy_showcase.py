@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 from types import ModuleType
 import zipfile
@@ -44,7 +45,7 @@ def test_bundle_matches_build_receipt_and_download():
             assert hashlib.sha256(archive.read(name)).hexdigest() == expected
 
 
-@pytest.mark.parametrize("name", ["app.py", "energy_runner.py", "energy_core.py", "agilab_pool.py", "source/original.ipynb", "source/LICENSE"])
+@pytest.mark.parametrize("name", ["app.py", "energy_runner.py", "energy_core.py", "agilab_pool.py", "source/original.ipynb", "source/LICENSE", "source/provenance.json"])
 def test_changed_artifacts_cannot_execute_or_download(bundle, name, monkeypatch):
     (bundle / name).write_text("raise AssertionError('must not execute')")
     monkeypatch.setattr(showcase, "_run_verified_app", lambda _: pytest.fail("Unverified app executed"))
@@ -120,6 +121,17 @@ def test_iris_only_distribution_reports_missing_fifth_demo(monkeypatch):
     at.run()
     assert not at.exception
     assert at.error[0].value == "MILP energy lab unavailable in this distribution."
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="The MILP replay runner targets POSIX")
+def test_downloaded_milp_suite_can_verify_its_original_source(tmp_path):
+    with zipfile.ZipFile(io.BytesIO(showcase.download_bundle())) as archive:
+        archive.extractall(tmp_path)
+    checked = subprocess.run(
+        [sys.executable, "-B", str(tmp_path / "tests.py"), "Boundaries.test_source_integrity"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    assert checked.returncode == 0, checked.stdout + checked.stderr
 
 
 def test_export_rejects_a_modified_agent_artifact(tmp_path):

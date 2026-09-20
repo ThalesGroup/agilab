@@ -14,6 +14,8 @@ from agilab.agent_runtime.milp_energy_showcase import PUBLIC_FILES
 SOURCE_COMMIT = "c838aa498557cc8e27a9d3ed10d45e35c4b0b442"
 SOURCE_URL = f"https://github.com/PyPSA/PyPSA/blob/{SOURCE_COMMIT}/docs/examples/modular-committable.ipynb"
 SOURCE_HASH = "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8"
+# Original public source metadata, also required by the sealed replay tests.
+PROVENANCE_HASH = "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff"
 LICENSE_HASH = "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744"
 ENGINE_COMMIT = "7d2b1355b84eed3cbf0828c325cddb8308be77a3"
 ENGINE_PATH = "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py"
@@ -168,7 +170,8 @@ def export_demo(run: Path, destination: Path) -> dict:
         if hashes[name] != report["files"].get(name):
             raise ValueError(f"Autonomous-run artifact changed: {name}")
     if (hashes["agilab_pool.py"] != ENGINE_HASH or hashes["source/original.ipynb"] != SOURCE_HASH
-            or hashes["source/LICENSE"] != LICENSE_HASH or hashes["AGILAB_LICENSE"] != ENGINE_LICENSE_HASH):
+            or hashes["source/LICENSE"] != LICENSE_HASH or hashes["AGILAB_LICENSE"] != ENGINE_LICENSE_HASH
+            or hashes["source/provenance.json"] != PROVENANCE_HASH):
         raise ValueError("Pinned AGILAB engine, source notebook or notebook license changed")
     checks = validate_analysis(project)
     if any((project / name).read_bytes() != content for name, content in payload.items()):

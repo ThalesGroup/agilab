@@ -8,13 +8,13 @@ import math
 from pathlib import Path, PurePosixPath
 import re
 import sys
-import threading
 from types import ModuleType
 import zipfile
 
 import streamlit as st
 
 from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "text_notebook_demo"
 PUBLIC_FILES = frozenset({
@@ -22,7 +22,6 @@ PUBLIC_FILES = frozenset({
     "requirements.txt", "LICENSE", "DATA_LICENSE", "DATA_SOURCES.md", "NOTICE",
     "README.md", "data/wiki_news.csv", "source/original.ipynb",
 })
-_APP_LOCK = threading.RLock()
 
 
 def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
