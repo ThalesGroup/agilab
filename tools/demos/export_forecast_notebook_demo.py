@@ -85,6 +85,23 @@ def export_demo(run: Path, destination: Path, validation: Path) -> dict:
         },
         "files": files,
     }
+    if "build_model" in report:
+        model = report["build_model"]
+        if not isinstance(model, dict) or any(
+            not isinstance(model.get(key), str) or not model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("Invalid build model metadata")
+        string_fields = {
+            "id", "provider", "execution", "revision", "upstream", "upstream_revision",
+            "quantization", "method", "coordination",
+        }
+        bool_fields = {"cloud_codegen_fallback", "tokki_agent_offload"}
+        if any(key in model and not isinstance(model[key], str) for key in string_fields):
+            raise ValueError("Invalid build model string metadata")
+        if any(key in model and not isinstance(model[key], bool) for key in bool_fields):
+            raise ValueError("Invalid build model routing metadata")
+        public["build_model"] = {key: model[key] for key in sorted(string_fields | bool_fields) if key in model}
     # Verify everything before changing the destination. Require a fresh export
     # so a previous run cannot leave unlisted executable files behind.
     if any(parent.is_symlink() for parent in destination.absolute().parents):

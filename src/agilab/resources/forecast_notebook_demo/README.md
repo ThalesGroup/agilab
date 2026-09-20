@@ -1,7 +1,7 @@
 # Promotion forecast lab
 
-A real Chronos-2 Small forecast app built through Tokki and imported as a
-three-stage AGILAB workflow. All demand and promotion data are synthetic.
+A real Chronos-2 Small forecast app built locally with Qwen 3.8 27B and imported
+as an AGILAB workflow. All demand and promotion data are synthetic.
 Changing a future promotion schedule produces a scenario forecast, not a
 measured causal effect.
 
@@ -9,8 +9,8 @@ measured causal effect.
 
 Install [uv](https://docs.astral.sh/uv/), extract this bundle, and run from its
 root. Python 3.13 is the recorded notebook-build environment. The supplied requirements
-list packages the generated app for reuse; Python 3.14 and Transformers 5 were
-also checked with real inference. Generated Python and notebook files are unchanged.
+list packages the generated app for reuse. This build was verified with
+Streamlit 1.64 and Transformers 4.57.6 using real offline inference.
 
 ```sh
 uv run --python 3.13 --with-requirements requirements.txt python -c 'from huggingface_hub import snapshot_download; snapshot_download("autogluon/chronos-2-small", revision="ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a", allow_patterns=["config.json", "model.safetensors"])'
@@ -47,7 +47,9 @@ The original notebook and checkpoint have independent source revisions.
 
 ## What the receipt proves
 
-The recorded Tokki agent build completed in 361 seconds. Its objective checks
+The exact build duration and local inference time are recorded separately in
+result.json. Wall time includes queued work, repairs and independent checks.
+Its objective checks
 executed the generated notebook in a fresh directory, checked a fresh analysis
 artifact, started the app, and exercised Run analysis. Three additional seeded
 model checks measure error against a seasonal baseline, check finite ordered
@@ -59,3 +61,7 @@ nominal 80% prediction interval is poorly calibrated on this synthetic fixture;
 the app displays measured coverage and error without promising production
 accuracy. Hashes detect changes relative to the receipt; they are not a digital
 signature. Hosted file hashes are checked again before app execution.
+
+## Local application build
+
+The application Python and notebook cells were generated and repaired locally with Qwen 3.8 27B (4-bit MLX), model `ddalcu/Qwen3.8-27B-MLX-Serve-4bit`. No cloud code-generation fallback was used. A coordinating assistant prepared requests and ran independent validation. The completed application runs the pinned Chronos-2-small forecasting model locally. The accompanying result.json records exact model revisions and verification scope.

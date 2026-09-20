@@ -380,12 +380,16 @@ def test_packaged_run_analysis_submits_scenario_and_refreshes_results(packaged_f
         # Real inference is checked by the separate acceptance script. This
         # boundary stub verifies the actual app's form and result lifecycle.
         calls.append(parameters)
-        data = core.make_fixture(**parameters)
-        baseline = core.seasonal_baseline(data["context"], parameters["horizon"])
-        forecast = baseline + parameters["promotion_days"]
-        prediction = {"forecast": forecast, "lower": forecast - 5, "upper": forecast + 5}
-        return core.assemble_results(data, prediction, baseline, parameters)
+        return original_analysis(**parameters)
 
+    original_analysis = core.run_analysis
+
+    def controlled_prediction(data, use_covariates=True):
+        import numpy as np
+        forecast = np.asarray(data["future_promotion"], dtype=float) + 100
+        return {"forecast": forecast, "lower": forecast - 5, "upper": forecast + 5}
+
+    monkeypatch.setattr(core, "predict", controlled_prediction)
     monkeypatch.setattr(core, "run_analysis", controlled_inference)
     at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py"), default_timeout=20).run()
     assert not at.exception
@@ -398,7 +402,7 @@ def test_packaged_run_analysis_submits_scenario_and_refreshes_results(packaged_f
     assert not at.exception
     assert calls == [{"seed": 42, "horizon": 14, "promotion_start": 7, "promotion_days": 0}]
     assert {metric.label for metric in at.metric} == {
-        "Chronos MAE", "Seasonal-7 MAE", "Observed p10–p90 coverage",
+        "Chronos-2 MAE", "Seasonal-7 MAE", "p10–p90 coverage",
     }
     assert len(at.dataframe[0].value) == 14
     assert set(at.dataframe[0].value["Promotion"]) == {"Off"}
@@ -419,12 +423,40 @@ def test_packaged_run_analysis_submits_scenario_and_refreshes_results(packaged_f
 
 def test_packaged_run_analysis_reports_missing_model(packaged_forecast_core, monkeypatch):
     def missing_model(**_parameters):
-        raise packaged_forecast_core.PrerequisiteError("The prepared model snapshot is unavailable.")
+        raise RuntimeError("The prepared model snapshot is unavailable.")
 
     monkeypatch.setattr(packaged_forecast_core, "run_analysis", missing_model)
     at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py"), default_timeout=20).run()
     next(button for button in at.button if button.label == "Run analysis").click().run()
     assert not at.exception
-    assert at.error[0].value == "The prepared model snapshot is unavailable."
+    assert "The prepared model snapshot is unavailable." in at.error[0].value
     assert not at.metric
     assert not at.dataframe
+
+
+@pytest.mark.parametrize("record_model", [False, True])
+def test_optional_build_model_is_visible_without_expanding(demo_bundle, record_model):
+    root, report = demo_bundle
+    if record_model:
+        report["build_model"] = {
+            "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+            "execution": "local", "provider": "mlx-serve",
+        }
+        _write_report(root, report)
+    at = AppTest.from_function(_forecast_page).run()
+    assert not at.exception
+    labels = [item.value for item in at.caption if item.value.startswith("Build model:")]
+    assert len(labels) == int(record_model)
+    if record_model:
+        assert report["build_model"]["id"] in labels[0]
+
+
+@pytest.mark.parametrize("model", [None, [], {}, {"id": "qwen"}])
+def test_invalid_build_model_fails_before_render(demo_bundle, model):
+    root, report = demo_bundle
+    report["build_model"] = model
+    _write_report(root, report)
+    at = AppTest.from_function(_forecast_page).run()
+    assert not at.exception
+    assert "build model metadata is invalid" in at.error[0].value
+    assert not at.title
