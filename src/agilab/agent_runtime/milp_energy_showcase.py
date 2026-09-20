@@ -33,6 +33,13 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
     if (not isinstance(report, dict) or report.get("status") != "passed"
             or report.get("schema") != "agilab.notebook_agent.public_demo.v1"):
         raise ValueError("MILP Energy demo has no supported passed receipt")
+    if "build_model" in report:
+        model = report["build_model"]
+        if not isinstance(model, dict) or any(
+            not isinstance(model.get(key), str) or not model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("MILP Energy demo build model metadata is invalid")
     verification = report.get("verification", {})
     for section in (verification, verification.get("milp_energy", {})
                     if isinstance(verification, dict) else {}):
@@ -142,6 +149,8 @@ def render() -> None:
         return
     st.caption("TOKKI × AGILAB · NOTEBOOK TO APP")
     render_build_evidence(report)
+    if model := report.get("build_model"):
+        st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
         st.markdown(

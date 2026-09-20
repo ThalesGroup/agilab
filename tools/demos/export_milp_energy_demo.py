@@ -189,6 +189,23 @@ def export_demo(run: Path, destination: Path) -> dict:
         "verification_scope": "execution_interface_and_bounded_local_milp_scenario_scaling",
         "verification": {**report["verification"], "milp_energy": checks}, "files": hashes,
     }
+    if "build_model" in report:
+        model = report["build_model"]
+        if not isinstance(model, dict) or any(
+            not isinstance(model.get(key), str) or not model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("Invalid build model metadata")
+        string_fields = {
+            "id", "provider", "execution", "revision", "upstream", "upstream_revision",
+            "quantization", "method", "coordination",
+        }
+        bool_fields = {"cloud_codegen_fallback", "tokki_agent_offload"}
+        if any(key in model and not isinstance(model[key], str) for key in string_fields):
+            raise ValueError("Invalid build model string metadata")
+        if any(key in model and not isinstance(model[key], bool) for key in bool_fields):
+            raise ValueError("Invalid build model routing metadata")
+        public["build_model"] = {key: model[key] for key in sorted(string_fields | bool_fields) if key in model}
     destination.mkdir(parents=True, exist_ok=True)
     for name, content in payload.items():
         path = destination / name

@@ -252,3 +252,83 @@ def test_milp_scaling_dispatch_and_cpu_gate(lab_controls, monkeypatch, cpus):
     assert not at.exception
     assert len(calls) == 1 and len(calls[0][0]) == 4 and calls[0][1] == 2
     assert any("Fixture worker deadline reached" in item.value for item in at.error)
+
+
+@pytest.mark.parametrize("record_model", [False, True])
+def test_build_model_visible_and_legacy_receipts_supported(bundle, monkeypatch, record_model):
+    receipt = bundle / "result.json"
+    report = json.loads(receipt.read_text())
+    if record_model:
+        report["build_model"] = {
+            "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+            "provider": "mlx-serve", "execution": "local",
+        }
+    else:
+        report.pop("build_model", None)
+    receipt.write_text(json.dumps(report))
+    monkeypatch.setattr(showcase, "_run_verified_app", lambda _: None)
+    at = AppTest.from_function(page).run()
+    assert not at.exception and not at.error
+    labels = [caption.value for caption in at.caption if "Build model:" in caption.value]
+    assert bool(labels) is record_model
+    if record_model:
+        assert report["build_model"]["id"] in labels[0]
+
+
+@pytest.mark.parametrize("model", [None, [], {}, {"id": "", "provider": "mlx", "execution": "local"}])
+def test_invalid_build_model_cannot_execute(bundle, monkeypatch, model):
+    receipt = bundle / "result.json"
+    report = json.loads(receipt.read_text())
+    report["build_model"] = model
+    receipt.write_text(json.dumps(report))
+    monkeypatch.setattr(showcase, "_run_verified_app", lambda _: pytest.fail("Invalid receipt executed"))
+    at = AppTest.from_function(page).run()
+    assert not at.exception and at.error and not at.title
+    with pytest.raises(ValueError, match="build model"):
+        showcase.download_bundle()
+
+
+@pytest.mark.parametrize("record_model", [False, True])
+def test_export_allows_only_public_model_metadata(bundle, tmp_path, monkeypatch, record_model):
+    from tools.demos import export_milp_energy_demo as exporter
+    run = tmp_path / "finished-run"
+    run.mkdir()
+    shutil.copytree(bundle, run / "notebook_app_project")
+    report = json.loads((bundle / "result.json").read_text())
+    if record_model:
+        report["build_model"] = {
+            "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit", "provider": "mlx-serve",
+            "execution": "local", "revision": "b" * 40, "cloud_codegen_fallback": False,
+            "tokki_agent_offload": False, "private_endpoint": "must-never-be-public",
+        }
+    else:
+        report.pop("build_model", None)
+    (run / "result.json").write_text(json.dumps(report))
+    monkeypatch.setattr(exporter, "validate_analysis", lambda _: {"status": "passed", "checks": ["fixture"]})
+    destination = tmp_path / "public-export"
+    exported = exporter.export_demo(run, destination)
+    assert ("build_model" in exported) is record_model
+    if record_model:
+        assert exported["build_model"]["id"] == report["build_model"]["id"]
+        assert exported["build_model"]["cloud_codegen_fallback"] is False
+        assert "private_endpoint" not in exported["build_model"]
+    monkeypatch.setattr(showcase, "DEMO_ROOT", destination)
+    assert showcase.load_report()["status"] == "passed"
+
+
+@pytest.mark.parametrize("model", [
+    None, {}, {"id": "qwen", "provider": "mlx", "execution": "local", "cloud_codegen_fallback": "false"},
+])
+def test_export_rejects_invalid_model_without_publishing(bundle, tmp_path, monkeypatch, model):
+    from tools.demos import export_milp_energy_demo as exporter
+    run = tmp_path / "finished-run"
+    run.mkdir()
+    shutil.copytree(bundle, run / "notebook_app_project")
+    report = json.loads((bundle / "result.json").read_text())
+    report["build_model"] = model
+    (run / "result.json").write_text(json.dumps(report))
+    monkeypatch.setattr(exporter, "validate_analysis", lambda _: {"status": "passed", "checks": ["fixture"]})
+    destination = tmp_path / "public-export"
+    with pytest.raises(ValueError, match="build model"):
+        exporter.export_demo(run, destination)
+    assert not destination.exists()

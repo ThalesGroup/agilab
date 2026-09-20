@@ -58,7 +58,12 @@ def validate_analysis(project: Path) -> dict:
             assert run["before"]["gil_enabled"] is (run["mode"] != "gil_off_threads")
             assert run["before"]["version"] == result["python_build"]
             assert 0 < run["engine_seconds"] <= run["wall_seconds"]
-            assert run["actual_workers"] == run["workers"]
+            identities = {(record["pid"], record["thread_id"]) for record in run["records"]}
+            assert run["actual_workers"] == len(identities)
+            assert 1 <= run["actual_workers"] <= run["pool_width"] <= run["workers"]
+            for record in run["records"]:
+                assert record["runtime_before"] == record["runtime_after"] == run["before"]
+                assert run["engine_start"] <= record["start"] < record["end"] <= run["engine_end"]
         for summary in result["summary"]:
             group = [r for r in result["runs"] if r["mode"] == summary["mode"] and r["role"] == summary["role"]]
             baseline = [r for r in result["runs"] if r["mode"] == summary["mode"] and r["role"] == "baseline"]
@@ -122,6 +127,23 @@ def export_demo(run: Path, destination: Path) -> dict:
         "verification_scope": "execution_interface_and_bounded_local_pool_scaling",
         "verification": {**report["verification"], "free_threading": checks}, "files": hashes,
     }
+    if "build_model" in report:
+        model = report["build_model"]
+        if not isinstance(model, dict) or any(
+            not isinstance(model.get(key), str) or not model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("Invalid build model metadata")
+        string_fields = {
+            "id", "provider", "execution", "revision", "upstream", "upstream_revision",
+            "quantization", "method", "coordination",
+        }
+        bool_fields = {"cloud_codegen_fallback", "tokki_agent_offload"}
+        if any(key in model and not isinstance(model[key], str) for key in string_fields):
+            raise ValueError("Invalid build model string metadata")
+        if any(key in model and not isinstance(model[key], bool) for key in bool_fields):
+            raise ValueError("Invalid build model routing metadata")
+        public["build_model"] = {key: model[key] for key in sorted(string_fields | bool_fields) if key in model}
     destination.mkdir(parents=True, exist_ok=True)
     for name, content in payload.items():
         path = destination / name

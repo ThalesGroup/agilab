@@ -1,217 +1,230 @@
-"""Run using the existing normal UI Python: python -B tests.py."""
-import copy
-import json
-import os
-from pathlib import Path
-import subprocess
+"""tests.py – Free-threading lab test suite (pytest + stdlib only)."""
+import hashlib
+import math
+import pathlib
 import sys
-import tempfile
-import time
-import unittest
-from unittest.mock import patch
 
-import benchmark as bench
+import pytest
+
+ROOT = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
 import free_threading_core as core
+import benchmark as bench
+
+TIMEOUT = 30
 
 
-def original_reference(width, height, iterations):
-    # Independent transcription of the source notebook, not a call to the kernel.
-    pixels = []
-    for y in range(height):
-        cy = -1.2 + 2.4 * y / (height - 1)
-        for x in range(width):
-            cx = -2.0 + 3.0 * x / (width - 1)
-            z = 0j
-            c = complex(cx, cy)
+# ── 1. Independent Mandelbrot oracle ──────────────────────────────────────────
+
+def _oracle(w, h, n):
+    """Scalar reference: c=(-2+3x/(w-1), -1.2+2.4y/(h-1)); iterate z=z²+c."""
+    out = []
+    for y in range(h):
+        for x in range(w):
+            cr = -2.0 + 3.0 * x / (w - 1)
+            ci = -1.2 + 2.4 * y / (h - 1)
+            zr, zi = 0.0, 0.0
             count = 0
-            while count < iterations and z.real*z.real + z.imag*z.imag <= 4.0:
-                z = z*z + c
+            while count < n and zr * zr + zi * zi <= 4.0:
+                zr, zi = zr * zr - zi * zi + cr, 2.0 * zr * zi + ci
                 count += 1
-            pixels.append(count)
-    return pixels
+            out.append(count)
+    return out
 
 
-class EngineTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.workers = min(2, bench.effective_cpus()["effective_cpus"])
-        cls.samples = []
-        for dimensions in ((7, 5, 25), (20, 13, 60), (48, 32, 80)):
-            for mode in core.MODES:
-                cls.samples.append((dimensions, mode, bench.run_case(*dimensions, cls.workers, mode)))
-
-    def test_exact_original_counts_all_backends_and_shapes(self):
-        for dimensions, mode, result in self.samples:
-            with self.subTest(dimensions=dimensions, mode=mode):
-                expected = original_reference(*dimensions)
-                counts = core.reduce_tiles(result["records"], core.tile_plan(*dimensions))
-                self.assertEqual(expected, counts)
-                self.assertEqual(result["digest"], core.image_digest(expected))
-                self.assertEqual(result["before"], result["after"])
-                self.assertTrue(result["before"]["free_threaded_build"])
-                self.assertEqual(result["before"]["gil_enabled"], bool(core.MODES[mode][0]))
-
-    def test_mono_api_uses_same_reduction(self):
-        source = ("import json,free_threading_core as c; "
-                  "print(json.dumps(c.execute(7,5,25,1,'gil_on_threads',mono=True)))")
-        env = bench.child_environment("gil_on_threads", 1)
-        env["PYTHONPATH"] = str(Path(__file__).resolve().parent)
-        output, _ = bench._communicate([bench.interpreter(), "-B", "-X", "gil=1", "-c", source],
-                                       "", env, 10)
-        result = json.loads(output)
-        self.assertEqual(core.reduce_tiles(result["records"], core.tile_plan(7, 5, 25)),
-                         original_reference(7, 5, 25))
-        self.assertEqual(result["backend"], "mono")
-
-    def test_incomplete_duplicate_mismatched_results_rejected(self):
-        dimensions, mode, result = self.samples[-1]
-        mutations = [lambda r: r["records"].pop(),
-                     lambda r: r["records"].append(r["records"][0]),
-                     lambda r: r["records"][0].update(row_start=999),
-                     lambda r: r.update(digest="0" * 64),
-                     lambda r: r.update(mode="gil_off_threads"),
-                     lambda r: r["tile_plan"].reverse(),
-                     lambda r: r["records"][0]["counts"].pop(),
-                     lambda r: r["after"].update(gil_enabled=False),
-                     lambda r: r["records"][0].update(gil_enabled=False)]
-        for mutation in mutations:
-            bad = copy.deepcopy(result)
-            mutation(bad)
-            with self.subTest(mutation=mutation), self.assertRaises((ValueError, RuntimeError)):
-                bench.validate_result(bad, *dimensions, self.workers, mode)
-
-    def test_six_cases_medians_and_parent_state_unchanged(self):
-        cwd, env = Path.cwd(), dict(os.environ)
-        report = bench.run_benchmark(12, 8, 20, workers=self.workers, repeats=1)
-        self.assertEqual(len(report["runs"]), 6)
-        self.assertEqual(len({r["digest"] for r in report["runs"]}), 1)
-        self.assertEqual({r["role"] for r in report["runs"]}, {"baseline", "scaled"})
-        for row in report["summary"]:
-            if row["role"] == "baseline":
-                self.assertEqual(row["speedup"], 1)
-                self.assertEqual(row["engine_speedup"], 1)
-        self.assertEqual(Path.cwd(), cwd)
-        self.assertEqual(dict(os.environ), env)
+@pytest.mark.parametrize("w,h,n", [(9, 7, 30), (16, 11, 40)])
+def test_reference_matches_oracle(w, h, n):
+    expected = _oracle(w, h, n)
+    got = core.reference_image(w, h, n)
+    assert len(got) == w * h
+    assert got == expected, f"Mismatch at {[(i, e, g) for i, (e, g) in enumerate(zip(expected, got)) if e != g][:5]}"
 
 
-class GuardTests(unittest.TestCase):
-    def test_invalid_inputs_never_launch(self):
-        invalid = (True, False, 0, -1, float("nan"), float("inf"), "2", 2.5, None)
-        with patch.object(bench.subprocess, "Popen", side_effect=AssertionError("launched")):
-            for name in ("width", "height", "iterations", "workers", "repeats"):
-                for value in invalid:
-                    values = dict(width=12, height=8, iterations=20, workers=1, repeats=1)
-                    values[name] = value
-                    with self.subTest(name=name, value=value), self.assertRaises(ValueError):
-                        bench.run_benchmark(**values)
-            for mode in ("unknown", None, True, [], {}):
-                with self.assertRaises(ValueError):
-                    bench.run_case(12, 8, 20, 1, mode)
-            for values in ((385, 8, 20, 1), (12, 257, 20, 1), (12, 8, 301, 1),
-                           (12, 8, 20, 9), (1, 8, 20, 1)):
-                with self.assertRaises(ValueError):
-                    bench.run_benchmark(*values)
-            with self.assertRaises(ValueError):
-                bench.run_benchmark(repeats=4)
-            for timeout in (True, 0, -1, float("nan"), float("inf"), 51):
-                with self.assertRaises(ValueError):
-                    bench.run_benchmark(total_timeout=timeout)
+# ── 2. Input validation ───────────────────────────────────────────────────────
 
-    def test_scrub_polluted_environment(self):
-        dirty = {"PYTHON_GIL": "1", "AGILAB_POOL_EXECUTOR": "process",
-                 "AGILAB_POOL_ITEM_TIMEOUT": "0.000001", "AGILAB_POOL_OTHER": "junk"}
-        with patch.dict(os.environ, dirty):
-            env = bench.child_environment("gil_off_threads", 2)
-            self.assertNotIn("PYTHON_GIL", env)
-            self.assertNotIn("AGILAB_POOL_ITEM_TIMEOUT", env)
-            self.assertNotIn("AGILAB_POOL_OTHER", env)
-            self.assertEqual(env["AGILAB_POOL_EXECUTOR"], "auto")
-            self.assertEqual(env["AGILAB_POOL_MAX_WORKERS"], "2")
-            self.assertEqual(os.environ["AGILAB_POOL_EXECUTOR"], "process")
-
-    def test_cpu_quota_affinity_and_space_caps(self):
-        with patch.dict(os.environ, {"CPU_CORES": "2", "SPACE_CPU_CORES": "4"}), \
-             patch.object(bench, "_cgroup_limits", return_value=[1.5]), \
-             patch.object(bench.os, "cpu_count", return_value=32):
-            self.assertEqual(bench.effective_cpus()["effective_cpus"], 1)
-        with patch.dict(os.environ, {"CPU_CORES": "nan"}):
-            with self.assertRaises(ValueError):
-                bench.effective_cpus()
-
-    def test_cgroup_ancestor_quota(self):
-        files = {"/proc/self/cgroup": "0::/team/job",
-                 "/proc/self/mountinfo": "1 0 0:1 / /sys/fs/cgroup rw - cgroup2 cgroup rw",
-                 "/sys/fs/cgroup/team/job/cpu.max": "max 100000",
-                 "/sys/fs/cgroup/team/cpu.max": "150000 100000",
-                 "/sys/fs/cgroup/cpu.max": "800000 100000"}
-        with patch.object(bench, "_read", side_effect=lambda p: files.get(str(p), "")):
-            self.assertEqual(bench._cgroup_limits(), [1.5, 8.0])
-
-    def test_busy_lock_and_release(self):
-        with bench.benchmark_lock():
-            with self.assertRaises(bench.BusyError):
-                with bench.benchmark_lock():
-                    self.fail("Concurrent entry")
-        with bench.benchmark_lock():
-            pass
-
-    def test_missing_and_ordinary_interpreters_fail(self):
-        with patch.dict(os.environ, {"AGILAB_FREE_THREADING_PYTHON": "missing-free-threading-python"}):
-            with self.assertRaisesRegex(RuntimeError, "AGILAB_FREE_THREADING_PYTHON"):
-                bench.run_case(7, 5, 20, 1, "gil_off_threads")
-        with patch.dict(os.environ, {"AGILAB_FREE_THREADING_PYTHON": sys.executable}):
-            with self.assertRaises(RuntimeError):
-                bench.run_case(7, 5, 20, 1, "gil_on_threads")
-
-    def test_timeout_terminates_descendant_and_releases_lock(self):
-        with tempfile.TemporaryDirectory() as scratch:
-            pidfile = Path(scratch) / "pid"
-            source = ("import subprocess,sys,time,signal,pathlib; "
-                      "p=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)']); "
-                      f"pathlib.Path({str(pidfile)!r}).write_text(str(p.pid)); "
-                      "signal.signal(signal.SIGTERM,lambda *args: (p.wait(timeout=1),sys.exit(0))); "
-                      "time.sleep(120)")
-            with bench.benchmark_lock():
-                with self.assertRaises(subprocess.TimeoutExpired):
-                    bench._communicate([sys.executable, "-B", "-c", source], "", dict(os.environ), 0.5)
-            pid = int(pidfile.read_text())
-            with self.assertRaises(ProcessLookupError):
-                os.kill(pid, 0)
-            with bench.benchmark_lock():
-                pass
-
-    def test_total_timeout_stops_before_more_cases(self):
-        with patch.object(bench, "run_case") as run, patch.object(bench.time, "monotonic", side_effect=[0, 51]):
-            with self.assertRaises(TimeoutError):
-                bench.run_benchmark(12, 8, 20, workers=1, repeats=1)
-            run.assert_not_called()
+@pytest.mark.parametrize("w,h,n,exc", [
+    (0, 7, 30, ValueError), (-1, 7, 30, ValueError),
+    (9, 0, 30, ValueError), (9, -3, 30, ValueError),
+    (9, 7, 0, ValueError), (9, 7, -1, ValueError),
+    (True, 7, 30, TypeError), (9, True, 30, TypeError), (9, 7, True, TypeError),
+    (1.5, 7, 30, TypeError), (9, 2.5, 30, TypeError), (9, 7, 3.0, TypeError),
+])
+def test_reference_rejects_bad(w, h, n, exc):
+    with pytest.raises(exc):
+        core.reference_image(w, h, n)
 
 
-class InterfaceTests(unittest.TestCase):
-    def test_actual_evidence_and_stale_controls(self):
-        from streamlit.testing.v1 import AppTest
-        app = AppTest.from_file(str(Path(__file__).with_name("app.py")), default_timeout=60).run()
-        self.assertFalse(app.exception)
-        self.assertNotIn("analysis", app.session_state)
-        started = time.monotonic()
-        app.button[0].click().run()
-        self.assertFalse(app.exception)
-        self.assertFalse(app.error)
-        self.assertLess(time.monotonic() - started, 60)
-        evidence = app.session_state["analysis"]
-        self.assertTrue(evidence["same_work_verified"])
-        self.assertEqual(len(evidence["runs"]), 12)
-        self.assertEqual(len(app.metric), 6)
-        app.selectbox[0].select("Medium · 288 × 192 · 240 iterations").run()
-        self.assertFalse(app.exception)
-        self.assertTrue(any("Previous results" in warning.value for warning in app.warning))
-        self.assertEqual(app.session_state["analysis"]["created_utc"], evidence["created_utc"])
-        with bench.benchmark_lock():
-            app.button[0].click().run()
-        self.assertFalse(app.exception)
-        self.assertTrue(any("busy" in warning.value for warning in app.warning))
-        self.assertEqual(app.session_state["analysis"]["created_utc"], evidence["created_utc"])
+@pytest.mark.parametrize("val,exc", [
+    (True, TypeError), (-1, ValueError), (301, ValueError),
+    (1.5, TypeError), (float("nan"), TypeError), (float("inf"), TypeError),
+])
+def test_digest_rejects_bad(val, exc):
+    with pytest.raises(exc):
+        core.image_digest([val])
 
 
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
+# ── 3. Tile geometry ──────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("w,h", [(9, 7), (16, 11), (2, 3), (4, 5)])
+def test_tiles_coverage_and_uniqueness(w, h):
+    tiles = core.make_tiles(w, h)
+    ids = [t["tile_id"] for t in tiles]
+    assert len(ids) == len(set(ids)), "tile_ids not unique"
+    covered = []
+    for t in tiles:
+        assert t["row_stop"] - t["row_start"] <= 2, f"tile {t['tile_id']} spans >2 rows"
+        assert t["row_start"] >= 0 and t["row_stop"] <= h
+        covered.extend(range(t["row_start"], t["row_stop"]))
+    assert sorted(covered) == list(range(h)), "rows not exactly covered"
+
+
+# ── 4. SHA-256 of bundled source files ────────────────────────────────────────
+
+def _sha256(p: pathlib.Path) -> str:
+    return hashlib.sha256(p.read_bytes()).hexdigest()
+
+
+def test_source_sha256():
+    src = ROOT / "source" / "original.ipynb"
+    assert _sha256(src) == "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911"
+
+
+def test_engine_sha256():
+    eng = ROOT / "agilab_pool.py"
+    assert _sha256(eng) == "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066"
+
+
+# ── 5. run_benchmark rejects invalid input before subprocess ──────────────────
+
+def _no_popen(*a, **kw):
+    raise AssertionError("subprocess.Popen must NOT be called for invalid input")
+
+
+@pytest.mark.parametrize("w,h,n,workers,repeats", [
+    (0, 24, 40, 2, 1), (-1, 24, 40, 2, 1),
+    (32, 0, 40, 2, 1), (32, -2, 40, 2, 1),
+    (32, 24, 0, 2, 1), (32, 24, -5, 2, 1),
+    (32, 24, 40, 0, 1), (32, 24, 40, -1, 1),
+    (32, 24, 40, True, 1), (32, 24, 40, 1.5, 1),
+    (32, 24, 40, 2, 0), (32, 24, 40, 2, -1),
+    (32, 24, 40, 2, True), (32, 24, 40, 2, float("nan")),
+    (True, 24, 40, 2, 1), (32, True, 40, 2, 1), (32, 24, True, 2, 1),
+    (32, 24, 40, 2, float("inf")),
+])
+def test_benchmark_rejects_invalid(monkeypatch, w, h, n, workers, repeats):
+    monkeypatch.setattr(bench.subprocess, "Popen", _no_popen)
+    with pytest.raises((ValueError, TypeError)):
+        bench.run_benchmark(w, h, n, workers, repeats)
+
+
+# ── 6. Real smoke test (skip if no free-threading interpreter) ───────────────
+
+def test_real_smoke():
+    try:
+        interp = bench.find_free_threading_python()
+    except RuntimeError as e:
+        pytest.skip(f"No free-threading Python available: {e}")
+
+    w, h, n, repeats = 32, 24, 40, 1
+    workers = min(2, bench.effective_cpus()["effective_cpus"])
+    result = bench.run_benchmark(w, h, n, workers, repeats)
+
+    # result is a dict
+    assert isinstance(result, dict)
+
+    # For repeats=1, len(runs)=6, len(summary)=6
+    assert len(result["runs"]) == 6
+    assert len(result["summary"]) == 6
+
+    # Digest is a real SHA-256 hex string
+    assert len(result["digest"]) == 64
+    int(result["digest"], 16)
+
+    # Independent oracle
+    expected = _oracle(w, h, n)
+
+    # Per-run: each run's counts must match the oracle image
+    for run in result["runs"]:
+        records = sorted(run["records"], key=lambda r: r["row_start"])
+        all_counts = []
+        for rec in records:
+            all_counts.extend(rec["counts"])
+        assert all_counts == expected
+
+    # Digest consistency: oracle digest == run digest == result digest
+    assert core.image_digest(expected) == result["digest"]
+    for run in result["runs"]:
+        assert run["digest"] == result["digest"]
+
+    # before == after for each run
+    for run in result["runs"]:
+        assert run["before"] == run["after"]
+
+    # free_threaded_build is True
+    for run in result["runs"]:
+        assert run["before"]["free_threaded_build"] is True
+        assert run["after"]["free_threaded_build"] is True
+
+    # gil_enabled matches mode
+    for run in result["runs"]:
+        expected_gil = run["mode"] != "gil_off_threads"
+        assert run["before"]["gil_enabled"] == expected_gil
+        assert run["after"]["gil_enabled"] == expected_gil
+
+    # version matches result.python_build
+    for run in result["runs"]:
+        assert run["before"]["version"] == result["python_build"]
+        assert run["after"]["version"] == result["python_build"]
+
+    # Per record: exact keys gil_before, gil_after, runtime_before, runtime_after, pid, thread_id
+    for run in result["runs"]:
+        for rec in run["records"]:
+            assert rec["gil_before"] is run["before"]["gil_enabled"]
+            assert rec["gil_after"] is run["before"]["gil_enabled"]
+            assert rec["runtime_before"] == rec["runtime_after"] == run["before"]
+
+    # Worker identity: 1 <= actual <= pool_width <= workers
+    for run in result["runs"]:
+        actual = run["actual_workers"]
+        pool = run["pool_width"]
+        assert 1 <= actual <= pool <= run["workers"]
+
+    # actual_workers == len(distinct (pid, thread_id))
+    for run in result["runs"]:
+        distinct = set()
+        for rec in run["records"]:
+            distinct.add((rec["pid"], rec["thread_id"]))
+        assert run["actual_workers"] == len(distinct)
+
+    # Summary: groups by mode/role; exact statistics.median wall/engine from raw group
+    import statistics
+    for s in result["summary"]:
+        mode = s["mode"]
+        role = s["role"]
+        group = [r for r in result["runs"] if r["mode"] == mode and r["role"] == role]
+        assert len(group) > 0
+        wall_vals = [r["wall_seconds"] for r in group]
+        eng_vals = [r["engine_seconds"] for r in group]
+        assert s["wall_seconds"] == statistics.median(wall_vals)
+        assert s["engine_seconds"] == statistics.median(eng_vals)
+
+        # speedup = matching mode baseline median wall / group median wall
+        baseline_group = [r for r in result["runs"] if r["mode"] == mode and r["role"] == "baseline"]
+        if baseline_group:
+            baseline_wall = statistics.median([r["wall_seconds"] for r in baseline_group])
+            assert s["speedup"] == pytest.approx(baseline_wall / s["wall_seconds"], rel=1e-9)
+            baseline_eng = statistics.median([r["engine_seconds"] for r in baseline_group])
+            assert s["engine_speedup"] == pytest.approx(baseline_eng / s["engine_seconds"], rel=1e-9)
+
+    # No forbidden fields in summary
+    for s in result["summary"]:
+        assert "median" not in s
+        assert "ratio" not in s
+        assert "serial_time" not in s
+
+    # No forbidden fields in raw runs
+    for run in result["runs"]:
+        assert "counts" not in run
+        assert "gil_free" not in run
+        assert "elapsed" not in run

@@ -1,10 +1,9 @@
 [project]
-name = "agilab-free-threading-lab"
-version = "0.1.0"
-description = "Truthful local CPU scaling with the unchanged AGILAB pool engine"
+name = "free-threading-lab"
+version = "0.2.0"
+description = "Local Qwen-built AGILAB free-threading lab"
 requires-python = ">=3.13"
-dependencies = ["streamlit>=1.64,<1.65", "altair>=6,<7", "Pillow>=12,<13"]
-license = "BSD-3-Clause"
+dependencies = ["streamlit>=1.64,<1.65", "altair>=6,<7", "numpy>=2.3,<3", "pandas>=2.3,<3", "Pillow>=12,<13"]
 
-[tool.setuptools]
-py-modules = ["app", "benchmark", "free_threading_core", "agilab_pool"]
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
