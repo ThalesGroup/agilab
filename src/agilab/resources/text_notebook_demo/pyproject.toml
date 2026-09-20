@@ -1,16 +1,17 @@
 [project]
-name = "inria-text-atlas"
+name = "text-atlas"
 version = "0.1.0"
-description = "A bounded, native Streamlit atlas of INRIA's historical Wikinews corpus"
+description = "Text Atlas – dimensionality reduction of the Wikinews corpus"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "numpy>=2,<3",
     "pandas>=2.3,<4",
     "scikit-learn>=1.6,<2",
-    "streamlit>=1.58,<2",
+    "streamlit>=1.64,<2",
     "altair>=5,<7",
     "threadpoolctl>=3,<4",
 ]
 
-[tool.uv]
-package = false
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

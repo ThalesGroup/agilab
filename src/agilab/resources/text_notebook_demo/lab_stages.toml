@@ -1,48 +1,38 @@
 [[notebook_app_project]]
-D = "Text atlas"
-Q = "Imported cell-2 from notebook"
-C = "# Stage 1 — Load the unchanged corpus\nimport json\nimport os\nimport sys\nfrom pathlib import Path\n\nproject_root = Path(globals().get(\"PROJECT_ROOT\", os.environ.get(\"PROJECT_ROOT\", \".\"))).resolve()\nif not (project_root / \"text_core.py\").is_file():\n    raise FileNotFoundError(\"Supply PROJECT_ROOT pointing to the Text atlas project.\")\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\nfrom text_core import load_corpus, analyze\n\ncorpus = load_corpus()\nprint(f\"Loaded {len(corpus):,} historical Wikinews articles in original CSV order.\")\n"
+D = "Text Atlas – Dimensionality Reduction of Text Data"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import json\\nfrom pathlib import Path\\nimport numpy as np\\nimport pandas as pd\\n\\nfrom text_core import load_corpus, analyze', 'notebook:cell-2'), ('# Stage 1: Load corpus\\ndf = load_corpus()\\nprint(f\"Loaded {len(df)} documents, {df[\\'category\\'].nunique()} categories\")\\nprint(df.head())\\n\\n# Stage 2: Run analysis\\nresult = analyze()\\nprint(f\"Vocabulary: {len(result[\\'vocabulary\\'])} terms\")\\nprint(f\"Silhouette (50-D): {result[\\'silhouette\\']:.4f}\")\\nprint(f\"Displayed variance (2-D): {result[\\'displayed_variance\\']:.4f}\")\\nprint(f\"Retained variance (50-D): {result[\\'retained_variance\\']:.4f}\")\\n\\n# Stage 3: Write results.json to current execution directory\\nresults = {\\n    \"results\": {\\n        \"coordinates\": result[\"coordinates\"].tolist(),\\n        \"labels\": result[\"labels\"].tolist(),\\n        \"vocabulary\": result[\"vocabulary\"],\\n        \"top_terms\": result[\"top_terms\"],\\n        \"silhouette\": result[\"silhouette\"],\\n        \"displayed_variance\": result[\"displayed_variance\"],\\n        \"retained_variance\": result[\"retained_variance\"],\\n        \"parameters\": result[\"parameters\"],\\n    }\\n}\\n\\nout_path = Path(\"results.json\")\\nout_path.write_text(json.dumps(results, indent=2))\\nprint(f\"Wrote {out_path}\")', 'notebook:cell-3')])\n"
 M = ""
-NB_CELL_ID = "cell-2"
+NB_CELL_ID = "notebook-93688c92d68a4011"
 NB_CELL_INDEX = 2
 NB_CONTEXT_IDS = [
     "markdown-1",
 ]
 NB_ENV_HINTS = [
     "json",
-    "os",
+    "numpy",
+    "pandas",
     "pathlib",
-    "sys",
     "text_core",
 ]
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = ""
-Q = "Imported cell-3 from notebook"
-C = "# Stage 2 — Run the same analysis as the app\nanalysis = analyze(min_df=5, max_df=0.8, n_clusters=5, seed=42)\nprint(f\"Retained {analysis['parameters']['n_components']} centered PCA components.\")\n"
-M = ""
-NB_CELL_ID = "cell-3"
-NB_CELL_INDEX = 3
-NB_CONTEXT_IDS = []
-NB_ENV_HINTS = []
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = ""
-Q = "Imported cell-4 from notebook"
-C = "# Stage 3 — Report metrics and overwrite results.json in the execution directory\nmetrics = {\n    \"articles\": len(corpus),\n    \"vocabulary_size\": len(analysis[\"vocabulary\"]),\n    \"silhouette\": analysis[\"silhouette\"],\n    \"displayed_variance\": analysis[\"displayed_variance\"],\n    \"retained_variance\": analysis[\"retained_variance\"],\n}\nresults = {\n    **metrics,\n    \"parameters\": analysis[\"parameters\"],\n    \"coordinates\": analysis[\"coordinates\"].tolist(),\n    \"labels\": analysis[\"labels\"].tolist(),\n    \"vocabulary\": analysis[\"vocabulary\"],\n    \"top_terms\": analysis[\"top_terms\"],\n    \"cluster_document_counts\": {\n        cluster: int((analysis[\"labels\"] == int(cluster)).sum())\n        for cluster in analysis[\"top_terms\"]\n    },\n}\nPath(\"results.json\").write_text(\n    json.dumps({\"results\": results}, indent=2, allow_nan=False) + \"\\n\",\n    encoding=\"utf-8\",\n)\nprint(json.dumps(metrics, indent=2, allow_nan=False))\nprint(\"Wrote fresh results.json in the current execution directory.\")\n"
-M = ""
-NB_CELL_ID = "cell-4"
-NB_CELL_INDEX = 4
-NB_CONTEXT_IDS = []
-NB_ENV_HINTS = []
 NB_ARTIFACT_REFERENCES = [
     "results.json",
 ]
 NB_EXECUTION_MODE = "not_executed_import"
 NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "6e3c01dd3ff6a3591e0ba34753517a5e72aeec45c7189dfb6681baa4239956d7"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "93688c92d68a4011702c509001cf4c73204f2a5e60a186b5271454b9f1ae633d"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import json\nfrom pathlib import Path\nimport numpy as np\nimport pandas as pd\n\nfrom text_core import load_corpus, analyze"
+sha256 = "adbb904d889344781aba7b8e792f5f6406e7d93adf58945062df0a69b2117f33"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "# Stage 1: Load corpus\ndf = load_corpus()\nprint(f\"Loaded {len(df)} documents, {df['category'].nunique()} categories\")\nprint(df.head())\n\n# Stage 2: Run analysis\nresult = analyze()\nprint(f\"Vocabulary: {len(result['vocabulary'])} terms\")\nprint(f\"Silhouette (50-D): {result['silhouette']:.4f}\")\nprint(f\"Displayed variance (2-D): {result['displayed_variance']:.4f}\")\nprint(f\"Retained variance (50-D): {result['retained_variance']:.4f}\")\n\n# Stage 3: Write results.json to current execution directory\nresults = {\n    \"results\": {\n        \"coordinates\": result[\"coordinates\"].tolist(),\n        \"labels\": result[\"labels\"].tolist(),\n        \"vocabulary\": result[\"vocabulary\"],\n        \"top_terms\": result[\"top_terms\"],\n        \"silhouette\": result[\"silhouette\"],\n        \"displayed_variance\": result[\"displayed_variance\"],\n        \"retained_variance\": result[\"retained_variance\"],\n        \"parameters\": result[\"parameters\"],\n    }\n}\n\nout_path = Path(\"results.json\")\nout_path.write_text(json.dumps(results, indent=2))\nprint(f\"Wrote {out_path}\")"
+sha256 = "a716f5f00688b5ddc894635f5bfb160dca58f82e346bb37f3da46dfaa6bf323f"

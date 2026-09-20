@@ -28,7 +28,10 @@ def page():
 
 def test_download_is_complete_and_matches_verified_bytes():
     report = showcase.load_report()
-    assert report["workflow_stages"] == 3
+    assert report["workflow_stages"] == 1
+    assert report["build_model"]["id"] == "ddalcu/Qwen3.8-27B-MLX-Serve-4bit"
+    assert report["build_model"]["cloud_codegen_fallback"] is False
+    assert report["verification"]["workflow"]["stage_count"] == report["workflow_stages"]
     assert report["source"]["license"] == "CC-BY-4.0"
     assert report["data"]["license"] == "CC-BY-2.5"
     with zipfile.ZipFile(io.BytesIO(showcase.download_bundle())) as archive:
@@ -94,24 +97,29 @@ def test_real_app_submits_changes_and_keeps_submitted_parameters():
     at = AppTest.from_function(page, default_timeout=90).run()
     assert not at.exception and not at.error
     assert sum(title.value == "Built by an autonomous agent" for title in at.title) == 1
-    assert {item.label: item.value for item in at.metric}["Autonomous build"] == "7.73 min"
+    assert {item.label: item.value for item in at.metric}["Autonomous build"] == f"{showcase.load_report()['seconds'] / 60:.2f} min"
     assert all(item.label != "Autonomous build" for expander in at.expander for item in expander.metric)
-    assert any("Run analysis" in item.value for item in at.info)
+    assert any(item.label == "Run analysis" for item in at.button)
+    assert any("Qwen3.8-27B" in item.value for item in at.caption)
     assert not any(item.label == "Articles" for item in at.metric)
-    at.button(key="run_analysis").click().run()
+    next(item for item in at.button if item.label == "Run analysis").click().run()
     assert not at.exception and not at.error
-    assert {item.label: item.value for item in at.metric}["Articles"] == "1,250"
-    assert len(at.dataframe[0].value) == 5
-    at.slider(key="cluster_count").set_value(3).run()
-    assert len(at.dataframe[0].value) == 5
-    assert any("5 clusters" in item.value for item in at.caption)
-    at.button(key="run_analysis").click().run()
+    assert {item.label: item.value for item in at.metric}["Articles"] == "1250"
+    assert at.dataframe[0].value["Cluster"].nunique() == 5
+    at.slider(key="qwen_text_atlas_n_clusters").set_value(3).run()
+    assert at.dataframe[0].value["Cluster"].nunique() == 5
+    assert any("n_clusters=5" in item.value for item in at.caption)
+    next(item for item in at.button if item.label == "Run analysis").click().run()
     assert not at.exception and not at.error
-    assert len(at.dataframe[0].value) == 3
-    at.radio(key="color_by").set_value("Original category").run()
-    at.selectbox(key="article_selection").select(11).run()
+    assert at.dataframe[0].value["Cluster"].nunique() == 3
+    at.radio(key="qwen_text_atlas_color_mode").set_value("Category").run()
+    at.selectbox(key="qwen_text_atlas_article_selector").select(11).run()
     assert not at.exception and not at.error
-    assert any("Article 0012" in item.value for item in at.text)
+    import pandas as pd
+    expected_article = pd.read_csv(showcase.DEMO_ROOT / "data/wiki_news.csv").iloc[11]["text"]
+    assert any(item.value.strip() == expected_article.strip() for item in at.text)
+    assert at.dataframe[0].value["Cluster"].nunique() == 3
+    assert {item.label: item.value for item in at.metric}["Articles"] == "1250"
 
 
 def test_export_rejects_modified_autonomous_run(tmp_path):
@@ -124,3 +132,40 @@ def test_export_rejects_modified_autonomous_run(tmp_path):
     with pytest.raises(ValueError, match="Autonomous-run artifact changed"):
         export_demo(run, tmp_path / "public")
     assert not (tmp_path / "public").exists()
+
+
+@pytest.mark.parametrize("record_model", [True, False])
+def test_exported_receipt_renders_with_optional_build_model(bundle, tmp_path, monkeypatch, record_model):
+    from tools.demos import export_text_notebook_demo as exporter
+
+    report = json.loads((bundle / "result.json").read_text())
+    if not record_model:
+        report.pop("build_model")
+    else:
+        report["build_model"]["private_endpoint"] = "must-not-be-exported"
+    run = tmp_path / "run"
+    shutil.copytree(bundle, run / "notebook_app_project")
+    (run / "result.json").write_text(json.dumps(report))
+    monkeypatch.setattr(exporter, "validate_analysis", lambda project: report["verification"]["text"])
+    destination = tmp_path / "exported"
+    exported = exporter.export_demo(run, destination)
+    monkeypatch.setattr(showcase, "DEMO_ROOT", destination)
+    app = AppTest.from_function(page).run(timeout=30)
+    assert not app.exception
+    labels = " ".join(item.value for item in app.caption)
+    if record_model:
+        assert exported["build_model"]["id"] in labels
+        assert "private_endpoint" not in exported["build_model"]
+    else:
+        assert "build_model" not in exported
+        assert "Build model:" not in labels
+
+
+@pytest.mark.parametrize("model", [[], {"id": ""}, {"id": "Qwen", "provider": 1, "execution": "local"}])
+def test_invalid_build_model_is_rejected(bundle, model):
+    receipt = bundle / "result.json"
+    report = json.loads(receipt.read_text())
+    report["build_model"] = model
+    receipt.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="build model metadata"):
+        showcase.load_report()
