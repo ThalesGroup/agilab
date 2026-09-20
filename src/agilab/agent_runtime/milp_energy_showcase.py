@@ -14,7 +14,7 @@ import zipfile
 import streamlit as st
 
 from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
-from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
+from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, app_session_state
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "milp_energy_demo"
 PUBLIC_FILES = frozenset({
@@ -121,6 +121,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
         st.info("Another notebook demo session is running. Try again shortly.")
+        st.button("Retry demo", key="milp_retry")
         return
     names = ("agilab_pool", "energy_core", "energy_runner")
     saved = {name: sys.modules.pop(name, None) for name in names}
@@ -131,8 +132,9 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
         app_path = str(DEMO_ROOT / "app.py")
-        exec(compile(payload["app.py"], app_path, "exec"),
-             {"__name__": "__main__", "__file__": app_path})
+        with app_session_state(st.session_state, "milp", ("analysis", "analysis_signature", "comparisons", "benchmark_result", "benchmark_signature")):
+            exec(compile(payload["app.py"], app_path, "exec"),
+                 {"__name__": "__main__", "__file__": app_path})
     finally:
         for name in names:
             sys.modules.pop(name, None)

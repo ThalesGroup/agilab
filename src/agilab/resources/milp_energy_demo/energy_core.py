@@ -1,575 +1,667 @@
-"""MILP Energy Lab. Derived notebook material: CC BY 4.0; see LICENSE.
+#!/usr/bin/env python3
+"""energy_core.py – PyPSA modular MILP lab (PyPSA 1.2.4, Linopy 0.9.1, highspy 1.15.1)."""
 
-Heavy solver imports occur only in isolated CLI / AGILAB worker processes.
-"""
-
-from __future__ import annotations
-
-import argparse
-import hashlib
 import json
 import math
 import os
-from pathlib import Path
+import sys
 import time
+import logging
+import numpy as np
+import pandas as pd
 
-SOURCE_URL = "https://github.com/PyPSA/PyPSA/blob/c838aa498557cc8e27a9d3ed10d45e35c4b0b442/docs/examples/modular-committable.ipynb"
-SHED_COST = 100000.0
-TOL = 1e-5
+log = logging.getLogger("energy_core")
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+_KNOWN_KEYS = {
+    "hours", "demand_multiplier", "module_mw", "max_modules",
+    "min_loading", "investment_cost", "marginal_cost", "standby_cost",
+    "startup_cost", "solar_capacity", "allow_shedding",
+    "solver_time_limit", "mip_rel_gap",
+}
+
+def default_settings():
+    return {
+        "hours": 4,
+        "demand_multiplier": 1.0,
+        "module_mw": 200.0,
+        "max_modules": 50,
+        "min_loading": 0.1,
+        "investment_cost": 1.0,
+        "marginal_cost": 1.0,
+        "standby_cost": 1.0,
+        "startup_cost": 0.0,
+        "solar_capacity": 0.0,
+        "allow_shedding": False,
+        "solver_time_limit": 10.0,
+        "mip_rel_gap": 0.0,
+    }
+
+def _is_strict_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+def _is_strict_bool(v):
+    return isinstance(v, bool)
+
+def _is_finite_real(v):
+    if isinstance(v, bool):
+        return False
+    if isinstance(v, (int, float)):
+        return math.isfinite(v)
+    return False
+
+def validate_settings(settings):
+    if not isinstance(settings, dict):
+        raise ValueError("settings must be a dict")
+    keys = set(settings.keys())
+    if keys != _KNOWN_KEYS:
+        missing = _KNOWN_KEYS - keys
+        extra = keys - _KNOWN_KEYS
+        raise ValueError(f"settings keys mismatch. missing={sorted(missing)}, extra={sorted(extra)}")
+
+    s = dict(settings)
+
+    # hours: strict int, in (4,12,24)
+    if not _is_strict_int(s["hours"]) or s["hours"] not in (4, 12, 24):
+        raise ValueError(f"hours must be a strict int in (4,12,24), got {s['hours']!r}")
+
+    # max_modules: strict int, 1..200
+    if not _is_strict_int(s["max_modules"]) or not (1 <= s["max_modules"] <= 200):
+        raise ValueError(f"max_modules must be a strict int in 1..200, got {s['max_modules']!r}")
+
+    # allow_shedding: strict bool
+    if not _is_strict_bool(s["allow_shedding"]):
+        raise ValueError(f"allow_shedding must be a strict bool, got {s['allow_shedding']!r}")
+
+    # Finite real fields with ranges
+    ranges = {
+        "demand_multiplier": (0.1, 3.0),
+        "module_mw": (10.0, 1000.0),
+        "min_loading": (0.0, 1.0),
+        "investment_cost": (0.0, 1000.0),
+        "marginal_cost": (0.01, 1000.0),
+        "standby_cost": (0.0, 10000.0),
+        "startup_cost": (0.0, 10000.0),
+        "solar_capacity": (0.0, 20000.0),
+        "solver_time_limit": (0.1, 10.0),
+        "mip_rel_gap": (0.0, 0.1),
+    }
+    for k, (lo, hi) in ranges.items():
+        v = s[k]
+        if not _is_finite_real(v):
+            raise ValueError(f"{k} must be a finite real (not bool), got {v!r}")
+        if not (lo <= v <= hi):
+            raise ValueError(f"{k} must be in [{lo}, {hi}], got {v}")
+
+    return s
 
 
-def default_settings() -> dict:
-    return dict(
-        hours=4,
-        demand_multiplier=1.0,
-        module_mw=200.0,
-        max_modules=50,
-        investment_cost=1.0,
-        marginal_cost=1.0,
-        startup_cost=0.0,
-        standby_cost=1.0,
-        min_loading=0.1,
-        solar_capacity=0.0,
-        allow_shedding=False,
-        time_limit=5.0,
-        mip_rel_gap=0.0001,
+def _demand_profile(hours, multiplier):
+    base = np.array([4000.0, 6000.0, 5000.0, 800.0])
+    reps = hours // 4
+    d = np.tile(base, reps) * multiplier
+    return d
+
+def _solar_profile(hours):
+    if hours == 4:
+        return np.array([0.0, 0.6, 0.9, 0.0])
+    h = np.arange(hours)
+    return np.maximum(0.0, np.sin(np.pi * (h / (hours - 1) * 2.0 - 0.5)))
+
+
+def _build_network(s):
+    import pypsa
+
+    hours = s["hours"]
+    demand = _demand_profile(hours, s["demand_multiplier"])
+    solar_pu = _solar_profile(hours)
+
+    n = pypsa.Network(snapshots=range(hours))
+    n.add("Carrier", "electricity")
+    n.add("Bus", "bus", carrier="electricity")
+    n.add("Load", "load", bus="bus", p_set=demand)
+
+    n.add("Generator", "modular_gas",
+        bus="bus",
+        carrier="electricity",
+        p_nom_extendable=True,
+        committable=True,
+        p_nom_mod=s["module_mw"],
+        p_nom_max=s["max_modules"] * s["module_mw"],
+        p_min_pu=s["min_loading"],
+        marginal_cost=s["marginal_cost"],
+        capital_cost=s["investment_cost"],
+        stand_by_cost=s["standby_cost"],
+        start_up_cost=s["startup_cost"],
+        up_time_before=0,
     )
 
-
-def validate_settings(settings: dict) -> dict:
-    if type(settings) is not dict:
-        raise ValueError("Settings must be an object.")
-    defaults = default_settings()
-    if settings.keys() - defaults.keys():
-        raise ValueError(
-            "Unknown settings fields: "
-            + str(sorted(settings.keys() - defaults.keys(), key=str))
-        )
-    out = defaults | settings
-    bounds = dict(
-        demand_multiplier=(0.1, 2.0),
-        module_mw=(50, 1000),
-        investment_cost=(0, 1000),
-        marginal_cost=(0, 1000),
-        startup_cost=(0, 100000),
-        standby_cost=(0, 10000),
-        min_loading=(0, 1),
-        solar_capacity=(0, 12000),
-        time_limit=(0.1, 10),
-        mip_rel_gap=(0, 0.05),
-    )
-    for key, (lo, hi) in bounds.items():
-        value = out[key]
-        if (
-            type(value) not in (int, float)
-            or not lo <= value <= hi
-            or not math.isfinite(value)
-        ):
-            raise ValueError(f"{key} must be a finite number in [{lo}, {hi}].")
-        out[key] = float(value)
-    if type(out["hours"]) is not int or out["hours"] not in (4, 12, 24):
-        raise ValueError("hours must be 4, 12 or 24 (integer).")
-    if type(out["max_modules"]) is not int or not 1 <= out["max_modules"] <= 100:
-        raise ValueError("max_modules must be an integer from 1 to 100.")
-    if type(out["allow_shedding"]) is not bool:
-        raise ValueError("allow_shedding must be a boolean.")
-    return out
-
-
-def profiles(s: dict) -> tuple[list, list]:
-    # Hourly MW; longer profiles repeat the upstream stress pattern.
-    demand = [
-        v * s["demand_multiplier"] for v in [4000, 6000, 5000, 800] * (s["hours"] // 4)
-    ]
-    solar_pu = (
-        [0, 0.6, 0.9, 0]
-        if s["hours"] == 4
-        else [
-            max(0.0, math.sin(math.pi * (h / (s["hours"] - 1) * 2 - 0.5)))
-            for h in range(s["hours"])
-        ]
-    )
-    return demand, [v * s["solar_capacity"] for v in solar_pu]
-
-
-def canonical_hash(value) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value, sort_keys=True, allow_nan=False, separators=(",", ":")
-        ).encode()
-    ).hexdigest()
-
-
-def model_text(s: dict) -> str:
-    s = validate_settings(s)
-    demand, solar = profiles(s)
-    return f"""MILP Energy Lab — exact mathematical model (text, not an LP file)
-One-hour snapshots t=0,...,{s["hours"] - 1}. All modules initially OFF; no terminal obligation.
-N integer installed modules in [0,{s["max_modules"]}].
-u[t], a[t], b[t] nonnegative integers: active, started, stopped modules.
-z[t] binary: transition direction. p[t] gas MW; q[t] used solar MW; l[t] shed MW.
-M={s["module_mw"]} MW/module; L={s["min_loading"]}; K={s["max_modules"]}.
-0 <= u[t] <= N; L*M*u[t] <= p[t] <= M*u[t].
-u[-1]=0; u[t]-u[t-1]=a[t]-b[t].
-0<=a[t]<=K*z[t]; 0<=b[t]<=K*(1-z[t]).
-0<=q[t]<=solar_available[t]; 0<=l[t]<=demand[t]*{int(s["allow_shedding"])}.
-p[t]+q[t]+l[t]=demand[t]. Capacity = M*N MW.
-Minimize {s["investment_cost"]}*M*N + sum_t(
- {s["marginal_cost"]}*p[t] + {s["standby_cost"]}*u[t]
- + {s["startup_cost"]}*a[t] + {SHED_COST}*l[t]).
-Costs in illustrative cost units: investment per MW for THIS horizon,
-dispatch/shedding per MWh, standby per module-hour, startup per module-start.
-No annualization, ramp limits, minimum up/down durations, storage or network losses.
-Solar is fixed sunk supply; unused solar is curtailed without cost.
-demand={json.dumps(demand)}
-solar_available={json.dumps(solar)}
-settings={json.dumps(s, sort_keys=True, allow_nan=False)}
-"""
-
-
-def check_result(s: dict, result: dict) -> tuple[dict, dict]:
-    """Independently reconstruct physical constraints and economic objective."""
-    s = validate_settings(s)
-    demand, available = profiles(s)
-    p, u, q, shed, a, b = [
-        result[k]
-        for k in ("dispatch", "active_modules", "solar", "shed", "startup", "shutdown")
-    ]
-    if any(len(x) != s["hours"] for x in (p, u, q, shed, a, b)):
-        raise ValueError("Wrong schedule length")
-    n, cap = result["modules"], result["capacity_mw"]
-    values = [n, cap, result["objective"]] + p + u + q + shed + a + b
-    if any(type(v) not in (int, float) or not math.isfinite(v) for v in values):
-        raise ValueError("Non-finite incumbent")
-
-    def max0(values):
-        return max([0.0] + list(values))
-
-    delta = [u[t] - (u[t - 1] if t else 0) for t in range(s["hours"])]
-    costs = dict(
-        investment=s["investment_cost"] * s["module_mw"] * n,
-        dispatch=s["marginal_cost"] * sum(p),
-        standby=s["standby_cost"] * sum(u),
-        startup=s["startup_cost"] * sum(a),
-        shedding=SHED_COST * sum(shed),
-    )
-    reconstructed = sum(costs.values())
-    residuals = dict(
-        integrality=max0(abs(v - round(v)) for v in [n] + u + a + b),
-        balance_mw=max0(
-            abs(p[t] + q[t] + shed[t] - demand[t]) for t in range(s["hours"])
-        ),
-        dispatch_bounds_mw=max0(
-            [s["min_loading"] * s["module_mw"] * u[t] - p[t] for t in range(s["hours"])]
-            + [p[t] - s["module_mw"] * u[t] for t in range(s["hours"])]
-        ),
-        capacity=max0(
-            [abs(cap - s["module_mw"] * n), -n, n - s["max_modules"]]
-            + [v - n for v in u]
-        ),
-        nonnegative=max0(-v for v in p + u + q + shed + a + b),
-        solar_bounds_mw=max0(q[t] - available[t] for t in range(s["hours"])),
-        shed_bounds_mw=max0(
-            shed[t] - demand[t] * s["allow_shedding"] for t in range(s["hours"])
-        ),
-        transitions=max0(
-            [abs(a[t] - max(0, delta[t])) for t in range(s["hours"])]
-            + [abs(b[t] - max(0, -delta[t])) for t in range(s["hours"])]
-        ),
-        objective_absolute=abs(result["objective"] - reconstructed),
-        objective_relative=abs(result["objective"] - reconstructed)
-        / max(1, abs(reconstructed)),
-    )
-    residuals["verified"] = (
-        all(v <= TOL for k, v in residuals.items() if not k.startswith("objective"))
-        and residuals["objective_relative"] <= 1e-7
-    )
-    return costs, residuals
-
-
-def _empty_result(s: dict) -> dict:
-    demand, available = profiles(s)
-    return dict(
-        settings=s,
-        input_sha256=canonical_hash(s),
-        status="error",
-        objective=None,
-        capacity_mw=None,
-        modules=None,
-        dispatch=[],
-        active_modules=[],
-        demand=demand,
-        solar=[],
-        solar_available=available,
-        shed=[],
-        startup=[],
-        shutdown=[],
-        costs={},
-        solver=dict(
-            name="highs",
-            threads=1,
-            termination="not_started",
-            gap=None,
-            objective_bound=None,
-        ),
-        residuals=dict(verified=False),
-        elapsed_seconds=0.0,
-        model_text=model_text(s),
-    )
-
-
-def _solve(s: dict) -> dict:
-    s = validate_settings(s)
-    result = _empty_result(s)
-    start = time.monotonic()
-    try:
-        import logging
-        import pypsa
-        import pandas as pd
-
-        for name in ("pypsa", "linopy"):
-            logging.getLogger(name).setLevel(logging.ERROR)
-        demand, available = profiles(s)
-        n = pypsa.Network(snapshots=pd.RangeIndex(s["hours"], name="snapshot"))
-        n.add("Carrier", "electricity")
-        n.add("Bus", "bus", carrier="electricity")
-        n.add("Load", "load", bus="bus", p_set=demand)
-        n.add(
-            "Generator",
-            "gas",
-            bus="bus",
-            carrier="electricity",
-            p_nom_extendable=True,
-            committable=True,
-            p_nom_mod=s["module_mw"],
-            p_nom_max=s["module_mw"] * s["max_modules"],
-            p_min_pu=s["min_loading"],
-            marginal_cost=s["marginal_cost"],
-            capital_cost=s["investment_cost"],
-            stand_by_cost=s["standby_cost"],
-            start_up_cost=s["startup_cost"],
-            up_time_before=0,
-            down_time_before=1,
-        )
-        n.add(
-            "Generator",
-            "solar",
+    if s["solar_capacity"] > 0:
+        n.add("Generator", "solar",
             bus="bus",
             carrier="electricity",
             p_nom=s["solar_capacity"],
-            p_max_pu=[
-                v / s["solar_capacity"] if s["solar_capacity"] else 0 for v in available
-            ],
+            p_max_pu=solar_pu,
+            marginal_cost=0.0,
         )
-        n.add(
-            "Generator",
-            "shed",
-            bus="bus",
-            carrier="electricity",
-            p_nom=max(demand) if s["allow_shedding"] else 0,
-            marginal_cost=SHED_COST,
-            p_max_pu=[v / max(demand) for v in demand],
-        )
-        m = n.optimize.create_model()
-        u = m["Generator-status"].sel(name="gas")
-        a = m["Generator-start_up"].sel(name="gas")
-        b = m["Generator-shut_down"].sel(name="gas")
-        # Linopy's fill_value addresses variable labels, not numerical constants.
-        # Its default missing label (-1) correctly omits the pre-horizon term.
-        previous = u.shift(snapshot=1)
-        z = m.add_variables(
-            binary=True, coords=[n.snapshots], name="transition_direction"
-        )
-        # Tighten PyPSA's transition inequalities to exact counts, even with zero costs.
-        m.add_constraints(u - previous == a - b, name="exact_transitions")
-        m.add_constraints(a <= s["max_modules"] * z, name="start_direction")
-        m.add_constraints(b <= s["max_modules"] * (1 - z), name="stop_direction")
-        m.solve(
+
+    if s["allow_shedding"]:
+        max_d = float(np.max(demand))
+        if max_d > 0:
+            n.add("Generator", "shedding",
+                bus="bus",
+                carrier="electricity",
+                p_nom=max_d,
+                p_max_pu=demand / max_d,
+                marginal_cost=100000.0,
+            )
+
+    return n, demand, solar_pu
+
+
+def _extract_solutions(n, s, demand, solar_pu):
+    """Extract solution arrays from Linopy variables after gate passes."""
+    hours = s["hours"]
+    snap_idx = list(range(hours))
+
+    # Modules (scalar)
+    n_mod = n.model.variables["Generator-n_mod"].solution.sel(name="modular_gas")
+    modules = float(n_mod)
+
+    # Active (per snapshot)
+    status = n.model.variables["Generator-status"].solution.sel(name="modular_gas")
+    active = np.array([float(status.loc[si]) for si in snap_idx])
+
+    # Gas dispatch
+    gas_p = n.model.variables["Generator-p"].solution.sel(name="modular_gas")
+    gas = np.array([float(gas_p.loc[si]) for si in snap_idx])
+
+    # Solar
+    if s["solar_capacity"] > 0:
+        sol_p = n.model.variables["Generator-p"].solution.sel(name="solar")
+        solar = np.array([float(sol_p.loc[si]) for si in snap_idx])
+    else:
+        solar = np.zeros(hours)
+
+    # Shedding
+    if s["allow_shedding"]:
+        shed_p = n.model.variables["Generator-p"].solution.sel(name="shedding")
+        shed = np.array([float(shed_p.loc[si]) for si in snap_idx])
+    else:
+        shed = np.zeros(hours)
+
+    return modules, active, gas, solar, shed
+
+
+def _derive_transitions(active):
+    startup = np.zeros_like(active)
+    shutdown = np.zeros_like(active)
+    prev = 0.0
+    for i in range(len(active)):
+        startup[i] = max(active[i] - prev, 0.0)
+        shutdown[i] = max(prev - active[i], 0.0)
+        prev = active[i]
+    return startup, shutdown
+
+
+def _physical_validation(s, modules, active, gas, solar, shed, demand, solar_pu, objective):
+    """Returns (ok, error_msg, costs, residuals)."""
+    hours = s["hours"]
+    tol = 1e-5
+    rel_tol = 1e-7
+    abs_tol = 1e-4
+
+    # Finite arrays correct horizon
+    for name, arr in [("modules", np.array([modules])), ("active", active), ("gas", gas),
+                       ("solar", solar), ("shed", shed), ("demand", demand)]:
+        if not np.all(np.isfinite(arr)):
+            return False, f"non-finite values in {name}", None, None
+    if len(active) != hours or len(gas) != hours or len(solar) != hours or len(shed) != hours:
+        return False, "array horizon mismatch", None, None
+
+    # Module and active integers
+    if abs(modules - round(modules)) > tol:
+        return False, f"modules={modules} not integer within tol", None, None
+    if not np.all(np.abs(active - np.round(active)) <= tol):
+        return False, "active not integer within tol", None, None
+
+    modules_i = int(round(modules))
+    active_i = np.round(active).astype(int)
+
+    # 0 <= active <= installed <= max
+    if modules_i < 0 or modules_i > s["max_modules"]:
+        return False, f"modules={modules_i} out of [0, max_modules={s['max_modules']}]", None, None
+    if np.any(active_i < 0) or np.any(active_i > modules_i):
+        return False, "active out of [0, installed]", None, None
+
+    capacity = modules_i * s["module_mw"]
+
+    # 0 <= gas between min_loading*module*active and module*active
+    gas_lo = s["min_loading"] * s["module_mw"] * active_i
+    gas_hi = s["module_mw"] * active_i
+    if np.any(gas < gas_lo - tol) or np.any(gas > gas_hi + tol):
+        return False, "gas dispatch outside [min_loading*module*active, module*active]", None, None
+
+    # solar: non-negative and <= available
+    solar_avail = s["solar_capacity"] * solar_pu
+    if np.any(solar < -tol):
+        return False, "solar negative", None, None
+    if np.any(solar > solar_avail + tol):
+        return False, "solar exceeds available", None, None
+
+    # shed: non-negative, <= demand, and only allowed
+    if np.any(shed < -tol):
+        return False, "shed negative", None, None
+    if not s["allow_shedding"] and np.any(shed > tol):
+        return False, "shedding present but not allowed", None, None
+    if np.any(shed > demand + tol):
+        return False, "shed exceeds demand", None, None
+
+    # gas + solar + shed == demand (strict balance within 1e-5)
+    balance = gas + solar + shed - demand
+    if np.max(np.abs(balance)) > tol:
+        return False, f"balance residual max={np.max(np.abs(balance)):.6f} exceeds tol", None, None
+
+    # Derived transitions
+    startup, shutdown = _derive_transitions(active_i.astype(float))
+
+    # Objective check
+    investment = s["investment_cost"] * capacity
+    fuel = float(np.sum(gas * s["marginal_cost"]))
+    standby = float(np.sum(active_i * s["standby_cost"]))
+    startup_cost_total = float(np.sum(startup * s["startup_cost"]))
+    shedding_cost = float(np.sum(shed * 100000.0))
+    total = investment + fuel + standby + startup_cost_total + shedding_cost
+
+    if not math.isfinite(objective):
+        return False, "objective not finite", None, None
+
+    obj_diff = abs(total - objective)
+    if obj_diff > abs_tol + rel_tol * abs(objective):
+        return False, f"objective mismatch: computed={total:.6f} vs solver={objective:.6f} (diff={obj_diff:.6f})", None, None
+
+    costs = {
+        "investment": investment,
+        "fuel": fuel,
+        "standby": standby,
+        "startup": startup_cost_total,
+        "shedding": shedding_cost,
+        "total": total,
+    }
+
+    residuals = {
+        "balance_max": float(max(0.0, np.max(np.abs(balance)))),
+        "gas_bounds_max": float(max(0.0, np.max(np.maximum(gas_lo - gas, gas - gas_hi)))),
+        "solar_avail_max": float(max(0.0, np.max(np.maximum(0, solar - solar_avail)))),
+        "shed_demand_max": float(max(0.0, np.max(np.maximum(0, shed - demand)))),
+    }
+    for rk, rv in residuals.items():
+        if not math.isfinite(rv):
+            return False, f"residual {rk} not finite", None, None
+
+    return True, None, costs, residuals
+
+
+def solve_scenario(settings):
+    s = validate_settings(settings)
+    t0 = time.time()
+
+    n, demand, solar_pu = _build_network(s)
+
+    try:
+        n.optimize(
             solver_name="highs",
-            io_api="direct",
             threads=1,
-            time_limit=s["time_limit"],
+            time_limit=s["solver_time_limit"],
             mip_rel_gap=s["mip_rel_gap"],
             log_to_console=False,
         )
-        h = m.solver_model
-        info, solution = h.getInfo(), h.getSolution()
-        termination = h.modelStatusToString(h.getModelStatus())
-        result["solver"]["termination"] = termination
-        for key, attr in [("gap", "mip_gap"), ("objective_bound", "mip_dual_bound")]:
-            value = getattr(info, attr, None)
-            result["solver"][key] = (
-                float(value)
-                if info.valid and value is not None and math.isfinite(value)
-                else None
-            )
-        # Read raw HiGHS columns by Linopy labels: usable even at a time limit.
-        if not solution.value_valid or info.primal_solution_status != 2:
-            result["status"] = (
-                "infeasible" if termination.lower() == "infeasible" else "error"
-            )
-            result["message"] = (
-                "No physically feasible schedule under these constraints."
-                if result["status"] == "infeasible"
-                else "No verified incumbent returned; no objective or schedule is reported."
-            )
-        else:
+    except Exception as e:
+        elapsed = time.time() - t0
+        return {
+            "settings": s,
+            "status": "error",
+            "objective": None,
+            "modules": None,
+            "capacity_mw": None,
+            "dispatch": [],
+            "active_modules": [],
+            "solar": [],
+            "shed": [],
+            "startup": [],
+            "shutdown": [],
+            "demand": demand.tolist(),
+            "solar_available": (s["solar_capacity"] * solar_pu).tolist(),
+            "costs": {},
+            "solver": {"name": "highs", "threads": 1, "termination": "exception", "gap": None, "bound": None, "incumbent": False},
+            "residuals": {},
+            "elapsed_seconds": elapsed,
+            "transition_method": "derived from active module counts",
+            "error": f"optimize raised: {type(e).__name__}: {e}",
+        }
 
-            def vals(name, component):
-                labels = m[name].sel(name=component).labels.values.reshape(-1)
-                return [float(solution.col_value[int(i)]) for i in labels]
+    elapsed = time.time() - t0
 
-            modules = vals("Generator-n_mod", "gas")[0]
-            result.update(
-                objective=float(info.objective_function_value),
-                modules=modules,
-                capacity_mw=vals("Generator-p_nom", "gas")[0],
-                dispatch=vals("Generator-p", "gas"),
-                active_modules=vals("Generator-status", "gas"),
-                solar=vals("Generator-p", "solar"),
-                shed=vals("Generator-p", "shed"),
-                startup=vals("Generator-start_up", "gas"),
-                shutdown=vals("Generator-shut_down", "gas"),
-            )
-            result["costs"], result["residuals"] = check_result(s, result)
-            if not result["residuals"]["verified"]:
-                raise ValueError(
-                    "Incumbent failed independent physical/objective checks"
-                )
-            result["status"] = (
-                "optimal" if termination.lower() == "optimal" else "feasible"
-            )
-            result["physical_supply_sufficient"] = sum(result["shed"]) <= TOL
-            result["message"] = (
-                "Demand served without shedding."
-                if result["physical_supply_sufficient"]
-                else "Feasible with load shedding: the schedule contains unserved demand."
-            )
-    except Exception as exc:
-        result = _empty_result(s) | dict(message=f"{type(exc).__name__}: {exc}")
-    result["elapsed_seconds"] = time.monotonic() - start
-    json.dumps(result, allow_nan=False)
-    return result
+    # Access highspy model
+    import highspy
 
+    h = n.model.solver_model
+    info = h.getInfo()
+    sol = h.getSolution()
+    status = h.getModelStatus()
+    termination = h.modelStatusToString(status)
 
-def solve_scenario(settings: dict) -> dict:
-    """Validated public API; all solver work is isolated from the calling process."""
-    from energy_runner import run_scenario
-
-    return run_scenario(validate_settings(settings))
-
-
-def cpu_limits() -> dict:
-    limits = {"os.cpu_count": os.cpu_count() or 1, "public_cap": 4}
-    process_count = getattr(os, "process_cpu_count", lambda: None)()
-    if process_count:
-        limits["os.process_cpu_count"] = process_count
-    if hasattr(os, "sched_getaffinity"):
-        limits["affinity"] = len(os.sched_getaffinity(0))
-    raw = os.environ.get("CPU_CORES")
-    if raw is not None:
-        try:
-            value = float(raw)
-            limits["SPACE CPU_CORES"] = (
-                max(1, math.floor(value)) if math.isfinite(value) and value > 0 else 1
-            )
-        except ValueError:
-            limits["SPACE CPU_CORES"] = 1
-    # Walk visible cgroup ancestry; a parent's quota can be tighter than a child's.
-    roots = [
-        Path("/sys/fs/cgroup"),
-        Path("/sys/fs/cgroup/cpu"),
-        Path("/sys/fs/cgroup/cpu,cpuacct"),
-    ]
-    try:
-        for line in Path("/proc/self/cgroup").read_text().splitlines():
-            _, controllers, rel = line.split(":", 2)
-            if not controllers or "cpu" in controllers.split(","):
-                for base in list(roots[:3]):
-                    path = base / rel.lstrip("/")
-                    if ".." not in path.parts:
-                        while path != base and path.is_relative_to(base):
-                            roots.append(path)
-                            path = path.parent
-    except (OSError, ValueError):
-        pass
-    quotas = []
-    for path in set(roots):
-        try:
-            quota, period = (path / "cpu.max").read_text().split()
-            if quota != "max" and int(period) > 0:
-                quotas.append(max(1, int(quota) // int(period)))
-        except (OSError, ValueError):
-            pass
-        try:
-            quota = int((path / "cpu.cfs_quota_us").read_text())
-            period = int((path / "cpu.cfs_period_us").read_text())
-            if quota > 0 and period > 0:
-                quotas.append(max(1, quota // period))
-        except (OSError, ValueError):
-            pass
-    if quotas:
-        limits["cgroup quota"] = min(quotas)
-    return dict(effective_cpus=max(1, min(limits.values())), limits=limits)
-
-
-def make_batch(settings: dict, count: int = 4) -> list:
-    s = validate_settings(settings)
-    if type(count) is not int or count not in (4, 8, 12):
-        raise ValueError("Batch size must be 4, 8 or 12.")
-    return [
-        validate_settings(
-            s
-            | dict(
-                demand_multiplier=round(0.65 + 0.1 * (i % 8), 2),
-                startup_cost=float((i % 3) * 250),
-                solar_capacity=float((i % 4) * 400),
-            )
-        )
-        for i in range(count)
-    ]
-
-
-def validate_batch(batch: list, workers: int) -> list:
-    if type(batch) is not list or len(batch) not in (4, 8, 12):
-        raise ValueError("Batch must contain 4, 8 or 12 scenarios.")
-    if type(workers) is not int or not 1 <= workers <= cpu_limits()["effective_cpus"]:
-        raise ValueError("Worker count exceeds the effective CPU/public limit.")
-    return [validate_settings(s) for s in batch]
-
-
-def _spawn_executor(**kwargs):
-    from concurrent.futures import ProcessPoolExecutor
-    import multiprocessing
-
-    return ProcessPoolExecutor(
-        mp_context=multiprocessing.get_context("spawn"), **kwargs
+    # Gate: valid incumbent
+    has_incumbent = (
+        info.valid
+        and sol.value_valid
+        and info.primal_solution_status == int(highspy.SolutionStatus.kSolutionStatusFeasible)
     )
 
+    # Objective from info
+    obj_val = info.objective_function_value
+    if not math.isfinite(obj_val):
+        obj_val = None
 
-def _is_frame(frame):
-    return isinstance(frame, list)
+    gap_val = info.mip_gap
+    if not math.isfinite(gap_val):
+        gap_val = None
 
+    bound_val = info.mip_dual_bound
+    if not math.isfinite(bound_val):
+        bound_val = None
 
-def _is_empty(frame):
-    return not frame
+    solver_dict = {
+        "name": "highs",
+        "threads": 1,
+        "termination": termination,
+        "gap": gap_val,
+        "bound": bound_val,
+        "incumbent": bool(has_incumbent),
+    }
 
-
-def _concat(frames, labels):
-    return [
-        row | {"engine_label": label}
-        for frame, label in zip(frames, labels)
-        for row in frame
-    ]
-
-
-def _hooks():
-    from agilab_pool import PoolFrameHooks
-
-    return PoolFrameHooks(
-        "MILP list frames",
-        "process",
-        _spawn_executor,
-        _is_frame,
-        _is_empty,
-        _concat,
-        list,
-    )
-
-
-class ScenarioWorker:
-    """Picklable list-frame adapter for the unmodified AGILAB pool engine."""
-
-    def __init__(self, workers):
-        self._worker_id = 0
-        self._mode = 1 if workers > 1 else 0
-        self.args = dict(pool_max_workers=workers, pool_item_timeout=30)
-        self.pool_vars = None
-        self.rows = []
-
-    def work_init(self):
-        pass
-
-    def pool_init(self, pool_vars):
-        pass
-
-    def work_pool(self, item):
-        index, settings = item
-        start = time.monotonic()
-        result = _solve(settings)
-        return [
-            dict(
-                case=index,
-                pid=os.getpid(),
-                start_monotonic=start,
-                end_monotonic=time.monotonic(),
-                result=result,
-            )
-        ]
-
-    def work_done(self, frame):
-        self.rows.extend(frame)
-
-    def stop(self):
-        pass
-
-    def _exec_mono_process(self, plan, metadata):
-        from agilab_pool import exec_mono_process
-
-        exec_mono_process(self, plan, metadata, _hooks())
-
-    def _exec_multi_process(self, plan, metadata):
-        from agilab_pool import exec_multi_process
-
-        exec_multi_process(self, plan, metadata, _hooks())
-
-
-def _batch(batch, workers):
-    from agilab_pool import run_works
-
-    batch = validate_batch(batch, workers)
-    worker = ScenarioWorker(workers)
-    elapsed = run_works(worker, [[list(enumerate(batch))]], None)
-    return dict(
-        batch=batch,
-        batch_sha256=canonical_hash(batch),
-        workers=workers,
-        environment=cpu_limits(),
-        engine_seconds=elapsed,
-        rows=worker.rows,
-    )
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Bounded MILP Energy Lab JSON CLI")
-    parser.add_argument("mode", choices=["single", "batch"])
-    parser.add_argument("--input", required=True)
-    parser.add_argument("--output", required=True)
-    args = parser.parse_args()
-    payload = json.loads(Path(args.input).read_text())
-    if os.environ.get("MILP_ENERGY_CHILD") == "1":
-        import signal
-
-        def terminate(signum, frame):
-            # Unwind the AGILAB executor so it reaps its workers on group TERM.
-            raise SystemExit(128 + signum)
-
-        signal.signal(signal.SIGTERM, terminate)
-        result = (
-            _solve(payload)
-            if args.mode == "single"
-            else _batch(payload["batch"], payload["workers"])
-        )
+    # Determine status
+    if status == highspy.HighsModelStatus.kOptimal and has_incumbent:
+        status_str = "optimal"
+    elif has_incumbent:
+        status_str = "feasible"
+    elif status == highspy.HighsModelStatus.kInfeasible:
+        status_str = "infeasible"
     else:
-        from energy_runner import run_scenario, run_batch
+        status_str = "error"
 
-        result = (
-            run_scenario(payload)
-            if args.mode == "single"
-            else run_batch(payload["batch"], payload["workers"])
-        )
-    Path(args.output).write_text(json.dumps(result, indent=2, allow_nan=False))
+    # Non-incumbent: empty schedules
+    if not has_incumbent:
+        return {
+            "settings": s,
+            "status": status_str,
+            "objective": None,
+            "modules": None,
+            "capacity_mw": None,
+            "dispatch": [],
+            "active_modules": [],
+            "solar": [],
+            "shed": [],
+            "startup": [],
+            "shutdown": [],
+            "demand": demand.tolist(),
+            "solar_available": (s["solar_capacity"] * solar_pu).tolist(),
+            "costs": {},
+            "solver": solver_dict,
+            "residuals": {},
+            "elapsed_seconds": elapsed,
+            "transition_method": "derived from active module counts",
+        }
+
+    # Extract solutions
+    try:
+        modules, active, gas, solar, shed = _extract_solutions(n, s, demand, solar_pu)
+    except Exception as e:
+        return {
+            "settings": s,
+            "status": "error",
+            "objective": None,
+            "modules": None,
+            "capacity_mw": None,
+            "dispatch": [],
+            "active_modules": [],
+            "solar": [],
+            "shed": [],
+            "startup": [],
+            "shutdown": [],
+            "demand": demand.tolist(),
+            "solar_available": (s["solar_capacity"] * solar_pu).tolist(),
+            "costs": {},
+            "solver": solver_dict,
+            "residuals": {},
+            "elapsed_seconds": elapsed,
+            "transition_method": "derived from active module counts",
+            "error": f"solution extraction failed: {type(e).__name__}: {e}",
+        }
+
+    # Physical validation
+    ok, err_msg, costs, residuals = _physical_validation(
+        s, modules, active, gas, solar, shed, demand, solar_pu, obj_val
+    )
+
+    if not ok:
+        return {
+            "settings": s,
+            "status": "error",
+            "objective": None,
+            "modules": None,
+            "capacity_mw": None,
+            "dispatch": [],
+            "active_modules": [],
+            "solar": [],
+            "shed": [],
+            "startup": [],
+            "shutdown": [],
+            "demand": demand.tolist(),
+            "solar_available": (s["solar_capacity"] * solar_pu).tolist(),
+            "costs": {},
+            "solver": solver_dict,
+            "residuals": {},
+            "elapsed_seconds": elapsed,
+            "transition_method": "derived from active module counts",
+            "error": f"physical validation failed: {err_msg}",
+        }
+
+    # Normalize after integrality check passed
+    modules_i = int(round(modules))
+    active_i = np.round(active).astype(int)
+    startup, shutdown = _derive_transitions(active_i.astype(float))
+    capacity = modules_i * s["module_mw"]
+
+    return {
+        "settings": s,
+        "status": status_str,
+        "objective": obj_val,
+        "modules": modules_i,
+        "capacity_mw": capacity,
+        "dispatch": gas.tolist(),
+        "active_modules": active_i.tolist(),
+        "solar": solar.tolist(),
+        "shed": shed.tolist(),
+        "startup": startup.tolist(),
+        "shutdown": shutdown.tolist(),
+        "demand": demand.tolist(),
+        "solar_available": (s["solar_capacity"] * solar_pu).tolist(),
+        "costs": costs,
+        "solver": solver_dict,
+        "residuals": residuals,
+        "elapsed_seconds": elapsed,
+        "transition_method": "derived from active module counts",
+    }
+
+
+def make_batch(settings, count):
+    if not _is_strict_int(count) or count not in (4, 8, 12):
+        raise ValueError(f"count must be a strict int in (4, 8, 12), got {count!r}")
+    base = validate_settings(settings)
+    results = []
+    for i in range(count):
+        s = dict(base)
+        # Deterministic bounded relative factor centered around 1
+        factor = 1.0 + 0.1 * (i - (count - 1) / 2.0)
+        s["demand_multiplier"] = max(0.1, min(3.0, factor * base["demand_multiplier"]))
+        validate_settings(s)
+        results.append(s)
+    return results
+
+
+def cpu_limits():
+    """Return effective_cpus and observed caps."""
+    caps = []
+
+    # Host CPUs
+    try:
+        import os
+        host_cpus = os.cpu_count()
+        if host_cpus is not None:
+            caps.append(float(host_cpus))
+    except Exception:
+        pass
+
+    # Process affinity
+    try:
+        import os
+        aff = os.sched_getaffinity(0)
+        caps.append(float(len(aff)))
+    except (AttributeError, OSError):
+        pass
+
+    # Linux cgroup v2
+    try:
+        with open("/sys/fs/cgroup/cpu.max") as f:
+            parts = f.read().split()
+            if parts[0] != "max":
+                quota = int(parts[0])
+                period = int(parts[1])
+                if period > 0:
+                    caps.append(quota / period)
+    except (FileNotFoundError, ValueError, IndexError, OSError):
+        pass
+
+    # Linux cgroup v1
+    try:
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as f:
+            quota = int(f.read().strip())
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_period_us") as f:
+            period = int(f.read().strip())
+        if quota > 0 and period > 0:
+            caps.append(quota / period)
+    except (FileNotFoundError, ValueError, OSError):
+        pass
+
+    # CPU_CORES env
+    cpu_cores_env = os.environ.get("CPU_CORES")
+    if cpu_cores_env is not None:
+        try:
+            val = float(cpu_cores_env)
+            if val <= 0:
+                raise ValueError(f"CPU_CORES must be positive, got {val}")
+            caps.append(math.floor(val))
+        except ValueError as e:
+            raise ValueError(f"CPU_CORES invalid: {e}")
+
+    if not caps:
+        effective = 1
+    else:
+        effective = max(1, min(4, int(math.floor(min(caps)))))
+
+    return {
+        "effective_cpus": effective,
+        "observed_caps": [round(c, 4) for c in caps],
+    }
+
+
+def model_artifact_text(settings):
+    s = validate_settings(settings)
+    hours = s["hours"]
+    demand = _demand_profile(hours, s["demand_multiplier"])
+    solar_pu = _solar_profile(hours)
+    max_cap = s["max_modules"] * s["module_mw"]
+
+    lines = [
+        "PyPSA Modular MILP – Descriptive Formulation",
+        "=" * 50,
+        "",
+        f"Horizon: {hours} snapshots",
+        f"Demand profile (MW): {demand.tolist()}",
+        f"Solar availability (pu): {solar_pu.tolist()}",
+        "",
+        "Decision Variables:",
+        f"  n_mod (modular_gas): integer, 0..{s['max_modules']} installed modules",
+        f"  status (modular_gas): integer, 0..n_mod active modules per snapshot",
+        f"  p (modular_gas): continuous, {s['min_loading']}*{s['module_mw']}*status <= p <= {s['module_mw']}*status per snapshot",
+    ]
+    if s["solar_capacity"] > 0:
+        lines.append(f"  p (solar): continuous, 0..{s['solar_capacity']}*solar_pu per snapshot")
+    if s["allow_shedding"]:
+        lines.append(f"  p (shedding): continuous, 0..demand per snapshot")
+
+    lines += [
+        "",
+        "Constraints:",
+        "  Power balance: gas + solar + shed == demand (per snapshot)",
+        f"  Gas bounds: {s['min_loading']}*{s['module_mw']}*status <= p_gas <= {s['module_mw']}*status",
+        f"  Capacity: p_nom = n_mod * {s['module_mw']} MW, max {max_cap} MW",
+        "",
+        "Objective (minimize):",
+        f"  {s['investment_cost']} * n_mod * {s['module_mw']} + sum(p_gas * {s['marginal_cost']} + status * {s['standby_cost']} + startup * {s['startup_cost']}"
+        + (f" + shed * 100000" if s["allow_shedding"] else "")
+        + ")",
+        "",
+        "Parameters:",
+        f"  module_mw={s['module_mw']}, max_modules={s['max_modules']}, min_loading={s['min_loading']}",
+        f"  investment_cost={s['investment_cost']} (per MW per horizon), marginal_cost={s['marginal_cost']}",
+        f"  standby_cost={s['standby_cost']}, startup_cost={s['startup_cost']}",
+        f"  solar_capacity={s['solar_capacity']}, allow_shedding={s['allow_shedding']}",
+        f"  solver_time_limit={s['solver_time_limit']}s, mip_rel_gap={s['mip_rel_gap']}",
+        "",
+        "Note: This is a descriptive formulation of the in-memory model, not an exported solver LP file.",
+    ]
+    return "\n".join(lines)
+
+
+def _main():
+    import argparse
+    parser = argparse.ArgumentParser(description="PyPSA modular MILP lab")
+    parser.add_argument("--settings", type=str, required=True, help="JSON settings")
+    args = parser.parse_args()
+
+    try:
+        settings = json.loads(args.settings)
+    except json.JSONDecodeError as e:
+        print(json.dumps({"error": f"invalid JSON: {e}"}), file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        result = solve_scenario(settings)
+    except Exception as e:
+        result = {"error": f"{type(e).__name__}: {e}"}
+
+    # Ensure all floats are finite for JSON
+    def _sanitize(obj):
+        if isinstance(obj, dict):
+            return {k: _sanitize(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_sanitize(v) for v in obj]
+        if isinstance(obj, float):
+            if not math.isfinite(obj):
+                return None
+            return obj
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            v = float(obj)
+            return v if math.isfinite(v) else None
+        return obj
+
+    result = _sanitize(result)
+    print(json.dumps(result, allow_nan=False))
 
 
 if __name__ == "__main__":
-    main()
+    _main()

@@ -53,25 +53,15 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "submits a notebook analysis and starts CPU computation; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
         ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py", "test/test_text_showcase.py"),
     ),
-    "Save current scenario": (
+    "Clear comparisons": (
         "trial-only",
-        "stores a copy of the last solved MILP scenario in browser-session state; focused app tests cover saving and duplicate names",
-        ("test/test_milp_energy_showcase.py",),
-    ),
-    "Clear saved scenarios": (
-        "trial-only",
-        "clears only the MILP browser-session comparison list; focused app tests verify saved scenarios clear while the solved result remains",
+        "clears MILP session comparisons while retaining the committed scenario; focused tests verify state preservation",
         ("test/test_milp_energy_showcase.py",),
     ),
     "Run benchmark": (
         "trial-only",
         "starts bounded local CPU benchmarks; focused tests cover explicit submission and runner errors, while bundled tests and dedicated browser checks exercise real workers",
-        ("test/test_free_threading_showcase.py", "src/agilab/resources/free_threading_demo/tests.py"),
-    ),
-    "Run scaling experiment": (
-        "trial-only",
-        "starts bounded local MILP worker processes; focused tests cover dispatch, CPU gating and failure reporting, while the live lab check measures a real batch",
-        ("test/test_milp_energy_showcase.py",),
+        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/resources/free_threading_demo/tests.py", "src/agilab/resources/milp_energy_demo/tests.py"),
     ),
     "Run model and app checks": (
         "trial-only",

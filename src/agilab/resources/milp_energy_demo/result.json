@@ -1,9 +1,9 @@
 {
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
-  "run_id": "20260919T201404Z-d7538b18",
-  "seconds": 1439.8,
-  "workflow_stages": 3,
+  "run_id": "20260920T162528Z-86c64707",
+  "seconds": 15899.9,
+  "workflow_stages": 1,
   "source": {
     "source_kind": "github",
     "repository": "PyPSA/PyPSA",
@@ -32,19 +32,33 @@
       "app_startup",
       "app_run_analysis_interaction"
     ],
+    "result_file": "results.json",
     "result_names": [
-      "active_modules",
-      "agilab_batch_measurement",
-      "capacity_limited_status",
-      "default_objective",
-      "full_batch_measurement",
-      "full_reference",
-      "installed_modules",
-      "reference_check"
+      "batch",
+      "default",
+      "infeasible",
+      "same_work_verified",
+      "sourcehash"
     ],
+    "result_sha256": "f3be99407392346444937e1966fc684875eda16e2227e474e9b330acdd204f15",
     "scientific_correctness_verified": false,
     "status": "passed",
     "verification_scope": "execution_and_interface",
+    "workflow": {
+      "checks": [
+        "fresh_workflow_execution",
+        "fresh_result_artifact",
+        "notebook_result_agreement"
+      ],
+      "result_file": "results.json",
+      "result_sha256": "f3be99407392346444937e1966fc684875eda16e2227e474e9b330acdd204f15",
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "scientific_correctness_verified": false,
+      "stage_count": 1,
+      "stages_sha256": "b922cb6b7c622d1aaa75dd72b67d1aa9eba36a3200d9c13cf257e9ae09d52425",
+      "status": "passed",
+      "verification_scope": "local_workflow_result_agreement"
+    },
     "milp_energy": {
       "status": "passed",
       "checks": [
@@ -70,18 +84,36 @@
   "files": {
     "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
     "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
-    "README.md": "d5d3acc08f4e6d94d38fc7513cd79b52f11551f2a3612a9428a0a8893633d6ae",
+    "README.md": "a777c1fa3337d35f3db74fefe49671bd63cecd8452eff776f47e806648c6abae",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "1bfb20f4c6b614349a1e7d063efc49f42d08bfa6a5db93fab4890a58ed566b4b",
-    "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
-    "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
-    "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
-    "pyproject.toml": "0bc5f92bb9685973bff8f8d694d1f56d1e9e7e20c2c28c46beb635276e4e8959",
-    "requirements.txt": "8d388ee850c637e686d364c30bb3af6ce42e1909b1269caa4ed54669ae664439",
-    "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
+    "app.py": "d93abc3d546f00c7160bc3f3a39d9eb3da6d0675ee80447a5921fd45c09e0b6a",
+    "energy_core.py": "1e59d0f87f2846013fcbeec5cb472d0f538f2cfb16609147b28fcd3717e24898",
+    "energy_runner.py": "a3ca92315e92d842fff5161e81791c8da3c0b01c49cc29a94586bff11c98b0e9",
+    "lab_stages.toml": "b922cb6b7c622d1aaa75dd72b67d1aa9eba36a3200d9c13cf257e9ae09d52425",
+    "pyproject.toml": "8954cf015890010e498969ece0edba9f6e77ae0a4dc7434120b38b07ccdec32a",
+    "requirements.txt": "7bfcef11577427b04a1e1d6f6bb020c207d53a8ede8129ea5cd91c1d5ca531e4",
+    "solution.ipynb": "a549ddaa06bb51af4e96d4b632a8f188c81002b0b76c3d3349216dd165fe9dd2",
     "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
     "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
     "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
-    "tests.py": "92f03e9e0ed6e76b60021477360565749f505c07aa11cd9790da09d8dc010a65"
+    "tests.py": "37566f878b5a0f825b90c7e65d0c9e9b1a3cf9bd63448bfc57103390a01428fd"
+  },
+  "build_model": {
+    "cloud_codegen_fallback": false,
+    "coordination": "A coordinating assistant prepared prompts, reviewed output, packaged declarative metadata and ran independent checks. All application Python and notebook cells were generated or repaired by the local model.",
+    "execution": "local",
+    "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+    "method": "Native local API generation and repair with independent verification",
+    "provider": "mlx-serve",
+    "quantization": "4-bit",
+    "revision": "b543ed7cbafbf4984266e784c2ccb1f0730847b6",
+    "tokki_agent_offload": false,
+    "upstream": "Qwen/Qwen3.8-27B",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0"
+  },
+  "notebook_code_cells": 4,
+  "build_timing": {
+    "scope": "Wall-clock from first local request through final verification, including repairs and intervening validation work",
+    "recorded_generation_response_seconds": 2865.36
   }
 }
