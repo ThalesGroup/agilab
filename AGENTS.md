@@ -417,7 +417,10 @@ Use this runbook whenever you:
   drift on duplicated strings.
 - **Notebook demo build evidence**: Every public notebook demo must call
   `agent_runtime.notebook_demo_evidence.render_build_evidence` after verifying its
-  original build receipt. Keep the autonomous-agent heading and recorded build
+  original build receipt. Rebuilt local-model demos must identify the exact build
+  model in their receipt and visible model label; preserve source/data/engine hashes
+  and distinguish local generation from coordinating-assistant and Tokki routing.
+  Keep the autonomous-agent heading and recorded build
   duration visible above the app, outside expanders, tabs, and sidebars. Use the
   receipt's duration; never substitute inference, page-load, or deployment time.
   Preserve the shared public/local explanation and **Build from your own notebook**

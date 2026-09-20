@@ -1,155 +1,141 @@
-"""Native Streamlit explorer for the historical Wikinews corpus."""
+"""Text Atlas \u2013 Streamlit application."""
 
+import streamlit as st
 import altair as alt
 import numpy as np
 import pandas as pd
-import streamlit as st
 
-from text_core import analyze, load_corpus
+from text_core import load_corpus, analyze
 
-
-st.set_page_config(page_title="Text atlas", page_icon=":material/hub:", layout="wide")
-st.title("Text atlas")
+st.title("Text Atlas")
 st.caption(
-    "INRIA scikit-learn MOOC · notebook CC BY 4.0 · "
-    "Historical Wikinews corpus: contributors, curated by Mega Rhyme · CC BY 2.5"
+    "Source: INRIA scikit-learn MOOC, *Dimensionality reduction of text data* "
+    "(CC BY 4.0, INRIA scikit-learn MOOC contributors). "
+    "Corpus: Wikinews (CC BY 2.5, Wikinews contributors, curated by Mega Rhyme)."
 )
-st.markdown("Explore how shared vocabulary brings 1,250 historical articles together.")
 
+df = load_corpus()
 
-@st.cache_data(max_entries=8, show_spinner=False)
-def cached_analysis(min_df, max_df, n_clusters, seed):
-    return analyze(min_df=min_df, max_df=max_df, n_clusters=n_clusters, seed=seed)
-
+KEY_RESULT = "qwen_text_atlas_result"
+KEY_PARAMS = "qwen_text_atlas_params"
 
 with st.form("analysis_form", border=True):
-    with st.container(horizontal=True, wrap=True, gap="medium"):
-        n_clusters = st.slider("Clusters", 2, 8, 5, key="cluster_count", width=240)
-        min_df = st.slider(
-            "Minimum documents per word", 2, 12, 5,
-            key="minimum_frequency", width=240,
-        )
-        max_df = st.slider(
-            "Maximum document share per word", 0.60, 0.95, 0.80, 0.01,
-            key="maximum_frequency", width=280, format="%.2f",
-        )
-        seed = st.number_input(
-            "Random seed", min_value=0, max_value=10000, value=42, step=1,
-            key="random_seed", width=180,
-        )
-    submitted = st.form_submit_button(
-        "Run analysis", key="run_analysis", type="primary", width="content"
+    n_clusters = st.slider(
+        "Number of clusters", min_value=2, max_value=8, value=5, step=1,
+        key="qwen_text_atlas_n_clusters",
     )
-    st.caption("Controls take effect on submit. The map keeps the last successful result.")
+    min_df = st.slider(
+        "Min document frequency", min_value=2, max_value=12, value=5, step=1,
+        key="qwen_text_atlas_min_df",
+    )
+    max_df = st.slider(
+        "Max document frequency", min_value=0.60, max_value=0.95, value=0.80, step=0.05,
+        key="qwen_text_atlas_max_df",
+    )
+    seed = st.number_input(
+        "Random seed", min_value=0, max_value=10000, value=42, step=1,
+        key="qwen_text_atlas_seed",
+    )
+    submitted = st.form_submit_button("Run analysis")
 
 if submitted:
-    try:
-        with st.spinner("Mapping article vocabulary…"):
-            result = cached_analysis(min_df, max_df, n_clusters, seed)
-        st.session_state["analysis_result"] = result
-    except (ValueError, OSError) as exc:
-        st.error(f"Analysis could not finish: {exc}")
+    result = analyze(n_clusters=n_clusters, min_df=min_df, max_df=max_df, seed=seed)
+    st.session_state[KEY_RESULT] = result
+    st.session_state[KEY_PARAMS] = result["parameters"]
 
-if "analysis_result" not in st.session_state:
-    st.info("Choose your settings and select Run analysis to build the map.")
-else:
-    result = st.session_state["analysis_result"]
-    corpus = load_corpus()
-    params = result["parameters"]
-    st.subheader("Vocabulary map")
+# Warn if pending form controls differ from committed parameters
+committed = st.session_state.get(KEY_PARAMS)
+if committed is not None:
+    pending = {"n_clusters": n_clusters, "min_df": min_df, "max_df": max_df, "seed": seed}
+    if pending != committed:
+        st.warning(
+            f"Committed parameters: n_clusters={committed['n_clusters']}, "
+            f"min_df={committed['min_df']}, max_df={committed['max_df']:.2f}, "
+            f"seed={committed['seed']} \u2014 click 'Run analysis' to apply changes."
+        )
+
+# Render persisted results (survives visual-control reruns)
+if KEY_RESULT in st.session_state:
+    result = st.session_state[KEY_RESULT]
+    params = st.session_state[KEY_PARAMS]
+
+    st.subheader("Results")
     st.caption(
-        f"Last submitted analysis · {params['n_clusters']} clusters · "
-        f"min_df={params['min_df']} · max_df={params['max_df']:.2f} · "
-        f"seed={params['seed']} · {params['n_components']} retained PCA components"
+        f"Parameters: n_clusters={params['n_clusters']}, "
+        f"min_df={params['min_df']}, max_df={params['max_df']:.2f}, "
+        f"seed={params['seed']}"
     )
-    color_by = st.radio(
-        "Color articles by", ["Cluster", "Original category"],
-        horizontal=True, key="color_by",
+
+    # Metrics row
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Articles", len(result["coordinates"]))
+    m2.metric("Vocabulary size", len(result["vocabulary"]))
+    m3.metric("Silhouette (50-D)", f"{result['silhouette']:.4f}")
+    m4.metric("Variance visible in 2-D", f"{result['displayed_variance']:.2%}")
+
+    # Color selector (visual control \u2013 does not retrigger analysis)
+    color_mode = st.radio(
+        "Color by", ["Cluster", "Category"], key="qwen_text_atlas_color_mode"
     )
-    plot_data = pd.DataFrame({
-        "PC1": result["coordinates"][:, 0],
-        "PC2": result["coordinates"][:, 1],
-        "Article": np.arange(1, len(corpus) + 1),
-        "Cluster": [f"Cluster {label}" for label in result["labels"]],
-        "Original category": corpus["category"],
-        "Preview": [" ".join(text.split())[:157] + "…" for text in corpus["text"]],
-    })
+
+    # Build chart dataframe
+    coords = result["coordinates"]
+    previews = [
+        t[:60] + "\u2026" if len(t) > 60 else t for t in df["text"].values
+    ]
+    chart_df = pd.DataFrame(
+        {
+            "PC1": coords[:, 0],
+            "PC2": coords[:, 1],
+            "cluster": [str(l) for l in result["labels"]],
+            "category": df["category"].values,
+            "preview": previews,
+        }
+    )
+
+    color_field = "cluster" if color_mode == "Cluster" else "category"
+
     chart = (
-        alt.Chart(plot_data)
-        .mark_circle(size=38, opacity=0.65)
+        alt.Chart(chart_df)
+        .mark_point(size=10, opacity=0.7)
         .encode(
-            x=alt.X("PC1:Q", title="Principal component 1"),
-            y=alt.Y("PC2:Q", title="Principal component 2"),
-            color=alt.Color(
-                f"{color_by}:N", scale=alt.Scale(scheme="tableau10"),
-                legend=alt.Legend(orient="bottom", title=None),
-            ),
+            x=alt.X("PC1:Q", title="PC 1"),
+            y=alt.Y("PC2:Q", title="PC 2"),
+            color=alt.Color(f"{color_field}:N", title=color_mode),
             tooltip=[
-                alt.Tooltip("Article:Q", format="d"),
-                alt.Tooltip("Cluster:N"),
-                alt.Tooltip("Original category:N"),
-                alt.Tooltip("Preview:N"),
+                alt.Tooltip(f"{color_field}:N", title=color_mode),
+                alt.Tooltip("preview:N", title="Preview"),
             ],
         )
-        .properties(height=480)
-        .interactive()
-    )
-    st.altair_chart(chart, width="stretch", key="vocabulary_map")
-    st.caption(
-        "Nearby points reflect shared vocabulary. Clusters are not validated topics. "
-        "The 2D projection drops detail; original categories are a display overlay only."
-    )
-    with st.container(horizontal=True, wrap=True, gap="medium"):
-        st.metric("Articles", f"{len(corpus):,}", border=True, width=210)
-        st.metric("Vocabulary size", f"{len(result['vocabulary']):,}", border=True, width=210)
-        st.metric(
-            "Silhouette", f"{result['silhouette']:.3f}", border=True, width=210,
-            help="An internal diagnostic in the retained PCA space, from −1 to 1. Not accuracy.",
-        )
-        st.metric(
-            "Original variance visible in 2D", f"{result['displayed_variance']:.1%}",
-            border=True, width=290,
-        )
-    st.caption(
-        f"All {params['n_components']} retained components explain "
-        f"{result['retained_variance']:.1%} of original TF-IDF variance. "
-        "Silhouette is an internal diagnostic of separation in that retained space."
+        .properties(width=550, height=400)
     )
 
-    st.subheader("Words within each cluster")
-    st.caption("Six words with the highest mean original TF-IDF weight among member articles.")
-    terms_table = pd.DataFrame([
-        {
-            "Cluster": f"Cluster {cluster}",
-            "Documents": int(np.count_nonzero(result["labels"] == int(cluster))),
-            "Top words": ", ".join(words),
-        }
-        for cluster, words in result["top_terms"].items()
-    ])
-    st.dataframe(terms_table, hide_index=True, width="stretch", key="cluster_terms")
+    st.altair_chart(chart, width="stretch")
 
-    st.subheader("Read an article")
-    article = st.selectbox(
-        "Article in original corpus order", range(len(corpus)),
-        format_func=lambda index: f"Article {index + 1:04d}", key="article_selection",
-    )
-    with st.container(border=True):
-        st.text(
-            f"Article {article + 1:04d} · Cluster {result['labels'][article]} · "
-            f"Original category: {corpus.iloc[article]['category']}"
-        )
-        st.text(corpus.iloc[article]["text"], width="stretch")
+    # Terms table with document counts
+    st.subheader("Top terms per cluster")
+    terms_rows = []
+    for cid, words in result["top_terms"].items():
+        count = int((result["labels"] == int(cid)).sum())
+        for w in words:
+            terms_rows.append({"Cluster": cid, "Term": w, "Documents": count})
+    terms_df = pd.DataFrame(terms_rows)
+    st.dataframe(terms_df, width="stretch", hide_index=True)
 
-with st.expander("About the source and method"):
-    st.markdown(
-        "Adapted from INRIA's [Dimensionality reduction of text data]"
-        "(https://github.com/INRIA/scikit-learn-mooc/blob/"
-        "3d1e8cdf7df6675d8a47d352d66b29dfea36587c/notebooks/dimred_text.ipynb). "
-        "English stop-word TF-IDF → centered randomized PCA (up to 50 components) "
-        "→ KMeans in the retained space. CPU thread pools are limited to two threads."
+    # Article selector
+    st.subheader("Article inspection")
+    article_idx = st.selectbox(
+        "Select an article",
+        range(len(df)),
+        format_func=lambda i: f"#{i} \u2013 {df['category'].iloc[i]}: {df['text'].iloc[i][:50]}\u2026",
+        key="qwen_text_atlas_article_selector",
     )
-    st.caption(
-        "The historical corpus is reproduced unchanged. See LICENSE for the notebook's "
-        "CC BY 4.0 terms, DATA_LICENSE for the corpus's separate CC BY 2.5 notice, "
-        "and NOTICE for adaptation details."
+    st.text(df["text"].iloc[article_idx])
+
+    # Explanations
+    st.info(
+        "Nearby points share similar vocabulary. Clusters are not validated topics; "
+        "they reflect vocabulary similarity in the reduced space. The 2-D projection "
+        "drops most of the retained variance. Silhouette is an internal diagnostic, "
+        "not a measure of topical accuracy."
     )

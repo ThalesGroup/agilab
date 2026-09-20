@@ -1,9 +1,9 @@
 {
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
-  "run_id": "20260919T144017Z-27f16038",
-  "seconds": 464.0,
-  "workflow_stages": 3,
+  "run_id": "20260920T150004Z-126d81e7",
+  "seconds": 1208.2,
+  "workflow_stages": 1,
   "source": {
     "repository": "INRIA/scikit-learn-mooc",
     "commit": "3d1e8cdf7df6675d8a47d352d66b29dfea36587c",
@@ -30,9 +30,8 @@
       "app_startup",
       "app_run_analysis_interaction"
     ],
+    "result_file": "results.json",
     "result_names": [
-      "articles",
-      "cluster_document_counts",
       "coordinates",
       "displayed_variance",
       "labels",
@@ -40,12 +39,27 @@
       "retained_variance",
       "silhouette",
       "top_terms",
-      "vocabulary",
-      "vocabulary_size"
+      "vocabulary"
     ],
+    "result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
     "scientific_correctness_verified": false,
     "status": "passed",
     "verification_scope": "execution_and_interface",
+    "workflow": {
+      "checks": [
+        "fresh_workflow_execution",
+        "fresh_result_artifact",
+        "notebook_result_agreement"
+      ],
+      "result_file": "results.json",
+      "result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "scientific_correctness_verified": false,
+      "stage_count": 1,
+      "stages_sha256": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
+      "status": "passed",
+      "verification_scope": "local_workflow_result_agreement"
+    },
     "text": {
       "status": "passed",
       "checks": [
@@ -61,8 +75,8 @@
       "measurements": {
         "articles": 1250,
         "vocabulary": 6404,
-        "displayed_variance": 0.02076089382171631,
-        "retained_variance": 0.19257812201976776,
+        "displayed_variance": 0.020760885632496517,
+        "retained_variance": 0.19257807260169862,
         "silhouette": 0.05084475129842758,
         "cases": [
           {
@@ -84,14 +98,31 @@
     "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
     "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
     "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
-    "README.md": "eb3650374af6d95c982fcb5f91a548b4f0efbb9364f55b2d19004fc1eed57ed3",
-    "app.py": "e5c87bcaf47d53fe4d5d0419de50bdb14b261dccd1eba443012aeea10d844a63",
+    "README.md": "1f685dc90d3db74bf4bcde937631bb227f6588eabc09b43b389d3edb9f4a30c9",
+    "app.py": "08fd46ebdd3dc1e7010cc676976eb793b322b3ee2d483f2d6cd3ac76b76a8b67",
     "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
-    "lab_stages.toml": "9747ca98ff8962c9b21595d50900c95d721d94e082da81467443807aee2cbb52",
-    "pyproject.toml": "c31e987c022e9eb79451c80ed6553fc303a0765e2551b8d525c42bfaf07e78c3",
-    "requirements.txt": "5aee4f10fe3a4c3f11e55d1b369cb240e0f62d73800c9d91dc211f7529f7b51c",
-    "solution.ipynb": "50eb14b4c9dd756a83d94ef8fe8367a611e4b26f6beab756c0d205beda1a2207",
+    "lab_stages.toml": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
+    "pyproject.toml": "08b4c6a777ba3a0c69fabae48bb808450399eb143552ce003b3238c610e43399",
+    "requirements.txt": "648b3f80689c7e0e26252af61f649eeb2c2eaaa5e5448b072be151dc50374583",
+    "solution.ipynb": "cb1065aa35ed6d73175c17e3c76edc75a033579ea4e7bae6b03b84a1ccd62b60",
     "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
-    "text_core.py": "17a4c01c9a22dbb61f32d21482c4de04d686d7ba72ebd9a3a3b7d7c9460f7e0f"
+    "text_core.py": "62d2828e9f9fc8ec94ea6078247ee68ce7240e8d48b0f5deb57043b6fd915b65"
+  },
+  "build_model": {
+    "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+    "provider": "mlx-serve",
+    "execution": "local",
+    "revision": "b543ed7cbafbf4984266e784c2ccb1f0730847b6",
+    "upstream": "Qwen/Qwen3.8-27B",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "4-bit",
+    "cloud_codegen_fallback": false,
+    "tokki_agent_offload": false,
+    "method": "Native local API generation and repair with independent verification",
+    "coordination": "A coordinating assistant prepared the requests and ran independent checks. All application Python and notebook cells were generated or repaired by the local model."
+  },
+  "build_timing": {
+    "scope": "Wall-clock from first local generation request through independent notebook, workflow, UI and numerical verification",
+    "inference_seconds": 935.18
   }
 }

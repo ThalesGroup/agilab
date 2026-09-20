@@ -30,7 +30,7 @@ python -m streamlit run app.py
 No install is needed in the supplied AGILAB environment. No API, credential,
 data download, or external service is used by the analysis or app.
 
-To execute the three Python stages of `solution.ipynb` from any directory,
+To execute the Python analysis in `solution.ipynb` from any directory,
 set `PROJECT_ROOT` to the project directory. This lightweight runner needs
 only the declared dependencies and Python's standard library:
 
@@ -98,3 +98,7 @@ historical articles, not a live news feed. See `NOTICE` for modifications.
 The supplied independent verifier checks fresh notebook execution, results output,
 app startup, and the Run analysis interaction. Those checks establish execution
 and interface behavior; they do not establish scientific equivalence to the lesson.
+
+## Local application build
+
+The application Python and notebook cells were generated and repaired locally with Qwen 3.8 27B (4-bit MLX), model `ddalcu/Qwen3.8-27B-MLX-Serve-4bit`. No cloud code-generation fallback was used. A coordinating assistant prepared requests and ran independent validation. The analysis itself uses TF-IDF, centered PCA and KMeans. The accompanying result.json records exact model revisions and verification scope.
