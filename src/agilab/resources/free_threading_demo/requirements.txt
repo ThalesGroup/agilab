@@ -1,3 +1,6 @@
 streamlit>=1.64,<1.65
 altair>=6,<7
+numpy>=2.3,<3
+pandas>=2.3,<3
 Pillow>=12,<13
+pytest>=8,<10

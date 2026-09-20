@@ -1,226 +1,515 @@
-"""Exact original AGILAB Mandelbrot kernel and stdlib-only pool adapter.
+"""free_threading_core.py – Free-threading lab worker adapter and public API.
 
-Original AGILAB notebook created September 19, 2026. BSD-3-Clause; see LICENSE.
-Run this module only in an isolated benchmark child, never in a UI process.
+Implements the exact AGILAB Mandelbrot scalar algorithm, tile planning,
+pool-engine delegation via agilab_pool, and the run_case orchestration.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import multiprocessing
 import os
-import signal
-import struct
 import sys
 import sysconfig
-import threading
 import time
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from typing import Any, Callable, Sequence
 
-import agilab_pool as pool
+import agilab_pool
+from agilab_pool import PoolFrameHooks, run_works
 
-MODES = {
-    "gil_on_threads": (1, "thread"),
-    "gil_off_threads": (0, "auto"),
-    "gil_on_processes": (1, "process"),
-}
+# ---------------------------------------------------------------------------
+# Public: reference_image
+# ---------------------------------------------------------------------------
 
-
-def integer(name, value, low, high):
-    if type(value) is not int or not low <= value <= high:
-        raise ValueError(f"{name} must be an integer in {low}..{high}")
-    return value
-
-
-def validate_parameters(width, height, iterations, workers=1, tile_rows=3):
-    integer("width", width, 2, 384)
-    integer("height", height, 2, 256)
-    integer("iterations", iterations, 1, 300)
-    integer("workers", workers, 1, 8)
-    integer("tile_rows", tile_rows, 2, 4)
-
-
-def validate_mode(mode):
-    if type(mode) is not str or mode not in MODES:
-        raise ValueError("Unknown mode; choose " + ", ".join(MODES))
-
-
-def row_counts(width, height, iterations, start, stop):
-    pixels = []
-    for y in range(start, stop):
-        cy = -1.2 + 2.4 * y / (height - 1)
+def reference_image(width: int, height: int, iterations: int) -> list[int]:
+    """Compute the exact Mandelbrot image as a row-major list of iteration counts."""
+    _validate_int(width, "width", 2, 384)
+    _validate_int(height, "height", 2, 256)
+    _validate_int(iterations, "iterations", 1, 300)
+    counts: list[int] = []
+    for y in range(height):
         for x in range(width):
-            cx = -2.0 + 3.0 * x / (width - 1)
             z = 0j
-            c = complex(cx, cy)
+            c = complex(-2 + 3 * x / (width - 1), -1.2 + 2.4 * y / (height - 1))
             count = 0
-            while count < iterations and z.real*z.real + z.imag*z.imag <= 4.0:
-                z = z*z + c
+            while count < iterations and z.real * z.real + z.imag * z.imag <= 4:
+                z = z * z + c
                 count += 1
-            pixels.append(count)
-    return pixels
+            counts.append(count)
+    return counts
 
 
-def reference_image(width=96, height=64, iterations=100):
-    validate_parameters(width, height, iterations)
-    return row_counts(width, height, iterations, 0, height)
+# ---------------------------------------------------------------------------
+# Public: image_digest
+# ---------------------------------------------------------------------------
+
+def image_digest(counts: list[int]) -> str:
+    """Stable SHA-256 hex digest of the complete row-major image.
+
+    Each count is encoded as a fixed-width decimal string (up to 300 fits in
+    3 digits) so the digest is deterministic and independent of int repr.
+    """
+    h = hashlib.sha256()
+    for c in counts:
+        _validate_int(c, "count", 0, 300)
+        h.update(f"{c:03d}".encode("ascii"))
+    return h.hexdigest()
 
 
-def tile_plan(width, height, iterations, tile_rows=3):
-    validate_parameters(width, height, iterations, tile_rows=tile_rows)
-    # Bit-reversal order distributes expensive central rows among contiguous
-    # batches used by the unchanged AGILAB engine, independent of pool width.
-    tiles = [(i, y, min(y + tile_rows, height), width, height, iterations)
-             for i, y in enumerate(range(0, height, tile_rows))]
-    bits = max(1, (len(tiles) - 1).bit_length())
-    return tuple(sorted(tiles, key=lambda t: int(f"{t[0]:0{bits}b}"[::-1], 2)))
+# ---------------------------------------------------------------------------
+# Public: make_tiles
+# ---------------------------------------------------------------------------
+
+def make_tiles(width: int, height: int) -> list[dict]:
+    """Deterministic tile list: two rows per tile, final tile may be shorter.
+
+    Even-indexed and odd-indexed tiles are interleaved for load balance.
+    """
+    _validate_int(width, "width", 2, 384)
+    _validate_int(height, "height", 2, 256)
+    tiles: list[dict] = []
+    tile_id = 0
+    for row_start in range(0, height, 2):
+        row_stop = min(row_start + 2, height)
+        tiles.append({"tile_id": tile_id, "row_start": row_start, "row_stop": row_stop})
+        tile_id += 1
+    return tiles[::2] + tiles[1::2]
 
 
-def image_digest(counts):
-    return hashlib.sha256(b"".join(struct.pack(">H", n) for n in counts)).hexdigest()
+# ---------------------------------------------------------------------------
+# Public: runtime_info
+# ---------------------------------------------------------------------------
+
+def runtime_info() -> dict:
+    return {
+        "free_threaded_build": bool(sysconfig.get_config_var("Py_GIL_DISABLED")),
+        "gil_enabled": bool(sys._is_gil_enabled()),
+        "version": sys.version,
+    }
 
 
-def runtime_state():
-    checker = getattr(sys, "_is_gil_enabled", None)
-    return {"free_threaded_build": sysconfig.get_config_var("Py_GIL_DISABLED") == 1,
-            "gil_enabled": checker() if checker else None,
-            "version": sys.version, "implementation": sys.implementation.name}
+# ---------------------------------------------------------------------------
+# Module-level picklable worker adapter
+# ---------------------------------------------------------------------------
 
+class _MandelbrotWorker:
+    """Minimal picklable worker adapter for the agilab_pool engine."""
 
-def verify_runtime(state, mode):
-    if not state["free_threaded_build"] or state["gil_enabled"] is not bool(MODES[mode][0]):
-        raise RuntimeError("Requires a free-threaded Python build with the requested actual GIL state. "
-                           "Set AGILAB_FREE_THREADING_PYTHON to a working python3.14t executable.")
+    def __init__(self, width: int, height: int, iterations: int, workers: int):
+        self._worker_id = 0
+        self._mode = 1  # pool bit
+        self._work_done_chunk = 0
+        self._width = width
+        self._height = height
+        self._iterations = iterations
+        self._workers = workers
+        self.args = {"pool_max_workers": workers, "pool_item_timeout": 10}
+        self._collected_frames: list[Any] = []
+        self._collected_labels: list[str] = []
 
+    # -- engine-required methods --
 
-def compute_tile(item):
-    tile_id, start, stop, width, height, iterations = item
-    begun = time.monotonic_ns()
-    counts = row_counts(width, height, iterations, start, stop)
-    ended = time.monotonic_ns()
-    return [{"tile": tile_id, "row_start": start, "row_stop": stop,
-             "counts": counts, "start_ns": begun, "end_ns": ended,
-             "pid": os.getpid(), "thread_id": threading.get_native_id(),
-             "gil_enabled": sys._is_gil_enabled()}]
+    def work_init(self) -> None:
+        self._collected_frames = []
+        self._collected_labels = []
 
-
-def reduce_tiles(records, plan):
-    expected = {t[0]: t for t in plan}
-    found = {}
-    for record in records:
-        idx = record.get("tile")
-        if type(idx) is not int or idx not in expected or idx in found:
-            raise ValueError("Duplicate or unknown tile in engine reduction")
-        _, start, stop, width, _, iterations = expected[idx]
-        if (record.get("row_start"), record.get("row_stop")) != (start, stop):
-            raise ValueError("Mismatched tile rows")
-        counts = record.get("counts")
-        if (not isinstance(counts, list) or len(counts) != width * (stop - start)
-                or any(type(n) is not int or not 0 <= n <= iterations for n in counts)):
-            raise ValueError("Incomplete or invalid tile pixels")
-        if any(type(record.get(k)) is not int for k in ("start_ns", "end_ns", "pid", "thread_id")):
-            raise ValueError("Invalid worker timeline")
-        if record["end_ns"] < record["start_ns"] or record["pid"] <= 0:
-            raise ValueError("Invalid worker timeline interval")
-        found[idx] = record
-    if found.keys() != expected.keys():
-        raise ValueError("Incomplete tile coverage")
-    ordered = sorted(found.values(), key=lambda r: r["row_start"])
-    return [n for r in ordered for n in r["counts"]]
-
-
-def spawn_executor(**kwargs):
-    return ProcessPoolExecutor(mp_context=multiprocessing.get_context("spawn"), **kwargs)
-
-
-def concat_labeled(frames, labels):
-    return [dict(row, engine_label=label) for frame, label in zip(frames, labels) for row in frame]
-
-
-HOOKS = pool.PoolFrameHooks(
-    family="MandelbrotListWorker", executor_kind="process", executor_factory=spawn_executor,
-    is_frame=lambda value: isinstance(value, list), is_empty=lambda value: not value,
-    concat_labeled=concat_labeled, empty_frame=list,
-)
-
-
-@dataclass(frozen=True)
-class WorkerConfig:
-    plan: tuple
-    width: int
-
-
-class MandelbrotWorker:
-    """Tasks read immutable items only; work_done runs in the collecting parent."""
-    _worker_id = 0
-    pool_vars = None
-    work_pool = staticmethod(compute_tile)
-
-    def __init__(self, plan, workers, mono=False):
-        self.config = WorkerConfig(plan, workers)
-        self.args = {"pool_max_workers": workers}
-        self._mode = 0 if mono else 1
-        self.records = None
-        self.counts = None
-
-    def pool_init(self, _):
-        pass  # Deliberately no shared application writes in thread initializers.
-
-    def work_init(self):
+    def pool_init(self, pool_vars: Any) -> None:
         pass
 
-    def stop(self):
+    def get_pool_vars(self) -> Any:
+        return None
+
+    @property
+    def pool_vars(self) -> Any:
+        return None
+
+    def work_pool(self, item: dict) -> list[dict]:
+        """Compute one tile; return a one-record list frame."""
+        tile_id = item["tile_id"]
+        row_start = item["row_start"]
+        row_stop = item["row_stop"]
+        w = self._width
+        h = self._height
+        iters = self._iterations
+
+        info_before = runtime_info()
+        start = time.perf_counter()
+        counts: list[int] = []
+        for y in range(row_start, row_stop):
+            for x in range(w):
+                z = 0j
+                c = complex(-2 + 3 * x / (w - 1), -1.2 + 2.4 * y / (h - 1))
+                count = 0
+                while count < iters and z.real * z.real + z.imag * z.imag <= 4:
+                    z = z * z + c
+                    count += 1
+                counts.append(count)
+        end = time.perf_counter()
+        info_after = runtime_info()
+
+        record = {
+            "tile_id": tile_id,
+            "row_start": row_start,
+            "row_stop": row_stop,
+            "counts": counts,
+            "pid": os.getpid(),
+            "thread_id": thread_id(),
+            "start": start,
+            "end": end,
+            "gil_before": info_before["gil_enabled"],
+            "gil_after": info_after["gil_enabled"],
+            "runtime_before": info_before,
+            "runtime_after": info_after,
+        }
+        return [record]
+
+    def work_done(self, df: Any) -> None:
+        self._collected_frames.append(df)
+        self._work_done_chunk += 1
+
+    def stop(self) -> None:
         pass
 
-    def _exec_multi_process(self, plan, metadata):
-        pool.exec_multi_process(self, plan, metadata, HOOKS)
+    # -- engine delegation --
 
-    def _exec_mono_process(self, plan, metadata):
-        pool.exec_mono_process(self, plan, metadata, HOOKS)
+    def _exec_multi_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        hooks = _build_hooks()
+        agilab_pool.exec_multi_process(self, workers_plan, workers_plan_metadata, hooks)
 
-    def work_done(self, records):
-        self.counts = reduce_tiles(records, self.config.plan)
-        self.records = records
+    def _exec_mono_process(self, workers_plan: Any, workers_plan_metadata: Any) -> None:
+        hooks = _build_hooks()
+        agilab_pool.exec_mono_process(self, workers_plan, workers_plan_metadata, hooks)
 
+    # -- result collection --
 
-def execute(width, height, iterations, workers, mode, tile_rows=3, mono=False):
-    validate_parameters(width, height, iterations, workers, tile_rows)
-    validate_mode(mode)
-    before = runtime_state()
-    verify_runtime(before, mode)
-    if os.environ.get("AGILAB_POOL_EXECUTOR") != MODES[mode][1]:
-        raise RuntimeError("Child executor environment does not match the requested mode")
-    plan = tile_plan(width, height, iterations, tile_rows)
-    worker = MandelbrotWorker(plan, workers, mono)
-    _, backend = pool.resolve_executor(HOOKS)
-    actual_width = 1 if mono else pool.resolve_pool_width([len(plan)], worker.args, executor_kind=backend)
-    origin_ns = time.monotonic_ns()
-    engine_seconds = pool.run_works(worker, [[plan]], None)
-    after = runtime_state()
-    verify_runtime(after, mode)
-    if any(r["gil_enabled"] is not bool(MODES[mode][0]) for r in worker.records):
-        raise RuntimeError("A task ran with an unexpected GIL state")
-    return {"mode": mode, "workers": workers, "actual_workers": actual_width,
-            "observed_workers": len({(r["pid"], r["thread_id"]) for r in worker.records}),
-            "backend": "mono" if mono else backend, "before": before, "after": after,
-            "engine_seconds": engine_seconds, "origin_ns": origin_ns,
-            "digest": image_digest(worker.counts), "records": worker.records,
-            "parameters": {"width": width, "height": height, "iterations": iterations,
-                           "tile_rows": tile_rows}, "tile_plan": plan}
+    def collected(self) -> list[Any]:
+        return self._collected_frames
 
 
-def _terminate(signum, frame):
-    raise SystemExit(128 + signum)
+def thread_id() -> int:
+    """Return a stable thread identifier (threading.get_ident)."""
+    import threading
+    return threading.get_ident()
 
 
-def main():
-    signal.signal(signal.SIGTERM, _terminate)
-    request = json.loads(sys.stdin.read(4096))
-    if not isinstance(request, dict) or set(request) != {"width", "height", "iterations", "workers", "mode"}:
-        raise ValueError("Expected only width, height, iterations, workers and mode")
-    print(json.dumps(execute(**request), allow_nan=False))
+# ---------------------------------------------------------------------------
+# Module-level frame hooks (picklable)
+# ---------------------------------------------------------------------------
 
+def _is_frame(obj: Any) -> bool:
+    return isinstance(obj, list) and len(obj) > 0 and all(isinstance(r, dict) for r in obj)
+
+
+def _is_empty(obj: Any) -> bool:
+    return isinstance(obj, list) and len(obj) == 0
+
+
+def _concat_labeled(frames: Sequence[Any], labels: Sequence[str]) -> list[dict]:
+    out: list[dict] = []
+    for frame, label in zip(frames, labels):
+        for rec in frame:
+            r = dict(rec)
+            r["_label"] = label
+            out.append(r)
+    return out
+
+
+def _empty_frame() -> list:
+    return []
+
+
+def _process_pool_factory(max_workers: int, initializer: Callable | None = None, initargs: tuple = ()) -> ProcessPoolExecutor:
+    ctx = multiprocessing.get_context("spawn")
+    return ProcessPoolExecutor(max_workers=max_workers, initializer=initializer, initargs=initargs, mp_context=ctx)
+
+
+def _build_hooks() -> PoolFrameHooks:
+    return PoolFrameHooks(
+        family="mandelbrot",
+        executor_kind="process",
+        executor_factory=_process_pool_factory,
+        is_frame=_is_frame,
+        is_empty=_is_empty,
+        concat_labeled=_concat_labeled,
+        empty_frame=_empty_frame,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Public: run_case
+# ---------------------------------------------------------------------------
+
+def run_case(
+    width: int,
+    height: int,
+    iterations: int,
+    workers: int,
+    mode: str,
+) -> dict:
+    """Execute one benchmark case and return the result dict."""
+
+    # --- validate inputs ---
+    _validate_int(width, "width", 2, 384)
+    _validate_int(height, "height", 2, 256)
+    _validate_int(iterations, "iterations", 1, 300)
+    _validate_int(workers, "workers", 1, 8)
+
+    valid_modes = ("gil_on_threads", "gil_off_threads", "gil_on_processes")
+    if mode not in valid_modes:
+        raise ValueError(f"mode must be one of {valid_modes}, got {mode!r}")
+
+    # --- validate runtime state ---
+    info_before = runtime_info()
+    _check_runtime(mode, info_before)
+
+    # --- validate backend via engine (no global env mutation) ---
+    hooks = _build_hooks()
+    _, resolved_kind = agilab_pool.resolve_executor(hooks)
+
+    expected_kind = "thread" if mode in ("gil_on_threads", "gil_off_threads") else "process"
+    if expected_kind == "thread" and "thread" not in resolved_kind:
+        raise RuntimeError(f"Expected thread backend, engine resolved {resolved_kind!r}")
+    if expected_kind == "process" and "process" not in resolved_kind:
+        raise RuntimeError(f"Expected process backend, engine resolved {resolved_kind!r}")
+
+    # --- build tiles and plan ---
+    tiles = make_tiles(width, height)
+    # Plan: one partition containing all tiles as chunks
+    workers_plan = [[tiles]]
+    workers_plan_metadata = None
+
+    # --- create worker ---
+    worker = _MandelbrotWorker(width, height, iterations, workers)
+
+    # --- execute with bracketed timing ---
+    engine_start = time.perf_counter()
+    engine_seconds = run_works(worker, workers_plan, workers_plan_metadata)
+    engine_end = time.perf_counter()
+
+    # --- post-run runtime check ---
+    info_after = runtime_info()
+    _check_runtime(mode, info_after)
+    if info_before["gil_enabled"] != info_after["gil_enabled"]:
+        raise RuntimeError("GIL state changed during execution")
+    if info_before["free_threaded_build"] != info_after["free_threaded_build"]:
+        raise RuntimeError("Free-threaded build flag changed during execution")
+
+    # --- collect records from worker frames ---
+    records: list[dict] = []
+    for frame in worker.collected():
+        if isinstance(frame, list):
+            records.extend(frame)
+
+    # --- validate records ---
+    _validate_records(records, tiles, width, height, iterations, mode, info_before, engine_seconds, engine_start, engine_end)
+
+    # --- derive image and digest from worker results ---
+    records.sort(key=lambda r: r["row_start"])
+    image: list[int] = []
+    for rec in records:
+        image.extend(rec["counts"])
+
+    if len(image) != width * height:
+        raise RuntimeError(f"Image length {len(image)} != expected {width * height}")
+
+    digest = image_digest(image)
+
+    # --- actual workers: distinct (pid, thread_id) pairs ---
+    seen: set[tuple[int, int]] = set()
+    for rec in records:
+        seen.add((rec["pid"], rec["thread_id"]))
+    actual_workers = len(seen)
+
+    # --- pool width ---
+    pool_width = agilab_pool.resolve_pool_width([len(tiles)], worker.args, executor_kind=resolved_kind)
+
+    return {
+        "width": width,
+        "height": height,
+        "iterations": iterations,
+        "mode": mode,
+        "workers": workers,
+        "actual_workers": actual_workers,
+        "pool_width": pool_width,
+        "backend": resolved_kind,
+        "before": info_before,
+        "after": info_after,
+        "engine_seconds": engine_seconds,
+        "engine_start": engine_start,
+        "engine_end": engine_end,
+        "records": records,
+        "digest": digest,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+def _validate_int(value: Any, name: str, lo: int, hi: int) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{name} must be a strict integer, got {type(value).__name__}")
+    if not (lo <= value <= hi):
+        raise ValueError(f"{name} must be in [{lo}, {hi}], got {value}")
+
+
+def _check_runtime(mode: str, info: dict) -> None:
+    # All three modes require a free-threaded build
+    if not info["free_threaded_build"]:
+        raise RuntimeError(f"Mode {mode!r} requires a free-threaded build")
+    if mode == "gil_off_threads":
+        if info["gil_enabled"]:
+            raise RuntimeError("Mode gil_off_threads requires GIL disabled")
+    elif mode == "gil_on_threads":
+        if info["gil_enabled"] is False:
+            raise RuntimeError("Mode gil_on_threads requires GIL enabled")
+    elif mode == "gil_on_processes":
+        if info["gil_enabled"] is False:
+            raise RuntimeError("Mode gil_on_processes requires GIL enabled")
+
+
+def _validate_records(
+    records: list[dict],
+    tiles: list[dict],
+    width: int,
+    height: int,
+    iterations: int,
+    mode: str,
+    info_before: dict,
+    engine_seconds: float,
+    engine_start: float,
+    engine_end: float,
+) -> None:
+    import math
+
+    if not records:
+        raise RuntimeError("No records returned from workers")
+
+    # Validate engine_seconds is finite and positive
+    if not math.isfinite(engine_seconds) or engine_seconds <= 0:
+        raise RuntimeError(f"engine_seconds must be finite and positive, got {engine_seconds!r}")
+
+    # Validate engine bracket is finite and positive interval
+    if not math.isfinite(engine_start) or not math.isfinite(engine_end):
+        raise RuntimeError(f"engine_start/engine_end must be finite, got {engine_start!r}/{engine_end!r}")
+    if engine_end <= engine_start:
+        raise RuntimeError(f"engine_end must be > engine_start, got {engine_start!r}/{engine_end!r}")
+
+    # Check for missing or duplicate tiles
+    tile_ids = [r["tile_id"] for r in records]
+    expected_ids = {t["tile_id"] for t in tiles}
+    if len(tile_ids) != len(set(tile_ids)):
+        raise RuntimeError("Duplicate tile_ids in records")
+    if set(tile_ids) != expected_ids:
+        missing = expected_ids - set(tile_ids)
+        extra = set(tile_ids) - expected_ids
+        raise RuntimeError(f"Tile mismatch: missing={missing}, extra={extra}")
+
+    # Build tile lookup for strict row-bound validation
+    tile_map = {t["tile_id"]: t for t in tiles}
+
+    # Check row coverage: no overlaps, complete
+    rows_covered: list[int] = []
+    for r in records:
+        rs, rp = r["row_start"], r["row_stop"]
+        if rs < 0 or rp > height or rs >= rp:
+            raise RuntimeError(f"Invalid row range [{rs}, {rp})")
+        # Strict: record row bounds must match the requested tile's exact interval
+        expected_tile = tile_map[r["tile_id"]]
+        if rs != expected_tile["row_start"] or rp != expected_tile["row_stop"]:
+            raise RuntimeError(
+                f"Tile {r['tile_id']}: row bounds [{rs}, {rp}) do not match "
+                f"requested [{expected_tile['row_start']}, {expected_tile['row_stop']})"
+            )
+        rows_covered.extend(range(rs, rp))
+    if sorted(rows_covered) != list(range(height)):
+        raise RuntimeError("Row coverage is incomplete or overlapping")
+
+    # Check counts validity
+    for r in records:
+        expected_len = (r["row_stop"] - r["row_start"]) * width
+        if len(r["counts"]) != expected_len:
+            raise RuntimeError(
+                f"Tile {r['tile_id']}: counts length {len(r['counts'])} != {expected_len}"
+            )
+        for c in r["counts"]:
+            if not isinstance(c, int) or isinstance(c, bool) or c < 0 or c > iterations:
+                raise RuntimeError(f"Tile {r['tile_id']}: invalid count value {c!r}")
+
+    # Check per-worker GIL consistency and runtime snapshots
+    expected_gil = info_before["gil_enabled"]
+    for r in records:
+        if r["gil_before"] != expected_gil or r["gil_after"] != expected_gil:
+            raise RuntimeError(
+                f"Tile {r['tile_id']}: GIL state mismatch "
+                f"(before={r['gil_before']}, after={r['gil_after']}, expected={expected_gil})"
+            )
+        # Runtime snapshots must equal the parent's info_before
+        rb = r.get("runtime_before")
+        ra = r.get("runtime_after")
+        if rb != info_before:
+            raise RuntimeError(f"Tile {r['tile_id']}: runtime_before != info_before")
+        if ra != info_before:
+            raise RuntimeError(f"Tile {r['tile_id']}: runtime_after != info_before")
+
+    # Validate PID and thread_id are positive integers
+    for r in records:
+        pid = r["pid"]
+        tid = r["thread_id"]
+        if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+            raise RuntimeError(f"Tile {r['tile_id']}: invalid pid {pid!r}")
+        if not isinstance(tid, int) or isinstance(tid, bool) or tid <= 0:
+            raise RuntimeError(f"Tile {r['tile_id']}: invalid thread_id {tid!r}")
+
+    # Check timestamps: finite, positive duration, within engine bracket
+    tol = 1e-6
+    for r in records:
+        s, e = r["start"], r["end"]
+        if not math.isfinite(s) or not math.isfinite(e):
+            raise RuntimeError(f"Tile {r['tile_id']}: non-finite timestamps")
+        if e - s <= 0:
+            raise RuntimeError(f"Tile {r['tile_id']}: non-positive duration")
+        if s < engine_start - tol or e > engine_end + tol:
+            raise RuntimeError(
+                f"Tile {r['tile_id']}: timestamps [{s}, {e}] outside engine bracket "
+                f"[{engine_start}, {engine_end}]"
+            )
+
+    # Validate digest counts are strict integers in 0..300
+    for r in records:
+        for c in r["counts"]:
+            if not isinstance(c, int) or isinstance(c, bool) or c < 0 or c > 300:
+                raise RuntimeError(f"Tile {r['tile_id']}: count {c!r} out of [0, 300]")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Free-threading lab case runner")
+    parser.add_argument("--case", required=True, help="JSON parameter object")
+    cli_args = parser.parse_args()
+
+    try:
+        params = json.loads(cli_args.case)
+        allowed_keys = {"width", "height", "iterations", "workers", "mode"}
+        if set(params.keys()) != allowed_keys:
+            extra = set(params.keys()) - allowed_keys
+            missing = allowed_keys - set(params.keys())
+            raise ValueError(f"CLI JSON keys must be exactly {sorted(allowed_keys)}; extra={extra}, missing={missing}")
+        result = run_case(
+            width=params["width"],
+            height=params["height"],
+            iterations=params["iterations"],
+            workers=params["workers"],
+            mode=params["mode"],
+        )
+        print(json.dumps(result, allow_nan=False))
+    except Exception as exc:
+        print(json.dumps({"error": str(exc)}, allow_nan=False), file=sys.stderr)
+        sys.exit(1)

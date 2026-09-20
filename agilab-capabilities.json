@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-20T16:50:57Z",
+  "generated_at_utc": "2026-09-20T20:12:15Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2108,6 +2108,7 @@
       "sources": [
         "src/agilab/notebooks/notebook_execution_plan.py",
         "src/agilab/resources/forecast_notebook_demo/lab_stages.toml",
+        "src/agilab/resources/free_threading_demo/lab_stages.toml",
         "src/agilab/resources/notebook_agent_local_demo/lab_stages.toml",
         "src/agilab/resources/text_notebook_demo/lab_stages.toml"
       ]
@@ -2227,6 +2228,7 @@
         "src/agilab/agent_runtime/notebook_agent.py",
         "src/agilab/agent_runtime/notebook_workflow_verifier.py",
         "src/agilab/resources/forecast_notebook_demo/result.json",
+        "src/agilab/resources/free_threading_demo/result.json",
         "src/agilab/resources/notebook_agent_local_demo/result.json",
         "src/agilab/resources/text_notebook_demo/result.json"
       ]

@@ -1,164 +1,471 @@
-"""Native Streamlit interface; timed execution lives only in benchmark children."""
-import io
+"""Free-threading Mandelbrot lab – Streamlit application."""
+
+import hashlib
 import json
+import time
+from pathlib import Path
 
 import altair as alt
-from PIL import Image
+import numpy as np
+import pandas as pd
 import streamlit as st
 
-from benchmark import BusyError, LABELS, effective_cpus, run_benchmark
-from free_threading_core import reference_image
-
-st.set_page_config(page_title="Free-threading lab", page_icon="🌀", layout="wide")
-st.title("Free-threading lab")
-st.caption("LOCAL CPU SCALING · PURE PYTHON · REAL AGILAB POOL ENGINE")
-st.markdown("Explore the Mandelbrot set while measuring how **the same free-threaded Python build** "
-            "scales with GIL-on threads, GIL-off threads and GIL-on processes. "
-            "Identical pixels. Identical tiles. Actual measured work.")
+from free_threading_core import reference_image, image_digest
+from benchmark import effective_cpus, run_benchmark
 
 
-@st.cache_data(max_entries=2, show_spinner=False)
-def preview(width=192, height=128, iterations=160):
-    counts = reference_image(width, height, iterations)
-    colors = []
-    for n in counts:
-        if n == iterations:
-            colors.append((9, 14, 35))
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _compute_signature(params: dict) -> str:
+    """Deterministic signature from a committed parameter dict."""
+    canonical = json.dumps(params, sort_keys=True, allow_nan=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _compute_image_digest(counts: np.ndarray) -> str:
+    """SHA-256 digest using the core image_digest over flat pixel values."""
+    return image_digest([int(v) for v in counts.ravel()])
+
+
+def _counts_to_rgb(counts: np.ndarray, max_iter: int) -> np.ndarray:
+    """Map iteration counts to a uint8 RGB array using a simple viridis-like ramp."""
+    h, w = counts.shape
+    norm = counts.astype(np.float64) / max(max_iter, 1)
+    # Simple 3-stop gradient: dark blue -> cyan -> yellow
+    r = np.clip(norm * 1.8, 0, 1) * 255
+    g = np.clip(norm * 1.2, 0, 1) * 255
+    b = np.clip(1.0 - norm * 0.6, 0, 1) * 255
+    rgb = np.stack([r, g, b], axis=-1).astype(np.uint8)
+    return rgb
+
+
+def _render_cpu_quota() -> None:
+    """Always-visible CPU quota report."""
+    caps = effective_cpus()
+    count = caps["effective_cpus"]
+    st.subheader("CPU quota")
+    if count <= 1:
+        st.warning(
+            f"Only {count} CPU available. Parallel scaling is unavailable; "
+            "a single-worker test is still possible but no speedup is expected."
+        )
+    else:
+        st.success(f"{count} CPUs available for parallel work.")
+    st.caption(
+        "Worker count is capped at min(8, effective CPUs). "
+        "No speedup guarantee – actual scaling depends on workload granularity."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Explore tab
+# ---------------------------------------------------------------------------
+
+@st.cache_data
+def _cached_reference_image(width: int, height: int, iterations: int) -> np.ndarray:
+    """Compute and cache the Mandelbrot reference image."""
+    flat = reference_image(width, height, iterations)
+    return np.asarray(flat, dtype=np.int64).reshape(height, width)
+
+
+def _render_explore() -> None:
+    max_workers = min(8, effective_cpus()["effective_cpus"])
+    default_workers = min(2, max_workers)
+
+    with st.form("threading_controls"):
+        width = st.slider("Width", 2, 384, 96, step=2)
+        height = st.slider("Height", 2, 256, 64, step=2)
+        iterations = st.slider("Iterations", 1, 300, 100, step=1)
+        if max_workers <= 1:
+            workers = st.number_input("Workers", min_value=1, max_value=1, value=1, disabled=True)
+            st.caption("Only 1 CPU available; workers fixed at 1.")
         else:
-            t = (n / iterations) ** 0.42
-            colors.append((int(255 * (1 - t) * t * 3.8) % 256,
-                           int(220 * t), int(100 + 155 * (1 - t))))
-    image = Image.new("RGB", (width, height))
-    image.putdata(colors)
-    output = io.BytesIO()
-    image.save(output, format="PNG")
-    return output.getvalue()
+            workers = st.slider("Workers", 1, max_workers, default_workers, step=1)
+        repeats = st.slider("Repeats", 1, 3, 1, step=1)
+        submitted = st.form_submit_button("Run analysis")
+
+    if submitted:
+        params = {
+            "width": int(width),
+            "height": int(height),
+            "iterations": int(iterations),
+            "workers": int(workers),
+            "repeats": int(repeats),
+        }
+        signature = _compute_signature(params)
+
+        # If the committed analysis changes, clear stale benchmark
+        prev_sig = st.session_state.get("analysis_signature")
+        if prev_sig is not None and prev_sig != signature:
+            st.session_state.pop("benchmark_result", None)
+            st.session_state.pop("benchmark_signature", None)
+
+        st.session_state["analysis"] = params
+        st.session_state["analysis_signature"] = signature
+
+    # Render preview (always available, even before first submit)
+    preview_w = st.session_state.get("analysis", {}).get("width", 96)
+    preview_h = st.session_state.get("analysis", {}).get("height", 64)
+    preview_iter = st.session_state.get("analysis", {}).get("iterations", 100)
+
+    counts = _cached_reference_image(preview_w, preview_h, preview_iter)
+    rgb = _counts_to_rgb(counts, preview_iter)
+
+    st.subheader("Preview")
+    st.caption(
+        f"Width={preview_w}  Height={preview_h}  Iterations={preview_iter}"
+    )
+    st.image(rgb, width="stretch")
+
+    # Committed analysis results – only after submission
+    if "analysis" in st.session_state:
+        analysis = st.session_state["analysis"]
+        a_w = analysis["width"]
+        a_h = analysis["height"]
+        a_iter = analysis["iterations"]
+
+        a_counts = _cached_reference_image(a_w, a_h, a_iter)
+        pixels = a_w * a_h
+        mean_esc = float(np.mean(a_counts))
+        interior = int(np.sum(a_counts == a_iter))
+        digest = _compute_image_digest(a_counts)
+
+        st.subheader("Analysis results")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Pixels", f"{pixels:,}")
+        c2.metric("Mean escape iterations", f"{mean_esc:.2f}")
+        c3.metric("Interior pixels", f"{interior:,}")
+
+        st.caption(f"Image digest: `{digest[:32]}…`")
+
+        # Data table
+        table = pd.DataFrame(
+            {
+                "metric": ["pixels", "mean_escape_iterations", "interior_pixels", "image_digest"],
+                "value": [f"{pixels:,}", f"{mean_esc:.4f}", f"{interior:,}", digest[:32] + "…"],
+            }
+        )
+        st.dataframe(table, width="stretch", hide_index=True)
 
 
-left, right = st.columns([1.5, 1])
-with left:
-    st.image(preview(), caption="Mandelbrot escape counts · deterministic preview, not a timed run",
-             width="stretch")
-with right:
-    st.subheader("Choose your experiment")
-    workload = st.selectbox("Workload", ["Small · 192 × 128 · 160 iterations",
-                                          "Medium · 288 × 192 · 240 iterations"])
+# ---------------------------------------------------------------------------
+# Benchmark tab
+# ---------------------------------------------------------------------------
+
+def _render_benchmark() -> None:
+    analysis = st.session_state.get("analysis")
+    analysis_sig = st.session_state.get("analysis_signature")
+
+    if analysis is None:
+        st.info("Run an analysis in the Explore tab first to enable benchmarking.")
+        return
+
+    st.subheader("Benchmark")
+    st.caption(
+        f"Committed parameters: {analysis['width']}×{analysis['height']}, "
+        f"{analysis['iterations']} iters, {analysis['workers']} workers, "
+        f"{analysis['repeats']} repeats"
+    )
+
+    # Benchmark button (outside form)
+    if st.button("Run benchmark", type="primary"):
+        _execute_benchmark(analysis, analysis_sig)
+
+    # Display stored benchmark result
+    result = st.session_state.get("benchmark_result")
+    result_sig = st.session_state.get("benchmark_signature")
+    if result is not None and result_sig == analysis_sig:
+        _display_benchmark_result(result)
+    elif result is not None:
+        st.caption("Benchmark result is stale (parameters changed). Re-run to refresh.")
+
+
+def _execute_benchmark(analysis: dict, signature: str) -> None:
+    """Execute the benchmark with progress and error handling."""
+    w = analysis["width"]
+    h = analysis["height"]
+    iters = analysis["iterations"]
+    workers = analysis["workers"]
+    repeats = analysis["repeats"]
+
+    progress_bar = st.progress(0.0, text="Starting benchmark…")
+
+    def _progress(done: int, total: int, label: str) -> None:
+        frac = done / max(total, 1)
+        progress_bar.progress(frac, text=f"{label}: {done}/{total}")
+
     try:
-        hardware = effective_cpus()
-    except ValueError as exc:
-        st.error(str(exc))
-        st.stop()
-    cap = hardware["effective_cpus"]
-    workers = st.selectbox("Workers (N)", list(range(1, cap + 1)), index=min(4, cap) - 1)
-    repeats = st.selectbox("Repeats per case", [1, 2, 3], index=1)
-    st.caption(f"Effective CPU limit: {cap} · each mode runs with 1 and {workers} worker(s).")
-    if cap == 1:
-        st.info("Only one CPU is available: parallel scaling is unavailable. "
-                "The two widths are both 1; timing differences are run-to-run variation.")
-    elif workers == 1:
-        st.info("Choose N > 1 to examine scaling. Both cases currently use one worker.")
-    run_clicked = st.button("Run analysis", type="primary", width="stretch")
+        with st.spinner("Running benchmark…"):
+            result = run_benchmark(
+                width=w,
+                height=h,
+                iterations=iters,
+                workers=workers,
+                repeats=repeats,
+                progress=_progress,
+            )
+    except Exception as exc:
+        progress_bar.empty()
+        st.error(f"Benchmark failed: {exc}")
+        return
 
-dimensions = (192, 128, 160) if workload.startswith("Small") else (288, 192, 240)
-signature = (*dimensions, workers, repeats)
-if run_clicked:
-    with st.status("Running isolated CPU measurements…", expanded=True) as status:
-        bar = st.progress(0.0, text="Waiting for the local benchmark lock")
-        def progress(done, total, label):
-            bar.progress(done / total, text=f"{done}/{total} · {label}")
-        try:
-            report = run_benchmark(*dimensions, workers=workers, repeats=repeats, progress=progress)
-        except BusyError as exc:
-            status.update(label="CPU lab is busy", state="error")
-            st.warning(str(exc))
-        except (RuntimeError, ValueError, TimeoutError, OSError) as exc:
-            status.update(label="Analysis did not complete", state="error")
-            st.error(str(exc))
-        else:
-            st.session_state["analysis"] = report
-            st.session_state["analysis_signature"] = signature
-            status.update(label="All cases measured · same-work verification passed", state="complete", expanded=False)
+    progress_bar.progress(1.0, text="Complete")
+    st.session_state["benchmark_result"] = result
+    st.session_state["benchmark_signature"] = signature
 
-report = st.session_state.get("analysis")
-if report:
-    if st.session_state.get("analysis_signature") != signature:
-        st.warning("Previous results: controls have changed. Run analysis again to measure these settings.")
-    st.subheader("Measured local CPU scaling")
-    st.caption(f"Recorded {report['created_utc']} · {report['parameters']['repeats']} repeat(s) per case · "
-               f"{report['parameters']['width']} × {report['parameters']['height']} pixels · "
-               f"{report['parameters']['iterations']} iterations maximum")
-    scaled = [row for row in report["summary"] if row["role"] == "scaled"]
-    for column, row in zip(st.columns(3), scaled):
-        with column:
-            with st.container(border=True):
-                st.markdown(f"**{row['label']}**")
-                st.metric("End-to-end speedup", f"{row['speedup']:.2f}×")
-                st.metric("Throughput", f"{row['pixels_per_second']:,.0f} pixels/s")
-                st.caption(f"Median wall: {row['wall_seconds']:.3f} s · "
-                           f"engine: {row['engine_seconds']:.3f} s · "
-                           f"engine speedup: {row['engine_speedup']:.2f}×")
-    st.caption("Each speedup uses that mode’s own one-worker median. "
-               "Values below 1× mean slower. Startup and scheduling can dominate small workloads; "
-               "linear speedup is not guaranteed.")
-    timing_rows = [{"Case": f"{r['label']} / {r['role']} ({r['workers']})",
-                    "Timing": timing, "Seconds": r[key]}
-                   for r in report["summary"]
-                   for timing, key in (("End-to-end", "wall_seconds"), ("Engine", "engine_seconds"))]
-    chart = alt.Chart(alt.Data(values=timing_rows)).mark_bar(cornerRadiusEnd=3).encode(
-        x=alt.X("Seconds:Q", title="Median elapsed seconds"),
-        y=alt.Y("Case:N", sort=None, title=None), yOffset="Timing:N",
-        color=alt.Color("Timing:N", scale=alt.Scale(range=["#3b82f6", "#22c5ad"])),
-        tooltip=["Case:N", "Timing:N", alt.Tooltip("Seconds:Q", format=".4f")],
-    ).properties(height=350)
-    st.altair_chart(chart, width="stretch")
-    st.success(f"Same-work verified: every tile occurred exactly once and all {len(report['runs'])} "
-               "complete-image digests match across modes, widths and repeats.")
-    st.code(report["digest"], language=None)
 
-    st.subheader("Recorded task activity")
-    st.caption("Collected from real workers and displayed after each run; this is not a live timeline. "
-               "Bars show tile computation only, excluding dispatch and idle time.")
-    runs = report["runs"]
-    selected = st.selectbox("Recorded run", range(len(runs)),
-                            format_func=lambda i: f"{LABELS[runs[i]['mode']]} · "
-                            f"{runs[i]['role']} · {runs[i]['actual_workers']} workers · repeat {runs[i]['repeat']}")
-    chosen = runs[selected]
-    activity = [{"Worker": f"PID {r['pid']} / TID {r['thread_id']}", "Tile": r["tile"],
-                 "Start": (r["start_ns"] - chosen["origin_ns"]) / 1e9,
-                 "End": (r["end_ns"] - chosen["origin_ns"]) / 1e9}
-                for r in chosen["records"]]
-    timeline = alt.Chart(alt.Data(values=activity)).mark_bar().encode(
-        x=alt.X("Start:Q", title="Seconds since engine start", scale=alt.Scale(zero=True)),
-        x2="End:Q", y=alt.Y("Worker:N", title=None), color=alt.Color("Worker:N", legend=None),
-        tooltip=["Worker:N", "Tile:Q", alt.Tooltip("Start:Q", format=".5f"),
-                 alt.Tooltip("End:Q", format=".5f")],
-    ).properties(height=max(100, 35 * chosen["observed_workers"]))
-    st.altair_chart(timeline, width="stretch")
-    st.caption(f"Resolved pool width: {chosen['actual_workers']} · observed active workers: "
-               f"{chosen['observed_workers']} · backend: {chosen['backend']} · "
-               f"actual GIL before/after: {chosen['before']['gil_enabled']}/{chosen['after']['gil_enabled']}")
-    with st.expander("Hardware, build and methodology"):
-        st.json(report["hardware"])
-        st.code(report["python_build"], language=None)
-        st.markdown("All cases use the **same free-threaded build**, including the GIL-on controls. "
-                    "The included unchanged AGILAB pool engine dispatches and reduces fixed three-row tiles, "
-                    "interleaved by bit-reversal order. GIL-off uses AGILAB’s automatic thread selection; "
-                    "process cases explicitly use spawn. Build capability and actual GIL state are checked "
-                    "before and after execution, and the GIL state is checked in each task. "
-                    "End-to-end time includes child startup, imports, dispatch, computation, reduction, "
-                    "checksum and result transfer. Engine time covers AGILAB run_works including pool startup "
-                    "and image reduction. Each run uses a fresh pool, with no warmup or cached timings. "
-                    "Mode and width order rotate between repeats. The lock serializes this app’s visitors; "
-                    "unrelated system workloads may still affect results. CPU limits are rounded down "
-                    "and capped at eight; fractional quotas below one still need one worker. "
-                    "This tests the included engine only, not compatibility of the entire AGILAB dependency stack.")
-        st.dataframe([{k: r[k] for k in ("mode", "role", "repeat", "actual_workers", "observed_workers",
-                                         "backend", "wall_seconds", "engine_seconds", "digest")}
-                      for r in runs], width="stretch", hide_index=True)
-    st.download_button("Download JSON evidence", json.dumps(report, indent=2, allow_nan=False),
-                       file_name="free-threading-evidence.json", mime="application/json", width="stretch")
-else:
-    st.info("Ready when you are. The preview is deterministic; no timed benchmark has run yet.")
+def _display_benchmark_result(result: dict) -> None:
+    """Render the full benchmark result."""
+    summary = result["summary"]
+    runs = result["runs"]
+    hardware = result["hardware"]
+    python_build = result["python_build"]
+    same_work_verified = result["same_work_verified"]
+    scaling_available = result["scaling_available"]
 
-st.caption("Source: original AGILAB notebook created September 19, 2026 · BSD-3-Clause. "
-           "[Python free-threading documentation](https://docs.python.org/3.14/howto/free-threading-python.html)")
+    # Build version and hardware
+    st.subheader("Environment")
+    st.write(f"**Python build:** {python_build}")
+    st.write(f"**Hardware:** {hardware}")
+    st.write(f"**Same work verified:** {same_work_verified}")
+    st.write(f"**Scaling available:** {scaling_available}")
+
+    # GIL before/after table
+    st.subheader("GIL state")
+    gil_rows = []
+    for r in runs:
+        before = r.get("before", {})
+        after = r.get("after", {})
+        gil_rows.append(
+            {
+                "mode": r.get("mode", ""),
+                "role": r.get("role", ""),
+                "repeat": r.get("repeat", ""),
+                "gil_before": str(before.get("gil_enabled", "")),
+                "gil_after": str(after.get("gil_enabled", "")),
+                "free_threaded_build": str(before.get("free_threaded_build", "")),
+            }
+        )
+    gil_df = pd.DataFrame(gil_rows)
+    st.dataframe(gil_df, width="stretch", hide_index=True)
+
+    # 6 summary rows
+    st.subheader("Summary")
+    summary_rows = []
+    for s in summary:
+        summary_rows.append(
+            {
+                "mode": s.get("mode", ""),
+                "role": s.get("role", ""),
+                "requested_workers": str(s.get("workers", "")),
+                "resolved_workers": str(s.get("pool_width", "")),
+                "observed_workers": str(s.get("actual_workers", "")),
+                "observed_worker_counts": str(s.get("observed_worker_counts", "")),
+                "median_wall_s": f"{s.get('wall_seconds', 0):.6f}",
+                "median_engine_s": f"{s.get('engine_seconds', 0):.6f}",
+                "speedup": f"{s.get('speedup', 1.0):.4f}",
+                "engine_speedup": f"{s.get('engine_speedup', 1.0):.4f}",
+            }
+        )
+    summary_df = pd.DataFrame(summary_rows)
+    st.dataframe(summary_df, width="stretch", hide_index=True)
+
+    # Speedup chart
+    if len(summary) >= 2:
+        chart_data = pd.DataFrame(
+            {
+                "label": [f"{s['mode']}/{s['role']}" for s in summary],
+                "speedup": [s.get("speedup", 1.0) for s in summary],
+                "engine_speedup": [s.get("engine_speedup", 1.0) for s in summary],
+            }
+        )
+        melted = chart_data.melt(
+            id_vars="label", var_name="series", value_name="value"
+        )
+        chart = (
+            alt.Chart(melted)
+            .mark_bar()
+            .encode(
+                x=alt.X("label:N", title="Mode / Role"),
+                xOffset="series:N",
+                y=alt.Y("value:Q", title="Speedup"),
+                color=alt.Color("series:N", title="Metric"),
+                tooltip=["label", "series", "value"],
+            )
+            .properties(height=220)
+        )
+        st.altair_chart(chart, width="stretch")
+
+
+# ---------------------------------------------------------------------------
+# Inspect tab
+# ---------------------------------------------------------------------------
+
+def _render_inspect() -> None:
+    result = st.session_state.get("benchmark_result")
+    if result is None:
+        st.info("No benchmark result available. Run a benchmark first.")
+        return
+
+    runs = result["runs"]
+    digest = result["digest"]
+    same_work_verified = result["same_work_verified"]
+
+    st.subheader("Tile coverage / records")
+
+    # Build a compact record table (omit large counts)
+    record_rows = []
+    for r in runs:
+        records = r.get("records", [])
+        for rec in records:
+            record_rows.append(
+                {
+                    "mode": r.get("mode", ""),
+                    "role": r.get("role", ""),
+                    "repeat": r.get("repeat", ""),
+                    "row_start": rec.get("row_start", ""),
+                    "row_stop": rec.get("row_stop", ""),
+                    "pid": rec.get("pid", ""),
+                    "thread_id": rec.get("thread_id", ""),
+                    "gil_before": rec.get("gil_before", ""),
+                    "gil_after": rec.get("gil_after", ""),
+                    "runtime_before": rec.get("runtime_before", ""),
+                    "runtime_after": rec.get("runtime_after", ""),
+                }
+            )
+
+    if record_rows:
+        rec_df = pd.DataFrame(record_rows)
+        st.dataframe(rec_df, width="stretch", hide_index=True)
+        st.caption(f"Total records: {len(record_rows)}")
+    else:
+        st.caption("No records available.")
+
+    # Runtime states
+    st.subheader("Runtime states")
+    runtime_rows = []
+    for r in runs:
+        before = r.get("before", {})
+        after = r.get("after", {})
+        records = r.get("records", [])
+        for rec in records:
+            runtime_rows.append(
+                {
+                    "mode": r.get("mode", ""),
+                    "role": r.get("role", ""),
+                    "repeat": r.get("repeat", ""),
+                    "runtime_before": str(rec.get("runtime_before", "")),
+                    "runtime_after": str(rec.get("runtime_after", "")),
+                    "free_threaded_build": str(before.get("free_threaded_build", "")),
+                }
+            )
+    if runtime_rows:
+        rt_df = pd.DataFrame(runtime_rows)
+        st.dataframe(rt_df, width="stretch", hide_index=True)
+
+    # Digest
+    st.subheader("Digest")
+    st.code(digest, language="text")
+    st.write(f"Same work verified: {same_work_verified}")
+
+    # Optional full JSON
+    with st.expander("Full JSON"):
+        full_json = json.dumps(result, indent=2, allow_nan=False, default=str)
+        st.code(full_json, language="json")
+
+    # Downloads
+    st.subheader("Downloads")
+    json_bytes = json.dumps(result, indent=2, allow_nan=False, default=str).encode("utf-8")
+    st.download_button(
+        "Download result JSON",
+        data=json_bytes,
+        file_name="benchmark_result.json",
+        mime="application/json",
+    )
+
+    # CSV summary
+    summary = result.get("summary", [])
+    if summary:
+        csv_df = pd.DataFrame(summary)
+        csv_bytes = csv_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download summary CSV",
+            data=csv_bytes,
+            file_name="benchmark_summary.csv",
+            mime="text/csv",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Reproduce tab
+# ---------------------------------------------------------------------------
+
+def _render_reproduce() -> None:
+    st.subheader("Reproduction notes")
+
+    st.markdown(
+        """
+**Source:** Original AGILAB benchmark (BSD-3-Clause license).
+
+**Scope:** The AGILAB pool is used unchanged. The workload is a stdlib pure-Python
+Mandelbrot computation running on the same free-threaded Python 3.14t interpreter.
+
+**Three modes:**
+- `gil_on_threads` – threads with GIL enabled
+- `gil_off_threads` – threads with GIL disabled (free-threaded build)
+- `gil_on_processes` – spawned processes with GIL enabled
+
+Each mode runs a 1-worker baseline and an N-worker parallel configuration on the
+same interpreter and work image.
+
+**Caveats:**
+- Actual worker count may be lower than requested capacity (pool saturation /
+  task granularity). All tiles are always required; no tasks are dropped.
+- CPU quotas apply; no speedup is guaranteed.
+- This does **not** certify the whole AGILAB stack – only the specific
+  free-threaded Python workload described here.
+"""
+    )
+
+    st.caption(
+        "For full reproduction, use the same free-threaded Python 3.14t build "
+        "and the AGILAB pool with identical parameters."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    st.title("Free-threading lab")
+    st.caption(
+        "Explore Mandelbrot set rendering under Python's free-threaded build. "
+        "Observe GIL state transitions, parallel scaling, and engine-level timing."
+    )
+
+    # CPU quota (always visible)
+    _render_cpu_quota()
+
+    # Tabs in stable order
+    tab_explore, tab_benchmark, tab_inspect, tab_reproduce = st.tabs(
+        ["Explore", "Benchmark", "Inspect", "Reproduce"]
+    )
+
+    with tab_explore:
+        _render_explore()
+
+    with tab_benchmark:
+        _render_benchmark()
+
+    with tab_inspect:
+        _render_inspect()
+
+    with tab_reproduce:
+        _render_reproduce()
+
+
+if __name__ == "__main__":
+    main()

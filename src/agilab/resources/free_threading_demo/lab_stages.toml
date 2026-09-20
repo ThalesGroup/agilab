@@ -1,47 +1,49 @@
 [[notebook_app_project]]
-D = "Free-threading lab — local CPU scaling"
-Q = "Imported cell-2 from notebook"
-C = "# Stage 1: import and plan. PROJECT_ROOT and module search path are supplied.\nfrom pathlib import Path\nimport json\nimport benchmark\nfrom free_threading_core import tile_plan, reduce_tiles, image_digest\nproject_root = Path(PROJECT_ROOT)\nassert (project_root / 'agilab_pool.py').is_file()\nparameters = dict(width=96, height=64, iterations=100, workers=min(4, benchmark.effective_cpus()['effective_cpus']), repeats=1)\nplan = tile_plan(parameters['width'], parameters['height'], parameters['iterations'])\nprint(f'{len(plan)} identical tiles; widths 1 and {parameters[\"workers\"]}; three modes')\n"
+D = "Imported notebook"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('\\nimport sys, json, hashlib\\nfrom pathlib import Path\\n\\nproject_root = Path(globals().get(\"PROJECT_ROOT\", Path.cwd()))\\n_original_sys_path = sys.path[:]\\nsys.path.insert(0, str(project_root))\\nimport benchmark\\nfrom free_threading_core import reference_image, image_digest\\nsys.path[:] = _original_sys_path\\n\\nwidth, height, iterations = 32, 24, 40\\nworkers = min(2, benchmark.effective_cpus()[\"effective_cpus\"])\\n\\nsrc = (project_root / \"source\" / \"original.ipynb\").read_bytes()\\nsource_sha256 = hashlib.sha256(src).hexdigest()\\nassert source_sha256 == \"ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911\"\\neng = (project_root / \"agilab_pool.py\").read_bytes()\\nengine_sha256 = hashlib.sha256(eng).hexdigest()\\nassert engine_sha256 == \"305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066\"\\nprint(f\"Stage1: files verified, workers={workers}\")\\n\\n', 'notebook:cell-1'), ('\\ncounts = reference_image(width, height, iterations)\\nassert len(counts) == width * height\\nassert all(isinstance(c, int) and 0 <= c <= iterations for c in counts)\\ndigest = image_digest(counts)\\nprint(f\"Stage2: {len(counts)} counts, digest={digest[:16]}...\")\\n\\n', 'notebook:cell-2'), ('\\nreport = benchmark.run_benchmark(width=width, height=height, iterations=iterations, workers=workers, repeats=1)\\nassert len(report[\"runs\"]) == 6\\nassert len(report[\"summary\"]) == 6\\nassert report[\"same_work_verified\"] is True\\nassert report[\"digest\"] == digest\\nfor run in report[\"runs\"]:\\n    ordered = sorted(run[\"records\"], key=lambda r: r[\"row_start\"])\\n    concat = [c for rec in ordered for c in rec[\"counts\"]]\\n    assert concat == counts\\n    assert run[\"digest\"] == digest\\nfor s in report[\"summary\"]:\\n    print(f\"{s[\\'mode\\']}/{s[\\'role\\']}: wall={s[\\'wall_seconds\\']:.4f} engine={s[\\'engine_seconds\\']:.4f} speedup={s[\\'speedup\\']:.3f}\")\\n\\n', 'notebook:cell-3'), ('\\nmodes = sorted(set(r[\"mode\"] for r in report[\"runs\"]))\\nartifact = {\"results\": {\"width\": width, \"height\": height, \"iterations\": iterations, \"digest\": digest, \"same_work_verified\": report[\"same_work_verified\"], \"modes\": modes, \"case_count\": len(report[\"runs\"]), \"source_sha256\": source_sha256, \"engine_sha256\": engine_sha256}}\\nwith open(Path.cwd() / \"results.json\", \"w\") as f:\\n    json.dump(artifact, f, allow_nan=False)\\nprint(f\"Stage4: verified, {len(modes)} modes, {len(report[\\'runs\\'])} cases, digest={digest[:16]}...\")', 'notebook:cell-4')])\n"
 M = ""
-NB_CELL_ID = "cell-2"
-NB_CELL_INDEX = 2
-NB_CONTEXT_IDS = [
-    "markdown-1",
-]
+NB_CELL_ID = "notebook-a3896eaaa71fc336"
+NB_CELL_INDEX = 1
+NB_CONTEXT_IDS = []
 NB_ENV_HINTS = [
     "benchmark",
     "free_threading_core",
+    "hashlib",
     "json",
     "pathlib",
+    "sys",
 ]
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = ""
-Q = "Imported cell-3 from notebook"
-C = "# Stage 2: six real isolated cases, each with one repeat.\nevidence = benchmark.run_benchmark(**parameters)\nassert len(evidence['runs']) == 6\nfor row in evidence['summary']:\n    print(row['label'], row['role'], row['workers'], 'workers:', round(row['wall_seconds'], 4), 's wall;', round(row['engine_seconds'], 4), 's engine')\n"
-M = ""
-NB_CELL_ID = "cell-3"
-NB_CELL_INDEX = 3
-NB_CONTEXT_IDS = []
-NB_ENV_HINTS = []
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = ""
-Q = "Imported cell-4 from notebook"
-C = "# Stage 3: independently recheck complete-image digests, then write a fresh artifact.\ndigests = [image_digest(reduce_tiles(run['records'], plan)) for run in evidence['runs']]\nassert len(set(digests)) == 1 and digests[0] == evidence['digest']\nassert evidence['same_work_verified']\nresults = {'results': {'local_cpu_scaling': evidence}}\nPath('results.json').write_text(json.dumps(results, indent=2, allow_nan=False), encoding='utf-8')\nprint('Same-work verified across all six cases:', evidence['digest'])\n"
-M = ""
-NB_CELL_ID = "cell-4"
-NB_CELL_INDEX = 4
-NB_CONTEXT_IDS = []
-NB_ENV_HINTS = []
 NB_ARTIFACT_REFERENCES = [
     "results.json",
 ]
 NB_EXECUTION_MODE = "not_executed_import"
 NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "378c9c474406abec9a4e5ecf34de25a09da80bd5c12d788ae631ce993946bab4"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "a3896eaaa71fc3369d4213227d38e342befb19c6d9585ec5fe9f7228da00ddff"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-1"
+index = 1
+source = "\nimport sys, json, hashlib\nfrom pathlib import Path\n\nproject_root = Path(globals().get(\"PROJECT_ROOT\", Path.cwd()))\n_original_sys_path = sys.path[:]\nsys.path.insert(0, str(project_root))\nimport benchmark\nfrom free_threading_core import reference_image, image_digest\nsys.path[:] = _original_sys_path\n\nwidth, height, iterations = 32, 24, 40\nworkers = min(2, benchmark.effective_cpus()[\"effective_cpus\"])\n\nsrc = (project_root / \"source\" / \"original.ipynb\").read_bytes()\nsource_sha256 = hashlib.sha256(src).hexdigest()\nassert source_sha256 == \"ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911\"\neng = (project_root / \"agilab_pool.py\").read_bytes()\nengine_sha256 = hashlib.sha256(eng).hexdigest()\nassert engine_sha256 == \"305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066\"\nprint(f\"Stage1: files verified, workers={workers}\")\n\n"
+sha256 = "640b6add09eb9256cff025e4b17f36ea65750ff03a6d3ab47b6b282c70a940b8"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "\ncounts = reference_image(width, height, iterations)\nassert len(counts) == width * height\nassert all(isinstance(c, int) and 0 <= c <= iterations for c in counts)\ndigest = image_digest(counts)\nprint(f\"Stage2: {len(counts)} counts, digest={digest[:16]}...\")\n\n"
+sha256 = "055c1f89b40b1cac41734a5051d6430eb223692acb19b2ba582dc716b6080dd8"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "\nreport = benchmark.run_benchmark(width=width, height=height, iterations=iterations, workers=workers, repeats=1)\nassert len(report[\"runs\"]) == 6\nassert len(report[\"summary\"]) == 6\nassert report[\"same_work_verified\"] is True\nassert report[\"digest\"] == digest\nfor run in report[\"runs\"]:\n    ordered = sorted(run[\"records\"], key=lambda r: r[\"row_start\"])\n    concat = [c for rec in ordered for c in rec[\"counts\"]]\n    assert concat == counts\n    assert run[\"digest\"] == digest\nfor s in report[\"summary\"]:\n    print(f\"{s['mode']}/{s['role']}: wall={s['wall_seconds']:.4f} engine={s['engine_seconds']:.4f} speedup={s['speedup']:.3f}\")\n\n"
+sha256 = "f13ed267eda406b28262c1621162a8ce0c393347793ab257a7ff14e777b39b37"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "\nmodes = sorted(set(r[\"mode\"] for r in report[\"runs\"]))\nartifact = {\"results\": {\"width\": width, \"height\": height, \"iterations\": iterations, \"digest\": digest, \"same_work_verified\": report[\"same_work_verified\"], \"modes\": modes, \"case_count\": len(report[\"runs\"]), \"source_sha256\": source_sha256, \"engine_sha256\": engine_sha256}}\nwith open(Path.cwd() / \"results.json\", \"w\") as f:\n    json.dump(artifact, f, allow_nan=False)\nprint(f\"Stage4: verified, {len(modes)} modes, {len(report['runs'])} cases, digest={digest[:16]}...\")"
+sha256 = "4d2976d7626860c01aa2b52a6a63fa346bb83adf9ef486306311fec0c035f2be"

@@ -33,6 +33,13 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
     if (not isinstance(report, dict) or report.get("status") != "passed"
             or report.get("schema") != "agilab.notebook_agent.public_demo.v1"):
         raise ValueError("Free-threading demo has no supported passed receipt")
+    if "build_model" in report:
+        model = report["build_model"]
+        if not isinstance(model, dict) or any(
+            not isinstance(model.get(key), str) or not model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("Free-threading demo build model metadata is invalid")
     verification = report.get("verification", {})
     for section in (verification, verification.get("free_threading", {})
                     if isinstance(verification, dict) else {}):
@@ -107,6 +114,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
         st.info("Another notebook demo session is running. Try again shortly.")
+        st.button("Retry demo", key="threading_retry")
         return
     names = ("agilab_pool", "free_threading_core", "benchmark")
     saved = {name: sys.modules.pop(name, None) for name in names}
@@ -117,7 +125,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
         app_path = str(DEMO_ROOT / "app.py")
-        with app_session_state(st.session_state, "threading", ("analysis", "analysis_signature")):
+        with app_session_state(st.session_state, "threading", ("analysis", "analysis_signature", "benchmark_result", "benchmark_signature")):
             exec(compile(payload["app.py"], app_path, "exec"),
                  {"__name__": "__main__", "__file__": app_path})
     finally:
@@ -136,6 +144,8 @@ def render() -> None:
         return
     st.caption("TOKKI × AGILAB · NOTEBOOK TO APP")
     render_build_evidence(report)
+    if model := report.get("build_model"):
+        st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
     with st.expander("Source, recorded build and downloadable workflow"):
         st.write("Original AGILAB benchmark notebook · September 19, 2026 · BSD-3-Clause")
         engine = report["engine"]
