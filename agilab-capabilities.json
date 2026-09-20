@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-20T12:57:12Z",
+  "generated_at_utc": "2026-09-20T13:25:07Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 287,
+    "evidence_schema_count": 290,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2098,6 +2098,18 @@
       ]
     },
     {
+      "schema": "agilab.notebook_build_prerequisites.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_prerequisites.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_execution_plan.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_execution_plan.py"
+      ]
+    },
+    {
       "schema": "agilab.notebook_export.stage_cell.v1",
       "sources": [
         "src/agilab/notebooks/notebook_export_support.py",
@@ -2204,6 +2216,13 @@
       "schema": "agilab.notebook_view_sync_status.v1",
       "sources": [
         "src/agilab/notebooks/notebook_export_support.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_agent.py",
+        "src/agilab/agent_runtime/notebook_workflow_verifier.py"
       ]
     },
     {

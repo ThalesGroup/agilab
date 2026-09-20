@@ -59,6 +59,46 @@ fresh results, app startup, and the **Run analysis** interaction; scientific
 correctness still needs your review. The public Space never receives your notebook
 or provider credentials.
 
+Check a user notebook before spending a provider call:
+
+```bash
+agilab-notebook-demo --check --notebook analysis.ipynb
+# Supply only the files this analysis needs, at their notebook-relative paths:
+agilab-notebook-demo --check --notebook analysis.ipynb --input-file data/input.csv=/path/to/input.csv
+agilab-notebook-demo --notebook analysis.ipynb --input-file data/input.csv=/path/to/input.csv
+```
+
+The same prerequisite check runs automatically before user-notebook builds.
+Missing required import modules and detected local inputs stop the build before
+the provider starts. `--check` runs without Tokki or a configured provider and
+prints JSON; exit status 1 means blocked, while 0 permits building, possibly with
+review items. Pinned GitHub sources are fetched for inspection; notebook code is
+never executed by this check. Optional imports, computed paths, and model cache
+availability remain review items. Package discovery does not verify versions or
+API compatibility. Detected model IDs, revisions, and device choices are recorded
+for the builder; preserving them is a prompt requirement, not yet an independent
+model-identity acceptance check.
+
+Repeat `--input-file` to supply multiple files, up to 64 MiB total. These CLI-only
+selections are copied into the new project and hashed; changed inputs fail build
+verification. Files beside the source notebook are never copied implicitly.
+Each user-notebook build saves `prerequisites.json`, also available to the agent
+under `source/`, with the source hash, input hashes, blockers, and review items.
+The curated Iris builder retains its specific dependency and acceptance scope.
+
+New notebook-to-app builds also verify the **imported workflow**. Ordinary
+notebook cells are compiled into one `lab_stages.toml` stage that preserves
+variables, mutations, and cell order. The original cell sources and hashes remain
+in the stage metadata. A separate Python process runs the persisted workflow in
+a fresh directory and requires its JSON result to match the freshly verified
+generated notebook. Seed randomness and make external inputs stable; a mismatch
+fails the build. `result.json` records this check and the exact stage-file hash.
+This proves local result agreement, not scientific correctness, equivalence to
+the upstream notebook, or distributed execution. Existing supervisor notebook
+exports retain their explicit stage graph. The WORKFLOW cell-editing importer
+remains a separate review path; programmatic import can request state preservation
+with `build_lab_stages_preview(..., preserve_notebook_state=True)`.
+
 ### Measure reported first builds
 
 Each finished local build saves a content-free completion receipt. After success,

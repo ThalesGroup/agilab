@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import copy
 import hashlib
 import json
 import logging
@@ -1001,6 +1002,15 @@ def notebook_stage_fingerprint(
 
 def _notebook_import_metadata_from_stage(raw_stage: Mapping[str, Any]) -> dict[str, Any]:
     metadata: dict[str, Any] = {}
+    if raw_stage.get("NB_EXECUTION_PLAN_SCHEMA"):
+        metadata["execution_plan"] = {
+            key: copy.deepcopy(raw_stage[key])
+            for key in (
+                "NB_EXECUTION_PLAN_SCHEMA", "NB_EXECUTION_STRATEGY", "NB_SOURCE_CELLS",
+                "NB_SOURCE_SHA256", "NB_COMPILED_SHA256",
+            )
+            if key in raw_stage
+        }
     cell_id = str(raw_stage.get("NB_CELL_ID", "") or "")
     if cell_id:
         metadata["cell_id"] = cell_id
