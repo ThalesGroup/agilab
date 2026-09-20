@@ -153,12 +153,16 @@ def test_local_iris_defaults_winners_and_selected_model_predictions():
         table = next(
             item.value
             for item in at.dataframe
-            if set(item.value.columns) == {"model", "accuracy"}
-        ).set_index("model")["accuracy"]
+            if set(item.value.columns) == {"Model", "Train Acc", "Test Acc"}
+        ).set_index("Model")["Test Acc"]
         assert set(table.index) == set(scores)
         for name, score in scores.items():
             assert table[name] == pytest.approx(score)
-        captions = " ".join(item.value for item in at.caption)
+        captions = " ".join(
+            item.value
+            for collection in (at.caption, at.info, at.warning)
+            for item in collection
+        )
         best = max(scores.values())
         assert "N/A" not in captions
         assert "exploratory" in captions.lower() and "untouched" in captions.lower()
@@ -177,9 +181,10 @@ def test_local_iris_defaults_winners_and_selected_model_predictions():
                     estimator.predict(np.array([measurements]))[0]
                 ]
                 assert any(
-                    item.value == f"Predicted species: {expected}"
+                    f"**{name}** predicts: *Iris {expected}*" in item.value
                     for item in at.success
                 )
+                assert any("uncalibrated" in item.value for item in at.caption)
 
 
 def test_public_iris_confusion_matrix_annotations_match_cells(monkeypatch):
@@ -219,7 +224,7 @@ def test_both_iris_flavours_keep_distinct_verified_bundles_and_switch_cleanly():
     local = showcase.load_report(showcase.LOCAL_DEMO_ROOT)
     assert original["run_id"] == '20260918T105634Z-d0baf9b5'
     assert local["run_id"] != original["run_id"]
-    assert local["build_model"]["id"] == "qwen3.5:4b"
+    assert local["build_model"]["id"] == "ddalcu/Qwen3.8-27B-MLX-Serve-4bit"
     assert local["build_model"]["execution"] == "local"
     for root in (showcase.DEMO_ROOT, showcase.LOCAL_DEMO_ROOT):
         with zipfile.ZipFile(io.BytesIO(showcase.download_bundle(root))) as bundle:
@@ -229,7 +234,7 @@ def test_both_iris_flavours_keep_distinct_verified_bundles_and_switch_cleanly():
     at = AppTest.from_file(showcase.__file__, default_timeout=60).run()
     for key, report, label in (
         ("iris", original, "GPT-6 Astra"),
-        ("iris_local", local, "Qwen 3.5 4B"),
+        ("iris_local", local, "Qwen 3.8 27B"),
         ("iris", original, "GPT-6 Astra"),
     ):
         at.segmented_control(key="demo").set_value(key).run()

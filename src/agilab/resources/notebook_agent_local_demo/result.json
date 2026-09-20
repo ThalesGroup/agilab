@@ -1,14 +1,14 @@
 {
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
-  "run_id": "20260920T113644Z-676e97d3",
-  "seconds": 1921.0,
-  "workflow_stages": 2,
+  "run_id": "20260920T134108Z-beb9c831",
+  "seconds": 2048.5,
+  "workflow_stages": 1,
   "source": {
     "repository": "ageron/handson-ml3",
     "commit": "e707c2d659abafb9b1f9fd927907619a128db8d7",
     "url": "https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb",
-    "author": "Aurélien Géron",
+    "author": "Aur\u00e9lien G\u00e9ron",
     "license": "Apache-2.0",
     "sha256": "372942da91c17cee9892742ed4101c81b8088f8fb202d628eed631f3112ea7e9",
     "retrieved_at": "2026-09-18T10:56:35.408196+00:00"
@@ -20,69 +20,94 @@
       "app_startup",
       "app_slider_interaction"
     ],
+    "result_file": "metrics.json",
+    "result_sha256": "fa9b9d342867ec2eb690810e8c7d80a72bf56d59db314b06fc432351b27d03b3",
     "scores": [
       {
         "accuracy": 0.9777777777777777,
-        "model": "decision_tree",
+        "model": "Decision Tree",
         "seed": 7
       },
       {
         "accuracy": 0.9555555555555556,
-        "model": "random_forest",
+        "model": "Random Forest",
         "seed": 7
       },
       {
         "accuracy": 0.9333333333333333,
-        "model": "logistic_regression",
+        "model": "Logistic Regression",
         "seed": 7
       },
       {
         "accuracy": 0.9555555555555556,
-        "model": "decision_tree",
+        "model": "Decision Tree",
         "seed": 29
       },
       {
         "accuracy": 0.9555555555555556,
-        "model": "random_forest",
+        "model": "Random Forest",
         "seed": 29
       },
       {
         "accuracy": 0.9555555555555556,
-        "model": "logistic_regression",
+        "model": "Logistic Regression",
         "seed": 29
       },
       {
         "accuracy": 0.8888888888888888,
-        "model": "decision_tree",
+        "model": "Decision Tree",
         "seed": 83
       },
       {
         "accuracy": 0.9333333333333333,
-        "model": "random_forest",
+        "model": "Random Forest",
         "seed": 83
       },
       {
         "accuracy": 0.9333333333333333,
-        "model": "logistic_regression",
+        "model": "Logistic Regression",
         "seed": 83
       }
     ],
-    "status": "passed"
+    "status": "passed",
+    "workflow": {
+      "checks": [
+        "fresh_workflow_execution",
+        "fresh_result_artifact",
+        "notebook_result_agreement"
+      ],
+      "result_file": "metrics.json",
+      "result_sha256": "fa9b9d342867ec2eb690810e8c7d80a72bf56d59db314b06fc432351b27d03b3",
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "scientific_correctness_verified": false,
+      "stage_count": 1,
+      "stages_sha256": "28a0aea0a209e14bbf57a8828742c025f5eb16603820f0af86da6b86ec2d51c3",
+      "status": "passed",
+      "verification_scope": "local_workflow_result_agreement"
+    }
   },
   "files": {
-    "app.py": "d062478866e9aed740aee9fa4c4b77602bd9ed83c67788c72f82cf8e18689a0c",
-    "models.py": "028c0d43abe87f52ee9ba730f75d939f0ec4d93dea90b2cf41d114300cc05218",
-    "solution.ipynb": "5ce2b688aa4a3fdb8801c5a6db229debf2ec84660f356caaba64a883ddcdfef5",
-    "lab_stages.toml": "618992c967367513f40d397e90aaa0e59bd159b9ce39199f0c759726a67da3db"
+    "app.py": "6e75bbc4d30c072a3349fef45aaf824e53f79bbf5c7f6279f343895021d9d7cd",
+    "models.py": "c9190c26ac17d3afe170a54db4495342e2262f711cfb1859671fe8fb971ef811",
+    "solution.ipynb": "948997d305467525fca6bdb9a760e5047fb79653bde7c1b0681f4185dd1ce7f2",
+    "lab_stages.toml": "28a0aea0a209e14bbf57a8828742c025f5eb16603820f0af86da6b86ec2d51c3"
   },
   "build_model": {
-    "id": "qwen3.5:4b",
-    "provider": "ollama",
+    "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+    "provider": "mlx-serve",
     "execution": "local",
-    "digest": "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd",
-    "quantization": "Q4_K_M",
+    "revision": "b543ed7cbafbf4984266e784c2ccb1f0730847b6",
+    "upstream": "Qwen/Qwen3.8-27B",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "4-bit",
     "cloud_codegen_fallback": false,
-    "method": "Incremental native tool calls with independent test feedback",
-    "coordination": "A coordinating assistant decomposed the task and reviewed outputs. All application Python was generated and repaired by the local model; import assembly, safe lint cleanup and formatting were deterministic."
+    "tokki_agent_offload": false,
+    "method": "Native local API generation and repair with independent verification",
+    "coordination": "A coordinating assistant prepared the request, reviewed outputs and ran independent checks. All application Python and notebook code were generated or repaired by the local model."
+  },
+  "build_timing": {
+    "scope": "Wall-clock through final local verification, including CI feedback wait and repair",
+    "inference_seconds": 551.09,
+    "includes_ci_feedback_wait": true
   }
 }
