@@ -128,7 +128,7 @@ def test_local_iris_defaults_winners_and_selected_model_predictions():
     from sklearn.model_selection import train_test_split
 
     spec = importlib.util.spec_from_file_location(
-        "iris_prediction_reference", showcase.DEMO_ROOT / "models.py"
+        "iris_prediction_reference", showcase.LOCAL_DEMO_ROOT / "models.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -137,7 +137,7 @@ def test_local_iris_defaults_winners_and_selected_model_predictions():
         iris.data, iris.target, test_size=0.3, stratify=iris.target, random_state=42
     )
     at = AppTest.from_file(showcase.__file__, default_timeout=60)
-    at.query_params["demo"] = "iris"
+    at.query_params["demo"] = "iris_local"
     at.run()
     assert not at.exception and not at.error
     assert [field.value for field in at.number_input] == [5.1, 3.5, 1.4, 0.2]
@@ -203,9 +203,47 @@ def test_public_iris_confusion_matrix_annotations_match_cells(monkeypatch):
 
     monkeypatch.setattr(Axes, "text", record_text)
     at = AppTest.from_file(showcase.__file__, default_timeout=60)
-    at.query_params["demo"] = "iris"
+    at.query_params["demo"] = "iris_local"
     at.run()
     assert not at.exception and not at.error
     assert len(annotations) == 9
     assert all(displayed == expected for _, _, displayed, expected in annotations)
     assert any(x != y and expected > 0 for x, y, _, expected in annotations)
+
+
+def test_both_iris_flavours_keep_distinct_verified_bundles_and_switch_cleanly():
+    import io
+    import zipfile
+
+    original = showcase.load_report()
+    local = showcase.load_report(showcase.LOCAL_DEMO_ROOT)
+    assert original["run_id"] == '20260918T105634Z-d0baf9b5'
+    assert local["run_id"] != original["run_id"]
+    assert local["build_model"]["id"] == "qwen3.5:4b"
+    assert local["build_model"]["execution"] == "local"
+    for root in (showcase.DEMO_ROOT, showcase.LOCAL_DEMO_ROOT):
+        with zipfile.ZipFile(io.BytesIO(showcase.download_bundle(root))) as bundle:
+            assert bundle.read("app.py") == (root / "app.py").read_bytes()
+            assert json.loads(bundle.read("result.json")) == showcase.load_report(root)
+
+    at = AppTest.from_file(showcase.__file__, default_timeout=60).run()
+    for key, report, label in (
+        ("iris", original, "GPT-6 Astra"),
+        ("iris_local", local, "Qwen 3.5 4B"),
+        ("iris", original, "GPT-6 Astra"),
+    ):
+        at.segmented_control(key="demo").set_value(key).run()
+        assert not at.exception and not at.error
+        assert any(label in item.value for item in at.caption)
+        assert any(report["run_id"] in item.value for item in at.caption)
+        assert len(at.number_input) == 4
+
+
+def test_local_iris_tamper_fails_closed_without_affecting_original(tmp_path):
+    import shutil
+
+    shutil.copytree(showcase.LOCAL_DEMO_ROOT, tmp_path / "local")
+    (tmp_path / "local/app.py").write_text("raise AssertionError('unverified')")
+    with pytest.raises(ValueError, match="Demo artifact changed since verification"):
+        showcase.load_report(tmp_path / "local")
+    assert showcase.load_report()["status"] == "passed"

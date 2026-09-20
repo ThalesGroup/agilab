@@ -18,13 +18,15 @@ from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
 from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "notebook_agent_demo"
+LOCAL_DEMO_ROOT = DEMO_ROOT.with_name("notebook_agent_local_demo")
 VERIFIED_FILES = frozenset({"app.py", "models.py", "solution.ipynb", "lab_stages.toml"})
 
 
-def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
-    if DEMO_ROOT.is_symlink() or (DEMO_ROOT / "result.json").is_symlink():
+def _read_verified_bundle(demo_root: Path | None = None) -> tuple[dict, dict[str, bytes]]:
+    demo_root = DEMO_ROOT if demo_root is None else demo_root
+    if demo_root.is_symlink() or (demo_root / "result.json").is_symlink():
         raise ValueError("Iris demo directory and receipt must not be symlinks")
-    receipt = (DEMO_ROOT / "result.json").read_bytes()
+    receipt = (demo_root / "result.json").read_bytes()
     report = json.loads(receipt)
     if (not isinstance(report, dict) or report.get("status") != "passed"
             or report.get("schema") != "agilab.notebook_agent.public_demo.v1"):
@@ -54,7 +56,7 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
         raise ValueError("Iris demo artifact manifest is incomplete or unexpected")
     payload = {"result.json": receipt}
     for name, expected in sorted(files.items()):
-        path = DEMO_ROOT / name
+        path = demo_root / name
         if path.is_symlink():
             raise ValueError("Invalid demo artifact path")
         if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
@@ -63,22 +65,22 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
         if hashlib.sha256(data).hexdigest() != expected:
             raise ValueError(f"Demo artifact changed since verification: {name}")
         payload[name] = data
-    license_path = DEMO_ROOT / "LICENSE"
+    license_path = demo_root / "LICENSE"
     if license_path.is_symlink():
         raise ValueError("Iris demo license must not be a symlink")
     payload["LICENSE"] = license_path.read_bytes()
-    for path in DEMO_ROOT.rglob("*"):
+    for path in demo_root.rglob("*"):
         if path.is_symlink():
             raise ValueError("Iris demo contains a symlink")
-        relative = path.relative_to(DEMO_ROOT)
+        relative = path.relative_to(demo_root)
         if path.is_file() and relative.as_posix() not in payload:
             if "__pycache__" not in relative.parts or path.suffix != ".pyc":
                 raise ValueError(f"Unverified Iris demo artifact: {relative}")
     return report, payload
 
 
-def load_report() -> dict:
-    return _read_verified_bundle()[0]
+def load_report(demo_root: Path | None = None) -> dict:
+    return _read_verified_bundle(demo_root)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -89,19 +91,20 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle() -> bytes:
-    return _zip_bundle(_read_verified_bundle()[1])
+def download_bundle(demo_root: Path | None = None) -> bytes:
+    return _zip_bundle(_read_verified_bundle(demo_root)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes]) -> None:
+def _run_verified_app(payload: dict[str, bytes], *, demo_root: Path | None = None) -> None:
+    demo_root = DEMO_ROOT if demo_root is None else demo_root
     with _APP_LOCK:
         previous = sys.modules.pop("models", None)
         module = ModuleType("models")
-        module.__file__ = str(DEMO_ROOT / "models.py")
+        module.__file__ = str(demo_root / "models.py")
         sys.modules["models"] = module
         try:
             exec(compile(payload["models.py"], module.__file__, "exec"), module.__dict__)
-            app_path = str(DEMO_ROOT / "app.py")
+            app_path = str(demo_root / "app.py")
             exec(compile(payload["app.py"], app_path, "exec"),
                  {"__name__": "__main__", "__file__": app_path})
         finally:
@@ -112,7 +115,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
 
 def render() -> None:
     selected = st.segmented_control(
-        "Choose a demo", ["iris", "forecast", "text", "threading", "milp"], default="iris", required=True,
+        "Choose a demo", ["iris", "iris_local", "forecast", "text", "threading", "milp"], default="iris", required=True,
         key="demo", bind="query-params",
     )
     if selected == "milp":
@@ -155,11 +158,12 @@ def render() -> None:
             return
         render_text()
         return
-    if selected != "iris":
+    if selected not in {"iris", "iris_local"}:
         st.error("Choose one of the available demos.")
         return
+    demo_root = LOCAL_DEMO_ROOT if selected == "iris_local" else DEMO_ROOT
     try:
-        report, payload = _read_verified_bundle()
+        report, payload = _read_verified_bundle(demo_root)
     except (OSError, ValueError, TypeError) as exc:
         st.error(f"Iris demo unavailable: {exc}")
         return
@@ -167,10 +171,20 @@ def render() -> None:
     render_build_evidence(report, extra_metrics=(
         ("Models checked", len({row["model"] for row in report["verification"]["scores"]})),
     ))
-    st.write(
-        "One request turned Géron's decision-tree notebook into the interactive app below. "
-        "Tokki coordinated the agent and verification; AGILAB imported the resulting workflow."
+    st.caption(
+        "Build model: Qwen 3.5 4B (qwen3.5:4b, local Ollama)."
+        if selected == "iris_local" else "Build model: GPT-6 Astra (OpenAI)."
     )
+    if selected == "iris_local":
+        st.write(
+            "Local Qwen generated this app in small verified steps. "
+            "A coordinating assistant reviewed the outputs; AGILAB imported the workflow."
+        )
+    else:
+        st.write(
+            "One request turned Géron's decision-tree notebook into the interactive app below. "
+            "Tokki coordinated the agent and verification; AGILAB imported the resulting workflow."
+        )
     with st.expander("The request and the proof"):
         st.markdown(
             "> Turn the Iris decision-tree example into an interactive decision lab. "
@@ -182,12 +196,12 @@ def render() -> None:
         st.dataframe(report["verification"]["scores"], hide_index=True)
         st.write("Checks passed: held-out model tests, notebook execution, app startup and slider interaction.")
         st.download_button("Download the generated app and workflow", _zip_bundle(payload),
-                           "tokki-agilab-decision-lab.zip", "application/zip")
+                           f"tokki-agilab-{selected}-decision-lab.zip", "application/zip")
         if st.button("Run model and app checks", icon=":material/fact_check:"):
             with st.spinner("Running model, notebook and interface checks…"):
                 verifier = Path(__file__).with_name("notebook_verifier.py")
                 try:
-                    checked = subprocess.run([sys.executable, str(verifier)], cwd=DEMO_ROOT,
+                    checked = subprocess.run([sys.executable, str(verifier)], cwd=demo_root,
                                              text=True, capture_output=True, timeout=180)
                     result = json.loads(checked.stdout.strip().splitlines()[-1])
                     if checked.returncode or result.get("status") != "passed":
@@ -197,7 +211,7 @@ def render() -> None:
                 except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as exc:
                     st.error(f"Verification could not complete: {type(exc).__name__}")
     st.divider()
-    _run_verified_app(payload)
+    _run_verified_app(payload, demo_root=demo_root)
 
 
 if __name__ == "__main__":

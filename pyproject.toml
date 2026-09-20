@@ -291,6 +291,7 @@ agilab = [
     "resources/notebook_import_samples/*.ipynb",
     "resources/agent_experiment/*",
     "resources/notebook_agent_demo/*",
+    "resources/notebook_agent_local_demo/*",
     "resources/forecast_notebook_demo/*",
     "resources/forecast_notebook_demo/source/*",
     "resources/text_notebook_demo/*",

@@ -8,6 +8,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 RESOURCE_PATH = "src/agilab/resources/notebook_agent_demo"
+RESOURCE_PATHS = (
+    RESOURCE_PATH,
+    "src/agilab/resources/notebook_agent_local_demo",
+)
 VERIFIED_FILES = {"app.py", "models.py", "solution.ipynb", "lab_stages.toml"}
 SOURCE_FILES = (
     "LICENSE",
@@ -15,7 +19,8 @@ SOURCE_FILES = (
     "src/agilab/agent_runtime/notebook_app_runtime.py",
     "src/agilab/agent_runtime/notebook_showcase.py",
     "src/agilab/agent_runtime/notebook_verifier.py",
-    *(f"{RESOURCE_PATH}/{name}" for name in sorted(VERIFIED_FILES | {"LICENSE", "result.json"})),
+    *(f"{resource}/{name}" for resource in RESOURCE_PATHS
+      for name in sorted(VERIFIED_FILES | {"LICENSE", "result.json"})),
 )
 
 GENERATED_FILES = {
@@ -39,7 +44,8 @@ license: bsd-3-clause
 
 # Tokki · One request, a verified app
 
-Try a real app built through Tokki's autonomous agent workflow with AGILAB.
+Compare two verified Iris builds: the original GPT-6 Astra version and a local
+Qwen 3.5 4B version. Both are completed apps integrated with AGILAB.
 Change the model controls and rerun the notebook, model and interface checks.
 No account or AI provider subscription is needed to try this completed app.
 
@@ -51,9 +57,10 @@ private Tokki runtime, license or notebook uploads are hosted by this Space.
 - [AGILAB and local notebook setup](https://github.com/ThalesGroup/agilab#build-from-your-own-notebook)
 
 The public showcase code is from AGILAB under the root BSD-3-Clause LICENSE.
-The bundled app adapts Aurélien Géron's handson-ml3 decision-tree notebook;
-its Apache-2.0 license and pinned source provenance are retained in
-`src/agilab/resources/notebook_agent_demo/`.
+Both bundled apps adapt Aurélien Géron's handson-ml3 decision-tree notebook;
+Their Apache-2.0 license and pinned source provenance are retained in
+`src/agilab/resources/notebook_agent_demo/` and
+`src/agilab/resources/notebook_agent_local_demo/`.
 """,
     "requirements.txt": "streamlit==1.64.0\nscikit-learn==1.9.1\nmatplotlib==3.10.8\n",
     "Dockerfile": """FROM python:3.13-slim
@@ -63,6 +70,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/app/src
 RUN cd /app/src/agilab/resources/notebook_agent_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
+RUN cd /app/src/agilab/resources/notebook_agent_local_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
 EXPOSE 7860
 CMD ["streamlit", "run", "hf_app.py", "--server.address=0.0.0.0", "--server.port=7860", "--server.headless=true", "--browser.gatherUsageStats=false"]
 """,
@@ -82,12 +90,13 @@ def export(destination: Path, *, source_root: Path = ROOT) -> dict:
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(source_root):
             raise ValueError(f"Invalid public source file: {name}")
         payload[name] = source.read_bytes()
-    report = json.loads(payload[f"{RESOURCE_PATH}/result.json"])
-    if report.get("status") != "passed" or set(report.get("files", {})) != VERIFIED_FILES:
-        raise ValueError("Expected the complete verified demo report")
-    for name, expected in report["files"].items():
-        if hashlib.sha256(payload[f"{RESOURCE_PATH}/{name}"]).hexdigest() != expected:
-            raise ValueError(f"Demo artifact changed: {name}")
+    for resource in RESOURCE_PATHS:
+        report = json.loads(payload[f"{resource}/result.json"])
+        if report.get("status") != "passed" or set(report.get("files", {})) != VERIFIED_FILES:
+            raise ValueError(f"Expected the complete verified demo report: {resource}")
+        for name, expected in report["files"].items():
+            if hashlib.sha256(payload[f"{resource}/{name}"]).hexdigest() != expected:
+                raise ValueError(f"Demo artifact changed: {resource}/{name}")
     payload.update({name: text.encode("utf-8") for name, text in GENERATED_FILES.items()})
     manifest = {name: hashlib.sha256(data).hexdigest() for name, data in sorted(payload.items())}
     payload["PUBLIC_HASHES.json"] = (json.dumps(manifest, indent=2) + "\n").encode()
