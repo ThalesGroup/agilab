@@ -7,6 +7,8 @@ or equivalence to the original. This is not a sandbox for hostile generated code
 from __future__ import annotations
 
 import json
+import hashlib
+import codeop
 import math
 import os
 from pathlib import Path
@@ -66,16 +68,20 @@ def verify(project: Path) -> dict:
         with tempfile.TemporaryDirectory(prefix="agilab-notebook-check-") as scratch:
             os.chdir(scratch)
             namespace = {"__name__": "__main__", "PROJECT_ROOT": project}
+            compiler = codeop.Compile()
             for index, cell in enumerate(cells):
                 source = cell.get("source", "")
                 source = "".join(source) if isinstance(source, list) else source
-                exec(compile(source, f"solution.ipynb:cell-{index}", "exec"), namespace)
+                exec(compiler(source, f"solution.ipynb:cell-{index}", "exec", incomplete_input=False), namespace)
             output = Path("results.json")
             if output.is_symlink() or not output.is_file():
                 raise ValueError("Notebook must write fresh results.json in its execution directory")
             results = json.loads(output.read_text(), parse_constant=_reject_nonfinite)
             if not isinstance(results, dict) or not isinstance(results.get("results"), dict) or not _has_value(results["results"]):
                 raise ValueError("results.json must contain a results object with at least one nonempty result value")
+            result_sha256 = hashlib.sha256(json.dumps(
+                results, sort_keys=True, separators=(",", ":"), allow_nan=False,
+            ).encode("utf-8")).hexdigest()
         os.chdir(project)
         app = AppTest.from_file(str(project / "app.py"), default_timeout=60).run()
         if app.exception:
@@ -97,6 +103,7 @@ def verify(project: Path) -> dict:
             "checks": ["fresh_notebook_execution", "fresh_result_artifact",
                        "app_startup", "app_run_analysis_interaction"],
             "result_names": sorted(results["results"]),
+            "result_file": "results.json", "result_sha256": result_sha256,
             "scientific_correctness_verified": False}
 
 

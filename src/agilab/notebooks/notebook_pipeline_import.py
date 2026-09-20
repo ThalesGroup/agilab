@@ -875,6 +875,9 @@ def _build_from_supervisor_metadata(
             if value is not None:
                 stage_payload[key] = copy.deepcopy(value)
         original_cell_id = str(notebook_import_metadata.get("cell_id", "") or "")
+        execution_plan = notebook_import_metadata.get("execution_plan")
+        if isinstance(execution_plan, Mapping) and execution_plan.get("NB_COMPILED_SHA256") == hashlib.sha256(source.encode("utf-8")).hexdigest():
+            stage_payload["notebook_execution_plan"] = copy.deepcopy(dict(execution_plan))
         if original_cell_id:
             stage_payload["notebook_cell_id"] = original_cell_id
         original_execution_mode = str(
@@ -1147,8 +1150,15 @@ def build_lab_stages_preview(
     notebook_import: Mapping[str, Any],
     *,
     module_name: str = "notebook_import_project",
+    preserve_notebook_state: bool = False,
 ) -> dict[str, Any]:
-    """Project imported notebook metadata into AGILAB lab_stages TOML entries."""
+    """Project notebook metadata into stages, optionally preserving cell state.
+
+    Use ``preserve_notebook_state`` for ordinary notebook execution. The default
+    retains the cell-by-cell editing projection; it does not transfer globals
+    between separate stage executions. Supervisor exports retain their explicit
+    stage graph in either mode.
+    """
     module_name = str(module_name or "lab_stages")
     contexts = _context_lookup(notebook_import)
     source = notebook_import.get("source", {})
@@ -1196,6 +1206,14 @@ def build_lab_stages_preview(
             "NB_EXECUTION_MODE": stage_execution_mode,
             "NB_SOURCE_NOTEBOOK": stage_source_notebook,
         }
+        execution_plan = stage.get("notebook_execution_plan")
+        if isinstance(execution_plan, Mapping):
+            for key in (
+                "NB_EXECUTION_PLAN_SCHEMA", "NB_EXECUTION_STRATEGY", "NB_SOURCE_CELLS",
+                "NB_SOURCE_SHA256", "NB_COMPILED_SHA256",
+            ):
+                if key in execution_plan:
+                    entry[key] = copy.deepcopy(execution_plan[key])
         source_module = str(stage.get("source_module", "") or "").strip()
         if source_module:
             entry["NB_SOURCE_MODULE"] = source_module
@@ -1241,6 +1259,13 @@ def build_lab_stages_preview(
             if key in stage:
                 entry[key] = copy.deepcopy(stage[key])
         entries.append(entry)
+    if preserve_notebook_state and (
+        not isinstance(source, Mapping)
+        or source.get("import_mode") != "agilab_supervisor_metadata"
+    ):
+        from .notebook_execution_plan import compile_notebook_stage
+
+        entries = compile_notebook_stage(entries)
     result: dict[str, Any] = {module_name: entries}
     module_automation = notebook_import.get("module_automation", {})
     if isinstance(module_automation, Mapping) and module_automation:

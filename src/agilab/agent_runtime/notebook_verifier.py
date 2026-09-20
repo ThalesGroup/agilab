@@ -7,6 +7,8 @@ This checks a local development result; it is not a sandbox for hostile code.
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import codeop
 import json
 import os
 from pathlib import Path
@@ -60,10 +62,11 @@ def verify(project: Path) -> dict:
         try:
             os.chdir(scratch)
             namespace = {"__name__": "__main__", "PROJECT_ROOT": project}
+            compiler = codeop.Compile()
             for index, cell in enumerate(cells):
                 source = cell.get("source", "")
                 source = "".join(source) if isinstance(source, list) else source
-                exec(compile(source, f"solution.ipynb:cell-{index}", "exec"), namespace)
+                exec(compiler(source, f"solution.ipynb:cell-{index}", "exec", incomplete_input=False), namespace)
             metrics = json.loads(Path("metrics.json").read_text())
             if not isinstance(metrics, list) or len(metrics) < 3:
                 raise ValueError("Notebook must write metrics.json with three model results")
@@ -90,6 +93,10 @@ def verify(project: Path) -> dict:
         "status": "passed", "checks": ["held_out_models", "fresh_notebook_execution",
                                          "app_startup", "app_slider_interaction"],
         "scores": scores,
+        "result_file": "metrics.json",
+        "result_sha256": hashlib.sha256(json.dumps(
+            metrics, sort_keys=True, separators=(",", ":"), allow_nan=False,
+        ).encode("utf-8")).hexdigest(),
     }
 
 
