@@ -1,56 +1,40 @@
 [[notebook_app_project]]
-D = "Promotion forecast lab"
-Q = "Imported cell-3 from notebook"
-C = "from pathlib import Path\nimport os\nimport sys\n\nproject_root = Path(globals().get(\"PROJECT_ROOT\", os.environ.get(\"PROJECT_ROOT\", \".\"))).resolve()\nif str(project_root) not in sys.path:\n    sys.path.insert(0, str(project_root))\n\nimport numpy as np\nimport pandas as pd\nfrom forecast_core import make_fixture, predict, seasonal_baseline, assemble_results\n\nparameters = dict(seed=42, horizon=28, promotion_start=7, promotion_days=7)\ndata = make_fixture(**parameters)\nprint(\"SYNTHETIC history:\", len(data[\"context\"]), \"days\")\nprint(\"Known future promotion offsets:\", np.flatnonzero(data[\"future_promotion\"]).tolist())\nprint(pd.DataFrame({\n    \"forecast_day\": np.arange(parameters[\"horizon\"]),\n    \"known_promotion\": data[\"future_promotion\"],\n    \"known_weekday_sine\": data[\"future_weekday\"],\n}).head(10).to_string(index=False))"
+D = "Chronos-2 Promotion Forecast Lab (Synthetic)"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import os\\nimport sys\\nimport json\\n\\n# Honor supplied PROJECT_ROOT first, otherwise env, then notebook cwd\\nif \"PROJECT_ROOT\" not in globals() or globals()[\"PROJECT_ROOT\"] is None:\\n    PROJECT_ROOT = os.environ.get(\"PROJECT_ROOT\", os.getcwd())\\n\\n# Normalize to a filesystem string (sys.path requires str, not pathlib.Path)\\nPROJECT_ROOT = os.fspath(PROJECT_ROOT)\\n\\n# Bootstrap path for forecast_core import (temporary, restored)\\n_saved = sys.path[:]\\ntry:\\n    if PROJECT_ROOT not in sys.path:\\n        sys.path.insert(0, PROJECT_ROOT)\\n    import forecast_core\\nfinally:\\n    sys.path[:] = _saved\\n\\nimport numpy as np\\nimport pandas as pd\\n\\nmake_fixture = forecast_core.make_fixture\\npredict = forecast_core.predict\\nrun_analysis = forecast_core.run_analysis\\nMODEL_ID = forecast_core.MODEL_ID\\nMODEL_REVISION = forecast_core.MODEL_REVISION\\n', 'notebook:cell-2'), ('# Exactly one analysis/inference call (run_analysis internally invokes predict once)\\nseed = 42\\nhorizon = 28\\npromotion_start = 7\\npromotion_days = 7\\n\\nresult = run_analysis(seed=seed, horizon=horizon, promotion_start=promotion_start, promotion_days=promotion_days)\\n\\n# Validate: all metric values must be finite\\nfor key in [\"mae\", \"baseline_mae\", \"coverage\"]:\\n    val = result[\"metrics\"][key]\\n    assert np.isfinite(val), f\"Non-finite value for {key}: {val}\"\\n\\n# Write results.json to current execution directory\\noutput = {\\n    \"results\": {\\n        \"mae\": result[\"metrics\"][\"mae\"],\\n        \"baseline_mae\": result[\"metrics\"][\"baseline_mae\"],\\n        \"coverage\": result[\"metrics\"][\"coverage\"],\\n        \"horizon\": result[\"horizon\"],\\n        \"seed\": result[\"seed\"],\\n    }\\n}\\n\\nwith open(\"results.json\", \"w\") as f:\\n    json.dump(output, f, indent=2)\\n\\nprint(\"Wrote results.json\")\\nprint(json.dumps(output, indent=2))\\n', 'notebook:cell-3')])\n"
 M = ""
-NB_CELL_ID = "cell-3"
-NB_CELL_INDEX = 3
+NB_CELL_ID = "notebook-70f1358671f5cdb8"
+NB_CELL_INDEX = 2
 NB_CONTEXT_IDS = [
     "markdown-1",
-    "markdown-2",
 ]
 NB_ENV_HINTS = [
     "forecast_core",
+    "json",
     "numpy",
     "os",
     "pandas",
-    "pathlib",
     "sys",
 ]
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = "2. Run real Chronos inference and the seasonal baseline"
-Q = "Imported cell-5 from notebook"
-C = "inference_data = {key: values for key, values in data.items() if key != \"actual\"}\npredictions = predict(inference_data, use_covariates=True)\nwithout_covariates = predict(inference_data, use_covariates=False)\nbaseline = seasonal_baseline(data[\"context\"], parameters[\"horizon\"])\nprint(\"Completed actual Chronos-2 Small inference with and without covariates.\")\nprint(\"Forecast shape:\", predictions[\"forecast\"].shape)"
-M = ""
-NB_CELL_ID = "cell-5"
-NB_CELL_INDEX = 5
-NB_CONTEXT_IDS = [
-    "markdown-4",
-]
-NB_ENV_HINTS = []
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = "3. Evaluate and persist results"
-Q = "Imported cell-7 from notebook"
-C = "import json\n\nresults = assemble_results(data, predictions, baseline, parameters)\nresults[\"without_covariates\"] = {\n    \"predictions\": {key: values.tolist() for key, values in without_covariates.items()},\n    \"mae\": float(np.mean(np.abs(data[\"actual\"] - without_covariates[\"forecast\"]))),\n}\nresults[\"interpretation\"] = (\n    \"Synthetic scenario forecast, not a causal estimate or a production-accuracy claim. \"\n    \"Nominal 80% p10-p90 intervals are not calibrated on this fixture.\"\n)\noutput = Path.cwd() / \"results.json\"\noutput.write_text(json.dumps({\"results\": results}, indent=2, allow_nan=False) + \"\\n\", encoding=\"utf-8\")\nprint(pd.DataFrame([\n    {\"method\": \"Chronos with covariates\", \"mae\": results[\"metrics\"][\"mae\"]},\n    {\"method\": \"Chronos without covariates\", \"mae\": results[\"without_covariates\"][\"mae\"]},\n    {\"method\": \"Seasonal-7\", \"mae\": results[\"metrics\"][\"baseline_mae\"]},\n]).to_string(index=False))\nprint(\"Observed p10-p90 coverage:\", results[\"metrics\"][\"coverage\"])\nprint(\"Fresh artifact:\", output.name)"
-M = ""
-NB_CELL_ID = "cell-7"
-NB_CELL_INDEX = 7
-NB_CONTEXT_IDS = [
-    "markdown-6",
-]
-NB_ENV_HINTS = [
-    "json",
-]
 NB_ARTIFACT_REFERENCES = [
+    "Wrote results.json",
     "results.json",
 ]
 NB_EXECUTION_MODE = "not_executed_import"
 NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "5689e67bcd6cb40f2dc44bfeec0558ef5bea6cbd5643986e1128b336a4b908e3"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "70f1358671f5cdb89ba369e9aa4b73a31c39edd99ba85af461a8d2fe6e7f54ee"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import os\nimport sys\nimport json\n\n# Honor supplied PROJECT_ROOT first, otherwise env, then notebook cwd\nif \"PROJECT_ROOT\" not in globals() or globals()[\"PROJECT_ROOT\"] is None:\n    PROJECT_ROOT = os.environ.get(\"PROJECT_ROOT\", os.getcwd())\n\n# Normalize to a filesystem string (sys.path requires str, not pathlib.Path)\nPROJECT_ROOT = os.fspath(PROJECT_ROOT)\n\n# Bootstrap path for forecast_core import (temporary, restored)\n_saved = sys.path[:]\ntry:\n    if PROJECT_ROOT not in sys.path:\n        sys.path.insert(0, PROJECT_ROOT)\n    import forecast_core\nfinally:\n    sys.path[:] = _saved\n\nimport numpy as np\nimport pandas as pd\n\nmake_fixture = forecast_core.make_fixture\npredict = forecast_core.predict\nrun_analysis = forecast_core.run_analysis\nMODEL_ID = forecast_core.MODEL_ID\nMODEL_REVISION = forecast_core.MODEL_REVISION\n"
+sha256 = "1a39a76d11969731ab518dc2476193f32449e349b24b9a2e5ba10dffcd0f1fa9"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "# Exactly one analysis/inference call (run_analysis internally invokes predict once)\nseed = 42\nhorizon = 28\npromotion_start = 7\npromotion_days = 7\n\nresult = run_analysis(seed=seed, horizon=horizon, promotion_start=promotion_start, promotion_days=promotion_days)\n\n# Validate: all metric values must be finite\nfor key in [\"mae\", \"baseline_mae\", \"coverage\"]:\n    val = result[\"metrics\"][key]\n    assert np.isfinite(val), f\"Non-finite value for {key}: {val}\"\n\n# Write results.json to current execution directory\noutput = {\n    \"results\": {\n        \"mae\": result[\"metrics\"][\"mae\"],\n        \"baseline_mae\": result[\"metrics\"][\"baseline_mae\"],\n        \"coverage\": result[\"metrics\"][\"coverage\"],\n        \"horizon\": result[\"horizon\"],\n        \"seed\": result[\"seed\"],\n    }\n}\n\nwith open(\"results.json\", \"w\") as f:\n    json.dump(output, f, indent=2)\n\nprint(\"Wrote results.json\")\nprint(json.dumps(output, indent=2))\n"
+sha256 = "1d56b36e6cf26feba86ec0ee4241dad68b5206e32ae16a1599fb487b917e6719"

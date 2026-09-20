@@ -1,9 +1,9 @@
 {
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
-  "run_id": "20260918T201601Z-112cb07a",
-  "seconds": 361.0,
-  "workflow_stages": 3,
+  "run_id": "20260920T152524Z-87960a8a",
+  "seconds": 5361.5,
+  "workflow_stages": 1,
   "source": {
     "repository": "amazon-science/chronos-forecasting",
     "commit": "10afa9ebe016e514f9d7dc1aa873f66af57e116b",
@@ -31,20 +31,37 @@
       "app_startup",
       "app_run_analysis_interaction"
     ],
+    "result_file": "results.json",
     "result_names": [
-      "baseline",
-      "data_kind",
-      "fixture",
-      "interpretation",
-      "metrics",
-      "model",
-      "parameters",
-      "predictions",
-      "without_covariates"
+      "baseline_mae",
+      "coverage",
+      "horizon",
+      "mae",
+      "seed"
     ],
+    "result_sha256": "e65ad4afca0cc4b05657ae460ac49a76ddeb5d0da81ab5370130b935c01044ca",
     "scientific_correctness_verified": false,
     "status": "passed",
     "verification_scope": "execution_and_interface",
+    "notebook_root_variants": [
+      "pathlib.Path",
+      "str"
+    ],
+    "workflow": {
+      "checks": [
+        "fresh_workflow_execution",
+        "fresh_result_artifact",
+        "notebook_result_agreement"
+      ],
+      "result_file": "results.json",
+      "result_sha256": "e65ad4afca0cc4b05657ae460ac49a76ddeb5d0da81ab5370130b935c01044ca",
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "scientific_correctness_verified": false,
+      "stage_count": 1,
+      "stages_sha256": "c3b32218cf989eff18a8908e81fcee0bfcf0b94036a6ca6baac14802e694d457",
+      "status": "passed",
+      "verification_scope": "local_workflow_result_agreement"
+    },
     "forecast": {
       "status": "passed",
       "checks": [
@@ -121,7 +138,7 @@
         },
         "python_version": "3.13.14",
         "platform": "Darwin",
-        "checked_at": "2026-09-18T20:32:24.813018+00:00",
+        "checked_at": "2026-09-20T16:54:46.270043+00:00",
         "interpretation": "Three deterministic synthetic cases and one analysis-contract check. MAE and interval coverage are reported without requiring superiority to the baseline. Changing a promotion input demonstrates model sensitivity, not a causal business effect.",
         "weight_source": "local_model_path",
         "weight_files_sha256": {
@@ -135,13 +152,30 @@
     "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "NOTICE": "d4290ed64c2edd0fce1d84e3f9dfb2881240fe534def76b8cd29ed6af683e287",
-    "README.md": "361b216a90627e7c66096115eaff42b741e7cee64f9d31a20e0d7da448c23d68",
-    "app.py": "e27cb89540a3b62e52f4849210a38150a90dbdc832ea4e95c38b4af41577b11c",
-    "forecast_core.py": "cc59b3943910366447255b8e3030472337033478c8983ee24ae658d93fce660e",
-    "lab_stages.toml": "5c1732f5cea793d249f29e53091d261a97eb00c8a511c2ead7e213f4327e3073",
-    "requirements.txt": "ac53469f923071e605a1b00f8d90ffa222bd262933378e6078a20a9ab474373b",
-    "solution.ipynb": "a8ce15c433ffb32e929cb32a899241ac288323a775e063019dfe43d80cb79f54",
+    "README.md": "b32d4871d9170cac55224fa8a0459e1c2e82fac000fa3da5d45e45b261e8c99f",
+    "app.py": "4f145506ef6d8a6810cfbce38f97c2e34afd596b8f5abc6b6dbcf13e3158c48f",
+    "forecast_core.py": "b4cfc4c14dad80bdfc73c3eeeaee36fce4a0fd1b6e34e03b75a1224b58f7a107",
+    "lab_stages.toml": "c3b32218cf989eff18a8908e81fcee0bfcf0b94036a6ca6baac14802e694d457",
+    "requirements.txt": "da7bb603b038d57068a82964d74b684ca8f678bf6f504921332c33d973595ca2",
+    "solution.ipynb": "9df329bffde57ea4b438e04d299cdbc7aa93aa2705e344f64963fd7205f9747e",
     "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
+  },
+  "build_model": {
+    "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+    "provider": "mlx-serve",
+    "execution": "local",
+    "revision": "b543ed7cbafbf4984266e784c2ccb1f0730847b6",
+    "upstream": "Qwen/Qwen3.8-27B",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "4-bit",
+    "cloud_codegen_fallback": false,
+    "tokki_agent_offload": false,
+    "method": "Native local API generation and repair with independent verification",
+    "coordination": "A coordinating assistant prepared the requests and ran independent checks. All application Python and notebook cells were generated or repaired by the local model."
+  },
+  "build_timing": {
+    "scope": "Wall-clock from first local generation request through independent notebook, workflow, UI and numerical verification",
+    "inference_seconds": 941.37
   }
 }

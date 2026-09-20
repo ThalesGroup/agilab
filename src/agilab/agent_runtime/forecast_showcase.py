@@ -71,6 +71,13 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
         raise ValueError("Forecast demo has no passed public receipt")
     if report.get("schema") != "agilab.notebook_agent.public_demo.v1":
         raise ValueError("Unsupported forecast demo receipt")
+    if "build_model" in report:
+        build_model = report["build_model"]
+        if not isinstance(build_model, dict) or any(
+            not isinstance(build_model.get(key), str) or not build_model[key].strip()
+            for key in ("id", "provider", "execution")
+        ):
+            raise ValueError("Forecast demo build model metadata is invalid")
     verification = report.get("verification")
     if not isinstance(verification, dict) or verification.get("status") != "passed":
         raise ValueError("Forecast demo verification did not pass")
@@ -197,6 +204,9 @@ def render() -> None:
     render_build_evidence(report, extra_metrics=(
         ("Recorded checks", len(notebook_checks) + len(forecast_checks)),
     ))
+    build_model = report.get("build_model", {})
+    if build_model.get("id"):
+        st.caption(f"Build model: {build_model['id']} ({build_model.get('execution', 'recorded')} · {build_model.get('provider', 'recorded')}).")
     st.subheader(report["demo"]["title"])
     st.write(report["demo"]["description"])
     with st.expander("Source and verification"):

@@ -96,3 +96,40 @@ def test_export_rejects_drift_before_writing(completed_run, change):
     with pytest.raises(ValueError):
         exporter.export_demo(run, target, validation)
     assert not (target / "result.json").exists()
+
+
+@pytest.mark.parametrize("record_model", [False, True])
+def test_export_preserves_optional_public_build_model(completed_run, record_model):
+    run, target, validation = completed_run
+    path = run / "result.json"
+    report = json.loads(path.read_text())
+    if record_model:
+        report["build_model"] = {
+            "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
+            "provider": "mlx-serve", "execution": "local",
+            "cloud_codegen_fallback": False, "tokki_agent_offload": False,
+            "private_endpoint": "must-not-be-exported",
+        }
+    path.write_text(json.dumps(report))
+    public = exporter.export_demo(run, target, validation)
+    if record_model:
+        assert public["build_model"]["id"] == report["build_model"]["id"]
+        assert public["build_model"]["cloud_codegen_fallback"] is False
+        assert "private_endpoint" not in public["build_model"]
+    else:
+        assert "build_model" not in public
+
+
+@pytest.mark.parametrize("model", [
+    None, {}, {"id": "qwen", "provider": "mlx", "execution": "local",
+               "cloud_codegen_fallback": "false"},
+])
+def test_export_rejects_invalid_build_model(completed_run, model):
+    run, target, validation = completed_run
+    path = run / "result.json"
+    report = json.loads(path.read_text())
+    report["build_model"] = model
+    path.write_text(json.dumps(report))
+    with pytest.raises(ValueError, match="build model"):
+        exporter.export_demo(run, target, validation)
+    assert not target.exists()
