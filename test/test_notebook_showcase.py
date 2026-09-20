@@ -118,3 +118,132 @@ def test_iris_only_distribution_reports_forecast_unavailability(monkeypatch):
     at.segmented_control(key="demo").set_value("iris").run()
     assert not at.exception
     assert any(title.value == "Iris decision lab" for title in at.title)
+
+
+def test_local_iris_defaults_winners_and_selected_model_predictions():
+    """Published controls must use all four measurements and the selected estimator."""
+    import numpy as np
+    from sklearn.datasets import load_iris
+    from sklearn.metrics import accuracy_score
+    from sklearn.model_selection import train_test_split
+
+    spec = importlib.util.spec_from_file_location(
+        "iris_prediction_reference", showcase.LOCAL_DEMO_ROOT / "models.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    iris = load_iris()
+    X_train, X_test, y_train, y_test = train_test_split(
+        iris.data, iris.target, test_size=0.3, stratify=iris.target, random_state=42
+    )
+    at = AppTest.from_file(showcase.__file__, default_timeout=60)
+    at.query_params["demo"] = "iris_local"
+    at.run()
+    assert not at.exception and not at.error
+    assert [field.value for field in at.number_input] == [5.1, 3.5, 1.4, 0.2]
+
+    for depth in (1, 4):
+        at.slider[0].set_value(depth).run()
+        assert not at.exception
+        models = module.build_models(max_depth=depth, seed=42)
+        scores = {}
+        for name, estimator in models.items():
+            estimator.fit(X_train, y_train)
+            scores[name] = accuracy_score(y_test, estimator.predict(X_test))
+        table = next(
+            item.value
+            for item in at.dataframe
+            if set(item.value.columns) == {"model", "accuracy"}
+        ).set_index("model")["accuracy"]
+        assert set(table.index) == set(scores)
+        for name, score in scores.items():
+            assert table[name] == pytest.approx(score)
+        captions = " ".join(item.value for item in at.caption)
+        best = max(scores.values())
+        assert "N/A" not in captions
+        assert "exploratory" in captions.lower() and "untouched" in captions.lower()
+        assert all(name in captions for name, score in scores.items() if score == best)
+
+        for name, estimator in models.items():
+            at.selectbox[0].select(name)
+            for measurements in ([5.1, 3.5, 1.4, 0.2], [6.5, 3.0, 5.2, 2.0]):
+                for field, value in zip(at.number_input, measurements, strict=True):
+                    field.set_value(value)
+                next(
+                    button for button in at.button if button.label == "Predict"
+                ).click().run()
+                assert not at.exception and not at.error
+                expected = iris.target_names[
+                    estimator.predict(np.array([measurements]))[0]
+                ]
+                assert any(
+                    item.value == f"Predicted species: {expected}"
+                    for item in at.success
+                )
+
+
+def test_public_iris_confusion_matrix_annotations_match_cells(monkeypatch):
+    """The displayed count must belong to its true-row/predicted-column cell."""
+    from matplotlib.axes import Axes
+
+    annotations = []
+    original_text = Axes.text
+
+    def record_text(axes, x, y, text, *args, **kwargs):
+        if axes.images:
+            matrix = axes.images[0].get_array()
+            if matrix.shape == (3, 3) and x in (0, 1, 2) and y in (0, 1, 2):
+                try:
+                    count = float(text)
+                except (TypeError, ValueError):
+                    pass
+                else:
+                    annotations.append((x, y, count, float(matrix[int(y), int(x)])))
+        return original_text(axes, x, y, text, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "text", record_text)
+    at = AppTest.from_file(showcase.__file__, default_timeout=60)
+    at.query_params["demo"] = "iris_local"
+    at.run()
+    assert not at.exception and not at.error
+    assert len(annotations) == 9
+    assert all(displayed == expected for _, _, displayed, expected in annotations)
+    assert any(x != y and expected > 0 for x, y, _, expected in annotations)
+
+
+def test_both_iris_flavours_keep_distinct_verified_bundles_and_switch_cleanly():
+    import io
+    import zipfile
+
+    original = showcase.load_report()
+    local = showcase.load_report(showcase.LOCAL_DEMO_ROOT)
+    assert original["run_id"] == '20260918T105634Z-d0baf9b5'
+    assert local["run_id"] != original["run_id"]
+    assert local["build_model"]["id"] == "qwen3.5:4b"
+    assert local["build_model"]["execution"] == "local"
+    for root in (showcase.DEMO_ROOT, showcase.LOCAL_DEMO_ROOT):
+        with zipfile.ZipFile(io.BytesIO(showcase.download_bundle(root))) as bundle:
+            assert bundle.read("app.py") == (root / "app.py").read_bytes()
+            assert json.loads(bundle.read("result.json")) == showcase.load_report(root)
+
+    at = AppTest.from_file(showcase.__file__, default_timeout=60).run()
+    for key, report, label in (
+        ("iris", original, "GPT-6 Astra"),
+        ("iris_local", local, "Qwen 3.5 4B"),
+        ("iris", original, "GPT-6 Astra"),
+    ):
+        at.segmented_control(key="demo").set_value(key).run()
+        assert not at.exception and not at.error
+        assert any(label in item.value for item in at.caption)
+        assert any(report["run_id"] in item.value for item in at.caption)
+        assert len(at.number_input) == 4
+
+
+def test_local_iris_tamper_fails_closed_without_affecting_original(tmp_path):
+    import shutil
+
+    shutil.copytree(showcase.LOCAL_DEMO_ROOT, tmp_path / "local")
+    (tmp_path / "local/app.py").write_text("raise AssertionError('unverified')")
+    with pytest.raises(ValueError, match="Demo artifact changed since verification"):
+        showcase.load_report(tmp_path / "local")
+    assert showcase.load_report()["status"] == "passed"
