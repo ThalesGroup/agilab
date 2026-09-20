@@ -21,6 +21,7 @@ PUBLIC_FILES = frozenset({
     "app.py", "energy_core.py", "energy_runner.py", "agilab_pool.py",
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
     "README.md", "LICENSE", "AGILAB_LICENSE", "tests.py", "source/original.ipynb", "source/LICENSE",
+    "source/provenance.json",
 })
 
 
