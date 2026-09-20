@@ -12,6 +12,7 @@ VERIFIED_FILES = {"app.py", "models.py", "solution.ipynb", "lab_stages.toml"}
 SOURCE_FILES = (
     "LICENSE",
     "src/agilab/agent_runtime/notebook_demo_evidence.py",
+    "src/agilab/agent_runtime/notebook_app_runtime.py",
     "src/agilab/agent_runtime/notebook_showcase.py",
     "src/agilab/agent_runtime/notebook_verifier.py",
     *(f"{RESOURCE_PATH}/{name}" for name in sorted(VERIFIED_FILES | {"LICENSE", "result.json"})),

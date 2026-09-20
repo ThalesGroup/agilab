@@ -8,13 +8,14 @@ import math
 from pathlib import Path
 import re
 import sys
-import threading
 from types import ModuleType
 import zipfile
 
 import streamlit as st
 
 from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
+from agilab.agent_runtime.notebook_app_runtime import app_session_state
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "free_threading_demo"
 PUBLIC_FILES = frozenset({
@@ -22,7 +23,6 @@ PUBLIC_FILES = frozenset({
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
     "README.md", "LICENSE", "tests.py", "source/original.ipynb",
 })
-_APP_LOCK = threading.Lock()
 
 
 def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
@@ -106,7 +106,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
     # These generated top-level imports are scoped just like the other demos.
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
-        st.info("Another free-threading demo session is running. Try again shortly.")
+        st.info("Another notebook demo session is running. Try again shortly.")
         return
     names = ("agilab_pool", "free_threading_core", "benchmark")
     saved = {name: sys.modules.pop(name, None) for name in names}
@@ -117,8 +117,9 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
         app_path = str(DEMO_ROOT / "app.py")
-        exec(compile(payload["app.py"], app_path, "exec"),
-             {"__name__": "__main__", "__file__": app_path})
+        with app_session_state(st.session_state, "threading", ("analysis", "analysis_signature")):
+            exec(compile(payload["app.py"], app_path, "exec"),
+                 {"__name__": "__main__", "__file__": app_path})
     finally:
         for name in names:
             sys.modules.pop(name, None)

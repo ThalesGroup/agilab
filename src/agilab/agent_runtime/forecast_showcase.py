@@ -9,17 +9,17 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import sys
-import threading
 from types import ModuleType
 import zipfile
 
 import streamlit as st
 
 from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
+from agilab.agent_runtime.notebook_app_runtime import app_session_state
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "forecast_notebook_demo"
 _REQUIRED_FILES = {"app.py", "forecast_core.py", "solution.ipynb", "lab_stages.toml", "LICENSE"}
-_APP_LOCK = threading.RLock()
 MODEL_ID = "autogluon/chronos-2-small"
 MODEL_REVISION = "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a"
 MODEL_HASHES = {
@@ -167,8 +167,10 @@ def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None)
                 os.environ["CHRONOS_MODEL_PATH"] = str(model_path)
             exec(compile(payload["forecast_core.py"], module.__file__, "exec"), module.__dict__)
             app_path = str(DEMO_ROOT / "app.py")
-            exec(compile(payload["app.py"], app_path, "exec"),
-                 {"__name__": "__main__", "__file__": app_path})
+            with app_session_state(st.session_state, "forecast",
+                                   ("analysis", "analysis_error", "committed_parameters")):
+                exec(compile(payload["app.py"], app_path, "exec"),
+                     {"__name__": "__main__", "__file__": app_path})
         finally:
             sys.modules.pop("forecast_core", None)
             if previous is not None:

@@ -8,13 +8,13 @@ import math
 from pathlib import Path
 import re
 import sys
-import threading
 from types import ModuleType
 import zipfile
 
 import streamlit as st
 
 from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
+from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "milp_energy_demo"
 PUBLIC_FILES = frozenset({
@@ -22,7 +22,6 @@ PUBLIC_FILES = frozenset({
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
     "README.md", "LICENSE", "AGILAB_LICENSE", "tests.py", "source/original.ipynb", "source/LICENSE",
 })
-_APP_LOCK = threading.Lock()
 
 
 def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
@@ -113,7 +112,7 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
     # These generated top-level imports are scoped just like the other demos.
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
-        st.info("Another MILP energy demo session is running. Try again shortly.")
+        st.info("Another notebook demo session is running. Try again shortly.")
         return
     names = ("agilab_pool", "energy_core", "energy_runner")
     saved = {name: sys.modules.pop(name, None) for name in names}
