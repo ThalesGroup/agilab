@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tomllib
 from types import ModuleType
 import zipfile
 
@@ -33,7 +34,13 @@ def bundle(tmp_path, monkeypatch):
 def test_bundle_matches_build_receipt_and_download():
     report = showcase.load_report()
     assert report["status"] == "passed" and report["seconds"] > 0
-    assert report["workflow_stages"] >= 3
+    assert type(report["workflow_stages"]) is int and report["workflow_stages"] > 0
+    stages = tomllib.loads((showcase.DEMO_ROOT / "lab_stages.toml").read_text())
+    assert report["workflow_stages"] == len(stages["notebook_app_project"])
+    workflow = report["verification"]["workflow"]
+    assert workflow["status"] == "passed"
+    assert workflow["stage_count"] == report["workflow_stages"]
+    assert workflow["result_sha256"] == report["verification"]["result_sha256"]
     assert report["files"]["agilab_pool.py"] == report["engine"]["sha256"]
     assert report["source"]["license"] == "CC-BY-4.0"
     assert report["files"]["source/LICENSE"] == report["source"]["license_sha256"]
@@ -184,21 +191,21 @@ def test_independent_physical_check_rejects_invalid_solutions(defect):
 
 @pytest.fixture
 def lab_controls(monkeypatch):
-    """Exercise the sealed UI with deterministic solver boundaries, without optional solvers."""
+    """Exercise the sealed UI at deterministic solver boundaries."""
     for name in ("agilab_pool", "energy_core"):
         spec = importlib.util.spec_from_file_location(name, showcase.DEMO_ROOT / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
         monkeypatch.setitem(sys.modules, name, module)
         spec.loader.exec_module(module)
     core = sys.modules["energy_core"]
-    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": 2, "limits": {"fixture": 2}})
+    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": 2, "observed_caps": [2]})
     runner = ModuleType("energy_runner")
     calls = []
 
     def unexpected_solve(*args, **kwargs):
         raise AssertionError("Saving, clearing and rendering must not solve a scenario")
 
-    def bounded_failure(batch, workers, *, progress):
+    def bounded_failure(batch, workers):
         calls.append((batch, workers))
         raise TimeoutError("Fixture worker deadline reached")
 
@@ -208,50 +215,58 @@ def lab_controls(monkeypatch):
     return core, calls
 
 
+def _unsolved_fixture(settings):
+    return {
+        "settings": settings, "status": "infeasible", "objective": None,
+        "modules": None, "capacity_mw": None, "dispatch": [], "active_modules": [],
+        "solar": [], "shed": [], "startup": [], "shutdown": [],
+        "demand": [4000, 6000, 5000, 800], "solar_available": [0] * 4,
+        "solver": {"name": "highs", "threads": 1, "incumbent": False},
+    }
+
+
 def test_milp_save_and_clear_keep_solved_inputs(lab_controls):
     core, calls = lab_controls
     at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py")).run()
-    assert not at.exception
-    assert at.button(key="milp_energy_save").disabled
-    settings = core.default_settings()
-    settings["max_modules"] = 20
-    result = core._empty_result(settings)
-    result["status"] = "infeasible"
-    at.session_state["milp_energy_result"] = result
+    assert not at.exception and not any(b.label == "Keep scenario" for b in at.button)
+    settings = core.default_settings() | {"max_modules": 20}
+    at.session_state["analysis"] = _unsolved_fixture(settings)
     at.run()
-    at.text_input(key="milp_energy_scenario_name").set_value("Capacity limited")
-    at.button(key="milp_energy_save").click().run()
     assert not at.exception
-    saved = at.session_state["milp_energy_saved"]
-    assert len(saved) == 1 and saved[0]["name"] == "Capacity limited"
-    assert saved[0]["result"]["settings"]["max_modules"] == 20
-    assert saved[0]["result"] is not at.session_state["milp_energy_result"]
-    assert saved[0]["result"]["settings"] is not at.session_state["milp_energy_result"]["settings"]
-    at.button(key="milp_energy_save").click().run()
-    assert len(at.session_state["milp_energy_saved"]) == 1
-    assert any("already saved" in item.value for item in at.warning)
-    at.button(key="milp_energy_clear").click().run()
-    assert not at.exception
-    assert at.session_state["milp_energy_saved"] == []
-    assert at.session_state["milp_energy_result"]["settings"]["max_modules"] == 20
+    at.button(key="milp_keep").click().run()
+    saved = at.session_state["comparisons"]
+    assert len(saved) == 1 and saved[0]["settings"]["max_modules"] == 20
+    assert saved[0] is not at.session_state["analysis"]
+    assert saved[0]["settings"] is not at.session_state["analysis"]["settings"]
+    for _ in range(10):
+        at.button(key="milp_keep").click().run()
+    assert len(at.session_state["comparisons"]) == 10
+    assert any("Comparison limit" in item.value for item in at.warning)
+    at.button(key="milp_clear_cmp").click().run()
+    assert not at.exception and at.session_state["comparisons"] == []
+    assert at.session_state["analysis"]["settings"]["max_modules"] == 20
     assert calls == []
 
 
 @pytest.mark.parametrize("cpus", [1, 2])
 def test_milp_scaling_dispatch_and_cpu_gate(lab_controls, monkeypatch, cpus):
     core, calls = lab_controls
-    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": cpus, "limits": {"fixture": cpus}})
+    monkeypatch.setattr(core, "cpu_limits", lambda: {"effective_cpus": cpus, "observed_caps": [cpus]})
     at = AppTest.from_file(str(showcase.DEMO_ROOT / "app.py")).run()
     assert not at.exception and calls == []
-    button = at.button(key="milp_energy_scale_run")
-    assert button.disabled is (cpus == 1)
-    if cpus == 1:
-        assert any("one effective CPU" in item.value for item in at.info)
-        return
-    button.click().run()
+    assert not any(b.label == "Run benchmark" for b in at.button)
+    assert [int(v) for v in at.selectbox(key="milp_workers").options] == list(range(1, cpus + 1))
+    settings = core.default_settings() | {"max_modules": 20}
+    at.session_state["analysis"] = _unsolved_fixture(settings)
+    at.run()
+    at.selectbox(key="milp_workers").set_value(cpus).run()
+    at.button(key="milp_run_bench").click().run()
     assert not at.exception
-    assert len(calls) == 1 and len(calls[0][0]) == 4 and calls[0][1] == 2
+    assert len(calls) == 1 and len(calls[0][0]) == 4 and calls[0][1] == cpus
+    assert all(case["max_modules"] == 20 for case in calls[0][0])
     assert any("Fixture worker deadline reached" in item.value for item in at.error)
+    at.run()
+    assert not at.exception and len(calls) == 1
 
 
 @pytest.mark.parametrize("record_model", [False, True])
@@ -332,3 +347,24 @@ def test_export_rejects_invalid_model_without_publishing(bundle, tmp_path, monke
     with pytest.raises(ValueError, match="build model"):
         exporter.export_demo(run, destination)
     assert not destination.exists()
+
+
+def test_generated_milp_state_is_scoped_and_persists(monkeypatch):
+    state = {"analysis": {"owner": "other-app"}, "comparisons": ["other"], "benchmark_result": {"owner": "other-app"}}
+    monkeypatch.setattr(showcase.st, "session_state", state)
+    payload = {f"{name}.py": b"" for name in ("agilab_pool", "energy_core", "energy_runner")}
+    payload["app.py"] = (
+        b"import streamlit as st\n"
+        b"old = st.session_state.get('benchmark_result', {}).get('runs', 0)\n"
+        b"st.session_state['analysis'] = {'owner': 'milp'}\n"
+        b"st.session_state['comparisons'] = ['milp']\n"
+        b"st.session_state['benchmark_result'] = {'runs': old + 1}\n"
+        b"st.session_state['benchmark_signature'] = 'milp'\n"
+    )
+    showcase._run_verified_app(payload)
+    showcase._run_verified_app(payload)
+    assert state["analysis"] == {"owner": "other-app"}
+    assert state["comparisons"] == ["other"]
+    assert state["benchmark_result"] == {"owner": "other-app"}
+    assert state["_agilab_notebook_milp_state"]["benchmark_result"] == {"runs": 2}
+    assert state["_agilab_notebook_milp_state"]["comparisons"] == ["milp"]

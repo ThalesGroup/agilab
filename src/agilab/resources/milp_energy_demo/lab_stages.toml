@@ -1,53 +1,49 @@
 [[notebook_app_project]]
-D = "MILP Energy Lab"
-Q = "Imported cell-2 from notebook"
-C = "import json\nimport math\nimport sys\nfrom pathlib import Path\n\nif \"PROJECT_ROOT\" in globals():\n    sys.path.insert(0, str(Path(PROJECT_ROOT)))\nfrom energy_core import default_settings, solve_scenario, cpu_limits, make_batch\nfrom energy_runner import run_benchmark, run_batch\n\nreference = solve_scenario(default_settings())\nassert reference[\"status\"] == \"optimal\", reference.get(\"message\")\nassert reference[\"residuals\"][\"verified\"]\nassert reference[\"modules\"] == 30\nassert reference[\"active_modules\"] == [20, 30, 25, 4]\nassert reference[\"dispatch\"] == [4000, 6000, 5000, 800]\nassert reference[\"startup\"] == [20, 10, 0, 0]\nhand_objective = 30 * 200 + sum([4000, 6000, 5000, 800]) + sum([20, 30, 25, 4])\nassert hand_objective == 21879\nassert math.isclose(reference[\"objective\"], hand_objective, abs_tol=1e-6)\nfor t in range(4):\n    assert abs(reference[\"dispatch\"][t] - reference[\"demand\"][t]) < 1e-5\n    assert 0 <= reference[\"active_modules\"][t] <= reference[\"modules\"]\n    assert 20 * reference[\"active_modules\"][t] <= reference[\"dispatch\"][t] + 1e-5\n    assert reference[\"dispatch\"][t] <= 200 * reference[\"active_modules\"][t] + 1e-5\nprint({\"modules\": reference[\"modules\"], \"objective\": reference[\"objective\"], \"verified\": True})\n"
+D = "Imported notebook"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('\\nimport json\\nimport hashlib\\nimport sys\\nfrom pathlib import Path\\n\\nproject_root = Path(globals().get(\\'PROJECT_ROOT\\', Path.cwd()))\\n_original_sys_path = list(sys.path)\\nsys.path.insert(0, str(project_root))\\ntry:\\n    from energy_core import default_settings, make_batch, cpu_limits\\n    from energy_runner import run_scenario, run_benchmark\\nfinally:\\n    sys.path[:] = _original_sys_path\\n\\n_nb_path = project_root / \"source\" / \"original.ipynb\"\\nwith open(_nb_path, \"rb\") as f:\\n    _nb_bytes = f.read()\\n_source_hash = hashlib.sha256(_nb_bytes).hexdigest()\\nassert _source_hash == \"f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8\", f\"unexpected source hash: {_source_hash}\"\\n\\nsettings = default_settings()\\n\\n', 'notebook:cell-1'), ('\\nresult = run_scenario(settings)\\n\\nassert result[\"status\"] == \"optimal\", f\"expected optimal, got {result[\\'status\\']}\"\\nassert abs(result[\"objective\"] - 21879.0) < 1e-4, f\"objective mismatch: {result[\\'objective\\']}\"\\nassert result[\"modules\"] == 30, f\"modules mismatch: {result[\\'modules\\']}\"\\n_expected_dispatch = [4000.0, 6000.0, 5000.0, 800.0]\\nfor i, (a, b) in enumerate(zip(result[\"dispatch\"], _expected_dispatch)):\\n    assert abs(a - b) < 1e-4, f\"dispatch[{i}] mismatch: {a} vs {b}\"\\n_expected_active = [20, 30, 25, 4]\\nfor i, (a, b) in enumerate(zip(result[\"active_modules\"], _expected_active)):\\n    assert abs(a - b) < 1e-4, f\"active[{i}] mismatch: {a} vs {b}\"\\n\\n', 'notebook:cell-2'), ('\\ninfeasible_settings = dict(settings)\\ninfeasible_settings[\"max_modules\"] = 20\\ninfeasible_result = run_scenario(infeasible_settings)\\n\\nassert infeasible_result[\"status\"] == \"infeasible\", f\"expected infeasible, got {infeasible_result[\\'status\\']}\"\\nassert infeasible_result[\"objective\"] is None, f\"expected None objective, got {infeasible_result[\\'objective\\']}\"\\nassert infeasible_result[\"dispatch\"] == [], f\"expected empty dispatch, got {infeasible_result[\\'dispatch\\']}\"\\n\\nbatch = make_batch(settings, 4)\\nn_workers = min(2, cpu_limits()[\"effective_cpus\"])\\nbenchmark_report = run_benchmark(batch, n_workers)\\n\\nassert benchmark_report[\"comparison\"][\"matches\"] is True, \"comparison does not match\"\\nassert benchmark_report[\"sequential\"][\"batch\"] == batch, \"sequential batch mismatch\"\\nassert benchmark_report[\"parallel\"][\"batch\"] == batch, \"parallel batch mismatch\"\\nassert len(benchmark_report[\"sequential\"][\"rows\"]) == 4, f\"expected 4 cases, got {len(benchmark_report[\\'sequential\\'][\\'rows\\'])}\"\\nassert len(benchmark_report[\"parallel\"][\"rows\"]) == 4, f\"expected 4 cases, got {len(benchmark_report[\\'parallel\\'][\\'rows\\'])}\"\\n\\n', 'notebook:cell-3'), ('\\ndef _round6(v):\\n    if v is None:\\n        return None\\n    return round(float(v), 6)\\n\\n_seq_rows = benchmark_report[\"sequential\"][\"rows\"]\\n_batch_statuses = [r[\"result\"][\"status\"] for r in _seq_rows]\\n_batch_objectives = [_round6(r[\"result\"][\"objective\"]) for r in _seq_rows]\\n\\ncanonical = {\\n    \"sourcehash\": _source_hash,\\n    \"default\": {\\n        \"status\": result[\"status\"],\\n        \"objective\": _round6(result[\"objective\"]),\\n        \"modules\": int(result[\"modules\"]),\\n        \"dispatch\": [_round6(x) for x in result[\"dispatch\"]],\\n        \"active\": [_round6(x) for x in result[\"active_modules\"]],\\n    },\\n    \"infeasible\": {\\n        \"status\": infeasible_result[\"status\"],\\n    },\\n    \"batch\": {\\n        \"case_count\": 4,\\n        \"statuses\": _batch_statuses,\\n        \"objectives\": _batch_objectives,\\n    },\\n    \"same_work_verified\": True,\\n}\\n\\nout_path = Path.cwd() / \"results.json\"\\nwith open(out_path, \"w\") as f:\\n    json.dump({\"results\": canonical}, f, allow_nan=False, sort_keys=True)\\n\\nprint(json.dumps({\"results\": canonical}, allow_nan=False, sort_keys=True))', 'notebook:cell-4')])\n"
 M = ""
-NB_CELL_ID = "cell-2"
-NB_CELL_INDEX = 2
-NB_CONTEXT_IDS = [
-    "markdown-1",
-]
+NB_CELL_ID = "notebook-46dc236b0e64f9c3"
+NB_CELL_INDEX = 1
+NB_CONTEXT_IDS = []
 NB_ENV_HINTS = [
     "energy_core",
     "energy_runner",
+    "hashlib",
     "json",
-    "math",
     "pathlib",
     "sys",
 ]
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = "Physical shortage, no incumbent"
-Q = "Imported cell-4 from notebook"
-C = "infeasible = solve_scenario(default_settings() | {\"max_modules\": 10})\nassert infeasible[\"status\"] == \"infeasible\", infeasible.get(\"message\")\nassert infeasible[\"objective\"] is None\nassert infeasible[\"dispatch\"] == []\nassert not infeasible[\"residuals\"][\"verified\"]\nprint({\"capacity_limited_status\": infeasible[\"status\"], \"objective\": infeasible[\"objective\"]})\n"
-M = ""
-NB_CELL_ID = "cell-4"
-NB_CELL_INDEX = 4
-NB_CONTEXT_IDS = [
-    "markdown-3",
-]
-NB_ENV_HINTS = []
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[notebook_app_project]]
-D = "Real AGILAB batch: one versus two workers"
-Q = "Imported cell-6 from notebook"
-C = "batch = make_batch(default_settings(), 4)\nenvironment = cpu_limits()\nif environment[\"effective_cpus\"] >= 2:\n    measurement = run_benchmark(batch, 2)\n    assert measurement[\"comparison\"][\"matches\"], measurement[\"comparison\"]\n    assert measurement[\"sequential\"][\"batch_sha256\"] == measurement[\"parallel\"][\"batch_sha256\"]\n    assert len(measurement[\"parallel\"][\"rows\"]) == 4\n    summary = {\"workers\": 2, \"matching_results\": True,\n               \"speedup\": measurement[\"speedup\"],\n               \"sequential_wall_seconds\": measurement[\"sequential\"][\"wall_seconds\"],\n               \"parallel_wall_seconds\": measurement[\"parallel\"][\"wall_seconds\"]}\nelse:\n    measurement = run_batch(batch, 1)\n    assert len(measurement[\"rows\"]) == 4\n    assert all(row[\"result\"][\"residuals\"][\"verified\"] for row in measurement[\"rows\"])\n    summary = {\"workers\": 1, \"scaling\": \"Unavailable: only one effective CPU\",\n               \"wall_seconds\": measurement[\"wall_seconds\"]}\noutput = {\"results\": {\"default_objective\": reference[\"objective\"],\n                       \"installed_modules\": reference[\"modules\"],\n                       \"active_modules\": reference[\"active_modules\"],\n                       \"reference_check\": reference[\"residuals\"],\n                       \"capacity_limited_status\": infeasible[\"status\"],\n                       \"agilab_batch_measurement\": summary,\n                       \"full_reference\": reference,\n                       \"full_batch_measurement\": measurement}}\nPath(\"results.json\").write_text(json.dumps(output, indent=2, allow_nan=False), encoding=\"utf-8\")\nprint(summary)\n"
-M = ""
-NB_CELL_ID = "cell-6"
-NB_CELL_INDEX = 6
-NB_CONTEXT_IDS = [
-    "markdown-5",
-]
-NB_ENV_HINTS = []
 NB_ARTIFACT_REFERENCES = [
     "results.json",
 ]
 NB_EXECUTION_MODE = "not_executed_import"
 NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "251c6161abe25bba58c90970157296bd3198415cd795b317eb1743060e072662"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "46dc236b0e64f9c30eee3d4b4778892aea1bf3156ddf05236d0012c640dad472"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-1"
+index = 1
+source = "\nimport json\nimport hashlib\nimport sys\nfrom pathlib import Path\n\nproject_root = Path(globals().get('PROJECT_ROOT', Path.cwd()))\n_original_sys_path = list(sys.path)\nsys.path.insert(0, str(project_root))\ntry:\n    from energy_core import default_settings, make_batch, cpu_limits\n    from energy_runner import run_scenario, run_benchmark\nfinally:\n    sys.path[:] = _original_sys_path\n\n_nb_path = project_root / \"source\" / \"original.ipynb\"\nwith open(_nb_path, \"rb\") as f:\n    _nb_bytes = f.read()\n_source_hash = hashlib.sha256(_nb_bytes).hexdigest()\nassert _source_hash == \"f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8\", f\"unexpected source hash: {_source_hash}\"\n\nsettings = default_settings()\n\n"
+sha256 = "11209c53fcf90d64a51bc657d9a347e7d9e1f2b0703bd97a90a7f888e0b41c82"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "\nresult = run_scenario(settings)\n\nassert result[\"status\"] == \"optimal\", f\"expected optimal, got {result['status']}\"\nassert abs(result[\"objective\"] - 21879.0) < 1e-4, f\"objective mismatch: {result['objective']}\"\nassert result[\"modules\"] == 30, f\"modules mismatch: {result['modules']}\"\n_expected_dispatch = [4000.0, 6000.0, 5000.0, 800.0]\nfor i, (a, b) in enumerate(zip(result[\"dispatch\"], _expected_dispatch)):\n    assert abs(a - b) < 1e-4, f\"dispatch[{i}] mismatch: {a} vs {b}\"\n_expected_active = [20, 30, 25, 4]\nfor i, (a, b) in enumerate(zip(result[\"active_modules\"], _expected_active)):\n    assert abs(a - b) < 1e-4, f\"active[{i}] mismatch: {a} vs {b}\"\n\n"
+sha256 = "3e81b518721c670b19fb4fa9157592241d48acb032ba592837373bcbc3fe7f09"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "\ninfeasible_settings = dict(settings)\ninfeasible_settings[\"max_modules\"] = 20\ninfeasible_result = run_scenario(infeasible_settings)\n\nassert infeasible_result[\"status\"] == \"infeasible\", f\"expected infeasible, got {infeasible_result['status']}\"\nassert infeasible_result[\"objective\"] is None, f\"expected None objective, got {infeasible_result['objective']}\"\nassert infeasible_result[\"dispatch\"] == [], f\"expected empty dispatch, got {infeasible_result['dispatch']}\"\n\nbatch = make_batch(settings, 4)\nn_workers = min(2, cpu_limits()[\"effective_cpus\"])\nbenchmark_report = run_benchmark(batch, n_workers)\n\nassert benchmark_report[\"comparison\"][\"matches\"] is True, \"comparison does not match\"\nassert benchmark_report[\"sequential\"][\"batch\"] == batch, \"sequential batch mismatch\"\nassert benchmark_report[\"parallel\"][\"batch\"] == batch, \"parallel batch mismatch\"\nassert len(benchmark_report[\"sequential\"][\"rows\"]) == 4, f\"expected 4 cases, got {len(benchmark_report['sequential']['rows'])}\"\nassert len(benchmark_report[\"parallel\"][\"rows\"]) == 4, f\"expected 4 cases, got {len(benchmark_report['parallel']['rows'])}\"\n\n"
+sha256 = "6c74ba3cad9f06f99b80df5e357d9dd4f608f493237dc2bf9e494ea5df73a8ec"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "\ndef _round6(v):\n    if v is None:\n        return None\n    return round(float(v), 6)\n\n_seq_rows = benchmark_report[\"sequential\"][\"rows\"]\n_batch_statuses = [r[\"result\"][\"status\"] for r in _seq_rows]\n_batch_objectives = [_round6(r[\"result\"][\"objective\"]) for r in _seq_rows]\n\ncanonical = {\n    \"sourcehash\": _source_hash,\n    \"default\": {\n        \"status\": result[\"status\"],\n        \"objective\": _round6(result[\"objective\"]),\n        \"modules\": int(result[\"modules\"]),\n        \"dispatch\": [_round6(x) for x in result[\"dispatch\"]],\n        \"active\": [_round6(x) for x in result[\"active_modules\"]],\n    },\n    \"infeasible\": {\n        \"status\": infeasible_result[\"status\"],\n    },\n    \"batch\": {\n        \"case_count\": 4,\n        \"statuses\": _batch_statuses,\n        \"objectives\": _batch_objectives,\n    },\n    \"same_work_verified\": True,\n}\n\nout_path = Path.cwd() / \"results.json\"\nwith open(out_path, \"w\") as f:\n    json.dump({\"results\": canonical}, f, allow_nan=False, sort_keys=True)\n\nprint(json.dumps({\"results\": canonical}, allow_nan=False, sort_keys=True))"
+sha256 = "853a288ae21b3285095e6cd5951c37a8165f44c18d8cb1718fdd497759f8ae5e"
