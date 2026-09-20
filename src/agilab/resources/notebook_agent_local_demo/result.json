@@ -2,7 +2,7 @@
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
   "run_id": "20260920T134108Z-beb9c831",
-  "seconds": 708.6,
+  "seconds": 2048.5,
   "workflow_stages": 1,
   "source": {
     "repository": "ageron/handson-ml3",
@@ -87,7 +87,7 @@
     }
   },
   "files": {
-    "app.py": "aaa3bd00cd0b38aa370c7edc1aaa5e16e6f9deac62a4e6d074a893b89c7d0535",
+    "app.py": "6e75bbc4d30c072a3349fef45aaf824e53f79bbf5c7f6279f343895021d9d7cd",
     "models.py": "c9190c26ac17d3afe170a54db4495342e2262f711cfb1859671fe8fb971ef811",
     "solution.ipynb": "948997d305467525fca6bdb9a760e5047fb79653bde7c1b0681f4185dd1ce7f2",
     "lab_stages.toml": "28a0aea0a209e14bbf57a8828742c025f5eb16603820f0af86da6b86ec2d51c3"
@@ -103,6 +103,11 @@
     "cloud_codegen_fallback": false,
     "tokki_agent_offload": false,
     "method": "Native local API generation and repair with independent verification",
-    "coordination": "A coordinating assistant prepared requests, reviewed outputs and ran independent checks. All application Python and notebook code were generated or repaired by the local model."
+    "coordination": "A coordinating assistant prepared the request, reviewed outputs and ran independent checks. All application Python and notebook code were generated or repaired by the local model."
+  },
+  "build_timing": {
+    "scope": "Wall-clock through final local verification, including CI feedback wait and repair",
+    "inference_seconds": 551.09,
+    "includes_ci_feedback_wait": true
   }
 }

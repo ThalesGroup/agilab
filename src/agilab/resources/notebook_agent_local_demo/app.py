@@ -17,7 +17,6 @@ from sklearn.metrics import confusion_matrix, accuracy_score
 import models as m
 
 # ── Page config ──────────────────────────────────────────────────────────────
-st.set_page_config(page_title="AGILAB Iris Decision Lab", layout="wide")
 st.title("AGILAB – Iris Decision Lab")
 st.caption(
     "Adapted from Aurélien Géron, *Hands-On Machine Learning with Scikit-Learn, "
