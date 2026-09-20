@@ -2,7 +2,7 @@
   "schema": "agilab.notebook_agent.public_demo.v1",
   "status": "passed",
   "run_id": "20260920T162528Z-86c64707",
-  "seconds": 14570.1,
+  "seconds": 15899.9,
   "workflow_stages": 1,
   "source": {
     "source_kind": "github",
@@ -84,13 +84,13 @@
   "files": {
     "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
     "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
-    "README.md": "1a7f6d618f435485b24b01a3e4e3941bcc505feb91a4b2120033b382c537cf85",
+    "README.md": "a777c1fa3337d35f3db74fefe49671bd63cecd8452eff776f47e806648c6abae",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "1ed00e7ebe0dca166ae7594ed5086ac3b4c156cd4efa369897473b2c9fd5168b",
+    "app.py": "d93abc3d546f00c7160bc3f3a39d9eb3da6d0675ee80447a5921fd45c09e0b6a",
     "energy_core.py": "1e59d0f87f2846013fcbeec5cb472d0f538f2cfb16609147b28fcd3717e24898",
     "energy_runner.py": "a3ca92315e92d842fff5161e81791c8da3c0b01c49cc29a94586bff11c98b0e9",
     "lab_stages.toml": "b922cb6b7c622d1aaa75dd72b67d1aa9eba36a3200d9c13cf257e9ae09d52425",
-    "pyproject.toml": "1c6514bdd4bed911ad645913319ef1b36a0336ef6cc904016f9fbaacdc466aba",
+    "pyproject.toml": "8954cf015890010e498969ece0edba9f6e77ae0a4dc7434120b38b07ccdec32a",
     "requirements.txt": "7bfcef11577427b04a1e1d6f6bb020c207d53a8ede8129ea5cd91c1d5ca531e4",
     "solution.ipynb": "a549ddaa06bb51af4e96d4b632a8f188c81002b0b76c3d3349216dd165fe9dd2",
     "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
@@ -114,6 +114,6 @@
   "notebook_code_cells": 4,
   "build_timing": {
     "scope": "Wall-clock from first local request through final verification, including repairs and intervening validation work",
-    "recorded_generation_response_seconds": 2837.02
+    "recorded_generation_response_seconds": 2865.36
   }
 }

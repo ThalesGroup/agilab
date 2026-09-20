@@ -85,7 +85,7 @@ def _show_result(result):
             st.write(f"Unserved energy: {_fmt(unserved)} MWh")
         cdf = _cost_df(result)
         if cdf is not None:
-            st.dataframe(cdf, use_container_width=True)
+            st.dataframe(cdf, width="stretch")
         df = _dispatch_df(result)
         if df is not None:
             supply = df[["hour", "gas", "solar", "shed"]].melt(
@@ -111,7 +111,7 @@ def _show_result(result):
                 )
             )
             chart = (area + line).properties(height=300).interactive()
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
         st.write(f"Active modules: {result.get('active_modules', [])}")
         st.write(f"Startup: {result.get('startup', [])}")
         st.write(f"Shutdown: {result.get('shutdown', [])}")
@@ -166,7 +166,7 @@ def _show_benchmark(report):
                 for r in rows
             ]
         )
-        st.dataframe(interval_df, use_container_width=True)
+        st.dataframe(interval_df, width="stretch")
     # Speedup chart (separate marks, never stacked)
     if comp.get("speedup") is not None and comp.get("engine_speedup") is not None:
         spd = pd.DataFrame(
@@ -181,7 +181,7 @@ def _show_benchmark(report):
             .encode(x="metric:N", y="value:Q", color="metric:N")
             .properties(height=200)
         )
-        st.altair_chart(bar, use_container_width=True)
+        st.altair_chart(bar, width="stretch")
 
 
 def main():
@@ -367,7 +367,7 @@ def main():
                     "elapsed": c.get("elapsed_seconds"),
                 })
             cmp_df = pd.DataFrame(rows)
-            st.dataframe(cmp_df, use_container_width=True)
+            st.dataframe(cmp_df, width="stretch")
 
             cmp_json = json.dumps(comparisons, allow_nan=False, indent=2)
             st.download_button("Download comparisons JSON", data=cmp_json,

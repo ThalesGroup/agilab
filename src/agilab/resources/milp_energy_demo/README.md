@@ -4,7 +4,7 @@ Explore modular generation investment, hourly commitment and dispatch, solar ava
 
 ## Run locally
 
-Use Python 3.13 or newer on Linux or macOS in an isolated environment:
+Use Python 3.12 or newer on Linux or macOS in an isolated environment:
 
 ```sh
 python -m pip install -r requirements.txt
