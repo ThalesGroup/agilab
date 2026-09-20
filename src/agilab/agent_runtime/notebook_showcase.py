@@ -172,12 +172,12 @@ def render() -> None:
         ("Models checked", len({row["model"] for row in report["verification"]["scores"]})),
     ))
     st.caption(
-        "Build model: Qwen 3.5 4B (qwen3.5:4b, local Ollama)."
+        "Build model: Qwen 3.8 27B (4-bit, local MLX)."
         if selected == "iris_local" else "Build model: GPT-6 Astra (OpenAI)."
     )
     if selected == "iris_local":
         st.write(
-            "Local Qwen generated this app in small verified steps. "
+            "Local Qwen generated and repaired this app. "
             "A coordinating assistant reviewed the outputs; AGILAB imported the workflow."
         )
     else:

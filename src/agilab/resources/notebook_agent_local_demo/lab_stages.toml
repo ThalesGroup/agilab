@@ -1,9 +1,9 @@
 [[decision_lab_project]]
-D = "This educational notebook adapts Aurélien Géron's handson-ml3 decision trees tutorial (Apache-2.0) from https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb for an Iris dataset experiment using all four features with three classifiers: DecisionTreeClassifier, RandomForestClassifier, and LogisticRegression. The stratified 70/30 split with seed=42 produces metrics.json via shared evaluate_models. This is a small educational dataset demonstration, not general performance claims."
-Q = "Imported cell-2 from notebook"
-C = "from models import evaluate_models\nimport json\nfrom pathlib import Path"
+D = "AGILAB – Iris Decision Lab"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import json\\nimport numpy as np\\nimport pandas as pd\\nfrom sklearn.datasets import load_iris\\nfrom sklearn.model_selection import train_test_split\\nfrom sklearn.metrics import accuracy_score\\nimport models\\n\\n# --- Import & Prepare ---\\niris = load_iris(as_frame=True)\\nX = iris.data  # all four features\\ny = iris.target\\n\\n# --- Train ---\\nseed = 42\\nX_train, X_test, y_train, y_test = train_test_split(\\n    X, y, test_size=0.3, stratify=y, random_state=seed\\n)\\n\\nmodel_dict = models.build_models(max_depth=3, seed=seed)\\nfor name, clf in model_dict.items():\\n    clf.fit(X_train, y_train)\\n\\nprint(f\"Train: {len(X_train)}  Test: {len(X_test)}\")\\nprint(\"Fitted:\", list(model_dict.keys()))', 'notebook:cell-2'), ('# --- Evaluate ---\\nrecords = []\\nfor name, clf in model_dict.items():\\n    acc = float(accuracy_score(y_test, clf.predict(X_test)))\\n    records.append({\"model\": name, \"accuracy\": acc})\\n    print(f\"{name}: {acc:.4f}\")\\n\\nwith open(\"metrics.json\", \"w\") as f:\\n    json.dump(records, f, indent=2)\\n\\nprint(\"Wrote metrics.json\")', 'notebook:cell-3')])\n"
 M = ""
-NB_CELL_ID = "cell-2"
+NB_CELL_ID = "notebook-a8d7172be3031591"
 NB_CELL_INDEX = 2
 NB_CONTEXT_IDS = [
     "markdown-1",
@@ -11,23 +11,29 @@ NB_CONTEXT_IDS = [
 NB_ENV_HINTS = [
     "json",
     "models",
-    "pathlib",
+    "numpy",
+    "pandas",
+    "sklearn",
 ]
-NB_ARTIFACT_REFERENCES = []
-NB_EXECUTION_MODE = "not_executed_import"
-NB_SOURCE_NOTEBOOK = "solution.ipynb"
-
-[[decision_lab_project]]
-D = ""
-Q = "Imported cell-3 from notebook"
-C = "result = evaluate_models(max_depth=3, seed=42)\nmetrics = result[\"metrics\"]\nPath(\"metrics.json\").write_text(json.dumps(metrics))"
-M = ""
-NB_CELL_ID = "cell-3"
-NB_CELL_INDEX = 3
-NB_CONTEXT_IDS = []
-NB_ENV_HINTS = []
 NB_ARTIFACT_REFERENCES = [
+    "Wrote metrics.json",
     "metrics.json",
 ]
 NB_EXECUTION_MODE = "not_executed_import"
 NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "5c5dc62417fae2ddd91d8a9b357a39f1e54435a04836228287598650f156b89a"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "a8d7172be3031591da3cb2c436402003114a04f332c6dde33108246f60c8d0e1"
+
+[[decision_lab_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import json\nimport numpy as np\nimport pandas as pd\nfrom sklearn.datasets import load_iris\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\nimport models\n\n# --- Import & Prepare ---\niris = load_iris(as_frame=True)\nX = iris.data  # all four features\ny = iris.target\n\n# --- Train ---\nseed = 42\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.3, stratify=y, random_state=seed\n)\n\nmodel_dict = models.build_models(max_depth=3, seed=seed)\nfor name, clf in model_dict.items():\n    clf.fit(X_train, y_train)\n\nprint(f\"Train: {len(X_train)}  Test: {len(X_test)}\")\nprint(\"Fitted:\", list(model_dict.keys()))"
+sha256 = "d1019c14662417068913d5c5b7c3878d36b24206ffc47195af73462dbd68f904"
+
+[[decision_lab_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "# --- Evaluate ---\nrecords = []\nfor name, clf in model_dict.items():\n    acc = float(accuracy_score(y_test, clf.predict(X_test)))\n    records.append({\"model\": name, \"accuracy\": acc})\n    print(f\"{name}: {acc:.4f}\")\n\nwith open(\"metrics.json\", \"w\") as f:\n    json.dump(records, f, indent=2)\n\nprint(\"Wrote metrics.json\")"
+sha256 = "2bf5f096e20685ddff7378ef9d65a4f441cbb1a1e906923ce489cbde9c1704cc"

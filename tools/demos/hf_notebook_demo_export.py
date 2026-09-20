@@ -45,7 +45,7 @@ license: bsd-3-clause
 # Tokki · One request, a verified app
 
 Compare two verified Iris builds: the original GPT-6 Astra version and a local
-Qwen 3.5 4B version. Both are completed apps integrated with AGILAB.
+Qwen 3.8 27B version. Both are completed apps integrated with AGILAB.
 Change the model controls and rerun the notebook, model and interface checks.
 No account or AI provider subscription is needed to try this completed app.
 
