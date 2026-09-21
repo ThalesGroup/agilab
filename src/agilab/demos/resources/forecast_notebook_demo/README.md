@@ -8,9 +8,12 @@ measured causal effect.
 ## Run locally
 
 Install [uv](https://docs.astral.sh/uv/), extract this bundle, and run from its
-root. Python 3.13 is the recorded notebook-build environment. The supplied requirements
-list packages the generated app for reuse. This build was verified with
-Streamlit 1.64 and Transformers 4.57.6 using real offline inference.
+root. Python 3.13 is the recorded notebook-build environment. The replay recipe
+uses Transformers 5.17.0, replacing the original 4.57.6 pin affected by four
+published security advisories. Fresh real-model replay checks are recorded
+separately in `result.json` under `replay`; the unchanged original build receipt
+is retained at `source/build-result.json`. The application, notebook, model
+revision, build model and recorded build duration are unchanged.
 
 ```sh
 uv run --python 3.13 --with-requirements requirements.txt python -c 'from huggingface_hub import snapshot_download; snapshot_download("autogluon/chronos-2-small", revision="ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a", allow_patterns=["config.json", "model.safetensors"])'
@@ -48,7 +51,9 @@ The original notebook and checkpoint have independent source revisions.
 ## What the receipt proves
 
 The exact build duration and local inference time are recorded separately in
-result.json. Wall time includes queued work, repairs and independent checks.
+the original `source/build-result.json`. Wall time includes queued work, repairs
+and independent checks. `result.json` preserves those historical build fields
+and adds the patched replay's dependency versions, checks and measurements.
 Its objective checks
 executed the generated notebook in a fresh directory, checked a fresh analysis
 artifact, started the app, and exercised Run analysis. Three additional seeded

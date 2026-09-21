@@ -23,6 +23,14 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Fixed
+
+- Updated the standalone Qwen forecast replay recipe to Transformers 5.17.0
+  to address four dependency advisories. Preserved the original build receipt
+  and added fresh real-model replay checks with the patched environment.
+- Added guarded replay export so dependency updates retain the original
+  generated application, model identity, build timing, and verification history.
+
 ## [2026.09.21] - 2026-09-21
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
