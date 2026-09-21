@@ -4,7 +4,7 @@ from types import ModuleType
 
 import pytest
 
-from agilab.agent_runtime.notebook_app_runtime import app_session_state, run_app
+from agilab.demos.notebook_app_runtime import app_session_state, run_app
 
 
 def test_each_project_gets_fresh_imports_and_its_own_directory(tmp_path):

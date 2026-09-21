@@ -7,17 +7,17 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RESOURCE_PATH = "src/agilab/resources/notebook_agent_demo"
+RESOURCE_PATH = "src/agilab/demos/resources/notebook_agent_demo"
 RESOURCE_PATHS = (
     RESOURCE_PATH,
-    "src/agilab/resources/notebook_agent_local_demo",
+    "src/agilab/demos/resources/notebook_agent_local_demo",
 )
 VERIFIED_FILES = {"app.py", "models.py", "solution.ipynb", "lab_stages.toml"}
 SOURCE_FILES = (
     "LICENSE",
-    "src/agilab/agent_runtime/notebook_demo_evidence.py",
-    "src/agilab/agent_runtime/notebook_app_runtime.py",
-    "src/agilab/agent_runtime/notebook_showcase.py",
+    "src/agilab/demos/notebook_demo_evidence.py",
+    "src/agilab/demos/notebook_app_runtime.py",
+    "src/agilab/demos/notebook_showcase.py",
     "src/agilab/agent_runtime/notebook_verifier.py",
     *(f"{resource}/{name}" for resource in RESOURCE_PATHS
       for name in sorted(VERIFIED_FILES | {"LICENSE", "result.json"})),
@@ -25,10 +25,11 @@ SOURCE_FILES = (
 
 GENERATED_FILES = {
     "src/agilab/__init__.py": '"""Standalone public demo package."""\n',
+    "src/agilab/demos/__init__.py": '"""Public demo gallery."""\n',
     "src/agilab/agent_runtime/__init__.py": '"""Fixed public showcase; no agent provider runtime."""\n',
     "hf_app.py": (
         "import streamlit as st\n"
-        "from agilab.agent_runtime.notebook_showcase import render\n"
+        "from agilab.demos.notebook_showcase import render\n"
         "render()\n"
         'st.set_page_config(page_title="Tokki · Notebook to working app", layout="wide")\n'
     ),
@@ -59,8 +60,8 @@ private Tokki runtime, license or notebook uploads are hosted by this Space.
 The public showcase code is from AGILAB under the root BSD-3-Clause LICENSE.
 Both bundled apps adapt Aurélien Géron's handson-ml3 decision-tree notebook;
 Their Apache-2.0 license and pinned source provenance are retained in
-`src/agilab/resources/notebook_agent_demo/` and
-`src/agilab/resources/notebook_agent_local_demo/`.
+`src/agilab/demos/resources/notebook_agent_demo/` and
+`src/agilab/demos/resources/notebook_agent_local_demo/`.
 """,
     "requirements.txt": "streamlit==1.64.0\nscikit-learn==1.9.1\nmatplotlib==3.10.8\n",
     "Dockerfile": """FROM python:3.13-slim
@@ -69,8 +70,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/app/src
-RUN cd /app/src/agilab/resources/notebook_agent_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
-RUN cd /app/src/agilab/resources/notebook_agent_local_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
+RUN cd /app/src/agilab/demos/resources/notebook_agent_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
+RUN cd /app/src/agilab/demos/resources/notebook_agent_local_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
 EXPOSE 7860
 CMD ["streamlit", "run", "hf_app.py", "--server.address=0.0.0.0", "--server.port=7860", "--server.headless=true", "--browser.gatherUsageStats=false"]
 """,

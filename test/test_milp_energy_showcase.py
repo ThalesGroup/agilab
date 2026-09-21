@@ -14,12 +14,12 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import milp_energy_showcase as showcase
-from agilab.agent_runtime import notebook_showcase
+from agilab.demos import milp_energy_showcase as showcase
+from agilab.demos import notebook_showcase
 
 
 def page():
-    from agilab.agent_runtime.milp_energy_showcase import render
+    from agilab.demos.milp_energy_showcase import render
     render()
 
 
@@ -122,7 +122,7 @@ def test_fifth_demo_opens_without_running_a_benchmark():
 
 
 def test_iris_only_distribution_reports_missing_fifth_demo(monkeypatch):
-    monkeypatch.setitem(sys.modules, "agilab.agent_runtime.milp_energy_showcase", None)
+    monkeypatch.setitem(sys.modules, "agilab.demos.milp_energy_showcase", None)
     at = AppTest.from_file(notebook_showcase.__file__, default_timeout=30)
     at.query_params["demo"] = "milp"
     at.run()

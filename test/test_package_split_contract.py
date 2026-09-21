@@ -399,6 +399,7 @@ def test_root_wheel_package_discovery_keeps_cli_subpackages() -> None:
     assert {
         "agilab.app_management",
         "agilab.data_connectors",
+        "agilab.demos",
         "agilab.evidence",
         "agilab.notebooks",
         "agilab.pipeline",

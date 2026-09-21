@@ -231,13 +231,13 @@ RUN uv python install 3.14.6t && \\
     ln -s "$(uv python find 3.14.6t)" /home/user/python3.14t && \\
     /home/user/python3.14t -c "import sys; assert not sys._is_gil_enabled()"
 
-RUN cd /app/src/agilab/resources/notebook_agent_demo && \\
+RUN cd /app/src/agilab/demos/resources/notebook_agent_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py
 
-RUN cd /app/src/agilab/resources/free_threading_demo && \\
+RUN cd /app/src/agilab/demos/resources/free_threading_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_execution_verifier.py
 
-RUN cd /app/src/agilab/resources/milp_energy_demo && \\
+RUN cd /app/src/agilab/demos/resources/milp_energy_demo && \\
     uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_execution_verifier.py
 
 EXPOSE 7860

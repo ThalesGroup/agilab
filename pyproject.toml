@@ -290,6 +290,13 @@ agilab = [
     "resources/*.*",
     "resources/notebook_import_samples/*.ipynb",
     "resources/agent_experiment/*",
+    "resources/help/*",
+    "pages/*.py",
+    "*.toml",
+    "*.ipynb",
+]
+
+"agilab.demos" = [
     "resources/notebook_agent_demo/*",
     "resources/notebook_agent_local_demo/*",
     "resources/forecast_notebook_demo/*",
@@ -310,10 +317,6 @@ agilab = [
     "resources/milp_energy_demo_astra/*",
     "resources/milp_energy_demo/source/*",
     "resources/milp_energy_demo_astra/source/*",
-    "resources/help/*",
-    "pages/*.py",
-    "*.toml",
-    "*.ipynb",
 ]
 
 [tool.setuptools.exclude-package-data]

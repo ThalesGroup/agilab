@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-21T09:33:54Z",
+  "generated_at_utc": "2026-09-21T09:59:18Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2073,21 +2073,21 @@
     {
       "schema": "agilab.notebook_agent.public_demo.v1",
       "sources": [
-        "src/agilab/agent_runtime/forecast_showcase.py",
-        "src/agilab/agent_runtime/free_threading_showcase.py",
-        "src/agilab/agent_runtime/milp_energy_showcase.py",
-        "src/agilab/agent_runtime/notebook_showcase.py",
-        "src/agilab/agent_runtime/text_showcase.py",
-        "src/agilab/resources/forecast_notebook_demo/result.json",
-        "src/agilab/resources/forecast_notebook_demo_astra/result.json",
-        "src/agilab/resources/free_threading_demo/result.json",
-        "src/agilab/resources/free_threading_demo_astra/result.json",
-        "src/agilab/resources/milp_energy_demo/result.json",
-        "src/agilab/resources/milp_energy_demo_astra/result.json",
-        "src/agilab/resources/notebook_agent_demo/result.json",
-        "src/agilab/resources/notebook_agent_local_demo/result.json",
-        "src/agilab/resources/text_notebook_demo/result.json",
-        "src/agilab/resources/text_notebook_demo_astra/result.json",
+        "src/agilab/demos/forecast_showcase.py",
+        "src/agilab/demos/free_threading_showcase.py",
+        "src/agilab/demos/milp_energy_showcase.py",
+        "src/agilab/demos/notebook_showcase.py",
+        "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/free_threading_demo/result.json",
+        "src/agilab/demos/resources/free_threading_demo_astra/result.json",
+        "src/agilab/demos/resources/milp_energy_demo/result.json",
+        "src/agilab/demos/resources/milp_energy_demo_astra/result.json",
+        "src/agilab/demos/resources/notebook_agent_demo/result.json",
+        "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
+        "src/agilab/demos/text_showcase.py",
         "tools/demos/export_forecast_notebook_demo.py",
         "tools/demos/export_free_threading_demo.py",
         "tools/demos/export_milp_energy_demo.py",
@@ -2110,12 +2110,12 @@
     {
       "schema": "agilab.notebook_execution_plan.v1",
       "sources": [
-        "src/agilab/notebooks/notebook_execution_plan.py",
-        "src/agilab/resources/forecast_notebook_demo/lab_stages.toml",
-        "src/agilab/resources/free_threading_demo/lab_stages.toml",
-        "src/agilab/resources/milp_energy_demo/lab_stages.toml",
-        "src/agilab/resources/notebook_agent_local_demo/lab_stages.toml",
-        "src/agilab/resources/text_notebook_demo/lab_stages.toml"
+        "src/agilab/demos/resources/forecast_notebook_demo/lab_stages.toml",
+        "src/agilab/demos/resources/free_threading_demo/lab_stages.toml",
+        "src/agilab/demos/resources/milp_energy_demo/lab_stages.toml",
+        "src/agilab/demos/resources/notebook_agent_local_demo/lab_stages.toml",
+        "src/agilab/demos/resources/text_notebook_demo/lab_stages.toml",
+        "src/agilab/notebooks/notebook_execution_plan.py"
       ]
     },
     {
@@ -2232,11 +2232,11 @@
       "sources": [
         "src/agilab/agent_runtime/notebook_agent.py",
         "src/agilab/agent_runtime/notebook_workflow_verifier.py",
-        "src/agilab/resources/forecast_notebook_demo/result.json",
-        "src/agilab/resources/free_threading_demo/result.json",
-        "src/agilab/resources/milp_energy_demo/result.json",
-        "src/agilab/resources/notebook_agent_local_demo/result.json",
-        "src/agilab/resources/text_notebook_demo/result.json"
+        "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "src/agilab/demos/resources/free_threading_demo/result.json",
+        "src/agilab/demos/resources/milp_energy_demo/result.json",
+        "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo/result.json"
       ]
     },
     {

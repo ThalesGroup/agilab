@@ -10,7 +10,7 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import text_showcase as showcase
+from agilab.demos import text_showcase as showcase
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def bundle(tmp_path, monkeypatch):
 
 
 def page():
-    from agilab.agent_runtime.text_showcase import render
+    from agilab.demos.text_showcase import render
     render()
 
 

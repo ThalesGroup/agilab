@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 
-from agilab.agent_runtime.milp_energy_showcase import PUBLIC_FILES
+from agilab.demos.milp_energy_showcase import PUBLIC_FILES
 
 SOURCE_COMMIT = "c838aa498557cc8e27a9d3ed10d45e35c4b0b442"
 SOURCE_URL = f"https://github.com/PyPSA/PyPSA/blob/{SOURCE_COMMIT}/docs/examples/modular-committable.ipynb"
