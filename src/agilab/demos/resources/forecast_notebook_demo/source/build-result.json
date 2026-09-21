@@ -152,15 +152,14 @@
     "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "NOTICE": "d4290ed64c2edd0fce1d84e3f9dfb2881240fe534def76b8cd29ed6af683e287",
-    "README.md": "24e7a64f920a4fbd95d08ef1657d5bc5cda4237df88976550b932b3c8f73b886",
+    "README.md": "b32d4871d9170cac55224fa8a0459e1c2e82fac000fa3da5d45e45b261e8c99f",
     "app.py": "4f145506ef6d8a6810cfbce38f97c2e34afd596b8f5abc6b6dbcf13e3158c48f",
     "forecast_core.py": "b4cfc4c14dad80bdfc73c3eeeaee36fce4a0fd1b6e34e03b75a1224b58f7a107",
     "lab_stages.toml": "c3b32218cf989eff18a8908e81fcee0bfcf0b94036a6ca6baac14802e694d457",
-    "requirements.txt": "26b858ae171c4d5b256ecafdd7def0ba9d3ee493c1c492d061df7c239938f762",
+    "requirements.txt": "da7bb603b038d57068a82964d74b684ca8f678bf6f504921332c33d973595ca2",
     "solution.ipynb": "9df329bffde57ea4b438e04d299cdbc7aa93aa2705e344f64963fd7205f9747e",
     "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
-    "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559",
-    "source/build-result.json": "8739026d853588995404e20b16da227cd30cf505b92043b75ca509bff4db9c0a"
+    "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
   },
   "build_model": {
     "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
@@ -178,99 +177,5 @@
   "build_timing": {
     "scope": "Wall-clock from first local generation request through independent notebook, workflow, UI and numerical verification",
     "inference_seconds": 941.37
-  },
-  "replay": {
-    "schema": "agilab.forecast_replay_verification.v1",
-    "producer": "tools/demos/verify_forecast_notebook_demo.py",
-    "command": "uv run --python 3.13 --with-requirements RUN/notebook_app_project/requirements.txt python tools/demos/verify_forecast_notebook_demo.py --run RUN --output validation.json",
-    "run_id": "20260920T152524Z-87960a8a",
-    "original_receipt": "source/build-result.json",
-    "changed_files": [
-      "README.md",
-      "requirements.txt"
-    ],
-    "status": "passed",
-    "checks": [
-      "autonomous_run_passed",
-      "autonomous_artifacts_unchanged",
-      "original_source_hash",
-      "three_seed_real_model_inference",
-      "finite_forecast_shapes",
-      "ordered_quantiles",
-      "forecast_matches_instrumented_model_output",
-      "held_out_actual_invariance",
-      "future_promotion_changes_forecast",
-      "independent_mae_seasonal_baseline_and_interval_coverage",
-      "json_analysis_matches_independent_metrics",
-      "artifacts_unchanged_after_inference"
-    ],
-    "measurements": {
-      "cases": [
-        {
-          "seed": 7,
-          "context_length": 256,
-          "horizon": 28,
-          "promotion_start": 7,
-          "promotion_days": 7,
-          "mae": 11.976713725498744,
-          "baseline_mae": 14.679492405482701,
-          "coverage": 0.42857142857142855,
-          "nominal_interval_coverage": 0.8,
-          "seasonal_baseline_period": 7,
-          "future_actual_perturbation": 1000000,
-          "actual_perturbation_predictions_identical": true,
-          "promotion_zeroed_max_absolute_forecast_change": 8.673065185546875
-        },
-        {
-          "seed": 42,
-          "context_length": 256,
-          "horizon": 28,
-          "promotion_start": 7,
-          "promotion_days": 7,
-          "mae": 11.674585887363978,
-          "baseline_mae": 13.134320395333427,
-          "coverage": 0.5,
-          "nominal_interval_coverage": 0.8,
-          "seasonal_baseline_period": 7,
-          "future_actual_perturbation": 1000000,
-          "actual_perturbation_predictions_identical": true,
-          "promotion_zeroed_max_absolute_forecast_change": 8.052947998046875
-        },
-        {
-          "seed": 2026,
-          "context_length": 256,
-          "horizon": 28,
-          "promotion_start": 7,
-          "promotion_days": 7,
-          "mae": 12.196427753993444,
-          "baseline_mae": 13.096966062273298,
-          "coverage": 0.5,
-          "nominal_interval_coverage": 0.8,
-          "seasonal_baseline_period": 7,
-          "future_actual_perturbation": 1000000,
-          "actual_perturbation_predictions_identical": true,
-          "promotion_zeroed_max_absolute_forecast_change": 8.20843505859375
-        }
-      ],
-      "real_model_calls": 10,
-      "model_revision": "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a",
-      "dependency_versions": {
-        "chronos-forecasting": "2.3.2",
-        "torch": "2.14.0",
-        "transformers": "5.17.0",
-        "numpy": "2.5.1",
-        "pandas": "3.0.3",
-        "accelerate": "1.15.0"
-      },
-      "python_version": "3.13.14",
-      "platform": "Darwin",
-      "checked_at": "2026-09-21T12:16:04.040237+00:00",
-      "interpretation": "Three deterministic synthetic cases and one analysis-contract check. MAE and interval coverage are reported without requiring superiority to the baseline. Changing a promotion input demonstrates model sensitivity, not a causal business effect.",
-      "weight_source": "pinned_hugging_face_cache",
-      "weight_files_sha256": {
-        "config.json": "f2780468adc8b16322aa0b6e28b26476c9401ecf64ab53292b6d2b0d3f423722",
-        "model.safetensors": "492290ae82bb89f9769e3479ce90b3179de1f33e600c34daa0352531538b23cd"
-      }
-    }
   }
 }

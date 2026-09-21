@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-21T09:59:18Z",
+  "generated_at_utc": "2026-09-21T12:20:25Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.09.21"
+    "version": "2026.09.21.1"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 290,
+    "evidence_schema_count": 291,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -702,7 +702,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.09.21",
+      "version": "2026.09.21.1",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -1745,6 +1745,13 @@
       ]
     },
     {
+      "schema": "agilab.forecast_replay_verification.v1",
+      "sources": [
+        "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "tools/demos/export_forecast_notebook_demo.py"
+      ]
+    },
+    {
       "schema": "agilab.free_threading_probe.v1",
       "sources": [
         "tools/testing/README.free-threading.md",
@@ -2078,6 +2085,7 @@
         "src/agilab/demos/milp_energy_showcase.py",
         "src/agilab/demos/notebook_showcase.py",
         "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo/source/build-result.json",
         "src/agilab/demos/resources/forecast_notebook_demo_astra/result.json",
         "src/agilab/demos/resources/free_threading_demo/result.json",
         "src/agilab/demos/resources/free_threading_demo_astra/result.json",
@@ -2233,6 +2241,7 @@
         "src/agilab/agent_runtime/notebook_agent.py",
         "src/agilab/agent_runtime/notebook_workflow_verifier.py",
         "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo/source/build-result.json",
         "src/agilab/demos/resources/free_threading_demo/result.json",
         "src/agilab/demos/resources/milp_energy_demo/result.json",
         "src/agilab/demos/resources/notebook_agent_local_demo/result.json",

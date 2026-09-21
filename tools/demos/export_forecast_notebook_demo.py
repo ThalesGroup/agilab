@@ -30,14 +30,21 @@ def checked_file(root: Path, name: str, expected: str) -> Path:
     return path
 
 
-def export_demo(run: Path, destination: Path, validation: Path) -> dict:
+def export_demo(run: Path, destination: Path, validation: Path, *, replay: bool = False) -> dict:
     """Require both the autonomous interface check and independent forecast checks.
 
     The independent receipt is produced after the actual model evaluation. Its
     file hashes cover every public asset, including data absent from the generic
     notebook-agent receipt. It is evidence of those checks, not a signature.
+
+    For --replay, stage the original public result.json in a directory named
+    for its run_id and copy its assets into notebook_app_project. Change only
+    requirements.txt/README.md, run verify_forecast_notebook_demo.py in that
+    recipe's environment, then export to a fresh destination. Historical build
+    fields remain unchanged; the new receipt records the replay separately.
     """
-    report = json.loads((run / "result.json").read_text())
+    report_bytes = (run / "result.json").read_bytes()
+    report = json.loads(report_bytes)
     checked = json.loads(validation.read_text())
     if report.get("status") != "passed" or report.get("verification", {}).get("status") != "passed":
         raise ValueError("Only a passed autonomous run can be exported")
@@ -102,6 +109,42 @@ def export_demo(run: Path, destination: Path, validation: Path) -> dict:
         if any(key in model and not isinstance(model[key], bool) for key in bool_fields):
             raise ValueError("Invalid build model routing metadata")
         public["build_model"] = {key: model[key] for key in sorted(string_fields | bool_fields) if key in model}
+    if replay:
+        if report.get("schema") != "agilab.notebook_agent.public_demo.v1" or "replay" in report:
+            raise ValueError("Replay requires an original public build receipt")
+        if report.get("run_id") != run.name:
+            raise ValueError("Replay belongs to another build")
+        original_files = report.get("files", {})
+        if set(original_files) != set(files):
+            raise ValueError("Replay must retain the original public file inventory")
+        changed = {name for name in files if files[name] != original_files[name]}
+        if not changed or not changed.issubset({"README.md", "requirements.txt"}):
+            raise ValueError("Replay may change only the dependency recipe and its README")
+        measurements = checked.get("measurements", {})
+        versions = measurements.get("dependency_versions", {})
+        requirements = (project / "requirements.txt").read_text().splitlines()
+        for name in ("chronos-forecasting", "torch", "transformers"):
+            version = versions.get(name)
+            if not isinstance(version, str) or f"{name}=={version}" not in requirements:
+                raise ValueError(f"Replay was not verified with its pinned {name} version")
+        if (not measurements.get("checked_at")
+                or measurements.get("real_model_calls", 0) < 10
+                or "three_seed_real_model_inference" not in checks):
+            raise ValueError("Replay requires fresh real-model verification")
+        # Preserve every historical build field; never relabel a dependency
+        # repair as a new autonomous generation or replace its timing.
+        public = dict(report)
+        public["files"] = dict(files)
+        public["files"]["source/build-result.json"] = hashlib.sha256(report_bytes).hexdigest()
+        public["replay"] = {
+            "schema": "agilab.forecast_replay_verification.v1",
+            "producer": "tools/demos/verify_forecast_notebook_demo.py",
+            "command": "uv run --python 3.13 --with-requirements RUN/notebook_app_project/requirements.txt python tools/demos/verify_forecast_notebook_demo.py --run RUN --output validation.json",
+            "run_id": run.name,
+            "original_receipt": "source/build-result.json",
+            "changed_files": sorted(changed),
+            **{key: checked[key] for key in ("status", "checks", "measurements")},
+        }
     # Verify everything before changing the destination. Require a fresh export
     # so a previous run cannot leave unlisted executable files behind.
     if any(parent.is_symlink() for parent in destination.absolute().parents):
@@ -113,6 +156,9 @@ def export_demo(run: Path, destination: Path, validation: Path) -> dict:
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, target)
+    if replay:
+        (destination / "source").mkdir(exist_ok=True)
+        (destination / "source/build-result.json").write_bytes(report_bytes)
     (destination / "result.json").write_text(json.dumps(public, indent=2) + "\n")
     return public
 
@@ -122,8 +168,9 @@ def main() -> None:
     parser.add_argument("run", type=Path)
     parser.add_argument("destination", type=Path)
     parser.add_argument("--validation", required=True, type=Path)
+    parser.add_argument("--replay", action="store_true", help="Patch a public replay recipe while preserving its original build receipt")
     args = parser.parse_args()
-    result = export_demo(args.run, args.destination, args.validation)
+    result = export_demo(args.run, args.destination, args.validation, replay=args.replay)
     print(json.dumps({"status": result["status"], "files": sorted(result["files"])}))
 
 

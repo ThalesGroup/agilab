@@ -1,6 +1,6 @@
 chronos-forecasting==2.3.2
 torch==2.14.0
-transformers==5.10.1
+transformers==5.17.0
 streamlit>=1.64,<2
 numpy>=2,<3
 pandas>=2.3,<4
