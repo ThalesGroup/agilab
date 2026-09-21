@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.09.21] - 2026-09-21
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
+
 ### Added
 
 - Packaged Agent Demo gallery with five original Astra demos and five verified
@@ -39,6 +43,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 - Isolated notebook-demo execution and verified replay-bundle provenance.
 - Recovered lazy UI imports after hosted-demo module cleanup.
+
+### Changed
+
+- Published AGILAB `2026.09.21` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.09.09] - 2026-09-11
 
@@ -1000,3 +1010,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.07.31]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31
 [2026.09.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
 [2026.09.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
+[2026.09.21]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
