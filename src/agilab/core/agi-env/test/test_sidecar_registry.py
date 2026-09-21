@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import socket
 import subprocess
 import sys
@@ -810,3 +811,154 @@ def test_isolated_import_state_restores_tagged_native_module_names(
             sys.modules.pop(module_name, None)
         else:
             sys.modules[module_name] = previous
+
+
+@pytest.mark.parametrize("hook", ["__getattr__", "__getattribute__"])
+@pytest.mark.parametrize("metadata", ["file", "namespace", "missing"])
+@pytest.mark.parametrize("page_fails", [False, True])
+def test_import_cleanup_does_not_activate_lazy_modules(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    restored_import_globals,
+    hook: str,
+    metadata: str,
+    page_fails: bool,
+) -> None:
+    """Missing optional dependencies must not be imported by page cleanup."""
+    calls = []
+
+    def lazy_attribute(self, name):
+        if name in {"__file__", "__path__", "__dict__"}:
+            calls.append(name)
+            raise ModuleNotFoundError("No module named 'torchvision'")
+        return ModuleType.__getattribute__(self, name)
+
+    lazy_type = type("LazyDependency", (ModuleType,), {hook: lazy_attribute})
+    lazy = lazy_type("_agi_env_test_lazy_dependency")
+    namespace = ModuleType.__getattribute__(lazy, "__dict__")
+    if metadata == "file":
+        namespace["__file__"] = str(tmp_path / "dependency" / "module.py")
+    elif metadata == "namespace":
+        namespace["__path__"] = [str(tmp_path / "dependency")]
+
+    root = tmp_path / "app"
+    root.mkdir()
+    name = "_agi_env_test_page_helper"
+    (root / f"{name}.py").write_text("VALUE = 'current'\n", encoding="utf-8")
+    old = ModuleType(name)
+    monkeypatch.setitem(sys.modules, name, old)
+    original_argv, original_path = list(sys.argv), list(sys.path)
+    failure = ValueError("original page failure")
+    try:
+        # Match the nested page-loader guards, including an outer rootless guard.
+        with sidecar_registry_module.isolated_import_process_state(argv=["outer"]):
+            with sidecar_registry_module.isolated_import_process_state(
+                argv=["page"],
+                prepend_paths=(root,),
+                module_roots=(root,),
+            ):
+                monkeypatch.setitem(sys.modules, "_agi_env_test_lazy_dependency", lazy)
+                current = importlib.import_module(name)
+                assert current.VALUE == "current"
+                transient = ModuleType("_agi_env_test_transient_page_helper")
+                transient.__file__ = str(root / "transient.py")
+                monkeypatch.setitem(sys.modules, transient.__name__, transient)
+                if page_fails:
+                    raise failure
+    except ValueError as error:
+        assert page_fails and error is failure
+    else:
+        assert not page_fails
+
+    assert calls == []
+    assert sys.modules["_agi_env_test_lazy_dependency"] is lazy
+    assert sys.modules[name] is old
+    assert "_agi_env_test_transient_page_helper" not in sys.modules
+    assert sys.argv == original_argv
+    assert sys.path == original_path
+
+
+@pytest.mark.parametrize("inside_root", [False, True])
+def test_import_cleanup_preserves_unexecuted_lazy_loader(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    inside_root: bool,
+) -> None:
+    """Even reading __dict__ normally would execute importlib's lazy loader."""
+    root = tmp_path / "app"
+    root.mkdir()
+    module_path = (root if inside_root else tmp_path) / "_agi_env_lazy_loader.py"
+    module_path.write_text(
+        "raise RuntimeError('lazy module was executed')\n", encoding="utf-8"
+    )
+    name = "_agi_env_test_lazy_loader"
+    spec = importlib.util.spec_from_file_location(name, module_path)
+    assert spec is not None and spec.loader is not None
+    loader = importlib.util.LazyLoader(spec.loader)
+    spec.loader = loader
+    module = importlib.util.module_from_spec(spec)
+    with sidecar_registry_module.isolated_import_process_state(module_roots=(root,)):
+        monkeypatch.setitem(sys.modules, name, module)
+        loader.exec_module(module)
+
+    assert (name in sys.modules) is not inside_root
+    assert type(module).__name__ == "_LazyModule"
+
+
+@pytest.fixture
+def restored_import_globals():
+    """Keep a failing cleanup regression from contaminating later tests."""
+    argv, path = list(sys.argv), list(sys.path)
+    try:
+        yield
+    finally:
+        sys.argv = argv
+        sys.path[:] = path
+
+
+def test_import_cleanup_restores_globals_after_metadata_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    restored_import_globals,
+) -> None:
+    name = "_agi_env_test_cleanup_failure"
+    (tmp_path / f"{name}.py").touch()
+    old = ModuleType(name)
+    monkeypatch.setitem(sys.modules, name, old)
+    argv, path = list(sys.argv), list(sys.path)
+
+    def broken_metadata(*_args):
+        raise RuntimeError("broken package metadata")
+
+    with pytest.raises(RuntimeError, match="broken package metadata"):
+        with sidecar_registry_module.isolated_import_process_state(
+            argv=["page"],
+            prepend_paths=(tmp_path,),
+            module_roots=(tmp_path,),
+        ):
+            monkeypatch.setattr(
+                sidecar_registry_module, "_module_is_below", broken_metadata
+            )
+            sys.modules[name] = ModuleType(name)
+
+    assert sys.modules[name] is old
+    assert sys.argv == argv
+    assert sys.path == path
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {},
+        {"__file__": None},
+        {"__path__": 3},
+        {"__file__": object(), "__path__": [None, object()]},
+    ],
+)
+def test_import_cleanup_ignores_missing_or_invalid_metadata(
+    tmp_path: Path, metadata
+) -> None:
+    module = ModuleType("_agi_env_test_invalid_metadata")
+    module.__dict__.update(metadata)
+    assert not sidecar_registry_module._module_is_below(module, (tmp_path,))
+    assert not sidecar_registry_module._module_is_below(None, (tmp_path,))
