@@ -27,6 +27,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
 
+Publication evidence: [successful recovery workflow, attempt 2](https://github.com/ThalesGroup/agilab/actions/runs/35589025870/attempts/2).
+
 ### Added
 
 - Packaged Agent Demo gallery with five original Astra demos and five verified
