@@ -17,6 +17,7 @@ from agilab.agent_runtime.notebook_demo_evidence import render_build_evidence
 from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, app_session_state
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "milp_energy_demo"
+ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
 PUBLIC_FILES = frozenset({
     "app.py", "energy_core.py", "energy_runner.py", "agilab_pool.py",
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
@@ -25,10 +26,11 @@ PUBLIC_FILES = frozenset({
 })
 
 
-def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
-    if DEMO_ROOT.is_symlink() or (DEMO_ROOT / "result.json").is_symlink():
+def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    if demo_root.is_symlink() or (demo_root / "result.json").is_symlink():
         raise ValueError("MILP Energy demo and receipt must not be symlinks")
-    receipt = (DEMO_ROOT / "result.json").read_bytes()
+    receipt = (demo_root / "result.json").read_bytes()
     report = json.loads(receipt)
     if (not isinstance(report, dict) or report.get("status") != "passed"
             or report.get("schema") != "agilab.notebook_agent.public_demo.v1"):
@@ -75,7 +77,7 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
         raise ValueError("MILP Energy artifact manifest is incomplete or unexpected")
     payload = {"result.json": receipt}
     for name, expected in sorted(files.items()):
-        path = DEMO_ROOT
+        path = demo_root
         for part in Path(name).parts:
             path = path / part
             if path.is_symlink():
@@ -90,18 +92,18 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
             or files["source/LICENSE"] != report["source"]["license_sha256"]
             or files["agilab_pool.py"] != report["engine"]["sha256"]):
         raise ValueError("MILP Energy source or engine provenance does not match")
-    for path in sorted(DEMO_ROOT.rglob("*")):
+    for path in sorted(demo_root.rglob("*")):
         if path.is_symlink():
             raise ValueError("MILP Energy demo contains a symlink")
-        relative = path.relative_to(DEMO_ROOT)
+        relative = path.relative_to(demo_root)
         if path.is_file() and relative.as_posix() not in payload:
             if "__pycache__" not in relative.parts or path.suffix != ".pyc":
                 raise ValueError(f"Unverified MILP energy artifact: {relative}")
     return report, payload
 
 
-def load_report() -> dict:
-    return _read_verified_bundle()[0]
+def load_report(*, astra: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -112,27 +114,29 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle() -> bytes:
-    return _zip_bundle(_read_verified_bundle()[1])
+def download_bundle(*, astra: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes]) -> None:
+def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None:
+    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "milp_astra" if astra else "milp"
     # These generated top-level imports are scoped just like the other demos.
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
         st.info("Another notebook demo session is running. Try again shortly.")
-        st.button("Retry demo", key="milp_retry")
+        st.button("Retry demo", key=state_name + "_retry")
         return
     names = ("agilab_pool", "energy_core", "energy_runner")
     saved = {name: sys.modules.pop(name, None) for name in names}
     try:
         for name in names:
             module = ModuleType(name)
-            module.__file__ = str(DEMO_ROOT / f"{name}.py")
+            module.__file__ = str(demo_root / f"{name}.py")
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
-        app_path = str(DEMO_ROOT / "app.py")
-        with app_session_state(st.session_state, "milp", ("analysis", "analysis_signature", "comparisons", "benchmark_result", "benchmark_signature")):
+        app_path = str(demo_root / "app.py")
+        with app_session_state(st.session_state, state_name, ("analysis", "analysis_signature", "comparisons", "benchmark_result", "benchmark_signature", "milp_energy_result", "milp_energy_saved", "milp_energy_benchmark")):
             exec(compile(payload["app.py"], app_path, "exec"),
                  {"__name__": "__main__", "__file__": app_path})
     finally:
@@ -143,9 +147,9 @@ def _run_verified_app(payload: dict[str, bytes]) -> None:
         _APP_LOCK.release()
 
 
-def render() -> None:
+def render(*, astra: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle()
+        report, payload = _read_verified_bundle(astra=astra)
     except (OSError, ValueError, TypeError) as exc:
         st.error(f"MILP Energy demo unavailable: {exc}")
         return
@@ -153,6 +157,8 @@ def render() -> None:
     render_build_evidence(report)
     if model := report.get("build_model"):
         st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
+    if astra:
+        st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
         st.markdown(
@@ -173,8 +179,11 @@ def render() -> None:
         st.caption("Scaling measures independent MILP scenarios on this machine, with one HiGHS thread "
                    "per scenario. It does not measure distributed execution or acceleration of one MILP.")
         st.download_button("Download the MILP energy lab and workflow", _zip_bundle(payload),
-                           "tokki-agilab-milp-energy.zip", "application/zip", key="milp_energy_bundle")
-    _run_verified_app(payload)
+                           "tokki-agilab-milp-energy-astra.zip" if astra else "tokki-agilab-milp-energy.zip", "application/zip", key="milp_energy_bundle_astra" if astra else "milp_energy_bundle")
+    if astra:
+        _run_verified_app(payload, astra=True)
+    else:
+        _run_verified_app(payload)
 
 
 if __name__ == "__main__":

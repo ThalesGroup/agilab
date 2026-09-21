@@ -1,0 +1,10 @@
+[project]
+name = "agilab-free-threading-lab"
+version = "0.1.0"
+description = "Truthful local CPU scaling with the unchanged AGILAB pool engine"
+requires-python = ">=3.13"
+dependencies = ["streamlit>=1.64,<1.65", "altair>=6,<7", "Pillow>=12,<13"]
+license = "BSD-3-Clause"
+
+[tool.setuptools]
+py-modules = ["app", "benchmark", "free_threading_core", "agilab_pool"]

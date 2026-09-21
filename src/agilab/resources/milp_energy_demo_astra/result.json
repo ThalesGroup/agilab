@@ -1,0 +1,87 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260919T201404Z-d7538b18",
+  "seconds": 1439.8,
+  "workflow_stages": 3,
+  "source": {
+    "source_kind": "github",
+    "repository": "PyPSA/PyPSA",
+    "commit": "c838aa498557cc8e27a9d3ed10d45e35c4b0b442",
+    "url": "https://github.com/PyPSA/PyPSA/blob/c838aa498557cc8e27a9d3ed10d45e35c4b0b442/docs/examples/modular-committable.ipynb",
+    "title": "Modular Expansion with Unit Commitment",
+    "author": "PyPSA contributors",
+    "license": "CC-BY-4.0",
+    "sha256": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+    "license_sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+    "introduced": "2026-02-17",
+    "updated": "2026-08-05",
+    "adaptation": "Interactive lab, HiGHS solver, parameterized scenarios, solution checks and AGILAB batches"
+  },
+  "engine": {
+    "repository": "ThalesGroup/agilab",
+    "commit": "7d2b1355b84eed3cbf0828c325cddb8308be77a3",
+    "path": "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py",
+    "sha256": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066"
+  },
+  "verification_scope": "execution_interface_and_bounded_local_milp_scenario_scaling",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_names": [
+      "active_modules",
+      "agilab_batch_measurement",
+      "capacity_limited_status",
+      "default_objective",
+      "full_batch_measurement",
+      "full_reference",
+      "installed_modules",
+      "reference_check"
+    ],
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "milp_energy": {
+      "status": "passed",
+      "checks": [
+        "pinned notebook and CC BY 4.0 license",
+        "unchanged AGILAB pool engine",
+        "fresh HiGHS execution with one solver thread",
+        "independent 21879 objective and 30-module optimum",
+        "reference dispatch and integer commitment at every timestep",
+        "capacity-limited infeasibility without an incumbent",
+        "independent shortage and solar/startup constraints and costs",
+        "same scenario batch and outcomes on one and two AGILAB workers",
+        "measured overlapping worker processes"
+      ],
+      "reference_objective": 21879,
+      "scaling_validation": {
+        "cases": 4,
+        "workers": 2,
+        "scope": "local scenario throughput",
+        "note": "Timings are validation evidence, not a guarantee of public Space speedup"
+      }
+    }
+  },
+  "files": {
+    "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+    "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
+    "README.md": "d5d3acc08f4e6d94d38fc7513cd79b52f11551f2a3612a9428a0a8893633d6ae",
+    "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+    "app.py": "1bfb20f4c6b614349a1e7d063efc49f42d08bfa6a5db93fab4890a58ed566b4b",
+    "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
+    "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
+    "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
+    "pyproject.toml": "0bc5f92bb9685973bff8f8d694d1f56d1e9e7e20c2c28c46beb635276e4e8959",
+    "requirements.txt": "8d388ee850c637e686d364c30bb3af6ce42e1909b1269caa4ed54669ae664439",
+    "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
+    "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+    "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+    "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
+    "tests.py": "92f03e9e0ed6e76b60021477360565749f505c07aa11cd9790da09d8dc010a65"
+  }
+}

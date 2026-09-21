@@ -19,6 +19,19 @@ from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "notebook_agent_demo"
 LOCAL_DEMO_ROOT = DEMO_ROOT.with_name("notebook_agent_local_demo")
+DEMO_LABELS = {
+    "iris": "Iris · Astra",
+    "iris_local": "Iris · Qwen",
+    "forecast": "Forecast · Qwen",
+    "forecast_astra": "Forecast · Astra",
+    "text": "Text Atlas · Qwen",
+    "text_astra": "Text Atlas · Astra",
+    "threading": "Free-threading · Qwen",
+    "threading_astra": "Free-threading · Astra",
+    "milp": "MILP · Qwen",
+    "milp_astra": "MILP · Astra"
+}
+
 VERIFIED_FILES = frozenset({"app.py", "models.py", "solution.ipynb", "lab_stages.toml"})
 
 
@@ -113,12 +126,22 @@ def _run_verified_app(payload: dict[str, bytes], *, demo_root: Path | None = Non
                 sys.modules["models"] = previous
 
 
+def _sync_demo_query() -> None:
+    st.query_params["demo"] = st.session_state["demo"]
+
+
 def render() -> None:
+    # Query binding serializes formatted labels. Keep the existing public route
+    # IDs stable while displaying the app and model names in the selector.
+    if "demo" not in st.session_state:
+        requested = st.query_params.get("demo", "iris")
+        st.session_state["demo"] = requested if requested in DEMO_LABELS else "iris"
     selected = st.segmented_control(
-        "Choose a demo", ["iris", "iris_local", "forecast", "text", "threading", "milp"], default="iris", required=True,
-        key="demo", bind="query-params",
+        "Choose a demo", list(DEMO_LABELS), required=True,
+        format_func=DEMO_LABELS.__getitem__,
+        key="demo", on_change=_sync_demo_query,
     )
-    if selected == "milp":
+    if selected in {"milp", "milp_astra"}:
         try:
             from agilab.agent_runtime.milp_energy_showcase import render as render_milp
         except ModuleNotFoundError as exc:
@@ -126,9 +149,12 @@ def render() -> None:
                 raise
             st.error("MILP energy lab unavailable in this distribution.")
             return
-        render_milp()
+        if selected == "milp_astra":
+            render_milp(astra=True)
+        else:
+            render_milp()
         return
-    if selected == "threading":
+    if selected in {"threading", "threading_astra"}:
         try:
             from agilab.agent_runtime.free_threading_showcase import render as render_threading
         except ModuleNotFoundError as exc:
@@ -136,9 +162,12 @@ def render() -> None:
                 raise
             st.error("Free-threading demo unavailable in this distribution.")
             return
-        render_threading()
+        if selected == "threading_astra":
+            render_threading(astra=True)
+        else:
+            render_threading()
         return
-    if selected == "forecast":
+    if selected in {"forecast", "forecast_astra"}:
         try:
             from agilab.agent_runtime.forecast_showcase import render as render_forecast
         except ModuleNotFoundError as exc:
@@ -146,9 +175,12 @@ def render() -> None:
                 raise
             st.error("Forecast demo unavailable in this distribution.")
             return
-        render_forecast()
+        if selected == "forecast_astra":
+            render_forecast(astra=True)
+        else:
+            render_forecast()
         return
-    if selected == "text":
+    if selected in {"text", "text_astra"}:
         try:
             from agilab.agent_runtime.text_showcase import render as render_text
         except ModuleNotFoundError as exc:
@@ -156,7 +188,10 @@ def render() -> None:
                 raise
             st.error("Text demo unavailable in this distribution.")
             return
-        render_text()
+        if selected == "text_astra":
+            render_text(astra=True)
+        else:
+            render_text()
         return
     if selected not in {"iris", "iris_local"}:
         st.error("Choose one of the available demos.")

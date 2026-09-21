@@ -19,6 +19,7 @@ from agilab.agent_runtime.notebook_app_runtime import APP_EXECUTION_LOCK as _APP
 from agilab.agent_runtime.notebook_app_runtime import app_session_state
 
 DEMO_ROOT = Path(__file__).parents[1] / "resources" / "forecast_notebook_demo"
+ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
 _REQUIRED_FILES = {"app.py", "forecast_core.py", "solution.ipynb", "lab_stages.toml", "LICENSE"}
 MODEL_ID = "autogluon/chronos-2-small"
 MODEL_REVISION = "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a"
@@ -59,10 +60,11 @@ def _prepare_model(local_path: str) -> Path:
     return _validate_model(Path(path))
 
 
-def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
-    if DEMO_ROOT.is_symlink():
+def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    if demo_root.is_symlink():
         raise ValueError("Forecast demo directory must not be a symlink")
-    receipt = DEMO_ROOT / "result.json"
+    receipt = demo_root / "result.json"
     if receipt.is_symlink():
         raise ValueError("Forecast demo receipt must not be a symlink")
     receipt_bytes = receipt.read_bytes()
@@ -122,7 +124,7 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
                 or any(part in {".", ".."} for part in name.split("/"))
                 or relative.as_posix() != name or name == "result.json"):
             raise ValueError("Invalid forecast demo artifact path")
-        path = DEMO_ROOT
+        path = demo_root
         for part in relative.parts:
             path = path / part
             if path.is_symlink():
@@ -133,11 +135,11 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
         if hashlib.sha256(data).hexdigest() != expected:
             raise ValueError(f"Forecast demo artifact changed since verification: {name}")
         payload[name] = data
-    for path in sorted(DEMO_ROOT.rglob("*")):
+    for path in sorted(demo_root.rglob("*")):
         if path.is_symlink():
             raise ValueError("Forecast demo contains a symlink")
         if path.is_file():
-            relative = path.relative_to(DEMO_ROOT)
+            relative = path.relative_to(demo_root)
             if "__pycache__" in relative.parts and path.suffix == ".pyc":
                 continue
             if relative.as_posix() not in payload:
@@ -145,8 +147,8 @@ def _read_verified_bundle() -> tuple[dict, dict[str, bytes]]:
     return report, payload
 
 
-def load_report() -> dict:
-    return _read_verified_bundle()[0]
+def load_report(*, astra: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -157,24 +159,26 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle() -> bytes:
-    return _zip_bundle(_read_verified_bundle()[1])
+def download_bundle(*, astra: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None) -> None:
+def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None, *, astra: bool = False) -> None:
+    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "forecast_astra" if astra else "forecast"
     # Restore process-wide import state even when an app stops, reruns, or fails.
     with _APP_LOCK:
         previous = sys.modules.pop("forecast_core", None)
         previous_model_path = os.environ.get("CHRONOS_MODEL_PATH")
         module = ModuleType("forecast_core")
-        module.__file__ = str(DEMO_ROOT / "forecast_core.py")
+        module.__file__ = str(demo_root / "forecast_core.py")
         sys.modules["forecast_core"] = module
         try:
             if model_path is not None:
                 os.environ["CHRONOS_MODEL_PATH"] = str(model_path)
             exec(compile(payload["forecast_core.py"], module.__file__, "exec"), module.__dict__)
-            app_path = str(DEMO_ROOT / "app.py")
-            with app_session_state(st.session_state, "forecast",
+            app_path = str(demo_root / "app.py")
+            with app_session_state(st.session_state, state_name,
                                    ("analysis", "analysis_error", "committed_parameters")):
                 exec(compile(payload["app.py"], app_path, "exec"),
                      {"__name__": "__main__", "__file__": app_path})
@@ -188,9 +192,9 @@ def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None)
                 os.environ["CHRONOS_MODEL_PATH"] = previous_model_path
 
 
-def render() -> None:
+def render(*, astra: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle()
+        report, payload = _read_verified_bundle(astra=astra)
     except OSError:
         st.error("Forecast demo unavailable: the verified artifact bundle is missing or unreadable.")
         return
@@ -209,6 +213,8 @@ def render() -> None:
         st.caption(f"Build model: {build_model['id']} ({build_model.get('execution', 'recorded')} · {build_model.get('provider', 'recorded')}).")
     st.subheader(report["demo"]["title"])
     st.write(report["demo"]["description"])
+    if astra:
+        st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source and verification"):
         source, model = report["source"], report["model"]
         st.markdown(f"Source: [{source['repository']}]({source['url']}) · {source['license']}")
@@ -233,9 +239,9 @@ def render() -> None:
         st.download_button(
             "Download the forecast app and workflow",
             _zip_bundle(payload),
-            "tokki-agilab-forecast-lab.zip",
+            "tokki-agilab-forecast-lab-astra.zip" if astra else "tokki-agilab-forecast-lab.zip",
             "application/zip",
-            key="forecast_bundle",
+            key="forecast_bundle_astra" if astra else "forecast_bundle",
         )
     st.divider()
     if (report["model"]["id"], report["model"]["revision"]) != (MODEL_ID, MODEL_REVISION):
@@ -251,7 +257,10 @@ def render() -> None:
                  "are installed and the model host is reachable, then retry. For offline use, "
                  "set CHRONOS_MODEL_PATH to the verified checkpoint.")
         return
-    _run_verified_app(payload, model_path)
+    if astra:
+        _run_verified_app(payload, model_path, astra=True)
+    else:
+        _run_verified_app(payload, model_path)
 
 
 if __name__ == "__main__":

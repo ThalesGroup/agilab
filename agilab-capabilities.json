@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-20T20:31:03Z",
+  "generated_at_utc": "2026-09-20T23:55:56Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2079,11 +2079,15 @@
         "src/agilab/agent_runtime/notebook_showcase.py",
         "src/agilab/agent_runtime/text_showcase.py",
         "src/agilab/resources/forecast_notebook_demo/result.json",
+        "src/agilab/resources/forecast_notebook_demo_astra/result.json",
         "src/agilab/resources/free_threading_demo/result.json",
+        "src/agilab/resources/free_threading_demo_astra/result.json",
         "src/agilab/resources/milp_energy_demo/result.json",
+        "src/agilab/resources/milp_energy_demo_astra/result.json",
         "src/agilab/resources/notebook_agent_demo/result.json",
         "src/agilab/resources/notebook_agent_local_demo/result.json",
         "src/agilab/resources/text_notebook_demo/result.json",
+        "src/agilab/resources/text_notebook_demo_astra/result.json",
         "tools/demos/export_forecast_notebook_demo.py",
         "tools/demos/export_free_threading_demo.py",
         "tools/demos/export_milp_energy_demo.py",

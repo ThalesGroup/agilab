@@ -53,6 +53,21 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "submits a notebook analysis and starts CPU computation; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
         ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py", "test/test_text_showcase.py"),
     ),
+    "Save current scenario": (
+        "trial-only",
+        "saves the original Astra MILP app's solved inputs in its browser session; focused tests verify copy isolation and duplicate names",
+        ("test/test_astra_showcase_variants.py",),
+    ),
+    "Clear saved scenarios": (
+        "trial-only",
+        "clears the original Astra MILP app's saved scenarios while retaining its last solved inputs",
+        ("test/test_astra_showcase_variants.py",),
+    ),
+    "Run scaling experiment": (
+        "trial-only",
+        "starts bounded Astra MILP CPU computation; focused tests exercise dispatch, worker errors, and the one-CPU gate",
+        ("test/test_astra_showcase_variants.py",),
+    ),
     "Clear comparisons": (
         "trial-only",
         "clears MILP session comparisons while retaining the committed scenario; focused tests verify state preservation",

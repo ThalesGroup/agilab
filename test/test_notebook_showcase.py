@@ -35,10 +35,11 @@ def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatc
     # Keep real receipt verification and presentation; avoid network/model inference.
     monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _path: tmp_path)
     monkeypatch.setattr(forecast_showcase, "_validate_model", lambda path: path)
-    monkeypatch.setattr(forecast_showcase, "_run_verified_app", lambda _payload, _path: None)
+    monkeypatch.setattr(forecast_showcase, "_run_verified_app", lambda _payload, _path, **_kwargs: None)
     initial = AppTest.from_file(showcase.__file__, default_timeout=30).run()
     assert not initial.exception and not initial.error
-    for demo in initial.segmented_control(key="demo").options:
+    assert initial.segmented_control(key="demo").options == list(showcase.DEMO_LABELS.values())
+    for demo in showcase.DEMO_LABELS:
         at = AppTest.from_file(showcase.__file__, default_timeout=30)
         at.query_params["demo"] = demo
         at.run()
