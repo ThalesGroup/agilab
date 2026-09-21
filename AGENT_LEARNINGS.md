@@ -25,7 +25,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   secrets, inherited stdin, open descendant pipes, and late-publication failures;
   carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
-  After schema additions or moves in source, regenerate discovery with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
+  After schema additions, moves in source, or package-version bumps, regenerate discovery before pushing with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
   After schema, source or package-version changes, run the `skills` parity profile; commit generated artifacts and rerun it to prove no drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
