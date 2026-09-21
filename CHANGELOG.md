@@ -23,6 +23,23 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Added
+
+- Packaged Agent Demo gallery with five original Astra demos and five verified
+  local Qwen builds: Iris, Demand Forecast, Text Atlas, Free-threading, and
+  MILP Energy Lab, including their notebooks, data, build receipts, and replay
+  resources.
+- Added the `agilab-notebook-demo` and `agilab-notebook-adoption` commands.
+- Added stateful notebook import, prerequisite checks, and fresh-process
+  workflow verification.
+- Added bounded agent experiment execution, persisted approval and attempt
+  state, and independent evidence verification.
+
+### Fixed
+
+- Isolated notebook-demo execution and verified replay-bundle provenance.
+- Recovered lazy UI imports after hosted-demo module cleanup.
+
 ## [2026.09.09] - 2026-09-11
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
