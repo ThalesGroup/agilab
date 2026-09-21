@@ -1,0 +1,47 @@
+[[notebook_app_project]]
+D = "Free-threading lab — local CPU scaling"
+Q = "Imported cell-2 from notebook"
+C = "# Stage 1: import and plan. PROJECT_ROOT and module search path are supplied.\nfrom pathlib import Path\nimport json\nimport benchmark\nfrom free_threading_core import tile_plan, reduce_tiles, image_digest\nproject_root = Path(PROJECT_ROOT)\nassert (project_root / 'agilab_pool.py').is_file()\nparameters = dict(width=96, height=64, iterations=100, workers=min(4, benchmark.effective_cpus()['effective_cpus']), repeats=1)\nplan = tile_plan(parameters['width'], parameters['height'], parameters['iterations'])\nprint(f'{len(plan)} identical tiles; widths 1 and {parameters[\"workers\"]}; three modes')\n"
+M = ""
+NB_CELL_ID = "cell-2"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+]
+NB_ENV_HINTS = [
+    "benchmark",
+    "free_threading_core",
+    "json",
+    "pathlib",
+]
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = ""
+Q = "Imported cell-3 from notebook"
+C = "# Stage 2: six real isolated cases, each with one repeat.\nevidence = benchmark.run_benchmark(**parameters)\nassert len(evidence['runs']) == 6\nfor row in evidence['summary']:\n    print(row['label'], row['role'], row['workers'], 'workers:', round(row['wall_seconds'], 4), 's wall;', round(row['engine_seconds'], 4), 's engine')\n"
+M = ""
+NB_CELL_ID = "cell-3"
+NB_CELL_INDEX = 3
+NB_CONTEXT_IDS = []
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = ""
+Q = "Imported cell-4 from notebook"
+C = "# Stage 3: independently recheck complete-image digests, then write a fresh artifact.\ndigests = [image_digest(reduce_tiles(run['records'], plan)) for run in evidence['runs']]\nassert len(set(digests)) == 1 and digests[0] == evidence['digest']\nassert evidence['same_work_verified']\nresults = {'results': {'local_cpu_scaling': evidence}}\nPath('results.json').write_text(json.dumps(results, indent=2, allow_nan=False), encoding='utf-8')\nprint('Same-work verified across all six cases:', evidence['digest'])\n"
+M = ""
+NB_CELL_ID = "cell-4"
+NB_CELL_INDEX = 4
+NB_CONTEXT_IDS = []
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"

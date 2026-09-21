@@ -1,0 +1,33 @@
+MILP Energy Lab — file-specific licensing
+
+1. source/original.ipynb (including its code and explanatory text) and
+   source/LICENSE: Copyright PyPSA contributors, Creative Commons Attribution
+   4.0 International (CC-BY-4.0). The complete, unchanged license is supplied in
+   source/LICENSE. License URL: https://creativecommons.org/licenses/by/4.0/
+
+   Pinned original:
+   https://github.com/PyPSA/PyPSA/blob/c838aa498557cc8e27a9d3ed10d45e35c4b0b442/docs/examples/modular-committable.ipynb
+
+   Title: Modular Expansion with Unit Commitment.
+   Upstream REUSE.toml assigns docs/**/*.ipynb, including notebook code, to
+   CC-BY-4.0. The PyPSA software library is MIT; that does NOT make this source
+   notebook MIT.
+
+2. Derived and new lab portions: energy_core.py, energy_runner.py, app.py,
+   solution.ipynb, tests.py, README.md, requirements.txt, pyproject.toml and
+   generated lab result/model/benchmark artifacts are offered under CC-BY-4.0.
+   Copyright 2026 MILP Energy Lab contributors. Retain PyPSA contributors'
+   attribution and the pinned source and license links.
+
+   Changes: an interactive experiment lab; explicit HiGHS solving; bounded
+   parameters and synthetic profiles; fixed solar with curtailment and optional
+   load shedding; exact startup/shutdown transitions from an initially-off
+   state; independent solver-result checks; isolated execution; actual AGILAB
+   batch measurement; reproducible JSON and mathematical-model exports.
+
+3. agilab_pool.py: supplied AGILAB worker_pool_support.py, unchanged.
+   BSD 3-Clause, with its separate full terms in the unchanged AGILAB_LICENSE.
+   No relicensing of that engine is intended by item 2.
+
+4. Third-party installed libraries retain their own licenses. They are not
+   bundled or relicensed here. source/provenance.json is preserved verbatim.

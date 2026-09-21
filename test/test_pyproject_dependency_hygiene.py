@@ -195,7 +195,10 @@ def test_python_support_floor_is_312_or_newer() -> None:
         classifiers = set(project.get("classifiers", []))
         rel = path.relative_to(REPO_ROOT)
 
-        if rel == Path("src/agilab/resources/milp_energy_demo/pyproject.toml"):
+        if rel in {
+            Path("src/agilab/resources/milp_energy_demo/pyproject.toml"),
+            Path("src/agilab/resources/milp_energy_demo_astra/pyproject.toml"),
+        }:
             # Immutable standalone notebook-agent output, with its own Python
             # contract. Receipt tests bind its exact bytes; it is not an AGILAB
             # package. Keep it compatible with AGILAB's supported floor.

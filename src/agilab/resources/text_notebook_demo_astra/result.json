@@ -1,0 +1,97 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260919T144017Z-27f16038",
+  "seconds": 464.0,
+  "workflow_stages": 3,
+  "source": {
+    "repository": "INRIA/scikit-learn-mooc",
+    "commit": "3d1e8cdf7df6675d8a47d352d66b29dfea36587c",
+    "url": "https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29dfea36587c/notebooks/dimred_text.ipynb",
+    "sha256": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+    "retrieved_at": "2026-09-19T14:40:17.644518+00:00",
+    "license": "CC-BY-4.0",
+    "author": "INRIA scikit-learn MOOC contributors"
+  },
+  "data": {
+    "license": "CC-BY-2.5",
+    "sha256": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+    "attribution": "Wikinews contributors, curated by Mega Rhyme and subsampled by INRIA"
+  },
+  "demo": {
+    "title": "Text atlas",
+    "description": "Explore shared vocabulary across 1,250 historical articles."
+  },
+  "verification_scope": "execution_interface_and_bounded_text_adaptation",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_names": [
+      "articles",
+      "cluster_document_counts",
+      "coordinates",
+      "displayed_variance",
+      "labels",
+      "parameters",
+      "retained_variance",
+      "silhouette",
+      "top_terms",
+      "vocabulary",
+      "vocabulary_size"
+    ],
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "text": {
+      "status": "passed",
+      "checks": [
+        "pinned_source_and_corpus",
+        "centered_pca_and_original_variance",
+        "cluster_terms_from_original_tfidf",
+        "retained_space_silhouette",
+        "uncached_seed_reproducibility",
+        "categories_excluded_from_fitting",
+        "parameter_extremes_and_invalid_inputs",
+        "notebook_core_agreement"
+      ],
+      "measurements": {
+        "articles": 1250,
+        "vocabulary": 6404,
+        "displayed_variance": 0.02076089382171631,
+        "retained_variance": 0.19257812201976776,
+        "silhouette": 0.05084475129842758,
+        "cases": [
+          {
+            "clusters": 2,
+            "vocabulary": 13473,
+            "silhouette": 0.1875905841588974
+          },
+          {
+            "clusters": 8,
+            "vocabulary": 3080,
+            "silhouette": 0.07450724393129349
+          }
+        ]
+      }
+    }
+  },
+  "files": {
+    "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+    "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+    "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+    "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
+    "README.md": "eb3650374af6d95c982fcb5f91a548b4f0efbb9364f55b2d19004fc1eed57ed3",
+    "app.py": "e5c87bcaf47d53fe4d5d0419de50bdb14b261dccd1eba443012aeea10d844a63",
+    "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+    "lab_stages.toml": "9747ca98ff8962c9b21595d50900c95d721d94e082da81467443807aee2cbb52",
+    "pyproject.toml": "c31e987c022e9eb79451c80ed6553fc303a0765e2551b8d525c42bfaf07e78c3",
+    "requirements.txt": "5aee4f10fe3a4c3f11e55d1b369cb240e0f62d73800c9d91dc211f7529f7b51c",
+    "solution.ipynb": "50eb14b4c9dd756a83d94ef8fe8367a611e4b26f6beab756c0d205beda1a2207",
+    "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+    "text_core.py": "17a4c01c9a22dbb61f32d21482c4de04d686d7ba72ebd9a3a3b7d7c9460f7e0f"
+  }
+}

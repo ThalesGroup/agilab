@@ -1,0 +1,53 @@
+[[notebook_app_project]]
+D = "MILP Energy Lab"
+Q = "Imported cell-2 from notebook"
+C = "import json\nimport math\nimport sys\nfrom pathlib import Path\n\nif \"PROJECT_ROOT\" in globals():\n    sys.path.insert(0, str(Path(PROJECT_ROOT)))\nfrom energy_core import default_settings, solve_scenario, cpu_limits, make_batch\nfrom energy_runner import run_benchmark, run_batch\n\nreference = solve_scenario(default_settings())\nassert reference[\"status\"] == \"optimal\", reference.get(\"message\")\nassert reference[\"residuals\"][\"verified\"]\nassert reference[\"modules\"] == 30\nassert reference[\"active_modules\"] == [20, 30, 25, 4]\nassert reference[\"dispatch\"] == [4000, 6000, 5000, 800]\nassert reference[\"startup\"] == [20, 10, 0, 0]\nhand_objective = 30 * 200 + sum([4000, 6000, 5000, 800]) + sum([20, 30, 25, 4])\nassert hand_objective == 21879\nassert math.isclose(reference[\"objective\"], hand_objective, abs_tol=1e-6)\nfor t in range(4):\n    assert abs(reference[\"dispatch\"][t] - reference[\"demand\"][t]) < 1e-5\n    assert 0 <= reference[\"active_modules\"][t] <= reference[\"modules\"]\n    assert 20 * reference[\"active_modules\"][t] <= reference[\"dispatch\"][t] + 1e-5\n    assert reference[\"dispatch\"][t] <= 200 * reference[\"active_modules\"][t] + 1e-5\nprint({\"modules\": reference[\"modules\"], \"objective\": reference[\"objective\"], \"verified\": True})\n"
+M = ""
+NB_CELL_ID = "cell-2"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+]
+NB_ENV_HINTS = [
+    "energy_core",
+    "energy_runner",
+    "json",
+    "math",
+    "pathlib",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = "Physical shortage, no incumbent"
+Q = "Imported cell-4 from notebook"
+C = "infeasible = solve_scenario(default_settings() | {\"max_modules\": 10})\nassert infeasible[\"status\"] == \"infeasible\", infeasible.get(\"message\")\nassert infeasible[\"objective\"] is None\nassert infeasible[\"dispatch\"] == []\nassert not infeasible[\"residuals\"][\"verified\"]\nprint({\"capacity_limited_status\": infeasible[\"status\"], \"objective\": infeasible[\"objective\"]})\n"
+M = ""
+NB_CELL_ID = "cell-4"
+NB_CELL_INDEX = 4
+NB_CONTEXT_IDS = [
+    "markdown-3",
+]
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = []
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+
+[[notebook_app_project]]
+D = "Real AGILAB batch: one versus two workers"
+Q = "Imported cell-6 from notebook"
+C = "batch = make_batch(default_settings(), 4)\nenvironment = cpu_limits()\nif environment[\"effective_cpus\"] >= 2:\n    measurement = run_benchmark(batch, 2)\n    assert measurement[\"comparison\"][\"matches\"], measurement[\"comparison\"]\n    assert measurement[\"sequential\"][\"batch_sha256\"] == measurement[\"parallel\"][\"batch_sha256\"]\n    assert len(measurement[\"parallel\"][\"rows\"]) == 4\n    summary = {\"workers\": 2, \"matching_results\": True,\n               \"speedup\": measurement[\"speedup\"],\n               \"sequential_wall_seconds\": measurement[\"sequential\"][\"wall_seconds\"],\n               \"parallel_wall_seconds\": measurement[\"parallel\"][\"wall_seconds\"]}\nelse:\n    measurement = run_batch(batch, 1)\n    assert len(measurement[\"rows\"]) == 4\n    assert all(row[\"result\"][\"residuals\"][\"verified\"] for row in measurement[\"rows\"])\n    summary = {\"workers\": 1, \"scaling\": \"Unavailable: only one effective CPU\",\n               \"wall_seconds\": measurement[\"wall_seconds\"]}\noutput = {\"results\": {\"default_objective\": reference[\"objective\"],\n                       \"installed_modules\": reference[\"modules\"],\n                       \"active_modules\": reference[\"active_modules\"],\n                       \"reference_check\": reference[\"residuals\"],\n                       \"capacity_limited_status\": infeasible[\"status\"],\n                       \"agilab_batch_measurement\": summary,\n                       \"full_reference\": reference,\n                       \"full_batch_measurement\": measurement}}\nPath(\"results.json\").write_text(json.dumps(output, indent=2, allow_nan=False), encoding=\"utf-8\")\nprint(summary)\n"
+M = ""
+NB_CELL_ID = "cell-6"
+NB_CELL_INDEX = 6
+NB_CONTEXT_IDS = [
+    "markdown-5",
+]
+NB_ENV_HINTS = []
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
