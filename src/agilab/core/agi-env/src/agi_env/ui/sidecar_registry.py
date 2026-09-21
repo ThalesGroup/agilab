@@ -155,7 +155,8 @@ def _importable_root_names(root: Path) -> set[str]:
 
 
 def _module_is_below(module: Any, roots: tuple[Path, ...]) -> bool:
-    if not roots or not isinstance(module, ModuleType):
+    # isinstance can consult a proxy's __class__ (including CFFI libraries).
+    if not roots or not issubclass(type(module), ModuleType):
         return False
     # Inspect stored metadata only. getattr can activate Transformers' optional
     # imports, and even vars(module) executes importlib LazyLoader modules.

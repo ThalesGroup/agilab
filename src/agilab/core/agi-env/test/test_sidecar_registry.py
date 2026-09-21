@@ -962,3 +962,25 @@ def test_import_cleanup_ignores_missing_or_invalid_metadata(
     module.__dict__.update(metadata)
     assert not sidecar_registry_module._module_is_below(module, (tmp_path,))
     assert not sidecar_registry_module._module_is_below(None, (tmp_path,))
+
+
+def test_import_cleanup_does_not_inspect_module_proxy_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CFFI libraries can claim ModuleType via __class__ without being modules."""
+    calls = []
+
+    class ModuleProxy:
+        @property
+        def __class__(self):
+            calls.append("__class__")
+            return ModuleType
+
+    proxy = ModuleProxy()
+    name = "_agi_env_test_cffi_module_proxy"
+    with sidecar_registry_module.isolated_import_process_state(module_roots=(tmp_path,)):
+        monkeypatch.setitem(sys.modules, name, proxy)
+
+    assert calls == []
+    assert sys.modules[name] is proxy
