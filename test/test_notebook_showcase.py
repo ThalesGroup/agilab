@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import notebook_showcase as showcase
+from agilab.demos import notebook_showcase as showcase
 
 
 def test_public_bundle_has_verified_hashes_and_no_private_run_paths():
@@ -30,7 +30,7 @@ def test_public_app_renders_and_depth_changes_without_provider():
 
 def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatch, tmp_path):
     """Read the real selector so a newly added demo cannot skip this contract."""
-    from agilab.agent_runtime import forecast_showcase
+    from agilab.demos import forecast_showcase
 
     # Keep real receipt verification and presentation; avoid network/model inference.
     monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _path: tmp_path)
@@ -81,7 +81,7 @@ def test_export_rejects_tampered_verified_code(tmp_path):
 
 
 def test_forecast_query_selects_second_demo_and_can_return_to_iris(monkeypatch):
-    from agilab.agent_runtime import forecast_showcase
+    from agilab.demos import forecast_showcase
     import streamlit as st
 
     monkeypatch.setattr(forecast_showcase, "render", lambda: st.title("Forecast fixture"))
@@ -110,7 +110,7 @@ def test_unknown_demo_query_falls_back_to_iris():
 def test_iris_only_distribution_reports_forecast_unavailability(monkeypatch):
     import sys
 
-    monkeypatch.setitem(sys.modules, "agilab.agent_runtime.forecast_showcase", None)
+    monkeypatch.setitem(sys.modules, "agilab.demos.forecast_showcase", None)
     at = AppTest.from_file(showcase.__file__, default_timeout=30)
     at.query_params["demo"] = "forecast"
     at.run()

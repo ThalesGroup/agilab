@@ -13,7 +13,7 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import milp_energy_showcase as showcase
+from agilab.demos import milp_energy_showcase as showcase
 
 VARIANTS = [
     ("text", "text", "analysis_result", "20260919T144017Z-27f16038"),
@@ -25,7 +25,7 @@ VARIANTS = [
 
 @pytest.mark.parametrize("module_name,route,state_key,run_id", VARIANTS)
 def test_astra_download_preserves_original_receipt_and_distinct_build(module_name, route, state_key, run_id):
-    module = importlib.import_module(f"agilab.agent_runtime.{module_name}_showcase")
+    module = importlib.import_module(f"agilab.demos.{module_name}_showcase")
     astra, qwen = module.load_report(astra=True), module.load_report()
     assert astra["run_id"] == run_id and qwen["run_id"] != run_id
     assert "build_model" not in astra
@@ -40,14 +40,14 @@ def test_astra_download_preserves_original_receipt_and_distinct_build(module_nam
 
 @pytest.mark.parametrize("module_name,route,state_key,run_id", VARIANTS)
 def test_changed_astra_cannot_execute_or_download(module_name, route, state_key, run_id, monkeypatch, tmp_path):
-    module = importlib.import_module(f"agilab.agent_runtime.{module_name}_showcase")
+    module = importlib.import_module(f"agilab.demos.{module_name}_showcase")
     destination = tmp_path / "astra"
     shutil.copytree(module.ASTRA_DEMO_ROOT, destination, ignore=shutil.ignore_patterns("__pycache__"))
     monkeypatch.setattr(module, "ASTRA_DEMO_ROOT", destination)
     (destination / "app.py").write_text("raise AssertionError('unverified app')")
     monkeypatch.setattr(module, "_run_verified_app", lambda *a, **kw: pytest.fail("Changed Astra app executed"))
     at = AppTest.from_string(
-        f"from agilab.agent_runtime.{module_name}_showcase import render\nrender(astra=True)"
+        f"from agilab.demos.{module_name}_showcase import render\nrender(astra=True)"
     ).run()
     assert not at.exception and at.error and not at.title
     with pytest.raises(ValueError, match="changed"):
@@ -58,7 +58,7 @@ def test_changed_astra_cannot_execute_or_download(module_name, route, state_key,
 
 @pytest.mark.parametrize("module_name,route,state_key,run_id", VARIANTS)
 def test_switching_flavours_preserves_independent_results_even_on_failure(module_name, route, state_key, run_id, monkeypatch):
-    module = importlib.import_module(f"agilab.agent_runtime.{module_name}_showcase")
+    module = importlib.import_module(f"agilab.demos.{module_name}_showcase")
     state = {state_key: {"external": True}}
     monkeypatch.setattr(module.st, "session_state", state)
     payload = {f"{name}.py": b"" for name in (

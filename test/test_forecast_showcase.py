@@ -10,7 +10,7 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import forecast_showcase as showcase
+from agilab.demos import forecast_showcase as showcase
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ def _write_report(root, report):
 
 
 def _forecast_page():
-    from agilab.agent_runtime.forecast_showcase import render
+    from agilab.demos.forecast_showcase import render
     render()
 
 

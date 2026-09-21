@@ -457,7 +457,7 @@ def main(argv=None) -> int:
     request = args.request if args.request is not None else (
         GENERIC_REQUEST if args.notebook is not None or args.notebook_url is not None else DEFAULT_REQUEST)
     if args.ui:
-        app = Path(__file__).with_name("notebook_demo_ui.py")
+        app = Path(__file__).parents[1] / "demos" / "notebook_demo_ui.py"
         command = [sys.executable, "-m", "streamlit", "run", str(app),
                                 "--server.address=127.0.0.1", f"--server.port={args.port}",
                                 "--browser.gatherUsageStats=false", "--",

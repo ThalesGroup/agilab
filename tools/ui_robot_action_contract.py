@@ -76,7 +76,7 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Run benchmark": (
         "trial-only",
         "starts bounded local CPU benchmarks; focused tests cover explicit submission and runner errors, while bundled tests and dedicated browser checks exercise real workers",
-        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/resources/free_threading_demo/tests.py", "src/agilab/resources/milp_energy_demo/tests.py"),
+        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/demos/resources/free_threading_demo/tests.py", "src/agilab/demos/resources/milp_energy_demo/tests.py"),
     ),
     "Run model and app checks": (
         "trial-only",

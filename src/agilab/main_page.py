@@ -1271,7 +1271,7 @@ def _render_settings_page_entry() -> None:
 
 
 def _render_notebook_agent_demo() -> None:
-    from agilab.agent_runtime.notebook_showcase import render
+    from agilab.demos.notebook_showcase import render
 
     render()
 

@@ -7,7 +7,7 @@ import importlib.util
 import json
 from pathlib import Path
 
-from agilab.agent_runtime.text_showcase import PUBLIC_FILES
+from agilab.demos.text_showcase import PUBLIC_FILES
 
 COMMIT = "3d1e8cdf7df6675d8a47d352d66b29dfea36587c"
 SOURCE_HASH = "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2"

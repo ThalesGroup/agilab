@@ -416,7 +416,7 @@ Use this runbook whenever you:
   small side-effect-free metadata module (for example `page_meta.py`) so the page and tests do not
   drift on duplicated strings.
 - **Notebook demo build evidence**: Every public notebook demo must call
-  `agent_runtime.notebook_demo_evidence.render_build_evidence` after verifying its
+  `demos.notebook_demo_evidence.render_build_evidence` after verifying its
   original build receipt. Rebuilt local-model demos must identify the exact build
   model in their receipt and visible model label; preserve source/data/engine hashes
   and distinguish local generation from coordinating-assistant and Tokki routing.

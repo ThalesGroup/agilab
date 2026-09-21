@@ -671,6 +671,7 @@ the same releaseable tree.
 | `src/agilab/lib/agi-apps` | PyPI umbrella that carries app catalog/example assets and exact-pins the app payload packages already promoted to PyPI. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Published `agi-page-*` payload packages are distributed independently; `agi-pages` supplies the discovery/provider surface. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | Public built-in apps used for first proof, demos, workflow examples, and regression coverage. | Packaged examples, not enterprise deployment templates. |
+| `src/agilab/demos` | Agent Demo gallery, local builder UI, shared presentation helpers, and ten verified bundles in `resources/`. | Packaged with `agilab`; frozen bundle bytes preserve recorded build receipts. Legacy `agent_runtime` demo imports remain compatibility aliases. |
 | `src/agilab/examples` | Learning scripts, notebooks, and preview examples. | Educational material; optional helper dependencies live behind extras. |
 | `tools`, `.github`, `pycharm`, `.codex`, `.claude`, `dev` | Contributor, release, agent, and IDE automation. | Maintainer tooling, not runtime API. |
 | `docs/source` | Public documentation mirror. | Published docs source; canonical docs are synchronized before release. |
