@@ -525,6 +525,9 @@ Use this runbook whenever you:
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
   source checkout is absent. Agents can only reference packaged assets inside the
   virtual environment—never repository-relative paths.
+- **UI import cleanup**: Inspect stored module metadata without invoking lazy import
+  hooks. Keep regression coverage for optional dependencies, failed page imports,
+  and navigation away from a computed forecast in the same browser session.
 - **App settings workspace**: `src/.../app_settings.toml` is now a versioned seed only.
   Mutable per-user settings live under `~/.agilab/apps/<app>/app_settings.toml`, and
   the UI reads/writes that workspace copy.

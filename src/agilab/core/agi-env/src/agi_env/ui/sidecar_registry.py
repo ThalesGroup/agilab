@@ -16,6 +16,7 @@ import sys
 import tempfile
 import threading
 import time
+from types import ModuleType
 from typing import Any, Callable, Iterator
 from urllib.parse import urlparse
 
@@ -154,12 +155,18 @@ def _importable_root_names(root: Path) -> set[str]:
 
 
 def _module_is_below(module: Any, roots: tuple[Path, ...]) -> bool:
+    # isinstance can consult a proxy's __class__ (including CFFI libraries).
+    if not roots or not issubclass(type(module), ModuleType):
+        return False
+    # Inspect stored metadata only. getattr can activate Transformers' optional
+    # imports, and even vars(module) executes importlib LazyLoader modules.
+    namespace = ModuleType.__getattribute__(module, "__dict__")
     raw_paths: list[Any] = []
-    raw_file = getattr(module, "__file__", None)
+    raw_file = namespace.get("__file__")
     if raw_file:
         raw_paths.append(raw_file)
     try:
-        raw_paths.extend(getattr(module, "__path__", ()) or ())
+        raw_paths.extend(namespace.get("__path__", ()) or ())
     except TypeError:
         pass
     for raw_path in raw_paths:
@@ -213,12 +220,15 @@ def isolated_import_process_state(
                 sys.path.insert(0, entry)
             yield
         finally:
-            for module_name, module in tuple(sys.modules.items()):
-                if _module_is_below(module, roots):
-                    sys.modules.pop(module_name, None)
-            sys.modules.update(saved_modules)
-            sys.argv = original_argv
-            sys.path[:] = original_path
+            try:
+                if roots:
+                    for module_name, module in tuple(sys.modules.items()):
+                        if _module_is_below(module, roots):
+                            sys.modules.pop(module_name, None)
+            finally:
+                sys.modules.update(saved_modules)
+                sys.argv = original_argv
+                sys.path[:] = original_path
 
 
 class ProcessSidecarRegistry:
