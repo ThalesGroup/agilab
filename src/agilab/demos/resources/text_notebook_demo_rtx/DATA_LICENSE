@@ -1,0 +1,11 @@
+Wikinews corpus: Creative Commons Attribution 2.5 Generic (CC BY 2.5).
+License and legal terms: https://creativecommons.org/licenses/by/2.5/
+
+Attribution: Wikinews contributors; corpus curated by The Mega Rhyme Rhyming
+Dictionary (https://www.megarhyme.com/blog/wikinews-dataset/), then subsampled
+by the INRIA scikit-learn MOOC. This demo redistributes INRIA's CSV unchanged.
+The dataset is historical text, not a current news feed.
+
+Dataset source and license record:
+https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29dfea36587c/datasets/README.md
+https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29dfea36587c/datasets/wiki_news.csv

@@ -36,6 +36,18 @@ def require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
+def analysis_sections(analysis: dict) -> tuple[dict, dict, dict]:
+    """Accept the nested and flat JSON layouts produced by the notebook builders."""
+    nested = {"fixture", "predictions", "metrics"}
+    if nested.intersection(analysis):
+        require(nested.issubset(analysis), "Analysis mixes incomplete nested and flat sections")
+        sections = tuple(analysis[key] for key in ("fixture", "predictions", "metrics"))
+        require(all(isinstance(section, dict) for section in sections), "Invalid analysis sections")
+        return sections
+    # The same numerical and instrumented-model checks below apply to both layouts.
+    return analysis, analysis, analysis
+
+
 def public_hashes(project: Path) -> dict[str, str]:
     hashes = {}
     for name in sorted(PUBLIC_FILES):
@@ -217,13 +229,14 @@ def verify(run: Path) -> dict:
         analysis = core.run_analysis(seed=42, horizon=HORIZON, promotion_start=7, promotion_days=7)
         require(len(observed) == before + 1, "run_analysis must execute real Chronos inference")
         json.dumps(analysis, allow_nan=False)
-        validate_fixture(analysis["fixture"])
-        prediction = validate_prediction(analysis["predictions"], observed[-1])
-        baseline, scores = metrics(analysis["fixture"], prediction)
+        fixture, predictions, reported_metrics = analysis_sections(analysis)
+        validate_fixture(fixture)
+        prediction = validate_prediction(predictions, observed[-1])
+        baseline, scores = metrics(fixture, prediction)
         require(np.array_equal(np.asarray(analysis["baseline"]), baseline),
                 "run_analysis baseline does not repeat the last seven historical values")
         for key, value in scores.items():
-            require(np.isclose(float(analysis["metrics"][key]), value, rtol=1e-6, atol=1e-6),
+            require(np.isclose(float(reported_metrics[key]), value, rtol=1e-6, atol=1e-6),
                     f"run_analysis reports an incorrect {key}")
         checks.append("json_analysis_matches_independent_metrics")
     finally:

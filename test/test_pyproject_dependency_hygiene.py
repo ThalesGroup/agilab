@@ -198,6 +198,8 @@ def test_python_support_floor_is_312_or_newer() -> None:
         if rel in {
             Path("src/agilab/demos/resources/milp_energy_demo/pyproject.toml"),
             Path("src/agilab/demos/resources/milp_energy_demo_astra/pyproject.toml"),
+            Path("src/agilab/demos/resources/free_threading_demo_rtx/pyproject.toml"),
+            Path("src/agilab/demos/resources/milp_energy_demo_rtx/pyproject.toml"),
         }:
             # Immutable standalone notebook-agent output, with its own Python
             # contract. Receipt tests bind its exact bytes; it is not an AGILAB

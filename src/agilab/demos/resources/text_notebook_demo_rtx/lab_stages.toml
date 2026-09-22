@@ -1,0 +1,45 @@
+[[notebook_app_project]]
+D = "Text atlas"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import sys\\nfrom pathlib import Path\\n\\n# PROJECT_ROOT is supplied by the runner; fall back to the current directory.\\nPROJECT_ROOT = Path(globals().get(\"PROJECT_ROOT\", Path.cwd())).resolve()\\nif str(PROJECT_ROOT) not in sys.path:\\n    sys.path.insert(0, str(PROJECT_ROOT))\\n\\nimport text_core\\n\\ncorpus_path = PROJECT_ROOT / \"data\" / \"wiki_news.csv\"\\ncorpus = text_core.load_corpus(corpus_path)\\nprint(f\"Loaded {len(corpus)} articles from {corpus_path}\")\\ncorpus[\"category\"].value_counts()\\ncorpus.head(3)', 'notebook:cell-2'), ('# TF-IDF (English stop words) -> centered PCA (<=50 components, randomized,\\n# fixed seed) -> KMeans in the retained PCA space.\\nanalysis = text_core.analyze(min_df=5, max_df=0.8, n_clusters=5, seed=42)\\nanalysis[\"parameters\"]', 'notebook:cell-3'), ('import json\\n\\nimport pandas as pd\\n\\nparams = analysis[\"parameters\"]\\nmetrics = pd.DataFrame(\\n    [\\n        {\"metric\": \"articles\", \"value\": params[\"n_samples\"]},\\n        {\"metric\": \"vocabulary size\", \"value\": len(analysis[\"vocabulary\"])},\\n        {\"metric\": \"silhouette (retained PCA space)\", \"value\": round(analysis[\"silhouette\"], 4)},\\n        {\\n            \"metric\": \"original variance visible in 2D\",\\n            \"value\": f\"{analysis[\\'displayed_variance\\'] * 100:.2f}%\",\\n        },\\n        {\\n            \"metric\": \"original variance retained by all components\",\\n            \"value\": f\"{analysis[\\'retained_variance\\'] * 100:.2f}%\",\\n        },\\n        {\"metric\": \"PCA components retained\", \"value\": params[\"n_components\"]},\\n        {\"metric\": \"clusters\", \"value\": params[\"n_clusters\"]},\\n    ]\\n)\\nprint(\"Nearby points share similar TF-IDF vocabulary; KMeans clusters are not validated topics. The 2D view drops detail, and silhouette is an internal clustering diagnostic, not an accuracy score.\")\\nmetrics\\n\\nresults = {\\n    \"results\": {\\n        \"n_articles\": params[\"n_samples\"],\\n        \"vocabulary_size\": len(analysis[\"vocabulary\"]),\\n        \"silhouette\": analysis[\"silhouette\"],\\n        \"displayed_variance\": analysis[\"displayed_variance\"],\\n        \"retained_variance\": analysis[\"retained_variance\"],\\n        \"n_pca_components\": params[\"n_components\"],\\n        \"cluster_sizes\": [\\n            int((analysis[\"labels\"] == cluster).sum())\\n            for cluster in range(params[\"n_clusters\"])\\n        ],\\n        \"top_terms\": analysis[\"top_terms\"],\\n    }\\n}\\nwith open(\"results.json\", \"w\", encoding=\"utf-8\") as handle:\\n    json.dump(results, handle, indent=2, allow_nan=False)\\nprint(\"Wrote results.json to\", Path.cwd())', 'notebook:cell-4')])\n"
+M = ""
+NB_CELL_ID = "notebook-8fc41810ef1858f4"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+]
+NB_ENV_HINTS = [
+    "pathlib",
+    "sys",
+    "text_core",
+    "json",
+    "pandas",
+]
+NB_ARTIFACT_REFERENCES = [
+    "wiki_news.csv",
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "2cf8a3983152444a7fc1a98d4c6366c5cd0e50809fcf4b6fc7ba857174dea8a9"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "8fc41810ef1858f4253bff011617bb673aa4b15851b274a6d84a9bf7877b25d5"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import sys\nfrom pathlib import Path\n\n# PROJECT_ROOT is supplied by the runner; fall back to the current directory.\nPROJECT_ROOT = Path(globals().get(\"PROJECT_ROOT\", Path.cwd())).resolve()\nif str(PROJECT_ROOT) not in sys.path:\n    sys.path.insert(0, str(PROJECT_ROOT))\n\nimport text_core\n\ncorpus_path = PROJECT_ROOT / \"data\" / \"wiki_news.csv\"\ncorpus = text_core.load_corpus(corpus_path)\nprint(f\"Loaded {len(corpus)} articles from {corpus_path}\")\ncorpus[\"category\"].value_counts()\ncorpus.head(3)"
+sha256 = "27b8adfe912664da543659c784821d186d0e82a8eba01acfa421c64610c960cf"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "# TF-IDF (English stop words) -> centered PCA (<=50 components, randomized,\n# fixed seed) -> KMeans in the retained PCA space.\nanalysis = text_core.analyze(min_df=5, max_df=0.8, n_clusters=5, seed=42)\nanalysis[\"parameters\"]"
+sha256 = "523c7bef4667f2a4019cd3ea4c52c528025e210c4e030566b207e5e83bbf8537"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "import json\n\nimport pandas as pd\n\nparams = analysis[\"parameters\"]\nmetrics = pd.DataFrame(\n    [\n        {\"metric\": \"articles\", \"value\": params[\"n_samples\"]},\n        {\"metric\": \"vocabulary size\", \"value\": len(analysis[\"vocabulary\"])},\n        {\"metric\": \"silhouette (retained PCA space)\", \"value\": round(analysis[\"silhouette\"], 4)},\n        {\n            \"metric\": \"original variance visible in 2D\",\n            \"value\": f\"{analysis['displayed_variance'] * 100:.2f}%\",\n        },\n        {\n            \"metric\": \"original variance retained by all components\",\n            \"value\": f\"{analysis['retained_variance'] * 100:.2f}%\",\n        },\n        {\"metric\": \"PCA components retained\", \"value\": params[\"n_components\"]},\n        {\"metric\": \"clusters\", \"value\": params[\"n_clusters\"]},\n    ]\n)\nprint(\"Nearby points share similar TF-IDF vocabulary; KMeans clusters are not validated topics. The 2D view drops detail, and silhouette is an internal clustering diagnostic, not an accuracy score.\")\nmetrics\n\nresults = {\n    \"results\": {\n        \"n_articles\": params[\"n_samples\"],\n        \"vocabulary_size\": len(analysis[\"vocabulary\"]),\n        \"silhouette\": analysis[\"silhouette\"],\n        \"displayed_variance\": analysis[\"displayed_variance\"],\n        \"retained_variance\": analysis[\"retained_variance\"],\n        \"n_pca_components\": params[\"n_components\"],\n        \"cluster_sizes\": [\n            int((analysis[\"labels\"] == cluster).sum())\n            for cluster in range(params[\"n_clusters\"])\n        ],\n        \"top_terms\": analysis[\"top_terms\"],\n    }\n}\nwith open(\"results.json\", \"w\", encoding=\"utf-8\") as handle:\n    json.dump(results, handle, indent=2, allow_nan=False)\nprint(\"Wrote results.json to\", Path.cwd())"
+sha256 = "27e499a40746631b897ec678f255d211667d9128f37dc4eef42fe397ea8acbaf"

@@ -1,0 +1,40 @@
+[[decision_lab_project]]
+D = "Iris Decision Lab / Run the workflow"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('\"\"\"Stage 1 — import: model factory, data, and reusable workflow stages.\"\"\"\\nimport json\\nimport sys\\nfrom pathlib import Path\\n\\nimport pandas as pd\\nfrom sklearn.metrics import accuracy_score\\nfrom sklearn.model_selection import train_test_split\\n\\n_project_root = Path(globals().get(\"PROJECT_ROOT\", Path.cwd())).resolve()\\nif str(_project_root) not in sys.path:\\n    sys.path.insert(0, str(_project_root))\\n\\nfrom models import build_models, load_data  # noqa: E402\\n\\nSPLIT_SEED = 42\\nTEST_SIZE = 0.3\\n\\n\\ndef split_data(seed: int = SPLIT_SEED):\\n    \"\"\"Split the full Iris frame into a stratified train/test pair.\"\"\"\\n    X, y, names = load_data()\\n    X_train, X_test, y_train, y_test = train_test_split(\\n        X, y, test_size=TEST_SIZE, stratify=y, random_state=seed\\n    )\\n    return X_train, X_test, y_train, y_test, names\\n\\n\\ndef train_models(max_depth: int = 3, seed: int = SPLIT_SEED):\\n    \"\"\"Fit every candidate model from `models.build_models` on the train split.\"\"\"\\n    X_train, X_test, y_train, y_test, names = split_data(seed)\\n    fitted = {}\\n    for name, estimator in build_models(max_depth=max_depth, seed=seed).items():\\n        fitted[name] = estimator.fit(X_train, y_train)\\n    return fitted, X_test, y_test, names\\n\\n\\ndef evaluate_models(fitted: dict, X_test, y_test) -> list:\\n    \"\"\"Score every model on the held-out split as JSON-ready rows.\"\"\"\\n    rows = []\\n    for name, model in fitted.items():\\n        score = float(accuracy_score(y_test, model.predict(X_test)))\\n        rows.append({\"model\": name, \"accuracy\": round(score, 4)})\\n    return rows\\n\\n\\ndef write_metrics(rows: list, path: Path = Path(\"metrics.json\")) -> Path:\\n    \"\"\"Persist the comparison to metrics.json in the current directory.\"\"\"\\n    path.write_text(json.dumps(rows, indent=2, sort_keys=True))\\n    return path', 'notebook:cell-2'), ('\"\"\"Stage 2 — train + evaluate: run the pipeline and write metrics.json.\"\"\"\\nfitted, X_test, y_test, names = train_models(max_depth=3, seed=SPLIT_SEED)\\nrows = evaluate_models(fitted, X_test, y_test)\\nout = write_metrics(rows)\\n\\ncomparison = pd.DataFrame(rows).sort_values(\"accuracy\", ascending=False).reset_index(drop=True)\\nbest = comparison.loc[0, \"model\"]\\nprint(f\"metrics written to {out}\")\\nprint(comparison.to_string(index=False))\\nprint(f\"Best on this held-out split: {best}\")\\nprint(\"Note: 150-sample dataset, single split — treat rankings as indicative only.\")', 'notebook:cell-4')])\n"
+M = ""
+NB_CELL_ID = "notebook-3e9b13e4dbacb61a"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+    "markdown-3",
+]
+NB_ENV_HINTS = [
+    "json",
+    "models",
+    "pandas",
+    "pathlib",
+    "sklearn",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = [
+    "metrics.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "dab05ac0168c04a20b25b19f8aa24bcfb24299827337385eb2081219c6ae382c"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "3e9b13e4dbacb61ade000ea50a0f5c336d9c02f700a69e390bbe5e5d3914b316"
+
+[[decision_lab_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "\"\"\"Stage 1 — import: model factory, data, and reusable workflow stages.\"\"\"\nimport json\nimport sys\nfrom pathlib import Path\n\nimport pandas as pd\nfrom sklearn.metrics import accuracy_score\nfrom sklearn.model_selection import train_test_split\n\n_project_root = Path(globals().get(\"PROJECT_ROOT\", Path.cwd())).resolve()\nif str(_project_root) not in sys.path:\n    sys.path.insert(0, str(_project_root))\n\nfrom models import build_models, load_data  # noqa: E402\n\nSPLIT_SEED = 42\nTEST_SIZE = 0.3\n\n\ndef split_data(seed: int = SPLIT_SEED):\n    \"\"\"Split the full Iris frame into a stratified train/test pair.\"\"\"\n    X, y, names = load_data()\n    X_train, X_test, y_train, y_test = train_test_split(\n        X, y, test_size=TEST_SIZE, stratify=y, random_state=seed\n    )\n    return X_train, X_test, y_train, y_test, names\n\n\ndef train_models(max_depth: int = 3, seed: int = SPLIT_SEED):\n    \"\"\"Fit every candidate model from `models.build_models` on the train split.\"\"\"\n    X_train, X_test, y_train, y_test, names = split_data(seed)\n    fitted = {}\n    for name, estimator in build_models(max_depth=max_depth, seed=seed).items():\n        fitted[name] = estimator.fit(X_train, y_train)\n    return fitted, X_test, y_test, names\n\n\ndef evaluate_models(fitted: dict, X_test, y_test) -> list:\n    \"\"\"Score every model on the held-out split as JSON-ready rows.\"\"\"\n    rows = []\n    for name, model in fitted.items():\n        score = float(accuracy_score(y_test, model.predict(X_test)))\n        rows.append({\"model\": name, \"accuracy\": round(score, 4)})\n    return rows\n\n\ndef write_metrics(rows: list, path: Path = Path(\"metrics.json\")) -> Path:\n    \"\"\"Persist the comparison to metrics.json in the current directory.\"\"\"\n    path.write_text(json.dumps(rows, indent=2, sort_keys=True))\n    return path"
+sha256 = "ed7e5628b2cc9826732b7b4a6947963d5b1f12ed3767d591a86352f92a67e604"
+
+[[decision_lab_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "\"\"\"Stage 2 — train + evaluate: run the pipeline and write metrics.json.\"\"\"\nfitted, X_test, y_test, names = train_models(max_depth=3, seed=SPLIT_SEED)\nrows = evaluate_models(fitted, X_test, y_test)\nout = write_metrics(rows)\n\ncomparison = pd.DataFrame(rows).sort_values(\"accuracy\", ascending=False).reset_index(drop=True)\nbest = comparison.loc[0, \"model\"]\nprint(f\"metrics written to {out}\")\nprint(comparison.to_string(index=False))\nprint(f\"Best on this held-out split: {best}\")\nprint(\"Note: 150-sample dataset, single split — treat rankings as indicative only.\")"
+sha256 = "1e0dfcb914a92050df2d60ff4eadc879fc937d176a5579c6b295ff0d913e6ff6"

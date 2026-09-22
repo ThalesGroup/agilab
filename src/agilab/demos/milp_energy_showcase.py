@@ -18,6 +18,7 @@ from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, a
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "milp_energy_demo"
 ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
+RTX_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_rtx")
 PUBLIC_FILES = frozenset({
     "app.py", "energy_core.py", "energy_runner.py", "agilab_pool.py",
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
@@ -26,8 +27,8 @@ PUBLIC_FILES = frozenset({
 })
 
 
-def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+def _read_verified_bundle(*, astra: bool = False, rtx: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
     if demo_root.is_symlink() or (demo_root / "result.json").is_symlink():
         raise ValueError("MILP Energy demo and receipt must not be symlinks")
     receipt = (demo_root / "result.json").read_bytes()
@@ -102,8 +103,8 @@ def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes
     return report, payload
 
 
-def load_report(*, astra: bool = False) -> dict:
-    return _read_verified_bundle(astra=astra)[0]
+def load_report(*, astra: bool = False, rtx: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra, rtx=rtx)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -114,13 +115,13 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle(*, astra: bool = False) -> bytes:
-    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
+def download_bundle(*, astra: bool = False, rtx: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra, rtx=rtx)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
-    state_name = "milp_astra" if astra else "milp"
+def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False, rtx: bool = False) -> None:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "milp_rtx" if rtx else "milp_astra" if astra else "milp"
     # These generated top-level imports are scoped just like the other demos.
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
@@ -136,7 +137,11 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
         app_path = str(demo_root / "app.py")
-        with app_session_state(st.session_state, state_name, ("analysis", "analysis_signature", "comparisons", "benchmark_result", "benchmark_signature", "milp_energy_result", "milp_energy_saved", "milp_energy_benchmark")):
+        with app_session_state(st.session_state, state_name, (
+            "analysis", "analysis_signature", "comparisons", "benchmark_result", "benchmark_signature",
+            "milp_energy_result", "milp_energy_saved", "milp_energy_benchmark",
+            "result", "ran_at", "run_error", "benchmark", "benchmark_ran_at", "benchmark_error",
+        )):
             exec(compile(payload["app.py"], app_path, "exec"),
                  {"__name__": "__main__", "__file__": app_path})
     finally:
@@ -147,9 +152,9 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
         _APP_LOCK.release()
 
 
-def render(*, astra: bool = False) -> None:
+def render(*, astra: bool = False, rtx: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle(astra=astra)
+        report, payload = _read_verified_bundle(astra=astra, rtx=rtx)
     except (OSError, ValueError, TypeError) as exc:
         st.error(f"MILP Energy demo unavailable: {exc}")
         return
@@ -157,7 +162,10 @@ def render(*, astra: bool = False) -> None:
     render_build_evidence(report)
     if model := report.get("build_model"):
         st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
-    if astra:
+    if rtx:
+        st.caption("Qwen · RTX — generated and repaired locally on NVIDIA RTX 4090, with no cloud code-generation fallback.")
+        st.caption("This RTX variant measures its generated Python process runner. The bundled AGILAB pool engine is a source reference, not the measured executor.")
+    elif astra:
         st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
@@ -167,20 +175,25 @@ def render(*, astra: bool = False) -> None:
             "Notebook and code: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)."
         )
         st.write("Adaptations add an interactive energy lab, the HiGHS solver, configurable scenarios, "
-                 "solution checks, and AGILAB batch measurements. PyPSA's library is MIT licensed.")
+                 "solution checks, and scenario batch measurements. PyPSA's library is MIT licensed.")
         engine = report["engine"]
+        engine_label = ("The bundle retains an unchanged reference copy of the "
+                        if rtx else "Scenario batches use the unchanged ")
         st.markdown(
-            f"Scenario batches use the unchanged [AGILAB pool engine]"
+            f"{engine_label}[AGILAB pool engine]"
             f"(https://github.com/{engine['repository']}/blob/{engine['commit']}/{engine['path']})."
         )
-        st.caption(f"Completed autonomous build: {report['run_id']}")
-        st.write("Independent checks cover the pinned notebook and engine, a known optimum, "
+        build_label = "Completed local-codegen build" if rtx else "Completed autonomous build"
+        st.caption(f"{build_label}: {report['run_id']}")
+        st.write("Independent checks cover the pinned notebook and supplied engine source, a known optimum, "
                  "infeasibility, physical constraints, cost reconstruction and equivalent scenario batches.")
         st.caption("Scaling measures independent MILP scenarios on this machine, with one HiGHS thread "
                    "per scenario. It does not measure distributed execution or acceleration of one MILP.")
         st.download_button("Download the MILP energy lab and workflow", _zip_bundle(payload),
-                           "tokki-agilab-milp-energy-astra.zip" if astra else "tokki-agilab-milp-energy.zip", "application/zip", key="milp_energy_bundle_astra" if astra else "milp_energy_bundle")
-    if astra:
+                           "tokki-agilab-milp-energy-rtx.zip" if rtx else "tokki-agilab-milp-energy-astra.zip" if astra else "tokki-agilab-milp-energy.zip", "application/zip", key="milp_energy_bundle_rtx" if rtx else "milp_energy_bundle_astra" if astra else "milp_energy_bundle")
+    if rtx:
+        _run_verified_app(payload, rtx=True)
+    elif astra:
         _run_verified_app(payload, astra=True)
     else:
         _run_verified_app(payload)

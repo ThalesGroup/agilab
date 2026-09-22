@@ -1,0 +1,43 @@
+[[notebook_app_project]]
+D = "Modular Expansion with Unit Commitment (MILP)"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import json\\nimport os\\nimport sys\\n\\nPROJECT_ROOT = os.environ.get(\"PROJECT_ROOT\")\\nif PROJECT_ROOT:\\n    sys.path.insert(0, PROJECT_ROOT)\\n\\nimport energy_core as core\\n\\nprint(\"Scenario keys:\", list(core.default_settings().keys()))\\n', 'notebook:cell-2'), ('# Reference case: the hand-checkable 21879 optimum on the base four-hour profile.\\nresult = core.solve_scenario(core.default_settings())\\nprint(\"Status:\", result[\"status\"])\\nprint(\"Optimal capacity [MW]:\", result[\"capacity_mw\"])\\nprint(\"Modules built:\", result[\"modules\"])\\nprint(\"Objective:\", result[\"objective\"])\\nprint(\"Active modules per hour:\", result[\"active_modules\"])\\n', 'notebook:cell-3'), ('# Solve the stable scientific scenarios and write results.json in the current directory.\\nbase = core.default_settings()\\nsummary = {\\n    \"reference\": core.solve_scenario(base),\\n    \"solar\": core.solve_scenario(base | {\"solar_capacity\": 1500.0, \"startup_cost\": 500.0}),\\n    \"startup\": core.solve_scenario(base | {\"hours\": 12, \"startup_cost\": 500.0}),\\n    \"shortage\": core.solve_scenario(base | {\"max_modules\": 20, \"allow_shedding\": True}),\\n}\\nwith open(os.path.join(os.getcwd(), \"results.json\"), \"w\") as fh:\\n    json.dump({\"results\": summary}, fh, indent=2, allow_nan=False)\\nprint(\"Wrote results.json with\", len(summary), \"cases\")\\n', 'notebook:cell-4')])\n"
+M = ""
+NB_CELL_ID = "notebook-fd9957425a7f2154"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+]
+NB_ENV_HINTS = [
+    "energy_core",
+    "json",
+    "os",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "aa5ecb0ba556ce4ff151b8400b0fb5fdef0a2db09652e07c4a0b97ec0fd0a9b4"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "fd9957425a7f2154a6f0950cd1fc658503efad051605f53f3cc5ee036ad1e9fd"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import json\nimport os\nimport sys\n\nPROJECT_ROOT = os.environ.get(\"PROJECT_ROOT\")\nif PROJECT_ROOT:\n    sys.path.insert(0, PROJECT_ROOT)\n\nimport energy_core as core\n\nprint(\"Scenario keys:\", list(core.default_settings().keys()))\n"
+sha256 = "bf6dff5ebf4a2e36d67401ca89fff44c961f3217094d34de70303dacd2969620"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "# Reference case: the hand-checkable 21879 optimum on the base four-hour profile.\nresult = core.solve_scenario(core.default_settings())\nprint(\"Status:\", result[\"status\"])\nprint(\"Optimal capacity [MW]:\", result[\"capacity_mw\"])\nprint(\"Modules built:\", result[\"modules\"])\nprint(\"Objective:\", result[\"objective\"])\nprint(\"Active modules per hour:\", result[\"active_modules\"])\n"
+sha256 = "0235ad7f635dc0f68d0e51a780d96aaf4ed7bd1474854acfadc5b2deddc3f221"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "# Solve the stable scientific scenarios and write results.json in the current directory.\nbase = core.default_settings()\nsummary = {\n    \"reference\": core.solve_scenario(base),\n    \"solar\": core.solve_scenario(base | {\"solar_capacity\": 1500.0, \"startup_cost\": 500.0}),\n    \"startup\": core.solve_scenario(base | {\"hours\": 12, \"startup_cost\": 500.0}),\n    \"shortage\": core.solve_scenario(base | {\"max_modules\": 20, \"allow_shedding\": True}),\n}\nwith open(os.path.join(os.getcwd(), \"results.json\"), \"w\") as fh:\n    json.dump({\"results\": summary}, fh, indent=2, allow_nan=False)\nprint(\"Wrote results.json with\", len(summary), \"cases\")\n"
+sha256 = "a949f2c04733132814aafa7269c89c96d9d402ccc60d23b5971ef58a90cf102d"

@@ -19,6 +19,7 @@ from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "notebook_agent_demo"
 LOCAL_DEMO_ROOT = DEMO_ROOT.with_name("notebook_agent_local_demo")
+RTX_DEMO_ROOT = DEMO_ROOT.with_name("notebook_agent_rtx_demo")
 DEMO_LABELS = {
     "iris": "Iris · Astra",
     "iris_local": "Iris · Qwen",
@@ -29,7 +30,12 @@ DEMO_LABELS = {
     "threading": "Free-threading · Qwen",
     "threading_astra": "Free-threading · Astra",
     "milp": "MILP · Qwen",
-    "milp_astra": "MILP · Astra"
+    "milp_astra": "MILP · Astra",
+    "iris_rtx": "Iris · Qwen · RTX",
+    "text_rtx": "Text Atlas · Qwen · RTX",
+    "forecast_rtx": "Forecast · Qwen · RTX",
+    "threading_rtx": "Free-threading · Qwen · RTX",
+    "milp_rtx": "MILP · Qwen · RTX"
 }
 
 VERIFIED_FILES = frozenset({"app.py", "models.py", "solution.ipynb", "lab_stages.toml"})
@@ -141,7 +147,7 @@ def render() -> None:
         format_func=DEMO_LABELS.__getitem__,
         key="demo", on_change=_sync_demo_query,
     )
-    if selected in {"milp", "milp_astra"}:
+    if selected in {"milp", "milp_astra", "milp_rtx"}:
         try:
             from agilab.demos.milp_energy_showcase import render as render_milp
         except ModuleNotFoundError as exc:
@@ -149,12 +155,14 @@ def render() -> None:
                 raise
             st.error("MILP energy lab unavailable in this distribution.")
             return
-        if selected == "milp_astra":
+        if selected == "milp_rtx":
+            render_milp(rtx=True)
+        elif selected == "milp_astra":
             render_milp(astra=True)
         else:
             render_milp()
         return
-    if selected in {"threading", "threading_astra"}:
+    if selected in {"threading", "threading_astra", "threading_rtx"}:
         try:
             from agilab.demos.free_threading_showcase import render as render_threading
         except ModuleNotFoundError as exc:
@@ -162,12 +170,14 @@ def render() -> None:
                 raise
             st.error("Free-threading demo unavailable in this distribution.")
             return
-        if selected == "threading_astra":
+        if selected == "threading_rtx":
+            render_threading(rtx=True)
+        elif selected == "threading_astra":
             render_threading(astra=True)
         else:
             render_threading()
         return
-    if selected in {"forecast", "forecast_astra"}:
+    if selected in {"forecast", "forecast_astra", "forecast_rtx"}:
         try:
             from agilab.demos.forecast_showcase import render as render_forecast
         except ModuleNotFoundError as exc:
@@ -175,12 +185,14 @@ def render() -> None:
                 raise
             st.error("Forecast demo unavailable in this distribution.")
             return
-        if selected == "forecast_astra":
+        if selected == "forecast_rtx":
+            render_forecast(rtx=True)
+        elif selected == "forecast_astra":
             render_forecast(astra=True)
         else:
             render_forecast()
         return
-    if selected in {"text", "text_astra"}:
+    if selected in {"text", "text_astra", "text_rtx"}:
         try:
             from agilab.demos.text_showcase import render as render_text
         except ModuleNotFoundError as exc:
@@ -188,15 +200,17 @@ def render() -> None:
                 raise
             st.error("Text demo unavailable in this distribution.")
             return
-        if selected == "text_astra":
+        if selected == "text_rtx":
+            render_text(rtx=True)
+        elif selected == "text_astra":
             render_text(astra=True)
         else:
             render_text()
         return
-    if selected not in {"iris", "iris_local"}:
+    if selected not in {"iris", "iris_local", "iris_rtx"}:
         st.error("Choose one of the available demos.")
         return
-    demo_root = LOCAL_DEMO_ROOT if selected == "iris_local" else DEMO_ROOT
+    demo_root = RTX_DEMO_ROOT if selected == "iris_rtx" else LOCAL_DEMO_ROOT if selected == "iris_local" else DEMO_ROOT
     try:
         report, payload = _read_verified_bundle(demo_root)
     except (OSError, ValueError, TypeError) as exc:
@@ -207,10 +221,13 @@ def render() -> None:
         ("Models checked", len({row["model"] for row in report["verification"]["scores"]})),
     ))
     st.caption(
-        "Build model: Qwen 3.8 27B (4-bit, local MLX)."
+        "Build model: Qwen 3.8 27B (Q4_K_M, local NVIDIA RTX 4090)."
+        if selected == "iris_rtx" else "Build model: Qwen 3.8 27B (4-bit, local MLX)."
         if selected == "iris_local" else "Build model: GPT-6 Astra (OpenAI)."
     )
-    if selected == "iris_local":
+    if selected == "iris_rtx":
+        st.write("Qwen generated and repaired this app locally on NVIDIA RTX, with no cloud code-generation fallback. AGILAB imported and verified the workflow.")
+    elif selected == "iris_local":
         st.write(
             "Local Qwen generated and repaired this app. "
             "A coordinating assistant reviewed the outputs; AGILAB imported the workflow."

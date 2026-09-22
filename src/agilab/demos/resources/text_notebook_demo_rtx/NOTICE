@@ -1,0 +1,44 @@
+# NOTICE — modifications relative to the upstream lesson
+
+This project adapts INRIA's scikit-learn MOOC notebook
+`dimred_text.ipynb` (pinned commit `3d1e8cdf7df6675d8a47d352d66b29dfea36587c`,
+CC BY 4.0, INRIA scikit-learn MOOC contributors). The corpus is historical
+Wikinews text under a separate CC BY 2.5 license (see `DATA_LICENSE` and
+`DATA_SOURCES.md`). The upstream notebook is reference material only; it was
+never executed, and its remote data path was replaced by the local corpus.
+
+Modifications made for this adaptation:
+
+- **Local corpus.** The upstream cell reads `../datasets/wiki_news.csv`. Here
+  the same 1,250-row corpus is read from `data/wiki_news.csv` (copied
+  byte-for-byte), so the project is self-contained and the upstream path is
+  never followed.
+- **Bounded PCA.** The lesson explores a wide range of component counts
+  (2, 4, 300, 900) for comparison and for choosing a cutoff. This adaptation
+  keeps a single fixed pipeline with **at most 50 retained PCA components**
+  (`svd_solver="randomized"`, fixed seed) to keep the CPU cost bounded; the
+  90%-variance / Kaiser-criterion exploration is omitted.
+- **Centered PCA, no SVD substitute.** PCA is used as a centered projection
+  (not an uncentered SVD substitute), and the first two coordinates are kept
+  for display. Their variance relative to the original TF-IDF data, and the
+  variance retained by all 50 components, are both reported.
+- **Top words from original TF-IDF weights.** Cluster top words are computed
+  from the mean **original TF-IDF weights** of each cluster's member documents.
+  This differs from the upstream approach of inverting KMeans centroids back
+  into TF-IDF space and reading off the highest weights.
+- **Categories are display-only.** Category labels are never fitted on; they
+  are a display and evaluation overlay only.
+- **Bounded, parameterized, validated pipeline.** `text_core.analyze(...)`
+  exposes `min_df`, `max_df`, `n_clusters`, and `seed` with clean validation
+  and bounded ranges, and `threadpoolctl.threadpool_limits(limits=2)` bounds
+  CPU use. The upstream notebook hard-codes these values across cells.
+- **Deterministic document order and fixed seed.** The corpus is loaded in its
+  original row order and all random stages use a fixed seed so results are
+  reproducible.
+- **Streamlit app + notebook.** A native Streamlit `app.py` and a `solution.ipynb`
+  are added. Both reuse the same `text_core.py` implementation, and the
+  notebook writes a fresh `results.json` to the current directory.
+
+No fake accuracy/build statistics, license metrics, promotional claims, custom
+CSS, or external APIs were added. No data was downloaded and no model was
+substituted.

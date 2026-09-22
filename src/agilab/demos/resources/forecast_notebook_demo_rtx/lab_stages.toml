@@ -1,0 +1,53 @@
+[[notebook_app_project]]
+D = "Promotion forecast lab (Chronos-2, synthetic data) / Stage 1 - Prepare synthetic history and known future covariates / Stage 2 - Real Chronos-2 inference and seasonal baseline / Stage 3 - Evaluate and persist results"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import json\\nimport os\\nimport sys\\n\\nimport numpy as np\\n\\ntry:\\n    import forecast_core as fc\\nexcept ImportError:  # run from a fresh directory with PROJECT_ROOT supplied\\n    project_root = os.environ.get(\"PROJECT_ROOT\")\\n    if project_root and os.path.isdir(project_root):\\n        sys.path.insert(0, project_root)\\n    import forecast_core as fc\\n\\nprint(\"chronos-forecasting model:\", fc.MODEL_ID, \"@\", fc.MODEL_REVISION)\\nprint(\"license:\", fc.MODEL_LICENSE, \"| device: cpu | dtype: float32\")', 'notebook:cell-2'), ('SEED = 42\\nHORIZON = 28\\nPROMOTION_START = 7\\nPROMOTION_DAYS = 7\\n\\ndata = fc.make_fixture(\\n    seed=SEED, horizon=HORIZON,\\n    promotion_start=PROMOTION_START, promotion_days=PROMOTION_DAYS,\\n)\\nprint(\"context length:\", len(data[\"context\"]))\\nprint(\"horizon:\", len(data[\"actual\"]))\\nprint(\"promotion days in history:\", int(data[\"past_promotion\"].sum()))\\nprint(\"promotion days in future:\", int(data[\"future_promotion\"].sum()))\\nprint(\"last 5 context values:\", np.round(data[\"context\"][-5:], 3))', 'notebook:cell-4'), ('prediction = fc.predict(data, use_covariates=True)\\nbaseline = fc._seasonal7_baseline(data[\"context\"], HORIZON)\\nprint(\"forecast head:\", np.round(prediction[\"forecast\"][:5], 3))\\nprint(\"p10 head:\", np.round(prediction[\"lower\"][:5], 3))\\nprint(\"p90 head:\", np.round(prediction[\"upper\"][:5], 3))\\nprint(\"seasonal-7 baseline head:\", np.round(baseline[:5], 3))', 'notebook:cell-6'), ('actual = np.asarray(data[\"actual\"], dtype=np.float64)\\nforecast = np.asarray(prediction[\"forecast\"], dtype=np.float64)\\nlower = np.asarray(prediction[\"lower\"], dtype=np.float64)\\nupper = np.asarray(prediction[\"upper\"], dtype=np.float64)\\nbaseline64 = np.asarray(baseline, dtype=np.float64)\\n\\nmae = float(np.mean(np.abs(forecast - actual)))\\nbaseline_mae = float(np.mean(np.abs(baseline64 - actual)))\\ncoverage = float(np.mean((actual >= lower) & (actual <= upper)))\\n\\nresults = {\\n    \"mae\": mae,\\n    \"baseline_mae\": baseline_mae,\\n    \"coverage\": coverage,\\n    \"horizon\": HORIZON,\\n    \"seed\": SEED,\\n    \"model\": fc.MODEL_ID,\\n    \"model_revision\": fc.MODEL_REVISION,\\n    \"forecast\": [float(v) for v in forecast],\\n}\\nassert all(np.isfinite(v) for v in (mae, baseline_mae, coverage)), \"non-finite metric\"\\n\\nwith open(\"results.json\", \"w\", encoding=\"utf-8\") as fh:\\n    json.dump({\"results\": results}, fh, indent=2)\\n\\nprint(f\"mae={mae:.4f} baseline_mae={baseline_mae:.4f} coverage={coverage:.2f}\")\\nprint(\"wrote results.json to\", os.getcwd())', 'notebook:cell-8')])\n"
+M = ""
+NB_CELL_ID = "notebook-bb122a27e800e999"
+NB_CELL_INDEX = 2
+NB_CONTEXT_IDS = [
+    "markdown-1",
+    "markdown-3",
+    "markdown-5",
+    "markdown-7",
+]
+NB_ENV_HINTS = [
+    "forecast_core",
+    "json",
+    "numpy",
+    "os",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "2feb4169e8647b15d4fe27b2ae7f0cce503b3218cd7a591e323ddaa4d51bf7b0"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "bb122a27e800e9995b19d5d999996790c432adee4d7fe437606bd172a57130fd"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-2"
+index = 2
+source = "import json\nimport os\nimport sys\n\nimport numpy as np\n\ntry:\n    import forecast_core as fc\nexcept ImportError:  # run from a fresh directory with PROJECT_ROOT supplied\n    project_root = os.environ.get(\"PROJECT_ROOT\")\n    if project_root and os.path.isdir(project_root):\n        sys.path.insert(0, project_root)\n    import forecast_core as fc\n\nprint(\"chronos-forecasting model:\", fc.MODEL_ID, \"@\", fc.MODEL_REVISION)\nprint(\"license:\", fc.MODEL_LICENSE, \"| device: cpu | dtype: float32\")"
+sha256 = "835a211c176d01b2aabbf0d38136c59ce4a7782a48b88a3ba57eeeb9ad5502ff"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-4"
+index = 4
+source = "SEED = 42\nHORIZON = 28\nPROMOTION_START = 7\nPROMOTION_DAYS = 7\n\ndata = fc.make_fixture(\n    seed=SEED, horizon=HORIZON,\n    promotion_start=PROMOTION_START, promotion_days=PROMOTION_DAYS,\n)\nprint(\"context length:\", len(data[\"context\"]))\nprint(\"horizon:\", len(data[\"actual\"]))\nprint(\"promotion days in history:\", int(data[\"past_promotion\"].sum()))\nprint(\"promotion days in future:\", int(data[\"future_promotion\"].sum()))\nprint(\"last 5 context values:\", np.round(data[\"context\"][-5:], 3))"
+sha256 = "738808155d70633c2f79b1cb33cdfff3ba4eb3f3d561a0b93e43ece303a15c71"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-6"
+index = 6
+source = "prediction = fc.predict(data, use_covariates=True)\nbaseline = fc._seasonal7_baseline(data[\"context\"], HORIZON)\nprint(\"forecast head:\", np.round(prediction[\"forecast\"][:5], 3))\nprint(\"p10 head:\", np.round(prediction[\"lower\"][:5], 3))\nprint(\"p90 head:\", np.round(prediction[\"upper\"][:5], 3))\nprint(\"seasonal-7 baseline head:\", np.round(baseline[:5], 3))"
+sha256 = "91bed15fd5b190a62d114675adc84ef5058871638754eab0234b41b9ba7dd82c"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-8"
+index = 8
+source = "actual = np.asarray(data[\"actual\"], dtype=np.float64)\nforecast = np.asarray(prediction[\"forecast\"], dtype=np.float64)\nlower = np.asarray(prediction[\"lower\"], dtype=np.float64)\nupper = np.asarray(prediction[\"upper\"], dtype=np.float64)\nbaseline64 = np.asarray(baseline, dtype=np.float64)\n\nmae = float(np.mean(np.abs(forecast - actual)))\nbaseline_mae = float(np.mean(np.abs(baseline64 - actual)))\ncoverage = float(np.mean((actual >= lower) & (actual <= upper)))\n\nresults = {\n    \"mae\": mae,\n    \"baseline_mae\": baseline_mae,\n    \"coverage\": coverage,\n    \"horizon\": HORIZON,\n    \"seed\": SEED,\n    \"model\": fc.MODEL_ID,\n    \"model_revision\": fc.MODEL_REVISION,\n    \"forecast\": [float(v) for v in forecast],\n}\nassert all(np.isfinite(v) for v in (mae, baseline_mae, coverage)), \"non-finite metric\"\n\nwith open(\"results.json\", \"w\", encoding=\"utf-8\") as fh:\n    json.dump({\"results\": results}, fh, indent=2)\n\nprint(f\"mae={mae:.4f} baseline_mae={baseline_mae:.4f} coverage={coverage:.2f}\")\nprint(\"wrote results.json to\", os.getcwd())"
+sha256 = "a70caad53688dcf5ea449891070fe218dfc6788c0020a7755ae4b15d027f1c4f"
