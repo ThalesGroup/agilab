@@ -1,0 +1,147 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260922T161038Z-663657f9",
+  "seconds": 15837.7,
+  "workflow_stages": 1,
+  "source": {
+    "source_kind": "github",
+    "repository": "PyPSA/PyPSA",
+    "commit": "c838aa498557cc8e27a9d3ed10d45e35c4b0b442",
+    "url": "https://github.com/PyPSA/PyPSA/blob/c838aa498557cc8e27a9d3ed10d45e35c4b0b442/docs/examples/modular-committable.ipynb",
+    "title": "Modular Expansion with Unit Commitment",
+    "author": "PyPSA contributors",
+    "license": "CC-BY-4.0",
+    "sha256": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+    "license_sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+    "introduced": "2026-02-17",
+    "updated": "2026-08-05",
+    "adaptation": "Interactive lab, HiGHS solver, parameterized scenarios, solution checks and AGILAB batches"
+  },
+  "engine": {
+    "repository": "ThalesGroup/agilab",
+    "commit": "7d2b1355b84eed3cbf0828c325cddb8308be77a3",
+    "path": "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py",
+    "sha256": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066"
+  },
+  "verification_scope": "execution_interface_and_bounded_local_milp_scenario_scaling",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_file": "results.json",
+    "result_names": [
+      "reference",
+      "shortage",
+      "solar",
+      "startup"
+    ],
+    "result_sha256": "67d3208547bfe5d778800d441857996484c5db4528145190760027fae76e029f",
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "milp_energy": {
+      "status": "passed",
+      "checks": [
+        "pinned notebook and CC BY 4.0 license",
+        "unchanged AGILAB pool engine",
+        "fresh HiGHS execution with one solver thread",
+        "independent 21879 objective and 30-module optimum",
+        "reference dispatch and integer commitment at every timestep",
+        "capacity-limited infeasibility without an incumbent",
+        "independent shortage and solar/startup constraints and costs",
+        "independent 12-hour startup-cost optimum, not post-hoc startup charges",
+        "same scenario batch and outcomes on one and two AGILAB workers",
+        "measured overlapping worker processes"
+      ],
+      "reference_objective": 21879,
+      "scaling_validation": {
+        "cases": 4,
+        "workers": 2,
+        "scope": "local scenario throughput",
+        "note": "Timings are validation evidence, not a guarantee of public Space speedup"
+      }
+    }
+  },
+  "files": {
+    "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+    "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
+    "README.md": "1aa0a4c4f8a522c4453f0a97464572dbe639a192591d81b55837efbdacd11ee6",
+    "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+    "app.py": "db704bb11f57b64d61b054a7c1895382105232840d044a2a03ccb71ece0ca4ec",
+    "energy_core.py": "9da08b716b348493d440e89870ed444b6258bd8d8fd52d06c55e47e3dcfdde13",
+    "energy_runner.py": "a1e9dcbb2b683f64cb47ad68d51078840b081e1af082023cbc4a0283d707a5db",
+    "lab_stages.toml": "2cc460db5aec7a19eb4096f6b32fbad6050b41d8c854472f1662b5ab26c63214",
+    "pyproject.toml": "8afebac16d81623c760a5ebec67c6122d96d9f0a8903e126f39a4526de33d5d0",
+    "requirements.txt": "5f75d373c4522b3bee0aac4b598ac1cd4bc564b644e97ff11e31a2f761a4b56f",
+    "solution.ipynb": "dcbd031ab7543617e3c6b63a3f5e9c6868bb97a44b3cdd7c7fbaf68861eeb620",
+    "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+    "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+    "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
+    "tests.py": "5c96d80ee2482a237d8db139d074b63715a0ab133b1ddcf8bdd23583d60e5de0"
+  },
+  "build_model": {
+    "id": "Qwen3.8-27B",
+    "provider": "llama.cpp CUDA",
+    "execution": "local NVIDIA RTX 4090",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "Q4_K_M",
+    "cloud_codegen_fallback": false,
+    "coordination": "Tokki with OpenCode; independent AGILAB verification"
+  },
+  "code_metrics": {
+    "loc": 584,
+    "kloc": 0.584,
+    "files": [
+      {
+        "file": "app.py",
+        "loc": 172,
+        "kind": "application",
+        "sha256": "db704bb11f57b64d61b054a7c1895382105232840d044a2a03ccb71ece0ca4ec"
+      },
+      {
+        "file": "energy_core.py",
+        "loc": 221,
+        "kind": "application",
+        "sha256": "9da08b716b348493d440e89870ed444b6258bd8d8fd52d06c55e47e3dcfdde13"
+      },
+      {
+        "file": "energy_runner.py",
+        "loc": 167,
+        "kind": "application",
+        "sha256": "a1e9dcbb2b683f64cb47ad68d51078840b081e1af082023cbc4a0283d707a5db"
+      },
+      {
+        "file": "solution.ipynb",
+        "loc": 24,
+        "kind": "notebook",
+        "sha256": "dcbd031ab7543617e3c6b63a3f5e9c6868bb97a44b3cdd7c7fbaf68861eeb620"
+      }
+    ],
+    "application_loc": 560,
+    "notebook_loc": 24,
+    "method": "1 KLOC = 1 000 lignes de code Python non vides, hors commentaires et docstrings. Application + cellules de code du notebook g\u00e9n\u00e9r\u00e9 ; tests, sources originales et fichiers fournis exclus. Les deux livrables sont compt\u00e9s s\u00e9par\u00e9ment."
+  },
+  "cluster_build": {
+    "flavour": "Qwen RTX",
+    "node": "rtx4",
+    "hardware": "NVIDIA RTX 4090",
+    "standalone_codegen": true,
+    "agent": "OpenCode",
+    "supervisor": "Codex",
+    "workflow_mode": "hybrid_supervision_local_codegen",
+    "human_app_code_edits": false,
+    "cloud_codegen_fallback": false,
+    "model_message_count": 525,
+    "attempts": 30,
+    "model_file_sha256": "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747",
+    "source_receipt_sha256": "810cf85762ed37692c2d99bf62f197c94cf18315223d5e6f96cdff8885e339a1",
+    "browser_status": "passed",
+    "source_provenance_status": "passed",
+    "source_provenance_sha256": "6b1a2c8d8b294caca52aca5bccc1a6d95cfd43755c13b5742eeb3838e7f4db4c",
+    "duration_scope": "Sum of the original failed build and repair-run elapsed seconds; excludes the interval between runs."
+  }
+}

@@ -6,12 +6,27 @@ import streamlit as st
 
 def render_build_evidence(report: dict, *, extra_metrics: tuple[tuple[str, int], ...] = ()) -> None:
     """Render the common header and builder handoff after verifying the receipt."""
-    st.title("Built by an autonomous agent")
+    cluster = report.get("cluster_build")
+    st.title("Built by OpenCode with local Qwen" if cluster else "Built by an autonomous agent")
     with st.container(horizontal=True, wrap=True):
-        st.metric("Autonomous build", f"{report['seconds'] / 60:.2f} min", width=200)
+        st.metric("Build duration" if cluster else "Autonomous build", f"{report['seconds'] / 60:.2f} min", width=200)
         st.metric("AGILAB workflow stages", report["workflow_stages"], width=200)
+        if metrics := report.get("code_metrics"):
+            st.metric("Generated Python · KLOC", f"{metrics['kloc']:.3f}", width=200)
+            if report['seconds'] > 0:
+                rate = metrics['loc'] * 60 / report['seconds']
+                st.metric("Build output · lines/min", f"{rate:.1f}", width=200)
         for label, value in extra_metrics:
             st.metric(label, value, width=200)
+    if metrics := report.get("code_metrics"):
+        st.caption(metrics["method"])
+        st.caption("Lines/min = generated Python lines ÷ elapsed build minutes, including repairs and checks. It measures output volume, not code quality.")
+    if cluster:
+        st.caption(
+            f"Built on {cluster['node']} · {cluster['hardware']}. "
+            "OpenCode used local Qwen to generate the app code. Codex supervised the build "
+            "and validation: local code generation with online supervision."
+        )
     st.caption(
         "This public Space runs the completed app. New autonomous builds run in a local "
         "Tokki environment with your configured provider."

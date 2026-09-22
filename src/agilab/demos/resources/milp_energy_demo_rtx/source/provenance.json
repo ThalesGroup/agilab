@@ -1,0 +1,13 @@
+{
+  "repository": "PyPSA/PyPSA",
+  "commit": "c838aa498557cc8e27a9d3ed10d45e35c4b0b442",
+  "url": "https://github.com/PyPSA/PyPSA/blob/c838aa498557cc8e27a9d3ed10d45e35c4b0b442/docs/examples/modular-committable.ipynb",
+  "source_kind": "github",
+  "license": "CC-BY-4.0",
+  "sha256": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+  "source_cells": 26,
+  "retrieved_at": "2026-09-19T20:14:04.579152+00:00",
+  "author": "PyPSA contributors",
+  "title": "Modular Expansion with Unit Commitment",
+  "license_sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744"
+}

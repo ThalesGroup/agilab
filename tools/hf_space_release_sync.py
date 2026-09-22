@@ -249,6 +249,7 @@ CMD ["bash", "-c", \\
      --server.port 7860 \\
      --server.address 0.0.0.0 \\
      --server.headless true \\
+     --server.fileWatcherType none \\
      -- --apps-path /app/src/agilab/apps/builtin"]
 """
 

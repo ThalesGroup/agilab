@@ -1,0 +1,211 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260922T161005Z-fb75e76b",
+  "seconds": 15987.22,
+  "workflow_stages": 1,
+  "source": {
+    "source_kind": "original_agilab_notebook",
+    "title": "AGILAB free-threading reference notebook",
+    "author": "AGILAB contributors",
+    "license": "BSD-3-Clause",
+    "sha256": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
+    "created": "2026-09-19"
+  },
+  "engine": {
+    "repository": "ThalesGroup/agilab",
+    "commit": "7d2b1355b84eed3cbf0828c325cddb8308be77a3",
+    "path": "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py",
+    "sha256": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066"
+  },
+  "verification_scope": "execution_interface_and_bounded_local_pool_scaling",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_file": "results.json",
+    "result_names": [
+      "app",
+      "digest",
+      "free_threading_docs",
+      "hardware",
+      "interpreter",
+      "notes",
+      "params",
+      "python_build",
+      "runs",
+      "same_as_serial_reference",
+      "same_work",
+      "same_work_verified",
+      "source_credit",
+      "summary"
+    ],
+    "result_sha256": "4dff7a0f923e6399a84968a4f1efadd8438c3fb98887e22683cb3f3f9f14b335",
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "free_threading": {
+      "status": "passed",
+      "checks": [
+        "unchanged_AGILAB_pool_engine",
+        "independent_scalar_image_oracle",
+        "real_threads_and_spawned_processes",
+        "actual_GIL_state_before_after_and_per_task",
+        "same_image_across_modes_widths_and_repeats",
+        "same_interpreter_build_controls",
+        "complete_tile_reduction",
+        "end_to_end_timing_and_repeated_medians"
+      ],
+      "hardware": {
+        "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+        "cpu_count": 36,
+        "process_cpu_count": 36,
+        "affinity_size": 36,
+        "effective_cpu_allowance": 8,
+        "space_cpu_cores": ""
+      },
+      "python_build": "3.14.6",
+      "measurements": [
+        {
+          "mode": "gil_on_threads",
+          "role": "baseline",
+          "workers": 1,
+          "repeats": 2,
+          "engine_backend": "thread",
+          "pool_width": 1,
+          "wall_seconds": 0.06192061049659969,
+          "speedup": 1.0
+        },
+        {
+          "mode": "gil_on_threads",
+          "role": "wide",
+          "workers": 2,
+          "repeats": 2,
+          "engine_backend": "thread",
+          "pool_width": 2,
+          "wall_seconds": 0.12745401200663764,
+          "speedup": 0.48582708007163355
+        },
+        {
+          "mode": "gil_off_threads",
+          "role": "baseline",
+          "workers": 1,
+          "repeats": 2,
+          "engine_backend": "thread",
+          "pool_width": 1,
+          "wall_seconds": 0.05502013100340264,
+          "speedup": 1.0
+        },
+        {
+          "mode": "gil_off_threads",
+          "role": "wide",
+          "workers": 2,
+          "repeats": 2,
+          "engine_backend": "thread",
+          "pool_width": 2,
+          "wall_seconds": 0.043346621496311855,
+          "speedup": 1.2693060982407596
+        },
+        {
+          "mode": "gil_on_processes",
+          "role": "baseline",
+          "workers": 1,
+          "repeats": 2,
+          "engine_backend": "process",
+          "pool_width": 1,
+          "wall_seconds": 0.14909850699041272,
+          "speedup": 1.0
+        },
+        {
+          "mode": "gil_on_processes",
+          "role": "wide",
+          "workers": 2,
+          "repeats": 2,
+          "engine_backend": "process",
+          "pool_width": 2,
+          "wall_seconds": 0.1448688719974598,
+          "speedup": 1.0291962996234767
+        }
+      ],
+      "measurement_scope": "local build-machine validation; not Space benchmark results"
+    }
+  },
+  "files": {
+    "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+    "README.md": "fcab69999010de64fffbb0f602970c143d583c0b4461167778c4e6636116e421",
+    "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+    "app.py": "79bb9b5999066588d31e0ddc144626f094f6d5c902ef50bf6ca6a86c19b749b7",
+    "benchmark.py": "ab9cf40bd8b3e5b1f031fd18f90eca1cb60ddcc049f372350493995ef7ec912e",
+    "free_threading_core.py": "2bfc2a5a559af4063caf87621f1655e92ff578902d555be67ceb354bcaac46f7",
+    "lab_stages.toml": "f7c1767f61a3bc731a7ef6fabc19d6b74732dbc4465fc36379f030fb87e3f40f",
+    "pyproject.toml": "c4b5803639ffe952b4297cd633f4725a2e7a0dcbfdd5cc4dadaf6871781c216f",
+    "requirements.txt": "d9b9da3b4be38069430db07d277d350ffc04714f7d90b4d120c5efef24b4ef6a",
+    "solution.ipynb": "1f8ac1ce43108fe92efe3cc70827f852374b8cb245620277b860c322e84e5aa1",
+    "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
+    "tests.py": "2dfe4e06505d93f3b009372c5cc1e2a653b08758b1f2f3d2a7136459f4dc1c1d"
+  },
+  "build_model": {
+    "id": "Qwen3.8-27B",
+    "provider": "llama.cpp CUDA",
+    "execution": "local NVIDIA RTX 4090",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "Q4_K_M",
+    "cloud_codegen_fallback": false,
+    "coordination": "Tokki with OpenCode; independent AGILAB verification"
+  },
+  "code_metrics": {
+    "loc": 1312,
+    "kloc": 1.312,
+    "files": [
+      {
+        "file": "app.py",
+        "loc": 257,
+        "kind": "application",
+        "sha256": "79bb9b5999066588d31e0ddc144626f094f6d5c902ef50bf6ca6a86c19b749b7"
+      },
+      {
+        "file": "benchmark.py",
+        "loc": 480,
+        "kind": "application",
+        "sha256": "ab9cf40bd8b3e5b1f031fd18f90eca1cb60ddcc049f372350493995ef7ec912e"
+      },
+      {
+        "file": "free_threading_core.py",
+        "loc": 516,
+        "kind": "application",
+        "sha256": "2bfc2a5a559af4063caf87621f1655e92ff578902d555be67ceb354bcaac46f7"
+      },
+      {
+        "file": "solution.ipynb",
+        "loc": 59,
+        "kind": "notebook",
+        "sha256": "1f8ac1ce43108fe92efe3cc70827f852374b8cb245620277b860c322e84e5aa1"
+      }
+    ],
+    "application_loc": 1253,
+    "notebook_loc": 59,
+    "method": "1 KLOC = 1 000 lignes de code Python non vides, hors commentaires et docstrings. Application + cellules de code du notebook g\u00e9n\u00e9r\u00e9 ; tests, sources originales et fichiers fournis exclus. Les deux livrables sont compt\u00e9s s\u00e9par\u00e9ment."
+  },
+  "cluster_build": {
+    "flavour": "Qwen RTX",
+    "node": "rtx1",
+    "hardware": "NVIDIA RTX 4090",
+    "standalone_codegen": true,
+    "agent": "OpenCode",
+    "supervisor": "Codex",
+    "workflow_mode": "hybrid_supervision_local_codegen",
+    "human_app_code_edits": false,
+    "cloud_codegen_fallback": false,
+    "model_message_count": 379,
+    "attempts": 49,
+    "model_file_sha256": "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747",
+    "source_receipt_sha256": "58c89be8eeffe3cf16863fb852c4721a0237e8085eb1f5a1025035f13389ebe8",
+    "browser_status": "passed",
+    "source_provenance_status": "passed",
+    "source_provenance_sha256": "6b1a2c8d8b294caca52aca5bccc1a6d95cfd43755c13b5742eeb3838e7f4db4c",
+    "duration_scope": "Sum of the original failed build and repair-run elapsed seconds; excludes the interval between runs."
+  }
+}

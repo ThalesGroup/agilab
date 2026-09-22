@@ -20,6 +20,7 @@ from agilab.demos.notebook_app_runtime import app_session_state
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "forecast_notebook_demo"
 ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
+RTX_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_rtx")
 _REQUIRED_FILES = {"app.py", "forecast_core.py", "solution.ipynb", "lab_stages.toml", "LICENSE"}
 MODEL_ID = "autogluon/chronos-2-small"
 MODEL_REVISION = "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a"
@@ -60,8 +61,8 @@ def _prepare_model(local_path: str) -> Path:
     return _validate_model(Path(path))
 
 
-def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+def _read_verified_bundle(*, astra: bool = False, rtx: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
     if demo_root.is_symlink():
         raise ValueError("Forecast demo directory must not be a symlink")
     receipt = demo_root / "result.json"
@@ -147,8 +148,8 @@ def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes
     return report, payload
 
 
-def load_report(*, astra: bool = False) -> dict:
-    return _read_verified_bundle(astra=astra)[0]
+def load_report(*, astra: bool = False, rtx: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra, rtx=rtx)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -159,13 +160,13 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle(*, astra: bool = False) -> bytes:
-    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
+def download_bundle(*, astra: bool = False, rtx: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra, rtx=rtx)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None, *, astra: bool = False) -> None:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
-    state_name = "forecast_astra" if astra else "forecast"
+def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None, *, astra: bool = False, rtx: bool = False) -> None:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "forecast_rtx" if rtx else "forecast_astra" if astra else "forecast"
     # Restore process-wide import state even when an app stops, reruns, or fails.
     with _APP_LOCK:
         previous = sys.modules.pop("forecast_core", None)
@@ -179,7 +180,7 @@ def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None,
             exec(compile(payload["forecast_core.py"], module.__file__, "exec"), module.__dict__)
             app_path = str(demo_root / "app.py")
             with app_session_state(st.session_state, state_name,
-                                   ("analysis", "analysis_error", "committed_parameters")):
+                                   ("analysis", "analysis_error", "committed_parameters", "result", "error")):
                 exec(compile(payload["app.py"], app_path, "exec"),
                      {"__name__": "__main__", "__file__": app_path})
         finally:
@@ -192,9 +193,9 @@ def _run_verified_app(payload: dict[str, bytes], model_path: Path | None = None,
                 os.environ["CHRONOS_MODEL_PATH"] = previous_model_path
 
 
-def render(*, astra: bool = False) -> None:
+def render(*, astra: bool = False, rtx: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle(astra=astra)
+        report, payload = _read_verified_bundle(astra=astra, rtx=rtx)
     except OSError:
         st.error("Forecast demo unavailable: the verified artifact bundle is missing or unreadable.")
         return
@@ -213,7 +214,9 @@ def render(*, astra: bool = False) -> None:
         st.caption(f"Build model: {build_model['id']} ({build_model.get('execution', 'recorded')} · {build_model.get('provider', 'recorded')}).")
     st.subheader(report["demo"]["title"])
     st.write(report["demo"]["description"])
-    if astra:
+    if rtx:
+        st.caption("Qwen · RTX — generated and repaired locally on NVIDIA RTX 4090, with no cloud code-generation fallback.")
+    elif astra:
         st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source and verification"):
         source, model = report["source"], report["model"]
@@ -239,9 +242,9 @@ def render(*, astra: bool = False) -> None:
         st.download_button(
             "Download the forecast app and workflow",
             _zip_bundle(payload),
-            "tokki-agilab-forecast-lab-astra.zip" if astra else "tokki-agilab-forecast-lab.zip",
+            "tokki-agilab-forecast-lab-rtx.zip" if rtx else "tokki-agilab-forecast-lab-astra.zip" if astra else "tokki-agilab-forecast-lab.zip",
             "application/zip",
-            key="forecast_bundle_astra" if astra else "forecast_bundle",
+            key="forecast_bundle_rtx" if rtx else "forecast_bundle_astra" if astra else "forecast_bundle",
         )
     st.divider()
     if (report["model"]["id"], report["model"]["revision"]) != (MODEL_ID, MODEL_REVISION):
@@ -257,7 +260,9 @@ def render(*, astra: bool = False) -> None:
                  "are installed and the model host is reachable, then retry. For offline use, "
                  "set CHRONOS_MODEL_PATH to the verified checkpoint.")
         return
-    if astra:
+    if rtx:
+        _run_verified_app(payload, model_path, rtx=True)
+    elif astra:
         _run_verified_app(payload, model_path, astra=True)
     else:
         _run_verified_app(payload, model_path)

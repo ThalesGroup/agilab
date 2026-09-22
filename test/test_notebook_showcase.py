@@ -45,8 +45,10 @@ def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatc
         at.run()
         assert not at.exception and not at.error, demo
         assert at.segmented_control(key="demo").value == demo
-        assert sum(title.value == "Built by an autonomous agent" for title in at.main.title) == 1, demo
-        timings = [item for item in at.main.metric if item.label == "Autonomous build"]
+        title_label = "Built by OpenCode with local Qwen" if demo.endswith("_rtx") else "Built by an autonomous agent"
+        timing_label = "Build duration" if demo.endswith("_rtx") else "Autonomous build"
+        assert sum(title.value == title_label for title in at.main.title) == 1, demo
+        timings = [item for item in at.main.metric if item.label == timing_label]
         assert len(timings) == 1, demo
         assert timings[0].value.endswith(" min") and float(timings[0].value[:-4]) > 0, demo
         assert any(item.label == "AGILAB workflow stages" for item in at.main.metric), demo
@@ -58,8 +60,8 @@ def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatc
         assert any("uv tool install" in item.value for item in builders[0].code), demo
         assert any("This public Space runs the completed app" in item.value for item in at.main.caption), demo
         for hidden_container in (*at.expander, *at.get("status"), *at.get("tab"), at.sidebar):
-            assert all(title.value != "Built by an autonomous agent" for title in hidden_container.title), demo
-            assert all(item.label != "Autonomous build" for item in hidden_container.metric), demo
+            assert all(title.value != title_label for title in hidden_container.title), demo
+            assert all(item.label != timing_label for item in hidden_container.metric), demo
             assert all(
                 item is hidden_container or getattr(item, "label", None) != "Build from your own notebook"
                 for item in hidden_container

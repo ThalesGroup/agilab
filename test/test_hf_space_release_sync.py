@@ -299,6 +299,14 @@ def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
     assert "streamlit run /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
 
 
+def test_public_space_does_not_introspect_lazy_ml_modules_for_file_watching() -> None:
+    """The watcher can invoke transformers.__getattr__ and import absent vision extras."""
+    dockerfile = _load_module().DOCKERFILE_TEMPLATE
+    command = dockerfile[dockerfile.index('CMD ['):]
+    assert "--server.fileWatcherType none" in command
+    assert command.index("--server.fileWatcherType none") < command.index("-- --apps-path")
+
+
 def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
     module = _load_module()
     dockerfile = module.DOCKERFILE_TEMPLATE

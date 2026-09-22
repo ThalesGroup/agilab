@@ -18,6 +18,7 @@ from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, a
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "text_notebook_demo"
 ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
+RTX_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_rtx")
 PUBLIC_FILES = frozenset({
     "app.py", "text_core.py", "solution.ipynb", "lab_stages.toml", "pyproject.toml",
     "requirements.txt", "LICENSE", "DATA_LICENSE", "DATA_SOURCES.md", "NOTICE",
@@ -25,8 +26,8 @@ PUBLIC_FILES = frozenset({
 })
 
 
-def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+def _read_verified_bundle(*, astra: bool = False, rtx: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
     if demo_root.is_symlink() or (demo_root / "result.json").is_symlink():
         raise ValueError("Text demo directory and receipt must not be symlinks")
     receipt = (demo_root / "result.json").read_bytes()
@@ -92,8 +93,8 @@ def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes
     return report, payload
 
 
-def load_report(*, astra: bool = False) -> dict:
-    return _read_verified_bundle(astra=astra)[0]
+def load_report(*, astra: bool = False, rtx: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra, rtx=rtx)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -104,13 +105,13 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle(*, astra: bool = False) -> bytes:
-    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
+def download_bundle(*, astra: bool = False, rtx: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra, rtx=rtx)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
-    state_name = "text_astra" if astra else "text"
+def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False, rtx: bool = False) -> None:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "text_rtx" if rtx else "text_astra" if astra else "text"
     with _APP_LOCK:
         previous = sys.modules.pop("text_core", None)
         module = ModuleType("text_core")
@@ -120,7 +121,7 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
             exec(compile(payload["text_core.py"], module.__file__, "exec"), module.__dict__)
             app_path = str(demo_root / "app.py")
             with app_session_state(st.session_state, state_name,
-                                   ("analysis_result", "qwen_text_atlas_result", "qwen_text_atlas_params")):
+                                   ("analysis_result", "qwen_text_atlas_result", "qwen_text_atlas_params", "last_result")):
                 exec(compile(payload["app.py"], app_path, "exec"),
                      {"__name__": "__main__", "__file__": app_path})
         finally:
@@ -129,9 +130,9 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
                 sys.modules["text_core"] = previous
 
 
-def render(*, astra: bool = False) -> None:
+def render(*, astra: bool = False, rtx: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle(astra=astra)
+        report, payload = _read_verified_bundle(astra=astra, rtx=rtx)
     except (OSError, ValueError, TypeError) as exc:
         st.error(f"Text demo unavailable: {exc}")
         return
@@ -140,7 +141,9 @@ def render(*, astra: bool = False) -> None:
     if model := report.get("build_model"):
         route = "local MLX" if (model["execution"], model["provider"]) == ("local", "mlx-serve") else model["provider"]
         st.caption(f"Build model: {model['id']} ({route}).")
-    if astra:
+    if rtx:
+        st.caption("Qwen · RTX — generated and repaired locally on NVIDIA RTX 4090, with no cloud code-generation fallback.")
+    elif astra:
         st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source, recorded build and downloadable workflow"):
         source = report["source"]
@@ -153,8 +156,10 @@ def render(*, astra: bool = False) -> None:
         st.caption("Checks cover this bounded adaptation, not every experiment in the source lesson. "
                    "Artifact hashes are checked before execution and download.")
         st.download_button("Download the text app and workflow", _zip_bundle(payload),
-                           "tokki-agilab-text-atlas-astra.zip" if astra else "tokki-agilab-text-atlas.zip", "application/zip", key="text_bundle_astra" if astra else "text_bundle")
-    if astra:
+                           "tokki-agilab-text-atlas-rtx.zip" if rtx else "tokki-agilab-text-atlas-astra.zip" if astra else "tokki-agilab-text-atlas.zip", "application/zip", key="text_bundle_rtx" if rtx else "text_bundle_astra" if astra else "text_bundle")
+    if rtx:
+        _run_verified_app(payload, rtx=True)
+    elif astra:
         _run_verified_app(payload, astra=True)
     else:
         _run_verified_app(payload)

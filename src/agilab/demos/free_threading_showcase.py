@@ -19,6 +19,7 @@ from agilab.demos.notebook_app_runtime import app_session_state
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "free_threading_demo"
 ASTRA_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_astra")
+RTX_DEMO_ROOT = DEMO_ROOT.with_name(DEMO_ROOT.name + "_rtx")
 PUBLIC_FILES = frozenset({
     "app.py", "free_threading_core.py", "benchmark.py", "agilab_pool.py",
     "solution.ipynb", "lab_stages.toml", "pyproject.toml", "requirements.txt",
@@ -26,8 +27,8 @@ PUBLIC_FILES = frozenset({
 })
 
 
-def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes]]:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+def _read_verified_bundle(*, astra: bool = False, rtx: bool = False) -> tuple[dict, dict[str, bytes]]:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
     if demo_root.is_symlink() or (demo_root / "result.json").is_symlink():
         raise ValueError("Free-threading demo and receipt must not be symlinks")
     receipt = (demo_root / "result.json").read_bytes()
@@ -95,8 +96,8 @@ def _read_verified_bundle(*, astra: bool = False) -> tuple[dict, dict[str, bytes
     return report, payload
 
 
-def load_report(*, astra: bool = False) -> dict:
-    return _read_verified_bundle(astra=astra)[0]
+def load_report(*, astra: bool = False, rtx: bool = False) -> dict:
+    return _read_verified_bundle(astra=astra, rtx=rtx)[0]
 
 
 def _zip_bundle(payload: dict[str, bytes]) -> bytes:
@@ -107,13 +108,13 @@ def _zip_bundle(payload: dict[str, bytes]) -> bytes:
     return content.getvalue()
 
 
-def download_bundle(*, astra: bool = False) -> bytes:
-    return _zip_bundle(_read_verified_bundle(astra=astra)[1])
+def download_bundle(*, astra: bool = False, rtx: bool = False) -> bytes:
+    return _zip_bundle(_read_verified_bundle(astra=astra, rtx=rtx)[1])
 
 
-def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None:
-    demo_root = ASTRA_DEMO_ROOT if astra else DEMO_ROOT
-    state_name = "threading_astra" if astra else "threading"
+def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False, rtx: bool = False) -> None:
+    demo_root = RTX_DEMO_ROOT if rtx else ASTRA_DEMO_ROOT if astra else DEMO_ROOT
+    state_name = "threading_rtx" if rtx else "threading_astra" if astra else "threading"
     # These generated top-level imports are scoped just like the other demos.
     # Do not queue overlapping public benchmarks or hold visitors waiting.
     if not _APP_LOCK.acquire(blocking=False):
@@ -129,7 +130,10 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
             sys.modules[name] = module
             exec(compile(payload[f"{name}.py"], module.__file__, "exec"), module.__dict__)
         app_path = str(demo_root / "app.py")
-        with app_session_state(st.session_state, state_name, ("analysis", "analysis_signature", "benchmark_result", "benchmark_signature")):
+        with app_session_state(st.session_state, state_name, (
+            "analysis", "analysis_signature", "benchmark_result", "benchmark_signature",
+            "last_results", "last_signature",
+        )):
             exec(compile(payload["app.py"], app_path, "exec"),
                  {"__name__": "__main__", "__file__": app_path})
     finally:
@@ -140,9 +144,9 @@ def _run_verified_app(payload: dict[str, bytes], *, astra: bool = False) -> None
         _APP_LOCK.release()
 
 
-def render(*, astra: bool = False) -> None:
+def render(*, astra: bool = False, rtx: bool = False) -> None:
     try:
-        report, payload = _read_verified_bundle(astra=astra)
+        report, payload = _read_verified_bundle(astra=astra, rtx=rtx)
     except (OSError, ValueError, TypeError) as exc:
         st.error(f"Free-threading demo unavailable: {exc}")
         return
@@ -150,7 +154,9 @@ def render(*, astra: bool = False) -> None:
     render_build_evidence(report)
     if model := report.get("build_model"):
         st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
-    if astra:
+    if rtx:
+        st.caption("Qwen · RTX — generated and repaired locally on NVIDIA RTX 4090, with no cloud code-generation fallback.")
+    elif astra:
         st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source, recorded build and downloadable workflow"):
         st.write("Original AGILAB benchmark notebook · September 19, 2026 · BSD-3-Clause")
@@ -159,14 +165,17 @@ def render(*, astra: bool = False) -> None:
             f"Execution uses the unchanged [AGILAB pool engine]"
             f"(https://github.com/{engine['repository']}/blob/{engine['commit']}/{engine['path']})."
         )
-        st.caption(f"Completed autonomous build: {report['run_id']}")
+        build_label = "Completed local-codegen build" if rtx else "Completed autonomous build"
+        st.caption(f"{build_label}: {report['run_id']}")
         st.write("Independent checks cover the original engine, image calculations, actual GIL "
                  "state, identical results, complete tile collection, and repeated timings.")
         st.caption("This measures the bundled AGILAB pool engine on one machine. "
                    "It does not certify the whole AGILAB dependency stack for free-threaded Python.")
         st.download_button("Download the free-threading app and workflow", _zip_bundle(payload),
-                           "tokki-agilab-free-threading-astra.zip" if astra else "tokki-agilab-free-threading.zip", "application/zip", key="threading_bundle_astra" if astra else "threading_bundle")
-    if astra:
+                           "tokki-agilab-free-threading-rtx.zip" if rtx else "tokki-agilab-free-threading-astra.zip" if astra else "tokki-agilab-free-threading.zip", "application/zip", key="threading_bundle_rtx" if rtx else "threading_bundle_astra" if astra else "threading_bundle")
+    if rtx:
+        _run_verified_app(payload, rtx=True)
+    elif astra:
         _run_verified_app(payload, astra=True)
     else:
         _run_verified_app(payload)
