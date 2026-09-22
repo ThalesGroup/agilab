@@ -27,6 +27,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
 
+Publication evidence: [successful publishing workflow, attempt 1](https://github.com/ThalesGroup/agilab/actions/runs/35701961797/attempts/1).
+
 ### Fixed
 
 - Updated the standalone Qwen forecast replay recipe to Transformers 5.17.0
@@ -38,8 +40,6 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
 ### Changed
 
 - Published AGILAB `2026.09.21.1` to PyPI for `agilab`.
-- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
-- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.09.21] - 2026-09-21
 

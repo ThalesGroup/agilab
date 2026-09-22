@@ -37,6 +37,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   repo-local symlinks; verify the home copy and project discovery separately.
 - When a pre-push guard fails, rerun it with useful output; classify diff, contract, or local-pollution causes, then fix or document it before pushing.
   Before release dispatch, verify the protected tag resolves to the tested source commit; a release admin must create missing tags because the workflow token cannot.
+  Validate and dispatch same-day hotfixes with explicit hotfix mode; automatic tag runs and the generic release shortcut use stable defaults.
   For approvals, verify live reviewer eligibility and environment rules; admin access and documented buttons alone do not prove an available route.
   Apply only authorized exceptions, preserve standing protections, and verify any temporary changes are restored.
 - When adding or changing visible UI actions, audit sibling pages for semantic collisions;
