@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-21T12:20:25Z",
+  "generated_at_utc": "2026-09-22T16:56:08Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2087,14 +2087,19 @@
         "src/agilab/demos/resources/forecast_notebook_demo/result.json",
         "src/agilab/demos/resources/forecast_notebook_demo/source/build-result.json",
         "src/agilab/demos/resources/forecast_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo_rtx/result.json",
         "src/agilab/demos/resources/free_threading_demo/result.json",
         "src/agilab/demos/resources/free_threading_demo_astra/result.json",
+        "src/agilab/demos/resources/free_threading_demo_rtx/result.json",
         "src/agilab/demos/resources/milp_energy_demo/result.json",
         "src/agilab/demos/resources/milp_energy_demo_astra/result.json",
+        "src/agilab/demos/resources/milp_energy_demo_rtx/result.json",
         "src/agilab/demos/resources/notebook_agent_demo/result.json",
         "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
+        "src/agilab/demos/resources/notebook_agent_rtx_demo/result.json",
         "src/agilab/demos/resources/text_notebook_demo/result.json",
         "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_rtx/result.json",
         "src/agilab/demos/text_showcase.py",
         "tools/demos/export_forecast_notebook_demo.py",
         "tools/demos/export_free_threading_demo.py",
@@ -2119,10 +2124,15 @@
       "schema": "agilab.notebook_execution_plan.v1",
       "sources": [
         "src/agilab/demos/resources/forecast_notebook_demo/lab_stages.toml",
+        "src/agilab/demos/resources/forecast_notebook_demo_rtx/lab_stages.toml",
         "src/agilab/demos/resources/free_threading_demo/lab_stages.toml",
+        "src/agilab/demos/resources/free_threading_demo_rtx/lab_stages.toml",
         "src/agilab/demos/resources/milp_energy_demo/lab_stages.toml",
+        "src/agilab/demos/resources/milp_energy_demo_rtx/lab_stages.toml",
         "src/agilab/demos/resources/notebook_agent_local_demo/lab_stages.toml",
+        "src/agilab/demos/resources/notebook_agent_rtx_demo/lab_stages.toml",
         "src/agilab/demos/resources/text_notebook_demo/lab_stages.toml",
+        "src/agilab/demos/resources/text_notebook_demo_rtx/lab_stages.toml",
         "src/agilab/notebooks/notebook_execution_plan.py"
       ]
     },
