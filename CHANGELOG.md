@@ -23,6 +23,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.09.21.1] - 2026-09-22
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
+
+Publication evidence: [successful publishing workflow, attempt 1](https://github.com/ThalesGroup/agilab/actions/runs/35701961797/attempts/1).
+
 ### Fixed
 
 - Updated the standalone Qwen forecast replay recipe to Transformers 5.17.0
@@ -30,6 +36,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   and added fresh real-model replay checks with the patched environment.
 - Added guarded replay export so dependency updates retain the original
   generated application, model identity, build timing, and verification history.
+
+### Changed
+
+- Published AGILAB `2026.09.21.1` to PyPI for `agilab`.
 
 ## [2026.09.21] - 2026-09-21
 
@@ -1021,3 +1031,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
 [2026.09.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
 [2026.09.21]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
+[2026.09.21.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
