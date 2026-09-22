@@ -179,3 +179,30 @@ def test_rtx_analysis_keeps_downloaded_source_immutable(tmp_path):
         if path.is_file() and "__pycache__" not in path.parts
     }
     assert delivered == {name: payload[name] for name in names}
+
+
+def test_rtx_milp_attributes_measurements_to_its_generated_runner(monkeypatch):
+    import ast
+
+    from agilab.demos import milp_energy_showcase
+
+    report, payload = milp_energy_showcase._read_verified_bundle(rtx=True)
+    assert report["engine"]["role"] == "bundled_reference_only"
+    assert report["benchmark_runtime"]["agilab_pool_execution_measured"] is False
+    assert report["benchmark_runtime"]["entrypoint"] == "energy_runner.py"
+    for name in ("energy_core.py", "energy_runner.py"):
+        imports = [
+            alias.name for node in ast.walk(ast.parse(payload[name]))
+            if isinstance(node, ast.Import) for alias in node.names
+        ]
+        imports.extend(
+            node.module for node in ast.walk(ast.parse(payload[name]))
+            if isinstance(node, ast.ImportFrom)
+        )
+        assert "agilab_pool" not in imports
+    monkeypatch.setattr(milp_energy_showcase, "_run_verified_app", lambda *a, **k: None)
+    app = AppTest.from_string(
+        "from agilab.demos.milp_energy_showcase import render; render(rtx=True)"
+    ).run()
+    assert not app.exception and not app.error
+    assert any("not the measured executor" in caption.value for caption in app.caption)

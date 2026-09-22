@@ -16,13 +16,14 @@
     "license_sha256": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
     "introduced": "2026-02-17",
     "updated": "2026-08-05",
-    "adaptation": "Interactive lab, HiGHS solver, parameterized scenarios, solution checks and AGILAB batches"
+    "adaptation": "Interactive lab, HiGHS solver, parameterized scenarios, solution checks and generated process batches"
   },
   "engine": {
     "repository": "ThalesGroup/agilab",
     "commit": "7d2b1355b84eed3cbf0828c325cddb8308be77a3",
     "path": "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py",
-    "sha256": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066"
+    "sha256": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+    "role": "bundled_reference_only"
   },
   "verification_scope": "execution_interface_and_bounded_local_milp_scenario_scaling",
   "verification": {
@@ -91,6 +92,13 @@
     "quantization": "Q4_K_M",
     "cloud_codegen_fallback": false,
     "coordination": "Tokki with OpenCode; independent AGILAB verification"
+  },
+  "benchmark_runtime": {
+    "kind": "generated_python_processes",
+    "entrypoint": "energy_runner.py",
+    "agilab_pool_execution_measured": false,
+    "scope": "Serial and parallel independent MILP scenarios in the generated process runner",
+    "generated_readme_note": "The original generated README calls this an AGILAB batch measurement; parallel dispatch is performed by energy_runner.py, not the bundled pool helper."
   },
   "code_metrics": {
     "loc": 584,

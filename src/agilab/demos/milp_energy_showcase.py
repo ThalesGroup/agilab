@@ -164,6 +164,7 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
         st.caption(f"Build model: {model['id']} ({model['execution']} · {model['provider']}).")
     if rtx:
         st.caption("Qwen · RTX — generated and repaired locally on NVIDIA RTX 4090, with no cloud code-generation fallback.")
+        st.caption("This RTX variant measures its generated Python process runner. The bundled AGILAB pool engine is a source reference, not the measured executor.")
     elif astra:
         st.caption("Build model: GPT-6 Astra (OpenAI).")
     with st.expander("Source, recorded build and downloadable workflow"):
@@ -174,15 +175,17 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
             "Notebook and code: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)."
         )
         st.write("Adaptations add an interactive energy lab, the HiGHS solver, configurable scenarios, "
-                 "solution checks, and AGILAB batch measurements. PyPSA's library is MIT licensed.")
+                 "solution checks, and scenario batch measurements. PyPSA's library is MIT licensed.")
         engine = report["engine"]
+        engine_label = ("The bundle retains an unchanged reference copy of the "
+                        if rtx else "Scenario batches use the unchanged ")
         st.markdown(
-            f"Scenario batches use the unchanged [AGILAB pool engine]"
+            f"{engine_label}[AGILAB pool engine]"
             f"(https://github.com/{engine['repository']}/blob/{engine['commit']}/{engine['path']})."
         )
         build_label = "Completed local-codegen build" if rtx else "Completed autonomous build"
         st.caption(f"{build_label}: {report['run_id']}")
-        st.write("Independent checks cover the pinned notebook and engine, a known optimum, "
+        st.write("Independent checks cover the pinned notebook and supplied engine source, a known optimum, "
                  "infeasibility, physical constraints, cost reconstruction and equivalent scenario batches.")
         st.caption("Scaling measures independent MILP scenarios on this machine, with one HiGHS thread "
                    "per scenario. It does not measure distributed execution or acceleration of one MILP.")
