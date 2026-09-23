@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -347,3 +347,155 @@ auth_ref = "env:AWS_PROFILE"
     assert proof["ok"] is True
     assert proof["catalog_path"] == str(catalog_path)
     assert proof["state"]["summary"]["connector_ids"] == ["artifacts", "local_sqlite", "ops"]
+
+
+def test_sqlite_file_probe_is_read_only_and_encodes_filename(tmp_path, monkeypatch):
+    import sqlite3
+
+    core = _load_module(CORE_PATH, "data_connector_read_only_sqlite_core")
+    target = tmp_path / "smoke # % ü.sqlite"
+    with sqlite3.connect(target) as connection:
+        connection.execute("create table existing (value text)")
+    original_connect = sqlite3.connect
+    readonly_checks = []
+
+    def assert_readonly(*args, **kwargs):
+        connection = original_connect(*args, **kwargs)
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            connection.execute("create table forbidden (value text)")
+        readonly_checks.append(True)
+        return connection
+
+    monkeypatch.setattr(core.sqlite3, "connect", assert_readonly)
+    assert core._probe_sqlite(f"sqlite:///{target}") == (
+        "healthy",
+        "sqlite connectivity check passed",
+    )
+    assert readonly_checks == [True]
+
+
+def test_sqlite_missing_file_is_not_created_but_memory_remains_supported(tmp_path):
+    import sqlite3
+
+    core = _load_module(CORE_PATH, "data_connector_missing_sqlite_core")
+    target = tmp_path / "missing.sqlite"
+    with pytest.raises(sqlite3.OperationalError, match="unable to open database"):
+        core._probe_sqlite(f"sqlite:///{target}")
+    assert not target.exists()
+    assert core._probe_sqlite("sqlite:///:memory:")[0] == "healthy"
+
+
+@pytest.mark.parametrize("invalidity", ["query_mode", "missing_driver", "duplicate_id"])
+def test_invalid_catalog_does_not_probe_any_endpoint(tmp_path, monkeypatch, invalidity):
+    from copy import deepcopy
+
+    module = _load_module(REPORT_PATH, "data_connector_invalid_no_probe_report")
+    core = _load_module(CORE_PATH, "data_connector_invalid_no_probe_core")
+    catalog = module._sqlite_smoke_catalog(tmp_path / "existing.sqlite")
+    missing = tmp_path / "must-not-be-created.sqlite"
+    catalog["connectors"][0]["uri"] = f"sqlite:///{missing}"
+    if invalidity == "query_mode":
+        catalog["connectors"][0]["query_mode"] = "write"
+    elif invalidity == "missing_driver":
+        del catalog["connectors"][0]["driver"]
+    else:
+        catalog["connectors"].append(deepcopy(catalog["connectors"][0]))
+    monkeypatch.setenv("OPENSEARCH_TOKEN", "synthetic-probe-token")
+
+    def forbidden_probe(*_args, **_kwargs):
+        raise AssertionError("an invalid catalog must not execute any probe")
+
+    monkeypatch.setattr(core, "_probe_sqlite", forbidden_probe)
+    monkeypatch.setattr(core, "_probe_opensearch", forbidden_probe)
+    state = core.build_data_connector_live_endpoint_smoke(
+        catalog,
+        source_path="invalid.toml",
+        execute=True,
+        allowed_connector_ids=["local_sqlite", "ops_opensearch"],
+    )
+
+    assert state["source"]["facility_run_status"] == "invalid"
+    assert state["run_status"] == "planned"
+    assert state["summary"]["executed_endpoint_count"] == 0
+    assert state["summary"]["network_probe_count"] == 0
+    assert all(
+        row["execution_status"] == "skipped_invalid_catalog"
+        for row in state["endpoint_smokes"]
+    )
+    assert not missing.exists()
+
+
+def test_public_cli_does_not_create_missing_read_only_database(tmp_path, capsys):
+    import json
+    import tomllib
+
+    module = _load_module(REPORT_PATH, "data_connector_read_only_cli_report")
+    source = Path("docs/source/data/data_connectors_sample.toml").read_text(
+        encoding="utf-8"
+    )
+    catalog = tomllib.loads(source)
+    sql = next(row for row in catalog["connectors"] if row["kind"] == "sql")
+    assert sql["query_mode"] == "read_only"
+    missing = tmp_path / "missing.sqlite"
+    catalog_path = tmp_path / "catalog.toml"
+    catalog_path.write_text(
+        source.replace(sql["uri"], f"sqlite:///{missing.as_posix()}"), encoding="utf-8"
+    )
+
+    # This is the real CLI -> legacy shim -> canonical implementation path.
+    module.main(
+        [
+            "--catalog",
+            str(catalog_path),
+            "--output",
+            str(tmp_path / "report.json"),
+            "--execute",
+            "--allow-connector",
+            sql["id"],
+            "--compact",
+        ]
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    plan = next(
+        check
+        for check in report["checks"]
+        if check["id"] == "data_connector_live_endpoint_smoke_plan"
+    )
+    row = next(
+        row
+        for row in plan["details"]["endpoint_smokes"]
+        if row["connector_id"] == sql["id"]
+    )
+    assert row["status"] == "unhealthy"
+    assert "unable to open database" in row["message"]
+    assert not missing.exists()
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        (
+            PurePosixPath("/tmp/smoke # % ü.sqlite"),
+            "file:///tmp/smoke%20%23%20%25%20%C3%BC.sqlite?mode=ro",
+        ),
+        (
+            PureWindowsPath("C:/data/smoke # % ü.sqlite"),
+            "file:///C:/data/smoke%20%23%20%25%20%C3%BC.sqlite?mode=ro",
+        ),
+        (
+            PureWindowsPath("//server/share/smoke # % ü.sqlite"),
+            "file:////server/share/smoke%20%23%20%25%20%C3%BC.sqlite?mode=ro",
+        ),
+    ],
+)
+def test_read_only_sqlite_uri_preserves_posix_drive_and_unc_paths(path, expected):
+    from urllib.parse import parse_qs, urlsplit
+
+    core = _load_module(CORE_PATH, "data_connector_sqlite_uri_core")
+    uri = core._sqlite_read_only_uri(path)
+
+    assert uri == expected
+    parsed = urlsplit(uri)
+    assert parsed.netloc == ""
+    assert parse_qs(parsed.query) == {"mode": ["ro"]}

@@ -1,13 +1,8 @@
-"""Regression tests for DNS-based SSRF screening in the live endpoint smoke.
+"""Hermetic DNS, transport, redirect, and proxy boundary tests for live probes.
 
-Covers audit finding #11 (security-app bucket): ``_host_is_blocked`` previously
-only screened IP-literal hosts and returned "allowed" for any DNS name (the
-``ipaddress.ip_address`` ``ValueError`` path). A hostname that resolves to a
-metadata / loopback / private target therefore received the connection and the
-Bearer token. The fix resolves the hostname via ``socket.getaddrinfo`` and
-applies the block policy to every resolved address before the token is attached.
-
-Tests are hermetic: ``getaddrinfo`` is monkeypatched, no real DNS or network.
+Both the initial safety check and the actual connection enforce the address
+policy. The recording transport proves the numeric socket destination and
+original Host/TLS identity without DNS traffic, network sockets, or real tokens.
 """
 
 from __future__ import annotations
@@ -101,3 +96,241 @@ def test_probe_opensearch_never_attaches_token_for_ssrf_hostname(monkeypatch):
     assert network_probe is False
     assert "unsafe live endpoint target" in message
     assert "super-secret-token" not in message
+
+
+class _ProbeSocket:
+    def __init__(self, response):
+        self.response = response
+        self.sent = bytearray()
+        self.closed = False
+
+    def sendall(self, payload):
+        self.sent.extend(payload)
+
+    def makefile(self, _mode):
+        import io
+
+        return io.BytesIO(self.response)
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def probe_transport(monkeypatch):
+    """Exercise urllib/http.client without DNS, sockets, or real credentials."""
+    import socket
+    import ssl
+    from types import SimpleNamespace
+
+    transport = SimpleNamespace(
+        destinations=[],
+        sockets=[],
+        tls_hostnames=[],
+        responses=[],
+        context=ssl.create_default_context(),
+    )
+    monkeypatch.setattr(smoke.request, "getproxies", lambda: {})
+    monkeypatch.setenv(smoke.LOCAL_HTTP_OPT_IN_ENV, "0")
+    monkeypatch.setenv("OPENSEARCH_TOKEN", "synthetic-probe-token")
+
+    def connect(destination, _timeout, _source):
+        transport.destinations.append(destination)
+        response = (
+            transport.responses.pop(0)
+            if transport.responses
+            else b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n"
+        )
+        sock = _ProbeSocket(response)
+        transport.sockets.append(sock)
+        return sock
+
+    def wrap_socket(sock, *, server_hostname):
+        assert transport.context.check_hostname is True
+        assert transport.context.verify_mode == ssl.CERT_REQUIRED
+        transport.tls_hostnames.append(server_hostname)
+        return sock
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    monkeypatch.setattr(transport.context, "wrap_socket", wrap_socket)
+    monkeypatch.setattr(ssl, "_create_default_https_context", lambda: transport.context)
+    return transport
+
+
+def _search_connector(url="https://search.example.invalid"):
+    return {
+        "kind": "opensearch",
+        "provider": "opensearch",
+        "url": url,
+        "index": "runs",
+        "id": "ops",
+        "auth_ref": "env:OPENSEARCH_TOKEN",
+    }
+
+
+def test_probe_refuses_dns_rebinding_before_actual_connection(
+    monkeypatch, probe_transport
+):
+    answers = iter(["93.184.216.34", "169.254.169.254"])
+    monkeypatch.setattr(
+        smoke,
+        "_resolve_host_addresses",
+        lambda _host: [smoke.ipaddress.ip_address(next(answers))],
+    )
+
+    status, message, executed = smoke._probe_opensearch(
+        _search_connector(), "synthetic-probe-token"
+    )
+    assert (status, executed) == ("skipped", False)
+    assert "connection target refused: metadata" in message
+
+    assert probe_transport.destinations == []
+    assert probe_transport.sockets == []
+
+
+def test_https_probe_pins_destination_preserves_tls_host_and_authorization(
+    monkeypatch, probe_transport
+):
+    resolved_hosts = []
+
+    def resolve(host):
+        resolved_hosts.append(host)
+        # The transport must never perform a third hostname resolution.
+        assert len(resolved_hosts) <= 2
+        return [smoke.ipaddress.ip_address("93.184.216.34")]
+
+    monkeypatch.setattr(smoke, "_resolve_host_addresses", resolve)
+    status, message, executed = smoke._probe_opensearch(
+        _search_connector(), "synthetic-probe-token"
+    )
+
+    assert (status, executed) == ("healthy", True)
+    assert "204" in message
+    assert resolved_hosts == ["search.example.invalid"] * 2
+    assert probe_transport.destinations == [("93.184.216.34", 443)]
+    assert probe_transport.tls_hostnames == ["search.example.invalid"]
+    payload = bytes(probe_transport.sockets[0].sent)
+    assert payload.startswith(b"HEAD /runs HTTP/1.1\r\n")
+    assert b"Host: search.example.invalid\r\n" in payload
+    assert b"Authorization: Bearer synthetic-probe-token\r\n" in payload
+
+
+def test_opted_in_http_emulator_uses_pinned_loopback(monkeypatch, probe_transport):
+    monkeypatch.setenv(smoke.LOCAL_HTTP_OPT_IN_ENV, "1")
+    status, _message, executed = smoke._probe_opensearch(
+        _search_connector("http://127.0.0.1:9200/runs"), "synthetic-probe-token"
+    )
+
+    assert (status, executed) == ("healthy", True)
+    assert probe_transport.destinations == [("127.0.0.1", 9200)]
+    assert probe_transport.tls_hostnames == []
+
+
+def test_same_origin_redirect_remains_a_pinned_head_probe(monkeypatch, probe_transport):
+    monkeypatch.setattr(
+        smoke,
+        "_resolve_host_addresses",
+        lambda _host: [smoke.ipaddress.ip_address("93.184.216.34")],
+    )
+    probe_transport.responses.append(
+        b"HTTP/1.1 302 Found\r\nLocation: /health\r\nContent-Length: 0\r\n\r\n"
+    )
+
+    status, _message, executed = smoke._probe_opensearch(
+        _search_connector(), "synthetic-probe-token"
+    )
+
+    assert (status, executed) == ("healthy", True)
+    assert probe_transport.destinations == [("93.184.216.34", 443)] * 2
+    assert probe_transport.tls_hostnames == ["search.example.invalid"] * 2
+    assert bytes(probe_transport.sockets[1].sent).startswith(
+        b"HEAD /health HTTP/1.1\r\n"
+    )
+    for sock in probe_transport.sockets:
+        assert b"Authorization: Bearer synthetic-probe-token\r\n" in bytes(sock.sent)
+
+
+@pytest.mark.parametrize(
+    "redirect",
+    [
+        "https://other.example.invalid/health",
+        "http://search.example.invalid/health",
+    ],
+)
+def test_cross_origin_redirect_never_forwards_credentials(
+    monkeypatch, probe_transport, redirect
+):
+    monkeypatch.setattr(
+        smoke,
+        "_resolve_host_addresses",
+        lambda _host: [smoke.ipaddress.ip_address("93.184.216.34")],
+    )
+    probe_transport.responses.append(
+        f"HTTP/1.1 302 Found\r\nLocation: {redirect}\r\nContent-Length: 0\r\n\r\n".encode()
+    )
+
+    row = smoke._smoke_row(
+        _search_connector(), execute=True, allowed_connector_ids={"ops"}
+    )
+    assert row["status"] == "unhealthy"
+    assert row["execution_status"] == "executed"
+    assert row["network_probe_executed"] is True
+    assert "redirect changed origin" in row["message"]
+
+    assert probe_transport.destinations == [("93.184.216.34", 443)]
+    assert len(probe_transport.sockets) == 1
+
+
+def test_redirect_rebinding_is_rejected_before_second_connection(
+    monkeypatch, probe_transport
+):
+    answers = iter(["93.184.216.34"] * 3 + ["169.254.169.254"])
+    monkeypatch.setattr(
+        smoke,
+        "_resolve_host_addresses",
+        lambda _host: [smoke.ipaddress.ip_address(next(answers))],
+    )
+    probe_transport.responses.append(
+        b"HTTP/1.1 302 Found\r\nLocation: /health\r\nContent-Length: 0\r\n\r\n"
+    )
+
+    status, message, executed = smoke._probe_opensearch(
+        _search_connector(), "synthetic-probe-token"
+    )
+    assert (status, executed) == ("unhealthy", True)
+    assert "connection target refused: metadata" in message
+
+    assert probe_transport.destinations == [("93.184.216.34", 443)]
+
+
+@pytest.mark.parametrize("bypass", [False, True])
+def test_proxy_configuration_requires_explicit_standard_bypass(
+    monkeypatch, probe_transport, bypass
+):
+    monkeypatch.setattr(
+        smoke,
+        "_resolve_host_addresses",
+        lambda _host: [smoke.ipaddress.ip_address("93.184.216.34")],
+    )
+    monkeypatch.setattr(
+        smoke.request,
+        "getproxies",
+        lambda: {"https": "http://proxy.example.invalid:3128"},
+    )
+    monkeypatch.setattr(smoke.request, "proxy_bypass", lambda _host: bypass)
+
+    row = smoke._smoke_row(
+        _search_connector(), execute=True, allowed_connector_ids={"ops"}
+    )
+    if bypass:
+        assert row["status"] == "healthy"
+        assert row["execution_status"] == "executed"
+        assert row["network_probe_executed"] is True
+        assert probe_transport.destinations == [("93.184.216.34", 443)]
+    else:
+        assert row["status"] == "skipped"
+        assert row["execution_status"] == "skipped"
+        assert row["network_probe_executed"] is False
+        assert "configured proxies are unsupported" in row["message"]
+        assert "synthetic-probe-token" not in row["message"]
+        assert probe_transport.destinations == []
