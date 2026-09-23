@@ -1328,9 +1328,19 @@ class BaseWorker(ArtifactContract, abc.ABC):
                 raise ValueError(
                     f"Invalid worker_idx {worker_idx}; total_workers={total_workers}"
                 )
-            reconstructed_len = max(total_workers, worker_idx + 1)
-        else:
-            reconstructed_len = worker_idx + 1
+        # This envelope addresses one worker. Service recovery may reorder the
+        # sender's slots, but the receiving worker keeps its initialized ID.
+        # Validate the sender's index above, then reconstruct at the receiver's
+        # ID so the payload cannot disappear into another worker's position.
+        receiver_idx = worker_id if worker_id is not None else worker_idx
+        if not isinstance(receiver_idx, int) or receiver_idx < 0:
+            raise ValueError(f"Invalid initialized worker_id: {receiver_idx!r}")
+        reconstructed_len = max(
+            total_workers
+            if isinstance(total_workers, int) and total_workers > 0
+            else 0,
+            receiver_idx + 1,
+        )
 
         def _placeholder():
             if isinstance(chunk, list):
@@ -1340,7 +1350,7 @@ class BaseWorker(ArtifactContract, abc.ABC):
             return None
 
         reconstructed = [_placeholder() for _ in range(reconstructed_len)]
-        reconstructed[worker_idx] = chunk
+        reconstructed[receiver_idx] = chunk
 
         chunk_len = len(chunk) if hasattr(chunk, "__len__") else (1 if chunk else 0)
         return reconstructed, chunk_len, reconstructed_len
