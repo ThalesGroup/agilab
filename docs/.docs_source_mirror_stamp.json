@@ -2,7 +2,7 @@
   "file_count": 276,
   "format_version": 3,
   "managed_target": "docs/source",
-  "public_owned_digest_sha256": "5032279b6a363ccb7b18c1e8fd4967d77e17630a3f0a0707928928dd852e59ba",
+  "public_owned_digest_sha256": "6de463ce550c5d06a43936a65079e614b2fa9838d6b6e06f95be751d5be1c2f2",
   "public_owned_exclusions": [
     "data/release_proof.toml",
     "data/ui_robot_evidence.json",
@@ -10,9 +10,9 @@
   ],
   "public_owned_file_count": 3,
   "public_owned_files_sha256": {
-    "data/release_proof.toml": "d359515473beb4b4ce9cff42138fd2842d9c2f7e71541df85c755449487c9f04",
+    "data/release_proof.toml": "4974b8d20b13571419ce537b3eb0986a96b6409f4d925a95a06d156c7e6e4e48",
     "data/ui_robot_evidence.json": "18c47a02a0122f6de1dbcffbdee31b6ed4eb53223d0dcb44b9a64bdc07e0dbac",
-    "release-proof.rst": "e222214124415184620f5710586e3d6a04c6460b5aa1db5b42c788af3fd49184"
+    "release-proof.rst": "afe29dcb925a972b2f85811ba9d514fc700d63673359e4bdab3fad09279ed393"
   },
   "source_digest_sha256": "dfc82f91ca3aa9d57c90dbc1af4b1d5b16a3408971ae20c8d6728bc22633f44a",
   "source_hint": "../thales_agilab/docs/source",
