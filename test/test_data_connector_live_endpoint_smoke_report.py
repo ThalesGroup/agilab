@@ -158,7 +158,9 @@ def test_live_endpoint_smoke_covers_target_and_credential_edge_cases(tmp_path: P
     assert row["execution_status"] == "skipped_invalid_credentials"
 
 
-def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, tmp_path: Path) -> None:
+def test_live_endpoint_smoke_opensearch_success_and_failure_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
     core = _load_module(CORE_PATH, "data_connector_live_smoke_opensearch_core")
     monkeypatch.setattr(
         core,
@@ -216,7 +218,7 @@ def test_live_endpoint_smoke_opensearch_success_and_failure_paths(monkeypatch, t
     assert unhealthy["status"] == "unhealthy"
     assert unhealthy["execution_status"] == "executed"
     assert unhealthy["network_probe_executed"] is True
-    assert unhealthy["message"] == "network down"
+    assert unhealthy["message"] == "live endpoint connection failed (OSError)"
 
 
 def test_live_endpoint_smoke_blocks_unsafe_opensearch_targets_before_authorization(

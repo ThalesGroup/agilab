@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
+import errno
 from functools import partial
 import json
 import os
 from pathlib import Path, PurePath
 import socket
 import sqlite3
+import ssl
 from typing import Any, Mapping, Sequence
 from urllib import request
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 import ipaddress
 
@@ -27,7 +30,7 @@ from agilab.security.llm_endpoint_policy import (
     _PinnedHTTPConnection,
     _PinnedHTTPSConnection,
 )
-from agilab.security.secret_uri import credential_env_name, is_secret_uri
+from agilab.security.secret_uri import credential_env_name, is_secret_uri, redact_text
 
 
 SCHEMA = "agilab.data_connector_live_endpoint_smoke.v1"
@@ -168,7 +171,11 @@ def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
 def _live_probe_addresses(
     url: str, *, allow_local_http: bool = False
 ) -> tuple[tuple[str, ...], str]:
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+        parsed.port  # Reject malformed/out-of-range ports before transport setup.
+    except ValueError:
+        return (), "invalid live endpoint URL or port"
     scheme = parsed.scheme.lower()
     if scheme != "https" and not (scheme == "http" and allow_local_http):
         return (
@@ -187,6 +194,10 @@ def _validate_live_probe_url(
     return bool(addresses), reason or "live endpoint target passed URL safety policy"
 
 
+class _ProbePolicyError(RuntimeError):
+    """A fixed, credential-free refusal message owned by the probe policy."""
+
+
 class _SameOriginRedirectHandler(request.HTTPRedirectHandler):
     def __init__(self, *, allow_local_http: bool = False) -> None:
         super().__init__()
@@ -194,13 +205,15 @@ class _SameOriginRedirectHandler(request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
         if _origin(req.full_url) != _origin(newurl):
-            raise RuntimeError("live endpoint smoke redirect changed origin")
+            raise _ProbePolicyError("live endpoint smoke redirect changed origin")
         ok, reason = _validate_live_probe_url(
             newurl,
             allow_local_http=self._allow_local_http,
         )
         if not ok:
-            raise RuntimeError(f"live endpoint smoke redirect target refused: {reason}")
+            raise _ProbePolicyError(
+                f"live endpoint smoke redirect target refused: {reason}"
+            )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -210,10 +223,23 @@ class _DirectProbeProxyHandler(request.ProxyHandler):
         # bearer credentials to a proxy. Pinning requires a direct connection.
         if req.host and request.proxy_bypass(req.host):
             return None
-        raise RuntimeError(
+        raise _ProbePolicyError(
             "live endpoint smoke requires a direct connection; configured proxies "
             "are unsupported because they bypass destination address validation"
         )
+
+
+def _tracked_probe_connection(connection_type, handler, host: str, **kwargs: Any):
+    connection = connection_type(host, **kwargs)
+    create_connection = connection._create_connection
+
+    def connect(address, timeout, source_address):
+        # Constructor and HTTP-header validation run before this socket seam.
+        handler.network_probe_started = True
+        return create_connection(address, timeout, source_address)
+
+    connection._create_connection = connect
+    return connection
 
 
 class _PinnedProbeHTTPHandler(request.HTTPHandler):
@@ -227,11 +253,15 @@ class _PinnedProbeHTTPHandler(request.HTTPHandler):
             req.full_url, allow_local_http=self._allow_local_http
         )
         if not addresses:
-            raise RuntimeError(
+            raise _ProbePolicyError(
                 f"live endpoint smoke connection target refused: {reason}"
             )
-        connection = partial(_PinnedHTTPConnection, pinned_addresses=addresses)
-        self.network_probe_started = True
+        connection = partial(
+            _tracked_probe_connection,
+            _PinnedHTTPConnection,
+            self,
+            pinned_addresses=addresses,
+        )
         return self.do_open(connection, req)
 
 
@@ -246,11 +276,15 @@ class _PinnedProbeHTTPSHandler(request.HTTPSHandler):
             req.full_url, allow_local_http=self._allow_local_http
         )
         if not addresses:
-            raise RuntimeError(
+            raise _ProbePolicyError(
                 f"live endpoint smoke connection target refused: {reason}"
             )
-        connection = partial(_PinnedHTTPSConnection, pinned_addresses=addresses)
-        self.network_probe_started = True
+        connection = partial(
+            _tracked_probe_connection,
+            _PinnedHTTPSConnection,
+            self,
+            pinned_addresses=addresses,
+        )
         return self.do_open(connection, req, context=self._context)
 
 
@@ -264,9 +298,52 @@ def _live_probe_opener(*, allow_local_http: bool = False):
     )
 
 
+def _authorization_value_error(token: str) -> str:
+    if (
+        not isinstance(token, str)
+        or not token
+        or any(ord(character) < 32 or ord(character) == 127 for character in token)
+    ):
+        return "invalid authorization credential: empty values and control characters are not allowed"
+    try:
+        token.encode("latin-1")
+    except UnicodeEncodeError:
+        return "invalid authorization credential: value cannot be encoded as an HTTP header"
+    return ""
+
+
+def _probe_exception_message(exc: Exception) -> str:
+    # Only our fixed policy messages are safe to retain. Library exceptions can
+    # echo Authorization bytes (including repr escapes) or server-supplied text.
+    if isinstance(exc, _ProbePolicyError):
+        return redact_text(str(exc))
+    if isinstance(exc, HTTPError):
+        return (
+            f"live endpoint returned HTTP {exc.code}"
+            if type(exc.code) is int
+            else "live endpoint returned an HTTP error"
+        )
+    cause = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(cause, ssl.SSLCertVerificationError):
+        return "live endpoint TLS certificate verification failed"
+    if isinstance(cause, ssl.SSLError):
+        return "live endpoint TLS negotiation failed"
+    if isinstance(cause, TimeoutError):
+        return "live endpoint connection timed out"
+    if isinstance(cause, OSError):
+        reason = errno.errorcode.get(cause.errno, type(cause).__name__)
+        return f"live endpoint connection failed ({reason})"
+    if isinstance(cause, ValueError):
+        return "invalid live endpoint request configuration"
+    return f"live endpoint probe failed ({type(exc).__name__})"
+
+
 def _probe_opensearch(
     connector: Mapping[str, Any], token: str
 ) -> tuple[str, str, bool]:
+    credential_error = _authorization_value_error(token)
+    if credential_error:
+        return "skipped", credential_error, False
     opener = None
     try:
         url = _connector_target(connector)
@@ -304,7 +381,11 @@ def _probe_opensearch(
                 getattr(handler, "network_probe_started", False) for handler in handlers
             )
         )
-        return ("unhealthy" if network_probe else "skipped"), str(exc), network_probe
+        return (
+            "unhealthy" if network_probe else "skipped",
+            _probe_exception_message(exc),
+            network_probe,
+        )
 
 
 def _smoke_row(

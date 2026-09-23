@@ -129,6 +129,7 @@ def probe_transport(monkeypatch):
         tls_hostnames=[],
         responses=[],
         context=ssl.create_default_context(),
+        connect_error=None,
     )
     monkeypatch.setattr(smoke.request, "getproxies", lambda: {})
     monkeypatch.setenv(smoke.LOCAL_HTTP_OPT_IN_ENV, "0")
@@ -136,6 +137,8 @@ def probe_transport(monkeypatch):
 
     def connect(destination, _timeout, _source):
         transport.destinations.append(destination)
+        if transport.connect_error is not None:
+            raise transport.connect_error
         response = (
             transport.responses.pop(0)
             if transport.responses
@@ -334,3 +337,133 @@ def test_proxy_configuration_requires_explicit_standard_bypass(
         assert "configured proxies are unsupported" in row["message"]
         assert "synthetic-probe-token" not in row["message"]
         assert probe_transport.destinations == []
+
+
+def _persisted_probe_report(monkeypatch, tmp_path, token, url="https://93.184.216.34"):
+    import json
+
+    monkeypatch.setenv("OPENSEARCH_TOKEN", token)
+    catalog = smoke.load_connector_catalog(
+        _MODULE_PATH.parents[3] / "docs/source/data/data_connectors_sample.toml"
+    )
+    connector = next(
+        row for row in catalog["connectors"] if row["kind"] == "opensearch"
+    )
+    connector["url"] = url
+    connector["auth_ref"] = "env:OPENSEARCH_TOKEN"
+    state = smoke.build_data_connector_live_endpoint_smoke(
+        catalog,
+        source_path="synthetic.toml",
+        execute=True,
+        allowed_connector_ids=[connector["id"]],
+    )
+    assert state["source"]["facility_run_status"] == "validated"
+    path = smoke.write_data_connector_live_endpoint_smoke(
+        tmp_path / "evidence.json", state
+    )
+    serialized = path.read_text(encoding="utf-8")
+    assert json.loads(serialized) == state
+    assert "audit-only-secret" not in serialized
+    assert state["provenance"]["credential_values_logged"] is False
+    row = next(
+        row
+        for row in state["endpoint_smokes"]
+        if row["connector_id"] == connector["id"]
+    )
+    return state, row
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        "audit-only-secret'quoted\\value\r\n",
+        "audit-only-secret\t",
+        "audit-only-secret\x7f",
+        "audit-only-secret\U0001f511",
+    ],
+)
+def test_malformed_credentials_never_reach_transport_or_persist(
+    monkeypatch, tmp_path, probe_transport, token
+):
+    state, row = _persisted_probe_report(monkeypatch, tmp_path, token)
+
+    assert row["status"] == "skipped"
+    assert row["execution_status"] == "skipped"
+    assert row["network_probe_executed"] is False
+    assert "invalid authorization credential" in row["message"]
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["summary"]["executed_endpoint_count"] == 0
+    assert probe_transport.destinations == []
+
+
+@pytest.mark.parametrize("port", ["bad", "99999"])
+def test_invalid_port_does_not_count_as_a_network_probe(
+    monkeypatch, tmp_path, probe_transport, port
+):
+    state, row = _persisted_probe_report(
+        monkeypatch, tmp_path, "audit-only-secret", f"https://93.184.216.34:{port}"
+    )
+
+    assert row["status"] == "skipped"
+    assert row["network_probe_executed"] is False
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["summary"]["executed_endpoint_count"] == 0
+    assert "invalid live endpoint URL or port" in row["message"]
+    assert probe_transport.destinations == []
+
+
+def test_header_construction_failure_has_no_network_or_credential_evidence(
+    monkeypatch, tmp_path, probe_transport
+):
+    import http.client
+
+    original_putheader = http.client.HTTPConnection.putheader
+
+    def rejected_header(connection, name, *values):
+        if name.lower() == "authorization":
+            # Model a library error that includes repr-escaped header contents.
+            raise ValueError(f"Invalid header value {values!r}")
+        return original_putheader(connection, name, *values)
+
+    monkeypatch.setattr(http.client.HTTPConnection, "putheader", rejected_header)
+    state, row = _persisted_probe_report(
+        monkeypatch, tmp_path, "audit-only-secret'quoted\\value"
+    )
+
+    assert row["status"] == "skipped"
+    assert row["message"] == "invalid live endpoint request configuration"
+    assert row["network_probe_executed"] is False
+    assert state["summary"]["network_probe_count"] == 0
+    assert probe_transport.destinations == []
+
+
+def test_failed_socket_attempt_counts_without_persisting_exception_credentials(
+    monkeypatch, tmp_path, probe_transport
+):
+    token = "audit-only-secret'quoted\\value"
+    probe_transport.connect_error = OSError(f"connection failed for {token!r}")
+    state, row = _persisted_probe_report(monkeypatch, tmp_path, token)
+
+    assert row["status"] == "unhealthy"
+    assert row["execution_status"] == "executed"
+    assert row["network_probe_executed"] is True
+    assert row["message"] == "live endpoint connection failed (OSError)"
+    assert state["summary"]["network_probe_count"] == 1
+    assert probe_transport.destinations == [("93.184.216.34", 443)]
+
+
+def test_http_error_reason_cannot_echo_credentials_into_evidence(
+    monkeypatch, tmp_path, probe_transport
+):
+    token = "audit-only-secret'quoted\\value"
+    probe_transport.responses.append(
+        f"HTTP/1.1 401 {token}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode()
+    )
+    state, row = _persisted_probe_report(monkeypatch, tmp_path, token)
+
+    assert row["status"] == "unhealthy"
+    assert row["execution_status"] == "executed"
+    assert row["network_probe_executed"] is True
+    assert row["message"] == "live endpoint returned HTTP 401"
+    assert state["summary"]["network_probe_count"] == 1
+    assert probe_transport.destinations == [("93.184.216.34", 443)]
