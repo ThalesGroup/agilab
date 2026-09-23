@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.09.21.2] - 2026-09-23
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
+
 ### Fixed
 
 - Include the five RTX Agent Demo variants and their verified resources in
@@ -35,6 +39,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   execution; report actual network attempts without persisting credentials.
 - Deliver the Qwen RTX demo flavour and build metrics added since 2026.09.21.1.
 - Refresh coverage badges from the audited source measurements.
+
+### Changed
+
+- Published AGILAB `2026.09.21.2` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.09.21.1] - 2026-09-22
 
@@ -1045,3 +1055,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
 [2026.09.21]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
 [2026.09.21.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
+[2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
