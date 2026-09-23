@@ -23,6 +23,19 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Fixed
+
+- Include the five RTX Agent Demo variants and their verified resources in
+  built distributions, so packaged demo loaders work outside the source checkout.
+- Preserve worker identity in sparse Dask and service plans, including service
+  result routing back to the initialized worker slot.
+- Bind connector HTTP probes to validated destinations, preserve TLS hostname
+  checks, and reject unsupported proxies and unsafe credential headers.
+- Open SQLite probe files read-only and reject invalid connector catalogs before
+  execution; report actual network attempts without persisting credentials.
+- Deliver the Qwen RTX demo flavour and build metrics added since 2026.09.21.1.
+- Refresh coverage badges from the audited source measurements.
+
 ## [2026.09.21.1] - 2026-09-22
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
