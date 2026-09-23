@@ -1679,10 +1679,15 @@ async def submit(
     effective_args = agi_cls._service_public_args(dict(args) if args else dict(agi_cls._args or {}))
 
     if work_plan is None or work_plan_metadata is None:
-        agi_cls._workers, generated_plan, generated_metadata = await WorkDispatcher._do_distrib(
+        (
+            agi_cls._workers,
+            generated_plan,
+            generated_metadata,
+        ) = await WorkDispatcher._do_distrib(
             env,
             workers,
             effective_args,
+            preserve_worker_slots=True,
         )
         if work_plan is None:
             work_plan = generated_plan
@@ -1709,6 +1714,10 @@ async def submit(
     queued_files: List[str] = []
 
     for worker_idx, worker_addr in enumerate(service_workers):
+        if isinstance(work_plan, list) and (
+            worker_idx >= len(work_plan) or not work_plan[worker_idx]
+        ):
+            continue
         safe_worker = agi_cls._service_safe_worker_name(worker_addr)
 
         filename = f"{submit_seq:06d}-{batch_id}-{worker_idx:03d}-{safe_worker}{SERVICE_TASK_SUFFIX}"

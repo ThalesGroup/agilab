@@ -827,20 +827,24 @@ async def distribute(
         dask_workers,
         getattr(agi_cls, "_capacity", None),
     )
-    agi_cls._workers, workers_plan, workers_plan_metadata = await work_dispatcher_cls._do_distrib(
+    (
+        agi_cls._workers,
+        workers_plan,
+        workers_plan_metadata,
+    ) = await work_dispatcher_cls._do_distrib(
         env,
         agi_cls._workers,
         agi_cls._args,
         capacities=planner_capacities,
+        preserve_worker_slots=True,
     )
     agi_cls._work_plan = workers_plan
     agi_cls._work_plan_metadata = workers_plan_metadata
 
-    # A planner can return fewer non-empty chunks than the configured topology.
-    # Apply that reduced topology before submission so idle workers are retired.
-    agi_cls._scale_cluster()
-    dask_workers = list(agi_cls._dask_workers)
-    if workers_plan and not dask_workers:
+    # Slots remain aligned with the initialized endpoints and calibrated
+    # capacities. Skip idle slots below instead of compacting worker IDs.
+    has_work = any(workers_plan or [])
+    if has_work and not dask_workers:
         raise RuntimeError(
             "Distribution produced a non-empty workload but no configured Dask workers were retained"
         )
@@ -852,6 +856,8 @@ async def distribute(
     started_at = time_fn()
     futures = {}
     for worker_idx, worker_addr in enumerate(dask_workers):
+        if worker_idx >= len(workers_plan or []) or not workers_plan[worker_idx]:
+            continue
         plan_payload = agi_cls._wrap_worker_chunk(workers_plan or [], worker_idx)
         metadata_payload = agi_cls._wrap_worker_chunk(workers_plan_metadata or [], worker_idx)
         futures[worker_addr] = client.submit(
@@ -861,7 +867,7 @@ async def distribute(
             workers=[worker_addr],
         )
 
-    if workers_plan and not futures:
+    if has_work and not futures:
         raise RuntimeError(
             "Distribution produced a non-empty workload but submitted no worker futures"
         )
