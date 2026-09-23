@@ -1916,7 +1916,7 @@ async def test_agi_submit_builds_distribution_when_plan_missing(monkeypatch, tmp
     AGI._args = {"alpha": 1}
     AGI._service_apply_queue_root(tmp_path / "queue", create=True)
 
-    async def _do_distrib(_env, _workers, _args):
+    async def _do_distrib(_env, _workers, _args, *, preserve_worker_slots=False):
         return {"127.0.0.1": 1}, [["gen-step"]], [[{"auto": True}]]
 
     monkeypatch.setattr(agi_distributor_module.WorkDispatcher, "_do_distrib", staticmethod(_do_distrib))
@@ -2801,3 +2801,73 @@ async def test_submit_initializes_queue_and_raises_without_active_service_worker
         await AGI.submit(env=env, work_plan=[], work_plan_metadata=[])
 
     assert calls["init_queue"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("generate_plan", [False, True])
+@pytest.mark.parametrize("initialized_id", [0, 4])
+async def test_agi_submit_sparse_plan_survives_service_worker_id_reordering(
+    tmp_path, monkeypatch, generate_plan, initialized_id
+):
+    from unittest.mock import AsyncMock
+
+    from agi_node.agi_dispatcher import BaseWorker, WorkDispatcher, worker_pool_support
+
+    env = AgiEnv(
+        apps_path=Path("src/agilab/apps/builtin"), app="minimal_app_project", verbose=0
+    )
+    endpoints = ["10.0.0.1:101", "10.0.0.1:102", "10.0.0.2:103"]
+    workers = {"10.0.0.1": 2, "10.0.0.2": 1}
+    AGI._service_workers = endpoints
+    AGI._service_futures = {endpoint: _FakeFuture("running") for endpoint in endpoints}
+    AGI._dask_client = _FakeClient(endpoints)
+    AGI._workers = workers.copy()
+    AGI._args = {}
+    AGI._service_apply_queue_root(tmp_path / "queue", create=True)
+
+    class Manager:
+        def __init__(self, env, **kwargs):
+            pass
+
+        def build_distribution(self, assigned_workers):
+            chunks = WorkDispatcher.make_chunks(
+                2,
+                [("job-0", 10), ("job-1", 10)],
+                capacities=[1, 1, 100],
+                workers=assigned_workers,
+            )
+            plan = [[[name] for name, _weight in chunk] for chunk in chunks]
+            return plan, chunks, "job", 2, "items"
+
+    monkeypatch.setattr(env, "target_class", "Manager")
+    monkeypatch.setattr(env, "distribution_tree", tmp_path / "plan.json")
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(Manager=Manager)),
+    )
+    planned = [[], [], [["job-0"], ["job-1"]]]
+    completed = []
+
+    class Worker:
+        _worker_id = initialized_id  # Recovery now lists this endpoint third.
+
+        def works(self, plan, metadata):
+            completed.append(worker_pool_support.select_worker_chunks(self, plan))
+
+    monkeypatch.setattr(BaseWorker, "_worker_id", initialized_id)
+    monkeypatch.setattr(BaseWorker, "_worker", endpoints[2])
+    monkeypatch.setattr(BaseWorker, "_insts", {initialized_id: Worker()})
+    for _ in range(2):
+        result = await AGI.submit(
+            env,
+            work_plan=None if generate_plan else planned,
+            work_plan_metadata=None if generate_plan else [[], [], []],
+        )
+        assert len(result["queued_files"]) == 1
+        payload = json.loads(Path(result["queued_files"][0]).read_text())
+        assert payload["worker"] == endpoints[2]
+        assert payload["worker_idx"] is None
+        BaseWorker._do_works(payload["plan"], payload["metadata"])
+        assert AGI._workers == workers
+    assert completed == [planned[2], planned[2]]

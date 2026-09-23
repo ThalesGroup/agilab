@@ -1181,7 +1181,9 @@ async def test_distribute_wraps_payloads_and_logs_worker_outputs(monkeypatch):
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args, *, capacities=None):
+        async def _do_distrib(
+            _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+        ):
             return workers, [["step"]], [[{"meta": 1}]]
 
     class _Worker:
@@ -1433,7 +1435,9 @@ async def test_distribute_in_debug_mode_backfills_empty_worker_logs(monkeypatch)
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args, *, capacities=None):
+        async def _do_distrib(
+            _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+        ):
             return workers, [["step"]], [[{"meta": 1}]]
 
     class _Worker:
@@ -1488,7 +1492,9 @@ async def test_distribute_in_debug_mode_backfills_known_workers_when_no_futures(
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args, *, capacities=None):
+        async def _do_distrib(
+            _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+        ):
             return workers, [], []
 
     AGI.env = SimpleNamespace(
@@ -1536,7 +1542,9 @@ async def test_distribute_in_debug_mode_handles_empty_scheduler_worker_list(monk
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args, *, capacities=None):
+        async def _do_distrib(
+            _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+        ):
             return workers, [], []
 
     AGI.env = SimpleNamespace(
@@ -1577,7 +1585,9 @@ async def test_distribute_rejects_nonempty_plan_when_no_workers_are_retained():
 
     class _Dispatcher:
         @staticmethod
-        async def _do_distrib(_env, workers, _args, *, capacities=None):
+        async def _do_distrib(
+            _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+        ):
             assert capacities is None
             return workers, [["orphaned-work"]], [[{"meta": 1}]]
 
@@ -1781,7 +1791,9 @@ async def test_distribute_executes_new_calibration_and_works(monkeypatch):
     AGI.debug = False
     called = {"calibration": 0, "planner_capacities": None}
 
-    async def _fake_distrib(_env, workers, _args, *, capacities=None):
+    async def _fake_distrib(
+        _env, workers, _args, *, capacities=None, preserve_worker_slots=False
+    ):
         assert called["calibration"] == 1
         called["planner_capacities"] = capacities
         return workers, [["step-a"], ["step-b"]], [[{"m": 1}], [{"m": 2}]]
@@ -2717,3 +2729,129 @@ async def test_stop_marks_kill_wait_timeout_as_recovery_required(monkeypatch):
     ]
     assert AGI._service_cleanup_unproven is True
     assert AGI._runtime_cleanup_task is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("capacities", "job_count", "empty_plan"),
+    [
+        ([1.0, 1.0, 1.0], 3, None),
+        ([1.0, 1.0, 100.0], 2, None),
+        ([100.0, 1.0, 1.0], 2, None),
+        ([1.0, 100.0, 1.0], 2, None),
+        ([1.0, 1.0, 1.0], 0, []),
+        ([1.0, 1.0, 1.0], 0, [[], [], []]),
+    ],
+)
+async def test_distribute_preserves_planned_endpoint_and_initialized_worker_id(
+    tmp_path, monkeypatch, capacities, job_count, empty_plan
+):
+    from unittest.mock import AsyncMock
+
+    from agi_node.agi_dispatcher import worker_pool_support
+
+    endpoints = ["10.0.0.1:101", "10.0.0.1:102", "10.0.0.2:103"]
+    planned = {}
+    executed = {}
+    initialized_ids = {}
+
+    class Manager:
+        def __init__(self, env, **kwargs):
+            pass
+
+        def build_distribution(self, workers):
+            chunks = WorkDispatcher.make_chunks(
+                job_count,
+                [(f"job-{index}", 10) for index in range(job_count)],
+                workers=workers,
+            )
+            # FlightTelemetry uses this shape: one batch per aircraft, including
+            # an empty list for a worker that received no aircraft.
+            plan = (
+                empty_plan
+                if empty_plan is not None
+                else [[[name] for name, _weight in chunk] for chunk in chunks]
+            )
+            planned.update(zip(AGI._dask_workers, plan))
+            return plan, chunks, "job", job_count, "items"
+
+    class Worker:
+        def __init__(self, worker_id, endpoint):
+            self._worker_id = worker_id
+            self.endpoint = endpoint
+
+        def works(self, plan, metadata):
+            # Exercise the real BaseWorker._do_works payload decoder and the
+            # same slot selection used by all dataframe worker families.
+            executed[self.endpoint] = worker_pool_support.select_worker_chunks(
+                self, plan
+            )
+
+    class Client:
+        def scheduler_info(self):
+            return {
+                "workers": {f"tcp://{endpoint}": {} for endpoint in reversed(endpoints)}
+            }
+
+        def submit(self, fn, *args, **kwargs):
+            return fn, args, kwargs
+
+        def gather(self, futures):
+            results = []
+            for fn, args, kwargs in futures:
+                endpoint = kwargs["workers"][0]
+                if fn is BaseWorker._new:
+                    initialized_ids[endpoint] = kwargs["worker_id"]
+                    results.append(None)
+                    continue
+                assert fn is BaseWorker._do_works
+                worker_id = initialized_ids[endpoint]
+                with monkeypatch.context() as worker_state:
+                    worker_state.setattr(BaseWorker, "_worker_id", worker_id)
+                    worker_state.setattr(BaseWorker, "_worker", endpoint)
+                    worker_state.setattr(
+                        BaseWorker, "_insts", {worker_id: Worker(worker_id, endpoint)}
+                    )
+                    results.append(fn(*args))
+            return results
+
+    env = SimpleNamespace(
+        target="Manager",
+        target_class="Manager",
+        app_src=tmp_path,
+        distribution_tree=tmp_path / "plan.json",
+        debug=False,
+        mode2str=lambda mode: "dask",
+    )
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(Manager=Manager)),
+    )
+    monkeypatch.setattr(
+        runtime_distribution_support.manager_mlflow_support,
+        "register_shared_mlflow_handoffs",
+        lambda *args, **kwargs: [],
+    )
+    AGI.env = env
+    AGI._dask_client = Client()
+    AGI._workers = {"10.0.0.1": 2, "10.0.0.2": 1}
+    AGI._args = {}
+    AGI._mode = AGI.DASK_MODE
+    AGI.verbose = 0
+    AGI.debug = False
+
+    async def calibrate():
+        AGI._capacity = dict(zip(endpoints, capacities))
+
+    monkeypatch.setattr(AGI, "_calibration", staticmethod(calibrate))
+    for _ in range(2):  # Repeat through the cached planner path as well.
+        executed.clear()
+        result = await AGI._distribute()
+        assert result.startswith("dask ")
+        assert executed == {
+            endpoint: batches for endpoint, batches in planned.items() if batches
+        }
+        assert sorted(
+            item for batches in executed.values() for batch in batches for item in batch
+        ) == [f"job-{index}" for index in range(job_count)]
