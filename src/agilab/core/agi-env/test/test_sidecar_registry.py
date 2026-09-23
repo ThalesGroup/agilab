@@ -302,29 +302,21 @@ def test_registry_does_not_block_disjoint_service_while_launcher_waits(tmp_path)
     registry = ProcessSidecarRegistry(tmp_path / "registry")
     processes: list[subprocess.Popen[bytes]] = []
     calls: list[int] = []
-    slow_launcher_entered = threading.Event()
-    release_slow_launcher = threading.Event()
     fast_service_finished = threading.Event()
     results = {}
     errors = []
 
     def slow_launcher(port: int, token: str) -> subprocess.Popen[bytes]:
-        slow_launcher_entered.set()
-        if not release_slow_launcher.wait(timeout=5):
-            raise RuntimeError("timed out waiting to release slow launcher")
+        # Start the contender at the boundary under test, after notebook
+        # preparation. Slow filesystem/thread startup must not fail an
+        # unrelated two-second rendezvous before concurrency is exercised.
+        fast_thread.start()
+        assert fast_service_finished.wait(timeout=10), (
+            "an unrelated service did not finish while the notebook launcher waited; "
+            f"worker_alive={fast_thread.is_alive()}, errors={errors!r}"
+        )
+        assert errors == [], f"unrelated service launch failed: {errors!r}"
         return _launcher(processes, calls)(port, token)
-
-    def ensure_slow_service() -> None:
-        try:
-            results["slow"] = registry.ensure(
-                service_kind="notebook",
-                project="alpha_project",
-                key="analysis.ipynb",
-                launcher=slow_launcher,
-                timeout=5,
-            )
-        except BaseException as exc:  # pragma: no cover - surfaced by assertion
-            errors.append(exc)
 
     def ensure_fast_service() -> None:
         try:
@@ -340,25 +332,16 @@ def test_registry_does_not_block_disjoint_service_while_launcher_waits(tmp_path)
         finally:
             fast_service_finished.set()
 
-    slow_thread = threading.Thread(target=ensure_slow_service)
-    fast_thread = threading.Thread(target=ensure_fast_service)
-    slow_thread.start()
-    assert slow_launcher_entered.wait(timeout=2)
-    fast_thread.start()
+    fast_thread = threading.Thread(target=ensure_fast_service, name="sidecar-contender")
 
     try:
-        assert fast_service_finished.wait(timeout=3), (
-            "an unrelated service launch was blocked by the slow launcher"
+        results["slow"] = registry.ensure(
+            service_kind="notebook",
+            project="alpha_project",
+            key="analysis.ipynb",
+            launcher=slow_launcher,
+            timeout=5,
         )
-        assert slow_thread.is_alive()
-    finally:
-        release_slow_launcher.set()
-        slow_thread.join(timeout=10)
-        fast_thread.join(timeout=10)
-
-    try:
-        assert not slow_thread.is_alive()
-        assert not fast_thread.is_alive()
         assert errors == []
         assert registry.get(
             service_kind="notebook",
@@ -371,7 +354,11 @@ def test_registry_does_not_block_disjoint_service_while_launcher_waits(tmp_path)
             key="tracking",
         ) == results["fast"]
     finally:
+        if fast_thread.ident is not None:
+            fast_thread.join(timeout=10)
         _stop(processes)
+
+    assert not fast_thread.is_alive(), "unrelated service worker did not stop"
 
 
 def test_registry_fails_closed_for_live_owned_process_without_listener(tmp_path):
