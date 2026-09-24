@@ -110,13 +110,18 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         Path("src/agilab/lib/agi-pages/src/agi_pages/runtime.py"),
         # Immutable, hash-verified output of a standalone agent build. Its
         # page config belongs to that app, not AGILAB's first-party UI.
-        Path("src/agilab/resources/notebook_agent_demo/app.py"),
-        Path("src/agilab/resources/text_notebook_demo/app.py"),
-        Path("src/agilab/resources/free_threading_demo/app.py"),
-        Path("src/agilab/resources/milp_energy_demo/app.py"),
-        Path("src/agilab/resources/text_notebook_demo_astra/app.py"),
-        Path("src/agilab/resources/free_threading_demo_astra/app.py"),
-        Path("src/agilab/resources/milp_energy_demo_astra/app.py"),
+        Path("src/agilab/demos/resources/notebook_agent_demo/app.py"),
+        Path("src/agilab/demos/resources/text_notebook_demo/app.py"),
+        Path("src/agilab/demos/resources/free_threading_demo/app.py"),
+        Path("src/agilab/demos/resources/milp_energy_demo/app.py"),
+        Path("src/agilab/demos/resources/text_notebook_demo_astra/app.py"),
+        Path("src/agilab/demos/resources/free_threading_demo_astra/app.py"),
+        Path("src/agilab/demos/resources/milp_energy_demo_astra/app.py"),
+        Path("src/agilab/demos/resources/notebook_agent_rtx_demo/app.py"),
+        Path("src/agilab/demos/resources/text_notebook_demo_rtx/app.py"),
+        Path("src/agilab/demos/resources/forecast_notebook_demo_rtx/app.py"),
+        Path("src/agilab/demos/resources/free_threading_demo_rtx/app.py"),
+        Path("src/agilab/demos/resources/milp_energy_demo_rtx/app.py"),
     }
     ignored_parts = {
         ".mypy_cache",

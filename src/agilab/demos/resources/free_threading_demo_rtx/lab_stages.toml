@@ -1,0 +1,47 @@
+[[notebook_app_project]]
+D = "Free-threading lab / Stage 2 — Run the six real benchmark cases / Stage 3 — Verify the evidence and summarise speedups"
+Q = "Run the reviewed notebook cells in order, preserving their shared Python state."
+C = "# AGILAB notebook execution: original cell order, one Python namespace.\n(lambda _execute, _compile, _namespace, _cells: [\n    _execute(_compile(_source, _filename, 'exec', incomplete_input=False), _namespace)\n    for _source, _filename in _cells\n])(__import__('builtins').exec, __import__('codeop').Compile(), globals(),\n   [('import json\\nimport sys\\nfrom pathlib import Path\\n\\ntry:\\n    PROJECT_ROOT  # injected by the notebook runner\\nexcept NameError:\\n    PROJECT_ROOT = Path.cwd()\\nPROJECT_ROOT = Path(PROJECT_ROOT)\\nif str(PROJECT_ROOT) not in [str(p) for p in sys.path]:\\n    sys.path.insert(0, str(PROJECT_ROOT))\\n\\nimport free_threading_core as core\\nimport benchmark\\n\\ninterpreter, probe = core.resolve_free_threading_python()\\nallowance = core.effective_cpu_allowance()\\nWORKLOAD = {\"width\": 192, \"height\": 128, \"iterations\": 160}\\nN_WORKERS = min(4, allowance)\\nREPEATS = 1\\n\\nprint(\"interpreter     :\", interpreter)\\nprint(\"build           :\", probe[\"version\"], \"| free-threaded:\", probe[\"free_threaded_build\"],\\n      \"| Py_GIL_DISABLED:\", probe[\"py_gil_disabled_build\"])\\nprint(\"effective CPUs  :\", allowance)\\nprint(\"workload        :\", WORKLOAD, \"| workers:\", N_WORKERS, \"| repeats:\", REPEATS)\\nprint(\"modes           :\", [core.MODE_LABELS[m].split(\" (\")[0] for m in core.MODES])', 'notebook:cell-3'), ('payload = benchmark.run_benchmark(\\n    width=WORKLOAD[\"width\"],\\n    height=WORKLOAD[\"height\"],\\n    iterations=WORKLOAD[\"iterations\"],\\n    workers=N_WORKERS,\\n    repeats=REPEATS,\\n    tile_rows=4,\\n    child_timeout=60.0,\\n    total_timeout=120.0,\\n    out_path=\"results.json\",\\n)\\nresults = payload[\"results\"]\\nfor case in results[\"cases\"]:\\n    med = case.get(\"median_engine_seconds\")\\n    print(f\"{case[\\'mode\\']:18s} w={case[\\'workers\\']}  {case[\\'status\\']:5s}  \"\\n          f\"median={med:.4f}s  backend={case.get(\\'engine_backend\\')}  \"\\n          f\"width={case.get(\\'engine_width\\')}\")\\nprint(\"total wall:\", results[\"total_seconds\"], \"s\")', 'notebook:cell-5'), ('on_disk = json.loads(Path(\"results.json\").read_text())\\nevidence = {\"results\": benchmark.deterministic_evidence(payload[\"results\"])}\\nassert on_disk == evidence, \"results.json does not match the deterministic evidence\"\\n\\ndigests = {case[\"digest\"] for case in results[\"cases\"] if case[\"status\"] == \"ok\"}\\nassert len(digests) == 1, \"modes disagree on the computed image\"\\nassert results[\"same_as_serial_reference\"], \"pool result differs from the serial reference\"\\nassert results[\"same_work\"] is True\\n\\nprint(\"image digest (sha256):\", results[\"digest\"])\\nprint(\"same work across all 6 cases: True\")\\nprint(\"matches serial reference:     True\")\\nprint()\\nfor mode in core.MODES:\\n    entry = results[\"speedups\"][mode]\\n    print(f\"{core.MODE_LABELS[mode].split(\\' (\\')[0]:18s}  1w={entry[\\'baseline_median_seconds\\']:.4f}s  \"\\n          f\"{entry[\\'workers\\']}w={entry[\\'wide_median_seconds\\']:.4f}s  \"\\n          f\"speedup={entry[\\'speedup\\']:.2f}x\")\\nprint()\\nprint(\"evidence written to:\", Path(\"results.json\").resolve())', 'notebook:cell-7')])\n"
+M = ""
+NB_CELL_ID = "notebook-80cea703c598edf2"
+NB_CELL_INDEX = 3
+NB_CONTEXT_IDS = [
+    "markdown-1",
+    "markdown-2",
+    "markdown-4",
+    "markdown-6",
+]
+NB_ENV_HINTS = [
+    "benchmark",
+    "free_threading_core",
+    "json",
+    "pathlib",
+    "sys",
+]
+NB_ARTIFACT_REFERENCES = [
+    "results.json",
+]
+NB_EXECUTION_MODE = "not_executed_import"
+NB_SOURCE_NOTEBOOK = "solution.ipynb"
+NB_EXECUTION_PLAN_SCHEMA = "agilab.notebook_execution_plan.v1"
+NB_COMPILED_SHA256 = "a7f614c94f22af5b6ce18e53058a0f5adf146d482f902d05d2cb52582b6af31d"
+NB_EXECUTION_STRATEGY = "shared_namespace"
+NB_SOURCE_SHA256 = "80cea703c598edf20f7d1195a8a7917d9172e89f7ddfe97dc4faf8c012ce5c5d"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-3"
+index = 3
+source = "import json\nimport sys\nfrom pathlib import Path\n\ntry:\n    PROJECT_ROOT  # injected by the notebook runner\nexcept NameError:\n    PROJECT_ROOT = Path.cwd()\nPROJECT_ROOT = Path(PROJECT_ROOT)\nif str(PROJECT_ROOT) not in [str(p) for p in sys.path]:\n    sys.path.insert(0, str(PROJECT_ROOT))\n\nimport free_threading_core as core\nimport benchmark\n\ninterpreter, probe = core.resolve_free_threading_python()\nallowance = core.effective_cpu_allowance()\nWORKLOAD = {\"width\": 192, \"height\": 128, \"iterations\": 160}\nN_WORKERS = min(4, allowance)\nREPEATS = 1\n\nprint(\"interpreter     :\", interpreter)\nprint(\"build           :\", probe[\"version\"], \"| free-threaded:\", probe[\"free_threaded_build\"],\n      \"| Py_GIL_DISABLED:\", probe[\"py_gil_disabled_build\"])\nprint(\"effective CPUs  :\", allowance)\nprint(\"workload        :\", WORKLOAD, \"| workers:\", N_WORKERS, \"| repeats:\", REPEATS)\nprint(\"modes           :\", [core.MODE_LABELS[m].split(\" (\")[0] for m in core.MODES])"
+sha256 = "e381e23afffe6f0405b216d4149328c366f803aa14b05d4ec527e303bc1752f3"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-5"
+index = 5
+source = "payload = benchmark.run_benchmark(\n    width=WORKLOAD[\"width\"],\n    height=WORKLOAD[\"height\"],\n    iterations=WORKLOAD[\"iterations\"],\n    workers=N_WORKERS,\n    repeats=REPEATS,\n    tile_rows=4,\n    child_timeout=60.0,\n    total_timeout=120.0,\n    out_path=\"results.json\",\n)\nresults = payload[\"results\"]\nfor case in results[\"cases\"]:\n    med = case.get(\"median_engine_seconds\")\n    print(f\"{case['mode']:18s} w={case['workers']}  {case['status']:5s}  \"\n          f\"median={med:.4f}s  backend={case.get('engine_backend')}  \"\n          f\"width={case.get('engine_width')}\")\nprint(\"total wall:\", results[\"total_seconds\"], \"s\")"
+sha256 = "0c2efd74f06b274e56780927e8c936b97c91db3e739501e42f6f057edd60e72e"
+
+[[notebook_app_project.NB_SOURCE_CELLS]]
+id = "cell-7"
+index = 7
+source = "on_disk = json.loads(Path(\"results.json\").read_text())\nevidence = {\"results\": benchmark.deterministic_evidence(payload[\"results\"])}\nassert on_disk == evidence, \"results.json does not match the deterministic evidence\"\n\ndigests = {case[\"digest\"] for case in results[\"cases\"] if case[\"status\"] == \"ok\"}\nassert len(digests) == 1, \"modes disagree on the computed image\"\nassert results[\"same_as_serial_reference\"], \"pool result differs from the serial reference\"\nassert results[\"same_work\"] is True\n\nprint(\"image digest (sha256):\", results[\"digest\"])\nprint(\"same work across all 6 cases: True\")\nprint(\"matches serial reference:     True\")\nprint()\nfor mode in core.MODES:\n    entry = results[\"speedups\"][mode]\n    print(f\"{core.MODE_LABELS[mode].split(' (')[0]:18s}  1w={entry['baseline_median_seconds']:.4f}s  \"\n          f\"{entry['workers']}w={entry['wide_median_seconds']:.4f}s  \"\n          f\"speedup={entry['speedup']:.2f}x\")\nprint()\nprint(\"evidence written to:\", Path(\"results.json\").resolve())"
+sha256 = "31b380d5bbeae644294cd8fa6c50edf8a17aec96f061a397762e05a6dfcc87f4"

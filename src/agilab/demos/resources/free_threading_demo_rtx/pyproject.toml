@@ -1,0 +1,13 @@
+[project]
+name = "free-threading-lab"
+version = "1.0.0"
+description = "AGILAB CPU-scaling lab: GIL-on threads, GIL-off threads and GIL-on processes measured in the same free-threaded CPython build"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit>=1.36",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests.py"]
+addopts = "-q"

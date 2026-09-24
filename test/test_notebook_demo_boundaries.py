@@ -13,8 +13,8 @@ import zipfile
 
 import pytest
 
-from agilab.agent_runtime import free_threading_showcase, milp_energy_showcase
-from agilab.agent_runtime import notebook_showcase as iris
+from agilab.demos import free_threading_showcase, milp_energy_showcase
+from agilab.demos import notebook_showcase as iris
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -131,7 +131,7 @@ def test_iris_executes_the_verified_snapshot_and_restores_imports(iris_bundle, m
     from streamlit.testing.v1 import AppTest
 
     def page(payload):
-        from agilab.agent_runtime.notebook_showcase import _run_verified_app
+        from agilab.demos.notebook_showcase import _run_verified_app
         _run_verified_app(payload)
 
     at = AppTest.from_function(page, args=(payload,), default_timeout=30).run()
@@ -146,7 +146,7 @@ def test_iris_invalid_receipt_shows_an_error_without_executing(iris_bundle, monk
     (iris_bundle / "result.json").write_text('{"status": "failed"}')
     monkeypatch.setattr(iris, "_run_verified_app", lambda _: pytest.fail("Unverified app executed"))
     def page():
-        from agilab.agent_runtime.notebook_showcase import render
+        from agilab.demos.notebook_showcase import render
         render()
 
     at = AppTest.from_function(page).run()
@@ -187,7 +187,7 @@ def test_iris_export_rejects_invalid_destination_and_receipt_before_writing(tmp_
 
 @pytest.mark.parametrize("selected", ["forecast", "threading"])
 def test_demo_does_not_consume_another_apps_analysis(selected, tmp_path, monkeypatch):
-    from agilab.agent_runtime import forecast_showcase
+    from agilab.demos import forecast_showcase
     from streamlit.testing.v1 import AppTest
 
     monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _: tmp_path)

@@ -196,7 +196,9 @@ class WorkDispatcher:
         atomic_write_text(file, f"{serialized}\n", encoding="utf-8")
 
     @staticmethod
-    async def _do_distrib(env, workers, args, *, capacities=None):
+    async def _do_distrib(
+        env, workers, args, *, capacities=None, preserve_worker_slots=False
+    ):
         """Build the distribution plan for ``env`` given worker layout and args."""
         target_args, run_stages = WorkDispatcher._split_dispatch_args(args)
         cache_args = dict(target_args)
@@ -295,6 +297,17 @@ class WorkDispatcher:
             )
             workers_plan = normalized["work_plan"]
             workers_plan_metadata = normalized["work_plan_metadata"]
+
+        if preserve_worker_slots:
+            # Dask and persistent service workers are already initialized with
+            # these slot IDs. Keep empty positions and the configured topology
+            # so dispatch can skip idle slots without moving work to another
+            # endpoint or invalidating the worker's identity.
+            metadata_by_slot = list(workers_plan_metadata or [])
+            metadata_by_slot.extend(
+                [] for _ in range(len(workers_plan) - len(metadata_by_slot))
+            )
+            return workers.copy(), workers_plan, metadata_by_slot
 
         loaded_workers = {}
         workers_work_item_tree_iter = iter(workers_plan)

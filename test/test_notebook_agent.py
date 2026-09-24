@@ -71,7 +71,7 @@ def test_partial_event_append_can_be_read(tmp_path):
 def test_ui_starts_without_launching_provider():
     from streamlit.testing.v1 import AppTest
 
-    app = Path(demo.__file__).with_name("notebook_demo_ui.py")
+    app = Path(demo.__file__).parents[1] / "demos" / "notebook_demo_ui.py"
     at = AppTest.from_file(str(app), default_timeout=30).run()
     assert not at.exception
     assert at.button[0].label == "Build my app"
@@ -86,6 +86,7 @@ def test_ui_launcher_uses_packaged_file_and_preserves_settings(tmp_path, monkeyp
     command = captured[0]
     assert Path(command[4]).is_file()
     assert Path(command[4]).name == "notebook_demo_ui.py"
+    assert Path(command[4]).parent.name == "demos"
     assert "--server.address=127.0.0.1" in command
     assert command[command.index("--tokki") + 1] == "/custom/tokki"
     assert command[command.index("--output") + 1] == str(tmp_path)

@@ -14,12 +14,12 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import milp_energy_showcase as showcase
-from agilab.agent_runtime import notebook_showcase
+from agilab.demos import milp_energy_showcase as showcase
+from agilab.demos import notebook_showcase
 
 
 def page():
-    from agilab.agent_runtime.milp_energy_showcase import render
+    from agilab.demos.milp_energy_showcase import render
     render()
 
 
@@ -122,7 +122,7 @@ def test_fifth_demo_opens_without_running_a_benchmark():
 
 
 def test_iris_only_distribution_reports_missing_fifth_demo(monkeypatch):
-    monkeypatch.setitem(sys.modules, "agilab.agent_runtime.milp_energy_showcase", None)
+    monkeypatch.setitem(sys.modules, "agilab.demos.milp_energy_showcase", None)
     at = AppTest.from_file(notebook_showcase.__file__, default_timeout=30)
     at.query_params["demo"] = "milp"
     at.run()
@@ -187,6 +187,36 @@ def test_independent_physical_check_rejects_invalid_solutions(defect):
         result["solver"]["threads"] = 2
     with pytest.raises(ValueError):
         validate_physics(result)
+
+
+@pytest.mark.parametrize("post_hoc_charges", [False, True])
+def test_startup_costs_change_the_optimal_schedule(post_hoc_charges):
+    from tools.demos.export_milp_energy_demo import validate_physics, validate_startup_optimum
+
+    active = [20, 30, 25, 4] * 3 if post_hoc_charges else [20] + [30] * 9 + [25, 4]
+    previous = [0] + active[:-1]
+    starts = [max(0, a - b) for a, b in zip(active, previous)]
+    result = {
+        "status": "optimal", "modules": 30, "capacity_mw": 6000,
+        "objective": 47400 + 6000 + 500 * sum(starts) + sum(active),
+        "solver": {"name": "highs", "threads": 1},
+        "settings": {"hours": 12, "max_modules": 50, "module_mw": 200, "demand_multiplier": 1,
+                     "min_loading": 0.1, "solar_capacity": 0, "allow_shedding": False,
+                     "investment_cost": 1, "marginal_cost": 1, "startup_cost": 500, "standby_cost": 1},
+        "dispatch": [4000, 6000, 5000, 800] * 3, "active_modules": active,
+        "solar": [0] * 12, "shed": [0] * 12, "startup": starts,
+        "shutdown": [max(0, b - a) for a, b in zip(active, previous)],
+    }
+    # Both schedules have valid physics and accurately reconstructed costs.
+    validate_physics(result)
+    if post_hoc_charges:
+        with pytest.raises(ValueError, match="Startup costs must affect"):
+            validate_startup_optimum(result)
+    else:
+        validate_startup_optimum(result)
+        result["settings"]["startup_cost"] = 0
+        with pytest.raises(ValueError, match="settings changed"):
+            validate_startup_optimum(result)
 
 
 @pytest.fixture

@@ -133,3 +133,67 @@ def test_export_rejects_invalid_build_model(completed_run, model):
     with pytest.raises(ValueError, match="build model"):
         exporter.export_demo(run, target, validation)
     assert not target.exists()
+
+
+@pytest.fixture
+def replay_run(completed_run):
+    run, target, validation = completed_run
+    project = run / "notebook_app_project"
+    report_path = run / "result.json"
+    report = json.loads(report_path.read_text())
+    checked = json.loads(validation.read_text())
+    recipe = "chronos-forecasting==2.3.2\ntorch==2.14.0\ntransformers==4.57.6\n"
+    for name, text in {"README.md": "Original instructions", "requirements.txt": recipe}.items():
+        (project / name).write_text(text)
+        checked["files"][name] = hashlib.sha256(text.encode()).hexdigest()
+    report.update(schema="agilab.notebook_agent.public_demo.v1", run_id=run.name,
+                  files=dict(checked["files"]), build_timing={"inference_seconds": 3.5})
+    report_path.write_text(json.dumps(report))
+    (project / "requirements.txt").write_text(recipe.replace("4.57.6", "5.17.0"))
+    checked["files"]["requirements.txt"] = hashlib.sha256((project / "requirements.txt").read_bytes()).hexdigest()
+    checked["checks"] = ["three_seed_real_model_inference"]
+    checked["measurements"] = {
+        "dependency_versions": {"chronos-forecasting": "2.3.2", "torch": "2.14.0", "transformers": "5.17.0"},
+        "checked_at": "2026-09-21T12:00:00Z", "real_model_calls": 10,
+    }
+    validation.write_text(json.dumps(checked))
+    return run, target, validation
+
+
+def test_replay_preserves_original_build_and_records_current_environment(replay_run):
+    run, target, validation = replay_run
+    original = (run / "result.json").read_bytes()
+    report = exporter.export_demo(run, target, validation, replay=True)
+    assert (target / "source/build-result.json").read_bytes() == original
+    for key, value in json.loads(original).items():
+        if key != "files":
+            assert report[key] == value
+    assert report["replay"]["measurements"]["dependency_versions"]["transformers"] == "5.17.0"
+    assert report["replay"]["changed_files"] == ["requirements.txt"]
+    for name, expected in report["files"].items():
+        assert hashlib.sha256((target / name).read_bytes()).hexdigest() == expected
+
+
+@pytest.mark.parametrize("change", ["historical-version", "no-inference", "data", "inventory", "another-build"])
+def test_replay_rejects_unverified_environment_and_non_recipe_changes(replay_run, change):
+    run, target, validation = replay_run
+    checked = json.loads(validation.read_text())
+    if change == "historical-version":
+        checked["measurements"]["dependency_versions"]["transformers"] = "4.57.6"
+    elif change == "no-inference":
+        checked["measurements"]["real_model_calls"] = 0
+    elif change == "data":
+        data = run / "notebook_app_project/data/series.csv"
+        data.write_text("changed data")
+        checked["files"]["data/series.csv"] = hashlib.sha256(data.read_bytes()).hexdigest()
+    elif change == "inventory":
+        del checked["files"]["data/series.csv"]
+    else:
+        path = run / "result.json"
+        report = json.loads(path.read_text())
+        report["run_id"] = "another-build"
+        path.write_text(json.dumps(report))
+    validation.write_text(json.dumps(checked))
+    with pytest.raises(ValueError, match="Replay"):
+        exporter.export_demo(run, target, validation, replay=True)
+    assert not target.exists()

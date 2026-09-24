@@ -416,7 +416,7 @@ Use this runbook whenever you:
   small side-effect-free metadata module (for example `page_meta.py`) so the page and tests do not
   drift on duplicated strings.
 - **Notebook demo build evidence**: Every public notebook demo must call
-  `agent_runtime.notebook_demo_evidence.render_build_evidence` after verifying its
+  `demos.notebook_demo_evidence.render_build_evidence` after verifying its
   original build receipt. Rebuilt local-model demos must identify the exact build
   model in their receipt and visible model label; preserve source/data/engine hashes
   and distinguish local generation from coordinating-assistant and Tokki routing.
@@ -525,6 +525,9 @@ Use this runbook whenever you:
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
   source checkout is absent. Agents can only reference packaged assets inside the
   virtual environment—never repository-relative paths.
+- **UI import cleanup**: Inspect stored module metadata without invoking lazy import
+  hooks. Keep regression coverage for optional dependencies, failed page imports,
+  and navigation away from a computed forecast in the same browser session.
 - **App settings workspace**: `src/.../app_settings.toml` is now a versioned seed only.
   Mutable per-user settings live under `~/.agilab/apps/<app>/app_settings.toml`, and
   the UI reads/writes that workspace copy.

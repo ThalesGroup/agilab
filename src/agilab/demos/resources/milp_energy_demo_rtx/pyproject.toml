@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "milp-modular-unit-commitment"
+version = "0.1.0"
+description = "Modular expansion with unit commitment (MILP) analysis with PyPSA/HiGHS and a Streamlit UI"
+requires-python = ">=3.11"
+license = { text = "CC-BY-4.0" }
+dependencies = [
+    "pypsa",
+    "linopy",
+    "highspy",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "streamlit",
+]
+
+[tool.setuptools]
+py-modules = ["milp_analysis", "app", "energy_core", "energy_runner", "agilab_pool"]

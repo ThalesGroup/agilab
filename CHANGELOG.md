@@ -23,6 +23,76 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.09.21.2] - 2026-09-23
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
+
+### Fixed
+
+- Include the five RTX Agent Demo variants and their verified resources in
+  built distributions, so packaged demo loaders work outside the source checkout.
+- Preserve worker identity in sparse Dask and service plans, including service
+  result routing back to the initialized worker slot.
+- Bind connector HTTP probes to validated destinations, preserve TLS hostname
+  checks, and reject unsupported proxies and unsafe credential headers.
+- Open SQLite probe files read-only and reject invalid connector catalogs before
+  execution; report actual network attempts without persisting credentials.
+- Deliver the Qwen RTX demo flavour and build metrics added since 2026.09.21.1.
+- Refresh coverage badges from the audited source measurements.
+
+### Changed
+
+- Published AGILAB `2026.09.21.2` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.09.21.1] - 2026-09-22
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
+
+Publication evidence: [successful publishing workflow, attempt 1](https://github.com/ThalesGroup/agilab/actions/runs/35701961797/attempts/1).
+
+### Fixed
+
+- Updated the standalone Qwen forecast replay recipe to Transformers 5.17.0
+  to address four dependency advisories. Preserved the original build receipt
+  and added fresh real-model replay checks with the patched environment.
+- Added guarded replay export so dependency updates retain the original
+  generated application, model identity, build timing, and verification history.
+
+### Changed
+
+- Published AGILAB `2026.09.21.1` to PyPI for `agilab`.
+
+## [2026.09.21] - 2026-09-21
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
+
+Publication evidence: [successful recovery workflow, attempt 2](https://github.com/ThalesGroup/agilab/actions/runs/35589025870/attempts/2).
+
+### Added
+
+- Packaged Agent Demo gallery with five original Astra demos and five verified
+  local Qwen builds: Iris, Demand Forecast, Text Atlas, Free-threading, and
+  MILP Energy Lab, including their notebooks, data, build receipts, and replay
+  resources.
+- Added the `agilab-notebook-demo` and `agilab-notebook-adoption` commands.
+- Added stateful notebook import, prerequisite checks, and fresh-process
+  workflow verification.
+- Added bounded agent experiment execution, persisted approval and attempt
+  state, and independent evidence verification.
+
+### Fixed
+
+- Isolated notebook-demo execution and verified replay-bundle provenance.
+- Recovered lazy UI imports after hosted-demo module cleanup.
+
+### Changed
+
+- Published AGILAB `2026.09.21` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.09.09] - 2026-09-11
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
@@ -983,3 +1053,6 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.07.31]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.31
 [2026.09.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.07
 [2026.09.09]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1
+[2026.09.21]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
+[2026.09.21.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
+[2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2

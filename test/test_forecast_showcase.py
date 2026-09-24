@@ -10,7 +10,7 @@ import zipfile
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import forecast_showcase as showcase
+from agilab.demos import forecast_showcase as showcase
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ def _write_report(root, report):
 
 
 def _forecast_page():
-    from agilab.agent_runtime.forecast_showcase import render
+    from agilab.demos.forecast_showcase import render
     render()
 
 
@@ -112,6 +112,24 @@ def test_bundle_download_contains_exact_verified_assets(demo_bundle):
         assert set(archive.namelist()) == set(report["files"]) | {"result.json"}
         for name in archive.namelist():
             assert archive.read(name) == (root / name).read_bytes()
+
+
+def test_packaged_forecast_replay_keeps_historical_build_separate():
+    report, payload = showcase._read_verified_bundle()
+    original = json.loads(payload["source/build-result.json"])
+    for key, value in original.items():
+        if key != "files":
+            assert report[key] == value
+    replay = report["replay"]
+    assert replay["schema"] == "agilab.forecast_replay_verification.v1"
+    assert replay["status"] == "passed"
+    assert replay["measurements"]["real_model_calls"] == 10
+    assert replay["measurements"]["dependency_versions"]["transformers"] == "5.17.0"
+    assert b"transformers==5.17.0" in payload["requirements.txt"]
+    assert original["verification"]["forecast"]["measurements"]["dependency_versions"]["transformers"] == "4.57.6"
+    for name, expected in original["files"].items():
+        if name not in {"README.md", "requirements.txt"}:
+            assert hashlib.sha256(payload[name]).hexdigest() == expected
 
 
 @pytest.mark.parametrize("name", ["app.py", "data/predictions.json", "LICENSE"])
@@ -351,7 +369,9 @@ def test_forecast_evidence_counts_and_labels_both_check_groups(demo_bundle):
         "measurements": {"cases": [{"seed": 42, "mae": 12.0, "baseline_mae": 14.0, "coverage": 0.5}]},
     }
     _write_report(root, report)
-    at = AppTest.from_function(_forecast_page).run()
+    # A fresh replay environment lazily imports dataframe conversion backends.
+    # This checks evidence content, not a three-second cold-start budget.
+    at = AppTest.from_function(_forecast_page, default_timeout=15).run()
     assert not at.exception
     assert next(metric.value for metric in at.metric if metric.label == "Recorded checks") == "4"
     assert any("Notebook and interface checks" in value.value for value in at.markdown)

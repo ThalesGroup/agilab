@@ -25,7 +25,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   secrets, inherited stdin, open descendant pipes, and late-publication failures;
   carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
-  After schema additions or moves in source, regenerate discovery with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
+  After schema additions, moves in source, or package-version bumps, regenerate discovery before pushing with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
   After schema, source or package-version changes, run the `skills` parity profile; commit generated artifacts and rerun it to prove no drift.
 - When asked to hide badges or public README metadata, do not interpret
   "hide" as deletion. Keep badge source/assets available and move secondary
@@ -35,11 +35,11 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 - Before installing third-party agent skills, inspect the install mode and
   filesystem result. Run `streamlit skills --global` because project mode adds
   repo-local symlinks; verify the home copy and project discovery separately.
-- When a pre-push guard fails, rerun it with useful output; classify diff,
-  contract, or local-pollution causes, then fix or document it before pushing.
-  For release approvals, verify live reviewer eligibility and each environment's
-  rules; admin access and documented button names do not prove an available route.
-  Apply only authorized exceptions and verify temporary protections are restored.
+- When a pre-push guard fails, rerun it with useful output; classify diff, contract, or local-pollution causes, then fix or document it before pushing.
+  Before release dispatch, verify the protected tag resolves to the tested source commit; a release admin must create missing tags because the workflow token cannot.
+  Validate and dispatch same-day hotfixes with explicit hotfix mode; automatic tag runs and the generic release shortcut use stable defaults.
+  For approvals, verify live reviewer eligibility and environment rules; admin access and documented buttons alone do not prove an available route.
+  Apply only authorized exceptions, preserve standing protections, and verify any temporary changes are restored.
 - When adding or changing visible UI actions, audit sibling pages for semantic collisions;
   the same button text must not mean different operations. Update page tests and robot labels.
   Before pushing, run `python3 tools/ui_robot_action_contract.py`; register stateful actions

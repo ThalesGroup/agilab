@@ -1249,3 +1249,46 @@ async def test_load_module_propagates_unexpected_path_resolution_bug(monkeypatch
 
     with pytest.raises(RuntimeError, match="resolve bug"):
         await WorkDispatcher._load_module("demo_module", package="demo_pkg", path=src_root)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("metadata", [[[], [{"job": 1}]], [[]]])
+async def test_do_distrib_preserves_worker_slots_without_changing_compact_cache_contract(
+    tmp_path, monkeypatch, metadata
+):
+    env = SimpleNamespace(
+        target="Manager",
+        target_class="Manager",
+        app_src=tmp_path,
+        distribution_tree=tmp_path / "plan.json",
+    )
+    calls = []
+
+    class Manager:
+        def __init__(self, env, **kwargs):
+            pass
+
+        def build_distribution(self, workers):
+            calls.append(workers)
+            return [[], [["job"]]], metadata, "job", 1, "items"
+
+    monkeypatch.setattr(
+        WorkDispatcher,
+        "_load_module",
+        AsyncMock(return_value=SimpleNamespace(Manager=Manager)),
+    )
+    workers = {"slow": 1, "fast": 1}
+    for _ in range(2):
+        loaded, plan, slot_metadata = await WorkDispatcher._do_distrib(
+            env, workers, {}, preserve_worker_slots=True
+        )
+        assert loaded == workers
+        assert plan == [[], [["job"]]]
+        assert slot_metadata == (metadata if len(metadata) == 2 else [[], []])
+    compact_workers, compact_plan, compact_metadata = await WorkDispatcher._do_distrib(
+        env, workers, {}
+    )
+    assert compact_workers == {"slow": 0, "fast": 1}
+    assert compact_plan == [[["job"]]]
+    assert compact_metadata == [metadata[1] if len(metadata) == 2 else []]
+    assert len(calls) == 1

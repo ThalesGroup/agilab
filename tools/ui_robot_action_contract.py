@@ -68,6 +68,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "starts bounded Astra MILP CPU computation; focused tests exercise dispatch, worker errors, and the one-CPU gate",
         ("test/test_astra_showcase_variants.py",),
     ),
+    "Run scaling check": (
+        "trial-only",
+        "starts the RTX MILP app's serial and parallel CPU solves; receipt tests bind the source and dedicated browser checks exercise real workers",
+        ("test/test_rtx_showcase_variants.py", "src/agilab/demos/resources/milp_energy_demo_rtx/tests.py"),
+    ),
     "Clear comparisons": (
         "trial-only",
         "clears MILP session comparisons while retaining the committed scenario; focused tests verify state preservation",
@@ -76,7 +81,7 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Run benchmark": (
         "trial-only",
         "starts bounded local CPU benchmarks; focused tests cover explicit submission and runner errors, while bundled tests and dedicated browser checks exercise real workers",
-        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/resources/free_threading_demo/tests.py", "src/agilab/resources/milp_energy_demo/tests.py"),
+        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/demos/resources/free_threading_demo/tests.py", "src/agilab/demos/resources/milp_energy_demo/tests.py"),
     ),
     "Run model and app checks": (
         "trial-only",

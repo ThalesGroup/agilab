@@ -90,7 +90,7 @@ def test_notebook_demo_export_smoke_verifies_and_runs_staged_app(tmp_path: Path)
     code = """
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
-from agilab.agent_runtime import notebook_showcase
+from agilab.demos import notebook_showcase
 assert Path(notebook_showcase.__file__).resolve().is_relative_to(Path.cwd())
 app = AppTest.from_file('hf_app.py', default_timeout=30).run()
 assert not app.exception, app.exception
@@ -299,12 +299,20 @@ def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
     assert "streamlit run /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
 
 
+def test_public_space_does_not_introspect_lazy_ml_modules_for_file_watching() -> None:
+    """The watcher can invoke transformers.__getattr__ and import absent vision extras."""
+    dockerfile = _load_module().DOCKERFILE_TEMPLATE
+    command = dockerfile[dockerfile.index('CMD ['):]
+    assert "--server.fileWatcherType none" in command
+    assert command.index("--server.fileWatcherType none") < command.index("-- --apps-path")
+
+
 def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
     module = _load_module()
     dockerfile = module.DOCKERFILE_TEMPLATE
     verification = "uv run --project /app --no-sync python /app/src/agilab/agent_runtime/notebook_verifier.py"
 
-    assert "RUN cd /app/src/agilab/resources/notebook_agent_demo &&" in dockerfile
+    assert "RUN cd /app/src/agilab/demos/resources/notebook_agent_demo &&" in dockerfile
     assert dockerfile.index("--extra notebook-agent") < dockerfile.index(verification)
     assert dockerfile.index(verification) < dockerfile.index('CMD [')
 
@@ -316,14 +324,14 @@ def test_free_threaded_benchmark_is_isolated_and_verified_before_serving() -> No
     assert "uv python install 3.14.6t" in dockerfile
     assert "assert not sys._is_gil_enabled()" in dockerfile
     check = "python /app/src/agilab/agent_runtime/notebook_execution_verifier.py"
-    assert "RUN cd /app/src/agilab/resources/free_threading_demo &&" in dockerfile
+    assert "RUN cd /app/src/agilab/demos/resources/free_threading_demo &&" in dockerfile
     assert dockerfile.index("uv python install 3.14.6t") < dockerfile.index(check)
     assert dockerfile.index(check) < dockerfile.index('CMD [')
 
 
 def test_milp_lab_is_verified_before_serving() -> None:
     dockerfile = _load_module().DOCKERFILE_TEMPLATE
-    start = dockerfile.index("RUN cd /app/src/agilab/resources/milp_energy_demo &&")
+    start = dockerfile.index("RUN cd /app/src/agilab/demos/resources/milp_energy_demo &&")
     check = dockerfile.index("python /app/src/agilab/agent_runtime/notebook_execution_verifier.py", start)
     assert dockerfile.index("--extra notebook-agent") < start < check < dockerfile.index('CMD [')
 

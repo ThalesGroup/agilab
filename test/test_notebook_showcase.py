@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from agilab.agent_runtime import notebook_showcase as showcase
+from agilab.demos import notebook_showcase as showcase
 
 
 def test_public_bundle_has_verified_hashes_and_no_private_run_paths():
@@ -30,7 +30,7 @@ def test_public_app_renders_and_depth_changes_without_provider():
 
 def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatch, tmp_path):
     """Read the real selector so a newly added demo cannot skip this contract."""
-    from agilab.agent_runtime import forecast_showcase
+    from agilab.demos import forecast_showcase
 
     # Keep real receipt verification and presentation; avoid network/model inference.
     monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _path: tmp_path)
@@ -45,8 +45,10 @@ def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatc
         at.run()
         assert not at.exception and not at.error, demo
         assert at.segmented_control(key="demo").value == demo
-        assert sum(title.value == "Built by an autonomous agent" for title in at.main.title) == 1, demo
-        timings = [item for item in at.main.metric if item.label == "Autonomous build"]
+        title_label = "Built by OpenCode with local Qwen" if demo.endswith("_rtx") else "Built by an autonomous agent"
+        timing_label = "Build duration" if demo.endswith("_rtx") else "Autonomous build"
+        assert sum(title.value == title_label for title in at.main.title) == 1, demo
+        timings = [item for item in at.main.metric if item.label == timing_label]
         assert len(timings) == 1, demo
         assert timings[0].value.endswith(" min") and float(timings[0].value[:-4]) > 0, demo
         assert any(item.label == "AGILAB workflow stages" for item in at.main.metric), demo
@@ -58,8 +60,8 @@ def test_every_selectable_demo_shows_build_evidence_without_expanding(monkeypatc
         assert any("uv tool install" in item.value for item in builders[0].code), demo
         assert any("This public Space runs the completed app" in item.value for item in at.main.caption), demo
         for hidden_container in (*at.expander, *at.get("status"), *at.get("tab"), at.sidebar):
-            assert all(title.value != "Built by an autonomous agent" for title in hidden_container.title), demo
-            assert all(item.label != "Autonomous build" for item in hidden_container.metric), demo
+            assert all(title.value != title_label for title in hidden_container.title), demo
+            assert all(item.label != timing_label for item in hidden_container.metric), demo
             assert all(
                 item is hidden_container or getattr(item, "label", None) != "Build from your own notebook"
                 for item in hidden_container
@@ -81,7 +83,7 @@ def test_export_rejects_tampered_verified_code(tmp_path):
 
 
 def test_forecast_query_selects_second_demo_and_can_return_to_iris(monkeypatch):
-    from agilab.agent_runtime import forecast_showcase
+    from agilab.demos import forecast_showcase
     import streamlit as st
 
     monkeypatch.setattr(forecast_showcase, "render", lambda: st.title("Forecast fixture"))
@@ -110,7 +112,7 @@ def test_unknown_demo_query_falls_back_to_iris():
 def test_iris_only_distribution_reports_forecast_unavailability(monkeypatch):
     import sys
 
-    monkeypatch.setitem(sys.modules, "agilab.agent_runtime.forecast_showcase", None)
+    monkeypatch.setitem(sys.modules, "agilab.demos.forecast_showcase", None)
     at = AppTest.from_file(showcase.__file__, default_timeout=30)
     at.query_params["demo"] = "forecast"
     at.run()

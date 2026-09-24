@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 
-from agilab.agent_runtime.milp_energy_showcase import PUBLIC_FILES
+from agilab.demos.milp_energy_showcase import PUBLIC_FILES
 
 SOURCE_COMMIT = "c838aa498557cc8e27a9d3ed10d45e35c4b0b442"
 SOURCE_URL = f"https://github.com/PyPSA/PyPSA/blob/{SOURCE_COMMIT}/docs/examples/modular-committable.ipynb"
@@ -36,10 +36,11 @@ result = solve_scenario(settings)
 infeasible = solve_scenario(settings | {'max_modules': 20})
 shed = solve_scenario(settings | {'max_modules': 20, 'allow_shedding': True})
 solar = solve_scenario(settings | {'solar_capacity': 1500.0, 'startup_cost': 500.0})
+startup = solve_scenario(settings | {'hours': 12, 'startup_cost': 500.0})
 workers = min(2, cpu_limits()['effective_cpus'])
 benchmark = run_benchmark(make_batch(settings, 4), workers) if workers > 1 else None
 Path(sys.argv[1]).write_text(json.dumps({'reference': result, 'infeasible': infeasible,
-    'shed': shed, 'solar': solar, 'benchmark': benchmark}, allow_nan=False))
+    'shed': shed, 'solar': solar, 'startup': startup, 'benchmark': benchmark}, allow_nan=False))
 """
     with tempfile.TemporaryDirectory(prefix="milp-export-") as directory:
         output = Path(directory) / "reference.json"
@@ -71,6 +72,7 @@ Path(sys.argv[1]).write_text(json.dumps({'reference': result, 'infeasible': infe
         raise ValueError("The shortage scenario does not report required unserved demand")
     for scenario in (result, evidence["shed"], evidence["solar"]):
         validate_physics(scenario)
+    validate_startup_optimum(evidence["startup"])
     benchmark = evidence["benchmark"]
     if benchmark is None:
         raise ValueError("Publication requires a real scaling check on at least two available CPUs")
@@ -95,10 +97,32 @@ Path(sys.argv[1]).write_text(json.dumps({'reference': result, 'infeasible': infe
         "fresh HiGHS execution with one solver thread", "independent 21879 objective and 30-module optimum",
         "reference dispatch and integer commitment at every timestep",
         "capacity-limited infeasibility without an incumbent", "independent shortage and solar/startup constraints and costs",
+        "independent 12-hour startup-cost optimum, not post-hoc startup charges",
         "same scenario batch and outcomes on one and two AGILAB workers", "measured overlapping worker processes",
     ], "reference_objective": expected_cost,
         "scaling_validation": {"cases": 4, "workers": 2, "scope": "local scenario throughput",
                                "note": "Timings are validation evidence, not a guarantee of public Space speedup"}}
+
+
+def validate_startup_optimum(result: dict) -> None:
+    """Reject solving a zero-startup-cost model and adding the charges afterwards."""
+    expected_settings = {
+        "hours": 12, "max_modules": 50, "module_mw": 200, "demand_multiplier": 1,
+        "min_loading": 0.1, "solar_capacity": 0, "allow_shedding": False,
+        "investment_cost": 1, "marginal_cost": 1, "startup_cost": 500, "standby_cost": 1,
+    }
+    if any(result["settings"].get(key) != value for key, value in expected_settings.items()):
+        raise ValueError("Startup optimum scenario settings changed")
+    validate_physics(result)
+    # Thirty modules are necessary at peak load. Keeping them committed across
+    # the two intervening troughs costs at most a few standby units, less than
+    # one 500-unit restart. Release excess modules only after the final peak.
+    active = [20] + [30] * 9 + [25, 4]
+    objective = 3 * (4000 + 6000 + 5000 + 800) + 200 * 30 + 500 * 30 + sum(active)
+    if (result["status"] != "optimal" or abs(result["objective"] - objective) > 1e-5
+            or len(result["active_modules"]) != len(active)
+            or any(abs(a - b) > 1e-5 for a, b in zip(result["active_modules"], active))):
+        raise ValueError("Startup costs must affect the optimal commitment: expected objective 68719")
 
 
 def validate_physics(result: dict) -> None:

@@ -64,12 +64,40 @@ def test_runtime_source_does_not_import_deprecated_apis() -> None:
     assert violations == []
 
 
-def test_runtime_source_does_not_hide_all_warnings_at_import_time() -> None:
-    violations: list[str] = []
-    for path, tree in _parsed_python_files():
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
+def _unscoped_warning_filters(tree: ast.AST) -> list[ast.Call]:
+    """Temporary catch_warnings scopes restore filters; global ignores do not."""
+    class Visitor(ast.NodeVisitor):
+        scoped = False
+
+        def __init__(self):
+            self.violations = []
+
+        def visit_With(self, node):
+            for item in node.items:
+                self.visit(item.context_expr)
+            previous = self.scoped
+            self.scoped = previous or any(
+                isinstance(item.context_expr, ast.Call)
+                and isinstance(item.context_expr.func, ast.Attribute)
+                and isinstance(item.context_expr.func.value, ast.Name)
+                and item.context_expr.func.value.id == "warnings"
+                and item.context_expr.func.attr == "catch_warnings"
+                for item in node.items
+            )
+            for statement in node.body:
+                self.visit(statement)
+            self.scoped = previous
+
+        def visit_FunctionDef(self, node):
+            # A function declared in a with block may execute after it exits.
+            previous, self.scoped = self.scoped, False
+            self.generic_visit(node)
+            self.scoped = previous
+
+        visit_AsyncFunctionDef = visit_FunctionDef
+        visit_Lambda = visit_FunctionDef
+
+        def visit_Call(self, node):
             func = node.func
             if not (
                 isinstance(func, ast.Attribute)
@@ -77,12 +105,39 @@ def test_runtime_source_does_not_hide_all_warnings_at_import_time() -> None:
                 and isinstance(func.value, ast.Name)
                 and func.value.id == "warnings"
             ):
-                continue
-            if not node.args:
-                continue
-            first_arg = node.args[0]
-            has_category = any(keyword.arg == "category" for keyword in node.keywords)
-            if isinstance(first_arg, ast.Constant) and first_arg.value == "ignore" and not has_category:
-                violations.append(f"{path.relative_to(REPO_ROOT)} suppresses all warnings")
+                self.generic_visit(node)
+                return
+            if node.args and not self.scoped:
+                first_arg = node.args[0]
+                has_category = any(keyword.arg == "category" for keyword in node.keywords)
+                if isinstance(first_arg, ast.Constant) and first_arg.value == "ignore" and not has_category:
+                    self.violations.append(node)
+            self.generic_visit(node)
+
+    visitor = Visitor()
+    visitor.visit(tree)
+    return visitor.violations
+
+
+def test_warning_guard_distinguishes_temporary_scopes_from_global_changes() -> None:
+    assert len(_unscoped_warning_filters(ast.parse("warnings.simplefilter('ignore')"))) == 1
+    assert not _unscoped_warning_filters(ast.parse(
+        "with warnings.catch_warnings():\n    warnings.simplefilter('ignore')\n"
+    ))
+    assert len(_unscoped_warning_filters(ast.parse(
+        "with warnings.catch_warnings():\n    def later():\n        warnings.simplefilter('ignore')\n"
+    ))) == 1
+    assert len(_unscoped_warning_filters(ast.parse(
+        "with warnings.catch_warnings():\n    warnings.simplefilter('ignore')\n"
+        "warnings.simplefilter('ignore')\n"
+    ))) == 1
+
+
+def test_runtime_source_does_not_hide_all_warnings_at_import_time() -> None:
+    violations = [
+        f"{path.relative_to(REPO_ROOT)} suppresses all warnings"
+        for path, tree in _parsed_python_files()
+        for _ in _unscoped_warning_filters(tree)
+    ]
 
     assert violations == []

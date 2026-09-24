@@ -9,7 +9,7 @@ from pathlib import Path
 import statistics
 import sys
 
-from agilab.agent_runtime.free_threading_showcase import PUBLIC_FILES
+from agilab.demos.free_threading_showcase import PUBLIC_FILES
 
 ENGINE_COMMIT = "7d2b1355b84eed3cbf0828c325cddb8308be77a3"
 ENGINE_PATH = "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/worker_pool_support.py"

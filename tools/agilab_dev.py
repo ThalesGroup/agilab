@@ -513,6 +513,8 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             ),
             _uv_dev("ruff", "--version"),
             _uv_python("tools/app_contract_matrix.py", "--quiet"),
+            _uv_python("tools/agilab_capabilities_manifest.py", "--check"),
+            _uv_python("tools/agenticweb_manifest.py", "--check"),
             _uv_python("tools/builtin_app_tests.py"),
             _uv_python(
                 "tools/workflow_parity.py",

@@ -5,13 +5,17 @@
 
 from __future__ import annotations
 
+import errno
+from functools import partial
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 import socket
 import sqlite3
+import ssl
 from typing import Any, Mapping, Sequence
 from urllib import request
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 import ipaddress
 
@@ -22,7 +26,11 @@ from agilab.data_connectors.data_connector_facility import (
     load_connector_catalog,
 )
 from agilab.data_connectors.data_connector_search import search_index_provider, search_index_target
-from agilab.security.secret_uri import credential_env_name, is_secret_uri
+from agilab.security.llm_endpoint_policy import (
+    _PinnedHTTPConnection,
+    _PinnedHTTPSConnection,
+)
+from agilab.security.secret_uri import credential_env_name, is_secret_uri, redact_text
 
 
 SCHEMA = "agilab.data_connector_live_endpoint_smoke.v1"
@@ -71,11 +79,28 @@ def _sqlite_target(uri: str) -> str:
     return ""
 
 
+def _sqlite_read_only_uri(path: PurePath) -> str:
+    """Encode absolute file paths with SQLite's required empty URI authority."""
+    parsed = urlparse(path.as_uri())
+    filename = f"//{parsed.netloc}{parsed.path}" if parsed.netloc else parsed.path
+    return f"file://{filename}?mode=ro"
+
+
 def _probe_sqlite(uri: str) -> tuple[str, str]:
     target = _sqlite_target(uri)
     if not target:
-        return "skipped_unsupported_driver", "only sqlite:/// targets execute in public smoke"
-    with sqlite3.connect(target) as connection:
+        return (
+            "skipped_unsupported_driver",
+            "only sqlite:/// targets execute in public smoke",
+        )
+    # File probes must not create a database when an operator mistypes its path.
+    # as_uri escapes filename characters such as ?, # and % before adding mode.
+    database = (
+        target
+        if target == ":memory:"
+        else _sqlite_read_only_uri(Path(target).resolve())
+    )
+    with sqlite3.connect(database, uri=target != ":memory:") as connection:
         connection.execute("select 1").fetchone()
     return "healthy", "sqlite connectivity check passed"
 
@@ -116,42 +141,61 @@ def _resolve_host_addresses(host: str) -> list[ipaddress._BaseAddress]:
     return addresses
 
 
-def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
+def _allowed_host_addresses(
+    host: str, *, allow_local_http: bool
+) -> tuple[tuple[str, ...], str]:
     if not host:
-        return "missing host"
+        return (), "missing host"
     lowered = host.lower().strip("[]")
-    if lowered == "localhost" or lowered.endswith(".localhost"):
-        return "" if allow_local_http else "localhost targets require local emulator opt-in"
+    if (
+        lowered == "localhost" or lowered.endswith(".localhost")
+    ) and not allow_local_http:
+        return (), "localhost targets require local emulator opt-in"
     try:
-        address = ipaddress.ip_address(lowered)
+        addresses = [ipaddress.ip_address(lowered)]
     except ValueError:
-        # DNS name: resolve it and apply the block policy to EVERY resolved
-        # address so names that resolve to metadata/loopback/private targets
-        # never receive the connection or the Bearer token.
-        resolved = _resolve_host_addresses(lowered)
-        if not resolved:
-            return "hostname did not resolve to any address"
-        for resolved_address in resolved:
-            reason = _address_is_blocked(resolved_address, allow_local_http=allow_local_http)
-            if reason:
-                return reason
-        return ""
-    return _address_is_blocked(address, allow_local_http=allow_local_http)
+        addresses = _resolve_host_addresses(lowered)
+    if not addresses:
+        return (), "hostname did not resolve to any address"
+    for address in addresses:
+        reason = _address_is_blocked(address, allow_local_http=allow_local_http)
+        if reason:
+            return (), reason
+    return tuple(str(address) for address in addresses), ""
 
 
-def _validate_live_probe_url(url: str, *, allow_local_http: bool = False) -> tuple[bool, str]:
-    parsed = urlparse(url)
+def _host_is_blocked(host: str, *, allow_local_http: bool) -> str:
+    return _allowed_host_addresses(host, allow_local_http=allow_local_http)[1]
+
+
+def _live_probe_addresses(
+    url: str, *, allow_local_http: bool = False
+) -> tuple[tuple[str, ...], str]:
+    try:
+        parsed = urlparse(url)
+        parsed.port  # Reject malformed/out-of-range ports before transport setup.
+    except ValueError:
+        return (), "invalid live endpoint URL or port"
     scheme = parsed.scheme.lower()
-    if scheme == "https":
-        pass
-    elif scheme == "http" and allow_local_http:
-        pass
-    else:
-        return False, "live endpoint smoke requires https unless local HTTP emulator mode is enabled"
-    blocked_reason = _host_is_blocked(parsed.hostname or "", allow_local_http=allow_local_http)
-    if blocked_reason:
-        return False, blocked_reason
-    return True, "live endpoint target passed URL safety policy"
+    if scheme != "https" and not (scheme == "http" and allow_local_http):
+        return (
+            (),
+            "live endpoint smoke requires https unless local HTTP emulator mode is enabled",
+        )
+    return _allowed_host_addresses(
+        parsed.hostname or "", allow_local_http=allow_local_http
+    )
+
+
+def _validate_live_probe_url(
+    url: str, *, allow_local_http: bool = False
+) -> tuple[bool, str]:
+    addresses, reason = _live_probe_addresses(url, allow_local_http=allow_local_http)
+    return bool(addresses), reason or "live endpoint target passed URL safety policy"
+
+
+class _ProbePolicyError(RuntimeError):
+    """A fixed, credential-free refusal message owned by the probe policy."""
 
 
 class _SameOriginRedirectHandler(request.HTTPRedirectHandler):
@@ -161,41 +205,187 @@ class _SameOriginRedirectHandler(request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
         if _origin(req.full_url) != _origin(newurl):
-            raise RuntimeError("live endpoint smoke redirect changed origin")
+            raise _ProbePolicyError("live endpoint smoke redirect changed origin")
         ok, reason = _validate_live_probe_url(
             newurl,
             allow_local_http=self._allow_local_http,
         )
         if not ok:
-            raise RuntimeError(f"live endpoint smoke redirect target refused: {reason}")
+            raise _ProbePolicyError(
+                f"live endpoint smoke redirect target refused: {reason}"
+            )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class _DirectProbeProxyHandler(request.ProxyHandler):
+    def proxy_open(self, req, proxy, type):  # type: ignore[override]
+        # Honor the standard no_proxy bypass, but never delegate target DNS or
+        # bearer credentials to a proxy. Pinning requires a direct connection.
+        if req.host and request.proxy_bypass(req.host):
+            return None
+        raise _ProbePolicyError(
+            "live endpoint smoke requires a direct connection; configured proxies "
+            "are unsupported because they bypass destination address validation"
+        )
+
+
+def _tracked_probe_connection(connection_type, handler, host: str, **kwargs: Any):
+    connection = connection_type(host, **kwargs)
+    create_connection = connection._create_connection
+
+    def connect(address, timeout, source_address):
+        # Constructor and HTTP-header validation run before this socket seam.
+        handler.network_probe_started = True
+        return create_connection(address, timeout, source_address)
+
+    connection._create_connection = connect
+    return connection
+
+
+class _PinnedProbeHTTPHandler(request.HTTPHandler):
+    def __init__(self, *, allow_local_http: bool) -> None:
+        super().__init__()
+        self._allow_local_http = allow_local_http
+        self.network_probe_started = False
+
+    def http_open(self, req):  # type: ignore[override]
+        addresses, reason = _live_probe_addresses(
+            req.full_url, allow_local_http=self._allow_local_http
+        )
+        if not addresses:
+            raise _ProbePolicyError(
+                f"live endpoint smoke connection target refused: {reason}"
+            )
+        connection = partial(
+            _tracked_probe_connection,
+            _PinnedHTTPConnection,
+            self,
+            pinned_addresses=addresses,
+        )
+        return self.do_open(connection, req)
+
+
+class _PinnedProbeHTTPSHandler(request.HTTPSHandler):
+    def __init__(self, *, allow_local_http: bool) -> None:
+        super().__init__()
+        self._allow_local_http = allow_local_http
+        self.network_probe_started = False
+
+    def https_open(self, req):  # type: ignore[override]
+        addresses, reason = _live_probe_addresses(
+            req.full_url, allow_local_http=self._allow_local_http
+        )
+        if not addresses:
+            raise _ProbePolicyError(
+                f"live endpoint smoke connection target refused: {reason}"
+            )
+        connection = partial(
+            _tracked_probe_connection,
+            _PinnedHTTPSConnection,
+            self,
+            pinned_addresses=addresses,
+        )
+        return self.do_open(connection, req, context=self._context)
+
+
 def _live_probe_opener(*, allow_local_http: bool = False):
-    return request.build_opener(_SameOriginRedirectHandler(allow_local_http=allow_local_http))
-
-
-def _probe_opensearch(connector: Mapping[str, Any], token: str) -> tuple[str, str, bool]:
-    url = _connector_target(connector)
-    allow_local_http = _local_http_allowed()
-    ok, reason = _validate_live_probe_url(url, allow_local_http=allow_local_http)
-    if not ok:
-        return "skipped", f"unsafe live endpoint target: {reason}", False
-    provider = search_index_provider(str(connector.get("provider", "") or "opensearch"))
-    label = provider.label if provider is not None else "Search index"
-    req = request.Request(
-        url,
-        method="HEAD",
-        headers={"Authorization": f"Bearer {token}", "User-Agent": "agilab-live-smoke/1"},
+    """Pin direct connections; keep original Host/TLS identity and safe redirects."""
+    return request.build_opener(
+        _DirectProbeProxyHandler(),
+        _SameOriginRedirectHandler(allow_local_http=allow_local_http),
+        _PinnedProbeHTTPHandler(allow_local_http=allow_local_http),
+        _PinnedProbeHTTPSHandler(allow_local_http=allow_local_http),
     )
-    opener = _live_probe_opener(allow_local_http=allow_local_http)
-    with opener.open(req, timeout=10) as response:
-        status = getattr(response, "status", 200)
-    return (
-        ("healthy", f"{label} HEAD returned {status}")
-        if int(status) < 500
-        else ("unhealthy", f"{label} HEAD returned {status}")
-    ) + (True,)
+
+
+def _authorization_value_error(token: str) -> str:
+    if (
+        not isinstance(token, str)
+        or not token
+        or any(ord(character) < 32 or ord(character) == 127 for character in token)
+    ):
+        return "invalid authorization credential: empty values and control characters are not allowed"
+    try:
+        token.encode("latin-1")
+    except UnicodeEncodeError:
+        return "invalid authorization credential: value cannot be encoded as an HTTP header"
+    return ""
+
+
+def _probe_exception_message(exc: Exception) -> str:
+    # Only our fixed policy messages are safe to retain. Library exceptions can
+    # echo Authorization bytes (including repr escapes) or server-supplied text.
+    if isinstance(exc, _ProbePolicyError):
+        return redact_text(str(exc))
+    if isinstance(exc, HTTPError):
+        return (
+            f"live endpoint returned HTTP {exc.code}"
+            if type(exc.code) is int
+            else "live endpoint returned an HTTP error"
+        )
+    cause = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(cause, ssl.SSLCertVerificationError):
+        return "live endpoint TLS certificate verification failed"
+    if isinstance(cause, ssl.SSLError):
+        return "live endpoint TLS negotiation failed"
+    if isinstance(cause, TimeoutError):
+        return "live endpoint connection timed out"
+    if isinstance(cause, OSError):
+        reason = errno.errorcode.get(cause.errno, type(cause).__name__)
+        return f"live endpoint connection failed ({reason})"
+    if isinstance(cause, ValueError):
+        return "invalid live endpoint request configuration"
+    return f"live endpoint probe failed ({type(exc).__name__})"
+
+
+def _probe_opensearch(
+    connector: Mapping[str, Any], token: str
+) -> tuple[str, str, bool]:
+    credential_error = _authorization_value_error(token)
+    if credential_error:
+        return "skipped", credential_error, False
+    opener = None
+    try:
+        url = _connector_target(connector)
+        allow_local_http = _local_http_allowed()
+        ok, reason = _validate_live_probe_url(url, allow_local_http=allow_local_http)
+        if not ok:
+            return "skipped", f"unsafe live endpoint target: {reason}", False
+        provider = search_index_provider(
+            str(connector.get("provider", "") or "opensearch")
+        )
+        label = provider.label if provider is not None else "Search index"
+        req = request.Request(
+            url,
+            method="HEAD",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "User-Agent": "agilab-live-smoke/1",
+            },
+        )
+        opener = _live_probe_opener(allow_local_http=allow_local_http)
+        with opener.open(req, timeout=10) as response:
+            status = getattr(response, "status", 200)
+        return (
+            ("healthy", f"{label} HEAD returned {status}")
+            if int(status) < 500
+            else ("unhealthy", f"{label} HEAD returned {status}")
+        ) + (True,)
+    except Exception as exc:
+        # A redirect can be refused after a request; initial DNS/proxy refusals
+        # happen before the transport starts. Preserve that distinction in proof.
+        handlers = getattr(opener, "handlers", None)
+        network_probe = opener is not None and (
+            handlers is None  # Preserve the existing custom-opener seam.
+            or any(
+                getattr(handler, "network_probe_started", False) for handler in handlers
+            )
+        )
+        return (
+            "unhealthy" if network_probe else "skipped",
+            _probe_exception_message(exc),
+            network_probe,
+        )
 
 
 def _smoke_row(
@@ -293,12 +483,9 @@ def build_data_connector_live_endpoint_smoke(
         if isinstance(connector, dict)
     ]
     allowed = set(allowed_connector_ids)
-    rows = [
-        _smoke_row(connector, execute=execute, allowed_connector_ids=allowed)
-        for connector in connectors
-    ]
+    catalog_valid = facility_state.get("run_status") == "validated"
     issues = []
-    if facility_state.get("run_status") != "validated":
+    if not catalog_valid:
         issues.append(
             {
                 "level": "error",
@@ -306,10 +493,21 @@ def build_data_connector_live_endpoint_smoke(
                 "message": "connector catalog must validate before live endpoint smoke",
             }
         )
-    status_values = sorted({str(row.get("status", "")) for row in rows})
-    executed_rows = [
-        row for row in rows if row.get("execution_status") == "executed"
+    rows = [
+        _smoke_row(
+            connector, execute=execute and catalog_valid, allowed_connector_ids=allowed
+        )
+        for connector in connectors
     ]
+    if execute and not catalog_valid:
+        for row in rows:
+            row.update(
+                status="skipped",
+                execution_status="skipped_invalid_catalog",
+                message="connector catalog must validate before live endpoint smoke",
+            )
+    status_values = sorted({str(row.get("status", "")) for row in rows})
+    executed_rows = [row for row in rows if row.get("execution_status") == "executed"]
     network_probe_count = sum(1 for row in rows if row.get("network_probe_executed"))
     return {
         "schema": SCHEMA,
@@ -318,9 +516,7 @@ def build_data_connector_live_endpoint_smoke(
         "updated_at": UPDATED_AT,
         "run_status": "smoke_complete" if execute and not issues else "planned",
         "execution_mode": (
-            "live_endpoint_smoke_opt_in"
-            if execute
-            else "live_endpoint_smoke_plan_only"
+            "live_endpoint_smoke_opt_in" if execute else "live_endpoint_smoke_plan_only"
         ),
         "source": {
             "catalog_path": str(source_path),
@@ -332,7 +528,9 @@ def build_data_connector_live_endpoint_smoke(
             "planned_endpoint_count": len(rows),
             "executed_endpoint_count": len(executed_rows),
             "healthy_count": sum(1 for row in rows if row.get("status") == "healthy"),
-            "unhealthy_count": sum(1 for row in rows if row.get("status") == "unhealthy"),
+            "unhealthy_count": sum(
+                1 for row in rows if row.get("status") == "unhealthy"
+            ),
             "skipped_count": sum(1 for row in rows if row.get("status") == "skipped"),
             "missing_credential_count": sum(
                 1 for row in rows if row.get("credential_status") == "missing"

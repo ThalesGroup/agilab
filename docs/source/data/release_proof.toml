@@ -20,22 +20,22 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.09.09"
+package_version = "2026.09.21.2"
 source_version_relation = "exact"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.09.09-1"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.09-1"
-github_release_commit = "1dc1002246fa4e6ff94411cf5a2ca1263217bffd"
+github_release_tag = "v2026.09.21_2"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2"
+github_release_commit = "080bab0fe3c91c19ba76ed4aee2856ae76df5121"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "52abf142970f712a8605f3b0ff48e9b47b323e54"
-dataset_release_tag = "datasets-535fcc176054e2fb"
-dataset_manifest_sha256 = "535fcc176054e2fb8e39c83d428273ea52c1521eaa2c694c39c3ee5a89df8d93"
-dataset_count = 10
-dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-535fcc176054e2fb"
+hf_space_commit = "9f7fc1c5f2e5436c774fa9071f5da366f01b0796"
+dataset_release_tag = "datasets-82d4b1accb144409"
+dataset_manifest_sha256 = "82d4b1accb144409af883b3600dab54400aa30cb65034e2c122307020b070d75"
+dataset_count = 13
+dataset_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/datasets-82d4b1accb144409"
 
 [ui_robot]
 mode = "historical"
@@ -81,11 +81,11 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "34578309790"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/34578309790/attempts/1"
-head_sha = "1dc1002246fa4e6ff94411cf5a2ca1263217bffd"
+run_id = "35889407663"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/35889407663/attempts/2"
+head_sha = "080bab0fe3c91c19ba76ed4aee2856ae76df5121"
 summary = "publication workflow for the recorded release commit; see the linked attempt for its final result"
-attempt = "1"
+attempt = "2"
 
 [proof_command]
 summary = "A clean package install can run the public first proof:"

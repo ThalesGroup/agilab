@@ -1,0 +1,151 @@
+{
+  "schema": "agilab.notebook_agent.public_demo.v1",
+  "status": "passed",
+  "run_id": "20260922T083128Z-eda57537",
+  "seconds": 1254.26,
+  "workflow_stages": 1,
+  "source": {
+    "repository": "INRIA/scikit-learn-mooc",
+    "commit": "3d1e8cdf7df6675d8a47d352d66b29dfea36587c",
+    "url": "https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29dfea36587c/notebooks/dimred_text.ipynb",
+    "sha256": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+    "retrieved_at": "2026-09-19T14:40:17.644518+00:00",
+    "license": "CC-BY-4.0",
+    "author": "INRIA scikit-learn MOOC contributors"
+  },
+  "data": {
+    "license": "CC-BY-2.5",
+    "sha256": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+    "attribution": "Wikinews contributors, curated by Mega Rhyme and subsampled by INRIA"
+  },
+  "demo": {
+    "title": "Text atlas",
+    "description": "Explore shared vocabulary across 1,250 historical articles."
+  },
+  "verification_scope": "execution_interface_and_bounded_text_adaptation",
+  "verification": {
+    "checks": [
+      "fresh_notebook_execution",
+      "fresh_result_artifact",
+      "app_startup",
+      "app_run_analysis_interaction"
+    ],
+    "result_file": "results.json",
+    "result_names": [
+      "cluster_sizes",
+      "displayed_variance",
+      "n_articles",
+      "n_pca_components",
+      "retained_variance",
+      "silhouette",
+      "top_terms",
+      "vocabulary_size"
+    ],
+    "result_sha256": "520544de9b96a0468c8ede2d1158eb49eb89b272735ef7e8abaf5dbc5f2c6718",
+    "scientific_correctness_verified": false,
+    "status": "passed",
+    "verification_scope": "execution_and_interface",
+    "text": {
+      "status": "passed",
+      "checks": [
+        "pinned_source_and_corpus",
+        "centered_pca_and_original_variance",
+        "cluster_terms_from_original_tfidf",
+        "retained_space_silhouette",
+        "uncached_seed_reproducibility",
+        "categories_excluded_from_fitting",
+        "parameter_extremes_and_invalid_inputs",
+        "notebook_core_agreement"
+      ],
+      "measurements": {
+        "articles": 1250,
+        "vocabulary": 6404,
+        "displayed_variance": 0.02076089009642601,
+        "retained_variance": 0.19257818162441254,
+        "silhouette": 0.05084473267197609,
+        "cases": [
+          {
+            "clusters": 2,
+            "vocabulary": 13473,
+            "silhouette": 0.1875908225774765
+          },
+          {
+            "clusters": 8,
+            "vocabulary": 3080,
+            "silhouette": 0.07450728863477707
+          }
+        ]
+      }
+    }
+  },
+  "files": {
+    "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+    "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+    "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+    "NOTICE": "709db06755a197d70c21734f2b9d6fd5a382db8c14726a4de7a285eeeda2a06b",
+    "README.md": "88173b41a76f6860213e9be0209a9996a4b36cbca72d20c5c1dfb6729636f93e",
+    "app.py": "119ea1cc3906635886f417b7f8c652c1438ae7f9763cde6da401c544aa86ab68",
+    "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+    "lab_stages.toml": "97b04b15932c8096ba2a72df5ebfb2e2147c0c3c2f82078c171feef257e286a3",
+    "pyproject.toml": "469dc7fd3fff05cc72934fab186c349f9ae7f303322f878ebcb6f849eaca713e",
+    "requirements.txt": "5aee4f10fe3a4c3f11e55d1b369cb240e0f62d73800c9d91dc211f7529f7b51c",
+    "solution.ipynb": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b",
+    "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+    "text_core.py": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
+  },
+  "build_model": {
+    "id": "Qwen3.8-27B",
+    "provider": "llama.cpp CUDA",
+    "execution": "local NVIDIA RTX 4090",
+    "upstream_revision": "1d4bf0f2ff6012fd82039f2fa52739d0dd7c60c0",
+    "quantization": "Q4_K_M",
+    "cloud_codegen_fallback": false,
+    "coordination": "Tokki with OpenCode; independent AGILAB verification"
+  },
+  "code_metrics": {
+    "loc": 304,
+    "kloc": 0.304,
+    "files": [
+      {
+        "file": "app.py",
+        "loc": 131,
+        "kind": "application",
+        "sha256": "119ea1cc3906635886f417b7f8c652c1438ae7f9763cde6da401c544aa86ab68"
+      },
+      {
+        "file": "solution.ipynb",
+        "loc": 53,
+        "kind": "notebook",
+        "sha256": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b"
+      },
+      {
+        "file": "text_core.py",
+        "loc": 120,
+        "kind": "application",
+        "sha256": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
+      }
+    ],
+    "application_loc": 251,
+    "notebook_loc": 53,
+    "method": "1 KLOC = 1 000 lignes de code Python non vides, hors commentaires et docstrings. Application + cellules de code du notebook g\u00e9n\u00e9r\u00e9 ; tests, sources originales et fichiers fournis exclus. Les deux livrables sont compt\u00e9s s\u00e9par\u00e9ment."
+  },
+  "cluster_build": {
+    "flavour": "Qwen RTX",
+    "hardware": "NVIDIA RTX 4090",
+    "standalone_codegen": true,
+    "human_app_code_edits": false,
+    "cloud_codegen_fallback": false,
+    "model_message_count": 60,
+    "attempts": 2,
+    "model_file_sha256": "c600de0300ae8a0eb3a6c0b8b5561b8b96f16bd2c863c2a66c42de29d391a747",
+    "source_receipt_sha256": "aff8302bbfc9c445ad3a5f3c228db424243655d07b61c37f2cd590a3f33a94ed",
+    "browser_status": "passed",
+    "duration_scope": "Generation, repairs and independent execution checks; excludes installation, downloads and browser checks.",
+    "source_provenance_status": "passed",
+    "source_provenance_sha256": "6b1a2c8d8b294caca52aca5bccc1a6d95cfd43755c13b5742eeb3838e7f4db4c",
+    "node": "rtx5",
+    "agent": "OpenCode",
+    "supervisor": "Codex",
+    "workflow_mode": "hybrid_supervision_local_codegen"
+  }
+}
