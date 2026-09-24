@@ -18,6 +18,7 @@ def process(pid, *, username="operator", created=100, environ=None):
 
 @pytest.fixture
 def fake_os(monkeypatch):
+    monkeypatch.setattr(runtime, "signal", SimpleNamespace(SIGTERM=15, SIGKILL=9))
     os = SimpleNamespace(getpid=lambda: 1, getpgid=Mock(return_value=42),
                          getpgrp=lambda: 999, killpg=Mock())
     monkeypatch.setattr(runtime, "os", os)

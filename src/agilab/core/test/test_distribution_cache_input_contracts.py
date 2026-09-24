@@ -75,7 +75,7 @@ def test_directory_fingerprint_captures_empty_directories_and_content(tmp_path):
     (root / "data").write_bytes(b"abc")
     fingerprint = cache._path_fingerprint(root)
     assert fingerprint == {
-        "path": str(root),
+        "path": root.as_posix(),
         "kind": "directory",
         "entries": [
             {
