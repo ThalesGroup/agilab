@@ -431,3 +431,179 @@ def test_missing_or_symlinked_output_is_reported_missing(tmp_path):
         "outputs": ["valid.json", "absent.json", "escaped.json"]}, "first")
     assert [record["path"] for record in records] == ["attempts/first/workspace/valid.json"]
     assert missing == ["absent.json", "escaped.json"]
+
+
+@pytest.mark.parametrize("attempt_id", ["../escape", "with space", "x"*81])
+def test_attempt_identifiers_are_rejected_before_workspace_creation(tmp_path, attempt_id):
+    _, root, _ = prepare(tmp_path)
+    with pytest.raises(ValueError, match="attempt identifier"):
+        experiment.execute_experiment(root, attempt_id=attempt_id)
+    assert not (root / "attempts").exists()
+
+
+def test_cancelled_attempt_retains_checkpoint_and_can_resume_explicitly(tmp_path):
+    _, root, _ = prepare(tmp_path)
+    with pytest.raises(InterruptedError, match="cancellation requested"):
+        experiment.execute_experiment(root, attempt_id="cancelled", cancelled=lambda:True)
+    attempt = root / "attempts/cancelled"
+    assert (attempt / "launch.json").is_file()
+    assert not (attempt / "entrypoint").exists()
+    with pytest.raises(FileExistsError, match="already exists"):
+        experiment.execute_experiment(root, attempt_id="cancelled")
+    receipt = experiment.execute_experiment(root, attempt_id="cancelled", resume=True)
+    assert receipt["status"] == "passed"
+    with pytest.raises(FileExistsError, match="already exists"):
+        experiment.execute_experiment(root, attempt_id="cancelled")
+
+
+@pytest.mark.parametrize("changed", ["launch", "workspace"])
+def test_resume_rejects_changed_runtime_checkpoint_or_execution_inputs(tmp_path, changed):
+    _, root, _ = prepare(tmp_path)
+    with pytest.raises(InterruptedError):
+        experiment.execute_experiment(root, attempt_id="cancelled", cancelled=lambda:True)
+    attempt = root / "attempts/cancelled"
+    if changed == "launch":
+        payload = json.loads((attempt / "launch.json").read_text())
+        payload["runtime"]["executable"] = "/different/python"
+        (attempt / "launch.json").write_text(json.dumps(payload))
+        message = "runtime or launch location changed"
+    else:
+        (attempt / "workspace/candidate.py").write_text("raise RuntimeError('changed')")
+        message = "bytes differ"
+    with pytest.raises(ValueError, match=message):
+        experiment.execute_experiment(root, attempt_id="cancelled", resume=True)
+    assert not (attempt / "entrypoint").exists()
+
+
+@pytest.mark.parametrize("change", ["schema", "digest"])
+def test_plan_rejects_wrong_schema_or_unsealed_modification(tmp_path, change):
+    _, root, _ = prepare(tmp_path)
+    path = root / "plan.json"
+    payload = json.loads(path.read_text())
+    if change == "schema":
+        payload["schema"] = "unsupported"
+        payload.pop("sha256")
+        payload = experiment.seal(payload)
+    else:
+        payload["arguments"] = ["unapproved"]
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="schema or content digest"):
+        experiment.execute_experiment(root)
+    assert not (root / "attempts").exists()
+
+
+@pytest.mark.parametrize("artifact", ["stdout.txt", "agent_events.ndjson"])
+def test_verification_rejects_symlinked_native_artifacts(tmp_path, artifact):
+    _, root, _ = prepare(tmp_path)
+    experiment.execute_experiment(root, attempt_id="first")
+    path = root / "attempts/first/entrypoint" / artifact
+    saved = tmp_path / "original-artifact"
+    saved.write_bytes(path.read_bytes())
+    path.unlink()
+    path.symlink_to(saved)
+    with pytest.raises(ValueError, match="escapes|symlinks"):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+def test_verification_rejects_native_output_tampering(tmp_path):
+    _, root, _ = prepare(tmp_path)
+    experiment.execute_experiment(root, attempt_id="first")
+    path = root / "attempts/first/entrypoint/stdout.txt"
+    path.write_text("new output not produced by the recorded command")
+    with pytest.raises(ValueError, match="Native stdout artifact changed"):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+def test_verification_rejects_invalid_native_terminal_evidence(tmp_path):
+    _, root, _ = prepare(tmp_path)
+    experiment.execute_experiment(root, attempt_id="first")
+    path = root / "attempts/first/entrypoint/agent_run_manifest.json"
+    payload = json.loads(path.read_text())
+    payload["returncode"] = 99
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="Native experiment run evidence failed validation"):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+@pytest.mark.parametrize(("field", "value", "reason"), [
+    (("context", "metadata", "experiment_plan_sha256"), "0"*64, "different plan"),
+    (("context", "metadata", "experiment_role"), "entrypoint", "different experiment role"),
+    (("command", "argv_sha256"), "0"*64, "frozen executor inputs"),
+    (("command", "cwd"), "/different/workspace", "frozen executor inputs"),
+    (("environment", "python_executable"), "/different/python", "different interpreter"),
+])
+def test_rehashing_native_evidence_cannot_change_experiment_binding(tmp_path, field, value, reason):
+    _, root, _ = prepare(tmp_path)
+    receipt = experiment.execute_experiment(root, attempt_id="first")
+    run_dir = root / "attempts/first/grader"
+    path = run_dir / "agent_run_manifest.json"
+    payload = json.loads(path.read_text())
+    target = payload
+    for key in field[:-1]:
+        target = target[key]
+    target[field[-1]] = value
+    path.write_text(json.dumps(payload))
+    # Model a changed native manifest with recomputed receipt hashes: identity
+    # checks must still bind it to the approved plan, role, cwd and interpreter.
+    receipt["runs"]["grader"] = experiment._native_result(root, run_dir)
+    receipt.pop("sha256")
+    (root / "attempts/first/receipt.json").write_text(json.dumps(experiment.seal(receipt)))
+    with pytest.raises(ValueError, match=reason):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+def test_native_manifest_edit_invalidates_previously_issued_receipt(tmp_path):
+    _, root, _ = prepare(tmp_path)
+    experiment.execute_experiment(root, attempt_id="first")
+    path = root / "attempts/first/grader/agent_run_manifest.json"
+    payload = json.loads(path.read_text())
+    payload["label"] = "Edited after receipt publication"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="Native run changed"):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+@pytest.mark.parametrize("changed", ["grader_checkpoint", "command"])
+def test_resume_rejects_changed_grader_checkpoint_or_completed_command(tmp_path, monkeypatch, changed):
+    _, root, _ = prepare(tmp_path)
+    original = experiment.run_agent_command
+    def stop_before_grader(config, **kwargs):
+        if config.metadata["experiment_role"] == "grader":
+            raise OSError("interrupted before claim")
+        return original(config, **kwargs)
+    monkeypatch.setattr(experiment, "run_agent_command", stop_before_grader)
+    with pytest.raises(OSError, match="interrupted before claim"):
+        experiment.execute_experiment(root, attempt_id="first")
+    monkeypatch.setattr(experiment, "run_agent_command", original)
+    attempt = root / "attempts/first"
+    if changed == "grader_checkpoint":
+        path = attempt / "grader-input.json"
+        payload = json.loads(path.read_text())
+        payload["plan_sha256"] = "0"*64
+        reason = "Grader input checkpoint changed before launch"
+    else:
+        path = attempt / "entrypoint/agent_run_manifest.json"
+        payload = json.loads(path.read_text())
+        payload["command"]["argv_sha256"] = "0"*64
+        reason = "Completed command does not match"
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match=reason):
+        experiment.execute_experiment(root, attempt_id="first", resume=True)
+    assert not (attempt / "grader").exists()
+
+
+def test_completed_grader_cannot_reuse_changed_input_checkpoint(tmp_path, monkeypatch):
+    _, root, _ = prepare(tmp_path)
+    publish = experiment.persist_evaluation
+    def stop_before_receipt(root, output, payload):
+        if Path(output).name == "receipt.json":
+            raise OSError("publication interrupted")
+        return publish(root, output, payload)
+    monkeypatch.setattr(experiment, "persist_evaluation", stop_before_receipt)
+    with pytest.raises(OSError, match="publication interrupted"):
+        experiment.execute_experiment(root, attempt_id="first")
+    monkeypatch.setattr(experiment, "persist_evaluation", publish)
+    (root / "attempts/first/grader-input.json").write_text("{}")
+    with pytest.raises(ValueError, match="Grader input checkpoint changed"):
+        experiment.execute_experiment(root, attempt_id="first", resume=True)
+    assert not (root / "attempts/first/receipt.json").exists()

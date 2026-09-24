@@ -122,3 +122,57 @@ def test_benchmark_compares_actual_serial_and_parallel_evidence(runner, monkeypa
         {"rows": [{"case": 0, "result": {"objective": 99}}, {"case": 1, "result": {"objective": 4}}]},
     ):
         assert runner._results_match(result["sequential"], corruption) is False
+
+@pytest.fixture
+def rtx_core():
+    path = Path(__file__).resolve().parents[1] / "src/agilab/demos/resources/milp_energy_demo_rtx/energy_core.py"
+    spec = importlib.util.spec_from_file_location("_energy_rtx_capacity", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    "environment,affinity,quota,logical,expected",
+    [
+        ({}, 8, "max 100000", 16, 8),
+        ({"CPU_LIMIT": "3"}, 8, "max 100000", 16, 3),
+        ({"TASKSET_AFFINITY": "2", "OMP_NUM_THREADS": "4"}, 8, "max 100000", 16, 2),
+        ({"CPU_LIMIT": "invalid"}, 8, "250000 100000", 16, 2),
+        ({}, 8, "50000 100000", 16, 1),
+        ({}, 8, "malformed", 16, 8),
+        ({}, 8, "100000 0", 16, 8),
+        ({}, None, None, 4, 4),
+        ({}, None, None, None, 1),
+        ({"CPU_LIMIT": "0"}, 8, "max 100000", 16, 1),
+    ],
+)
+def test_rtx_cpu_budget_respects_available_limits(
+    rtx_core, monkeypatch, environment, affinity, quota, logical, expected
+):
+    def affinity_probe(pid):
+        assert pid == 0
+        if affinity is None:
+            raise OSError("affinity unavailable")
+        return range(affinity)
+
+    def quota_file(path, **kwargs):
+        assert path == "/sys/fs/cgroup/cpu.max"
+        assert kwargs == {"encoding": "utf-8"}
+        if quota is None:
+            raise FileNotFoundError(path)
+        return StringIO(quota)
+
+    monkeypatch.setattr(rtx_core, "os", SimpleNamespace(
+        environ=environment, process_cpu_affinity=affinity_probe, cpu_count=lambda: logical
+    ))
+    monkeypatch.setattr(rtx_core, "open", quota_file, raising=False)
+    assert rtx_core.cpu_limits() == {"effective_cpus": expected, "logical_cpus": logical or 1}
+
+
+def test_rtx_cpu_budget_without_optional_affinity_api(rtx_core, monkeypatch):
+    monkeypatch.setattr(rtx_core, "os", SimpleNamespace(environ={}, cpu_count=lambda: 6))
+    def missing_quota(*args, **kwargs):
+        raise FileNotFoundError("no cgroup")
+    monkeypatch.setattr(rtx_core, "open", missing_quota, raising=False)
+    assert rtx_core.cpu_limits() == {"effective_cpus": 6, "logical_cpus": 6}

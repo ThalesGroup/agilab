@@ -267,3 +267,84 @@ def test_effective_cpu_budget_falls_back_when_all_probes_are_unavailable(evidenc
         sched_getaffinity=unavailable, environ={}))
     monkeypatch.setattr(runner, "open", unavailable, raising=False)
     assert runner.effective_cpus() == {"effective_cpus": 1}
+
+
+@pytest.mark.parametrize("mode,pids,threads,error", [
+    ("gil_on_processes", [101, 102], [1, 1], None),
+    ("gil_on_processes", [101, 101], [1, 2], "distinct PIDs"),
+    ("gil_on_threads", [101, 101], [1, 2], None),
+    ("gil_on_threads", [101, 102], [1, 1], "expected 1 PID"),
+])
+def test_benchmark_worker_identity_matches_execution_mode(evidence, mode, pids, threads, error):
+    runner, result, kwargs = evidence
+    original = result["records"][0]
+    tiles = [{"tile_id": 0, "row_start": 0, "row_stop": 1},
+             {"tile_id": 1, "row_start": 1, "row_stop": 2}]
+    records = []
+    for i, tile in enumerate(tiles):
+        record = copy.deepcopy(original)
+        record.update(tile, counts=original["counts"][2*i:2*i+2], pid=pids[i], thread_id=threads[i])
+        records.append(record)
+    result.update(records=records, workers=2, pool_width=2, actual_workers=2, mode=mode,
+                  backend="process" if mode == "gil_on_processes" else "thread (forced by env)")
+    kwargs["expected_params"].update(workers=2, mode=mode)
+    kwargs.update(expected_mode=mode, expected_tiles=tiles)
+    if error:
+        with pytest.raises(RuntimeError, match=error):
+            runner._validate_child_result(result, **kwargs)
+    else:
+        runner._validate_child_result(result, **kwargs)
+
+
+@pytest.mark.parametrize("field,value,message", [
+    ("actual_workers", 2, "len\\(distinct"),
+    ("pool_width", 2, "expected_workers"),
+    ("engine_seconds", 2.5, "engine_end-engine_start"),
+])
+def test_benchmark_rejects_fabricated_parallel_width_or_elapsed_time(evidence, field, value, message):
+    runner, result, kwargs = evidence
+    result[field] = value
+    with pytest.raises(RuntimeError, match=message):
+        runner._validate_child_result(result, **kwargs)
+
+
+@pytest.mark.parametrize("group_state", ["live", "gone", "own", "unknown-parent"])
+@pytest.mark.parametrize("reap_fails", [False, True])
+def test_group_cleanup_never_signals_parent_and_bounds_leader_reap(evidence, monkeypatch, group_state, reap_fails):
+    import subprocess
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    runner, _, _ = evidence
+    signals = []
+    def signal_group(pgid, signal_number):
+        assert pgid == 881
+        signals.append(signal_number)
+        if group_state == "gone":
+            raise ProcessLookupError()
+    own = Mock(return_value=881 if group_state == "own" else 999,
+               side_effect=OSError("unknown") if group_state == "unknown-parent" else None)
+    monkeypatch.setattr(runner, "os", SimpleNamespace(getpgid=own, killpg=signal_group))
+    monkeypatch.setattr(runner, "signal", SimpleNamespace(SIGTERM=15, SIGKILL=9))
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=Mock(side_effect=[0, 0, 100]),
+                                                        sleep=lambda _: None))
+    child = SimpleNamespace(pid=881, wait=Mock(side_effect=subprocess.TimeoutExpired("owned", 1) if reap_fails else None))
+    if reap_fails:
+        with pytest.raises(RuntimeError, match="Failed to reap child"):
+            runner._kill_process_group(child, 881)
+    else:
+        runner._kill_process_group(child, 881)
+    child.wait.assert_called_once_with(timeout=1.0)
+    if group_state == "own":
+        assert signals == []
+    elif group_state in {"live", "unknown-parent"}:
+        assert signals[0] == 15 and signals[-1] == 9
+
+
+@pytest.mark.parametrize("available", ["killpg", "getpgid", "neither"])
+def test_missing_process_group_api_rejects_benchmark_platform(evidence, monkeypatch, available):
+    from types import SimpleNamespace
+    runner, _, _ = evidence
+    attrs = {available: lambda *args: None} if available != "neither" else {}
+    monkeypatch.setattr(runner, "os", SimpleNamespace(**attrs))
+    with pytest.raises(RuntimeError, match="Cannot guarantee safe"):
+        runner._ensure_process_group_support()

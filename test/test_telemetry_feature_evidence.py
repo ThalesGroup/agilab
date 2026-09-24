@@ -304,3 +304,53 @@ def test_workflow_stages_execute_in_order(tmp_path, adapter, monkeypatch):
     for stage in stages:
         exec(compile(stage["C"], "lab_stages.toml", "exec"), namespace)
     assert namespace["feature_verification"]["replay"] == "passed"
+
+
+def test_verify_cli_checks_recorded_bundle_without_optional_engine(integrity_bundle, capsys):
+    assert example.main(["--verify", "--output-dir", str(integrity_bundle)]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["artifact_integrity"] == "passed"
+    assert result["replay"] == "not_run"
+    assert result["run_id"]
+
+
+def test_verify_cli_reports_missing_bundle_without_success_output(tmp_path, capsys):
+    with pytest.raises(SystemExit) as failure:
+        example.main(["--verify", "--output-dir", str(tmp_path / "missing")])
+    assert failure.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Telemetry feature evidence:" in captured.err
+
+
+@pytest.mark.parametrize("field,value,reason", [
+    ("primitive_definitions", [], "no primitives"),
+    ("primitive_definitions", {"invalid": 42}, "invalid primitive"),
+    ("feature_definitions", {}, "no features"),
+    ("feature_definitions", {"invalid": 42}, "unsupported feature type"),
+    ("feature_definitions", {"invalid": {"type": "UntrustedFeature"}}, "unsupported feature type"),
+])
+def test_definition_deserialization_rejects_invalid_structure(integrity_bundle, field, value, reason):
+    definitions_path = next(integrity_bundle.glob("*definitions*.json"))
+    saved = json.loads(definitions_path.read_text())
+    saved[field] = value
+    class NoDeserialization:
+        def load_features(self, *args):
+            pytest.fail("malformed definitions reached deserialization")
+    with pytest.raises(ValueError, match=reason):
+        example._load_definitions(example._json_bytes(saved), NoDeserialization())
+
+
+def test_run_identity_must_match_inventory_even_when_files_are_intact(integrity_bundle):
+    path = integrity_bundle / "feature_manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["run_id"] = "0" * 64
+    path.write_bytes(example._json_bytes(manifest))
+    with pytest.raises(ValueError, match="Run id"):
+        example.verify_evidence(integrity_bundle)
+
+
+def test_manifest_json_must_be_an_object(integrity_bundle):
+    (integrity_bundle / "feature_manifest.json").write_text("[]")
+    with pytest.raises(ValueError, match="JSON object"):
+        example.verify_evidence(integrity_bundle)

@@ -623,3 +623,156 @@ def test_energy_core_cli_emits_structured_errors(energy_contract, monkeypatch, c
     else:
         core._main()
         assert json.loads(capsys.readouterr().out) == {"error": "RuntimeError: solver unavailable"}
+
+
+@pytest.mark.parametrize("files,expected", [
+    ({"/sys/fs/cgroup/cpu.max": "150000 100000"}, 1),
+    ({"/sys/fs/cgroup/cpu.max": "max 100000",
+      "/sys/fs/cgroup/cpu/cpu.cfs_quota_us": "250000",
+      "/sys/fs/cgroup/cpu/cpu.cfs_period_us": "100000"}, 2),
+    ({"/sys/fs/cgroup/cpu.max": "bad", "/sys/fs/cgroup/cpu/cpu.cfs_quota_us": "-1",
+      "/sys/fs/cgroup/cpu/cpu.cfs_period_us": "100000"}, 4),
+    ({"/sys/fs/cgroup/cpu.max": "", "/sys/fs/cgroup/cpu/cpu.cfs_quota_us": "100",
+      "/sys/fs/cgroup/cpu/cpu.cfs_period_us": "0"}, 4),
+])
+def test_energy_cpu_limits_respect_cgroup_caps_and_ignore_unlimited_or_malformed_records(energy_contract, monkeypatch, files, expected):
+    import io
+    import os
+    core, _, _, _ = energy_contract
+    monkeypatch.delenv("CPU_CORES", raising=False)
+    monkeypatch.setattr(os, "cpu_count", lambda: 8)
+    monkeypatch.setattr(os, "sched_getaffinity", lambda pid: set(range(6)), raising=False)
+    def read_fixture(path, *args, **kwargs):
+        if str(path) not in files:
+            raise FileNotFoundError(path)
+        return io.StringIO(files[str(path)])
+    monkeypatch.setattr(core, "open", read_fixture, raising=False)
+    result = core.cpu_limits()
+    assert result["effective_cpus"] == expected
+    assert 8.0 in result["observed_caps"]
+    assert 6.0 in result["observed_caps"]
+
+
+@pytest.mark.parametrize("allowance", ["0", "-1", "invalid"])
+def test_energy_cpu_limits_reject_invalid_operator_allowance(energy_contract, monkeypatch, allowance):
+    import os
+    from unittest.mock import Mock
+    core, _, _, _ = energy_contract
+    monkeypatch.setenv("CPU_CORES", allowance)
+    monkeypatch.setattr(os, "cpu_count", lambda: 2)
+    monkeypatch.setattr(os, "sched_getaffinity", Mock(side_effect=OSError("unavailable")), raising=False)
+    monkeypatch.setattr(core, "open", Mock(side_effect=FileNotFoundError()), raising=False)
+    with pytest.raises(ValueError, match="CPU_CORES invalid"):
+        core.cpu_limits()
+
+
+@pytest.mark.parametrize("host_failure", [False, True])
+def test_energy_cpu_limits_default_to_one_when_platform_cannot_report_capacity(energy_contract, monkeypatch, host_failure):
+    import os
+    from unittest.mock import Mock
+    core, _, _, _ = energy_contract
+    monkeypatch.delenv("CPU_CORES", raising=False)
+    monkeypatch.setattr(os, "cpu_count", Mock(return_value=None, side_effect=OSError("unavailable") if host_failure else None))
+    monkeypatch.setattr(os, "sched_getaffinity", Mock(side_effect=OSError("unavailable")), raising=False)
+    monkeypatch.setattr(core, "open", Mock(side_effect=FileNotFoundError()), raising=False)
+    assert core.cpu_limits() == {"effective_cpus": 1, "observed_caps": []}
+
+
+@pytest.mark.parametrize("failure", ["before-sequential", "before-parallel", "sequential-child", "parallel-child"])
+def test_energy_benchmark_stops_at_failed_phase_and_releases_lock(energy_contract, monkeypatch, failure):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    _, runner, settings, _ = energy_contract
+    batch = [dict(settings) for _ in range(min(runner._VALID_BATCH_LENGTHS))]
+    monkeypatch.setattr(runner, "cpu_limits", lambda: {"effective_cpus": 2})
+    ticks = [0, runner._TOTAL_BUDGET + 1] if failure == "before-sequential" else [0, 0, runner._TOTAL_BUDGET + 1] if failure == "before-parallel" else [0, 0, 0]
+    monkeypatch.setattr(runner, "time", SimpleNamespace(perf_counter=Mock(side_effect=ticks)))
+    replies = [("{}", .1, failure != "sequential-child"), ("{}", .1, failure != "parallel-child")]
+    launch = Mock(side_effect=replies)
+    monkeypatch.setattr(runner, "_launch_child_safe", launch)
+    message = "budget exhausted" if failure.startswith("before") else failure.replace("-", " ") + " failed"
+    with pytest.raises(RuntimeError, match=message):
+        runner.run_benchmark(batch, workers=2)
+    assert launch.call_count == {"before-sequential": 0, "before-parallel": 1, "sequential-child": 1, "parallel-child": 2}[failure]
+    assert runner._lock.acquire(blocking=False)
+    runner._lock.release()
+
+
+@pytest.mark.parametrize("entrypoint", ["run_scenario", "run_benchmark"])
+def test_energy_concurrent_run_is_rejected_without_launch(energy_contract, monkeypatch, entrypoint):
+    from unittest.mock import Mock
+    _, runner, settings, _ = energy_contract
+    launch = Mock(side_effect=AssertionError("must not launch"))
+    monkeypatch.setattr(runner, "_launch_child_safe", launch)
+    assert runner._lock.acquire(blocking=False)
+    try:
+        with pytest.raises(RuntimeError, match="in progress"):
+            runner.run_scenario(settings) if entrypoint == "run_scenario" else runner.run_benchmark([], 1)
+    finally:
+        runner._lock.release()
+    launch.assert_not_called()
+
+
+@pytest.mark.parametrize("solar,shedding", [(0, False), (10, False), (0, True), (10, True)])
+def test_energy_formulation_lists_only_enabled_optional_sources(energy_contract, solar, shedding):
+    core, _, settings, _ = energy_contract
+    settings.update(solar_capacity=solar, allow_shedding=shedding)
+    text = core.model_artifact_text(settings)
+    assert ("p (solar):" in text) is bool(solar)
+    assert ("p (shedding):" in text) is shedding
+    assert "Power balance:" in text
+
+
+@pytest.mark.parametrize("failure", ["optimize", "no-incumbent", "infeasible", "extract", "physics"])
+def test_solver_boundary_failures_never_publish_feasible_dispatch(energy_contract, monkeypatch, failure):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    core, _, settings, _ = energy_contract
+    highs = SimpleNamespace(SolutionStatus=SimpleNamespace(kSolutionStatusFeasible=1),
+        HighsModelStatus=SimpleNamespace(kOptimal=10, kInfeasible=20))
+    monkeypatch.setitem(sys.modules, "highspy", highs)
+    incumbent = failure in {"extract", "physics"}
+    info = SimpleNamespace(valid=incumbent, primal_solution_status=1,
+        objective_function_value=float("nan"), mip_gap=float("nan"), mip_dual_bound=float("nan"))
+    solver = SimpleNamespace(getInfo=lambda: info, getSolution=lambda: SimpleNamespace(value_valid=incumbent),
+        getModelStatus=lambda: 20 if failure == "infeasible" else 10,
+        modelStatusToString=lambda value: "synthetic status")
+    optimize = Mock(side_effect=RuntimeError("backend unavailable") if failure == "optimize" else None)
+    network = SimpleNamespace(optimize=optimize, model=SimpleNamespace(solver_model=solver))
+    demand = core._demand_profile(settings["hours"], settings["demand_multiplier"])
+    solar = core._solar_profile(settings["hours"])
+    monkeypatch.setattr(core, "_build_network", lambda supplied: (network, demand, solar))
+    extract = Mock(side_effect=KeyError("missing solver variables") if failure == "extract" else None,
+        return_value=(0, np.zeros(len(demand)), np.zeros(len(demand)), np.zeros(len(demand)), np.zeros(len(demand))))
+    monkeypatch.setattr(core, "_extract_solutions", extract)
+    result = core.solve_scenario(settings)
+    assert result["status"] == ("infeasible" if failure == "infeasible" else "error")
+    assert result["objective"] is None
+    assert result["dispatch"] == []
+    assert result["modules"] is None
+    assert result["solver"]["threads"] == 1
+    assert result["solver"]["gap"] is None
+    assert result["solver"]["bound"] is None
+    if failure not in {"extract", "physics"}:
+        extract.assert_not_called()
+    if failure == "optimize":
+        assert "backend unavailable" in result["error"]
+    if failure == "extract":
+        assert "solution extraction failed" in result["error"]
+
+
+@pytest.mark.parametrize("field", ["demand", "solar_available"])
+@pytest.mark.parametrize("corruption", ["short", "nan", "text"])
+def test_infeasible_evidence_still_requires_complete_finite_input_profiles(energy_contract, field, corruption):
+    _, runner, settings, feasible = energy_contract
+    result = copy.deepcopy(feasible)
+    result.update(status="infeasible", solver={"incumbent": False},
+                  objective=None, modules=None, capacity_mw=None)
+    for name in ("dispatch", "active_modules", "solar", "shed", "startup", "shutdown"):
+        result[name] = []
+    if corruption == "short":
+        result[field] = result[field][:-1]
+    else:
+        result[field][0] = float("nan") if corruption == "nan" else "unknown"
+    with pytest.raises(ValueError, match=field):
+        runner._validate_physics(result, settings)

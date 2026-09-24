@@ -529,3 +529,52 @@ def test_failed_evaluation_publication_cleans_temp_and_preserves_existing_eviden
     assert not (root / "new-plan.json").exists()
     assert not list(root.glob(".skill-evaluation-*"))
     assert json.loads((root / "plan.json").read_text()) == plan
+
+
+@pytest.mark.parametrize("change", ["non_list_cases", "unplanned_check"])
+def test_invalid_grader_contract_is_preserved_as_failed_verifiable_receipt(frozen, change):
+    root, _ = frozen
+    path = run_fixture(frozen)
+    def corrupt(result):
+        if change == "non_list_cases":
+            result["cases"] = {}
+        else:
+            result["cases"][0]["checks"]["unplanned"] = {"status":"passed", "evidence":"outside frozen plan"}
+    write_observations(path, corrupt)
+    receipt = evaluation.create_evaluation_receipt(root=root, plan_path="plan.json", agent_run=path)
+    assert receipt["summary"]["status"] == "failed"
+    assert receipt["summary"]["checks"]["passed"] == 0
+    assert "list" in receipt["observation_error"] if change == "non_list_cases" else "unplanned check" in receipt["observation_error"]
+    evaluation.persist_evaluation(root, "receipt.json", receipt)
+    assert evaluation.verify_evaluation_receipt(root=root, receipt_path="receipt.json")["verification"] == "passed"
+
+
+@pytest.mark.parametrize("change", [
+    {"kind":"other"}, {"schema_version":True}, {"schema_version":2},
+    {"status":"pass", "returncode":1}, {"status":"fail", "returncode":0},
+])
+def test_receipt_rejects_wrong_run_schema_or_contradictory_terminal_result(frozen, change):
+    root, _ = frozen
+    path = run_fixture(frozen)
+    payload = json.loads(path.read_text())
+    payload.update(change)
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="agent-run v1|contradicts"):
+        evaluation.create_evaluation_receipt(root=root, plan_path="plan.json", agent_run=path)
+
+
+def test_plan_cli_persists_frozen_inputs_and_prints_digest(frozen, capsys):
+    root, _ = frozen
+    result = evaluation.main([
+        "--root", str(root), "plan", "--skill", "skill", "--fixtures", "fixtures.json",
+        "--grader", "grader.py", "--runtime", "python", "--runtime-version", "3",
+        "--model", "not_used", "--mode", "deterministic_fixture", "--output", "cli-plan.json",
+    ])
+    assert result == 0
+    report = json.loads(capsys.readouterr().out)
+    stored = json.loads((root / "cli-plan.json").read_text())
+    assert report["plan_sha256"] == stored["sha256"]
+    assert {case["id"]: set(case["checks"]) for case in stored["cases"]} == {
+        case["id"]: set(case["checks"])
+        for case in json.loads((root / "fixtures.json").read_text())["cases"]
+    }

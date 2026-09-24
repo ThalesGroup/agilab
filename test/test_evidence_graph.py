@@ -483,3 +483,34 @@ def test_graph_cli_reports_excessive_json_nesting(tmp_path, capsys):
     path.write_text("[" * 10000 + "0" + "]" * 10000)
     assert module.main(["--manifest", str(path)]) == 1
     assert "nesting" in json.loads(capsys.readouterr().out)["error"]
+
+
+@pytest.mark.parametrize(("evidence", "message"), [
+    ([], "nonempty list"), ({}, "nonempty list"), ([None], "contain objects"),
+])
+def test_graph_explanation_rejects_missing_relationship_provenance(evidence, message):
+    module = _load_module()
+    graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    graph["edges"][0]["evidence"] = evidence
+    issues = module.validate_evidence_graph(graph)
+    assert any(message in issue for issue in issues)
+    with pytest.raises(ValueError, match="Invalid evidence graph"):
+        module.explain_evidence_node(graph, graph["nodes"][0]["id"])
+
+
+def test_graph_explanation_rejects_unknown_direction():
+    module = _load_module()
+    graph = module.build_evidence_graph_from_workflow_manifest(_sample_manifest())
+    with pytest.raises(ValueError, match="Direction must be incoming or outgoing"):
+        module.explain_evidence_node(graph, graph["nodes"][0]["id"], direction="both")
+
+
+@pytest.mark.parametrize(("payload", "message"), [
+    ("[]", "JSON object"), (" " * (4 * 1024 * 1024 + 1), "4 MiB inspection limit"),
+])
+def test_graph_cli_rejects_nonobject_or_oversized_manifest(tmp_path, capsys, payload, message):
+    module = _load_module()
+    path = tmp_path / "manifest.json"
+    path.write_text(payload)
+    assert module.main(["--manifest", str(path)]) == 1
+    assert message in json.loads(capsys.readouterr().out)["error"]

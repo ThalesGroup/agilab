@@ -277,3 +277,37 @@ def test_changed_surface_similarity_requires_explicit_acknowledgement(tmp_path):
     result = module.validate_changed_surfaces(repo_root=tmp_path, changed_paths=changed, catalog_path=catalog, similarity_threshold=1)
     assert result["status"] == "pass"
     assert result["errors"] == {}
+
+
+def test_changed_project_and_packaged_page_inventory_uses_real_surface_roots(tmp_path, monkeypatch):
+    import importlib
+    module = importlib.import_module("agilab.reuse.reuse_catalog")
+    project = tmp_path / module.BUILTIN_PROJECTS_REL / "demo_project"
+    page = tmp_path / module.APPS_PAGES_REL / "view_demo"
+    for path in (project, page):
+        path.mkdir(parents=True)
+        (path / "pyproject.toml").write_text('[project]\nname="demo"')
+    catalog = tmp_path / "reuse_catalog.toml"
+    rows = []
+    for kind, name in [("project", "demo_project"), ("page", "view_demo"), ("page", "deleted_view")]:
+        rows.append(f'[[{kind}]]\nid="{name}"\ntitle="unique"\npurpose="unique"\nwhen_to_use="unique"\n'
+                    'tags=["unique"]\ninputs=["input"]\nreuse_policy="reuse"\nreuse_decision="reuse"\nreuse_rationale="existing"\n')
+    catalog.write_text("\n".join(rows))
+    changed = [str(module.BUILTIN_PROJECTS_REL / "demo_project" / "main.py"),
+               str(module.APPS_PAGES_REL / "view_demo" / "page.py"),
+               str(module.APPS_PAGES_REL / "deleted_view.py"),
+               str(module.BUILTIN_PROJECTS_REL / "README.md")]
+    monkeypatch.setitem(module.validate_changed.__globals__, "git_changed_paths", lambda root, base_ref: tuple(changed))
+    result = module.validate_changed(repo_root=tmp_path, catalog_path=catalog, similarity_threshold=100)
+    assert result["changed_surfaces"] == ["page:deleted_view", "page:view_demo", "project:demo_project"]
+    assert result["summary"]["changed_path_count"] == 4
+    assert "missing_catalog_entries" not in result["errors"]
+    assert "unacknowledged_similarity" not in result["errors"]
+
+
+def test_empty_reuse_query_does_not_recommend_arbitrary_catalog_entries(tmp_path):
+    import importlib
+    module = importlib.import_module("agilab.reuse.reuse_catalog")
+    catalog = tmp_path / "reuse_catalog.toml"
+    catalog.write_text('schema="agilab.reuse_catalog.v1"')
+    assert module.suggest_reuse(query="", catalog_path=catalog) == ()

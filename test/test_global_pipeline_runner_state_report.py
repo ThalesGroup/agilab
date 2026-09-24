@@ -627,3 +627,69 @@ def test_required_durability_failure_preserves_existing_runner_state(monkeypatch
         module._write_runner_state_atomic(path, {"generation": 2}, require_directory_fsync=True)
     assert path.read_text() == '{"generation": 1}'
     assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_expired_transaction_cannot_commit_after_lock_release(tmp_path):
+    module = _load_core_module()
+    path = tmp_path / "runner-state.json"
+    module.write_runner_state(path, {"generation":1})
+    with module.runner_state_transaction(path) as transaction:
+        assert transaction.state == {"generation":1}
+    with pytest.raises(RuntimeError, match="no longer active"):
+        transaction.commit({"generation":2})
+    assert module.load_runner_state(path) == {"generation":1}
+
+
+def test_required_postrename_durability_failure_preserves_visible_state_but_blocks_evidence(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation":1}')
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: True)
+    monkeypatch.setattr(implementation, "_fsync_runner_state_directory", lambda path: False)
+    with pytest.raises(module.RunnerStateDurabilityError):
+        module._write_runner_state_atomic(path, {"generation":2}, require_directory_fsync=True)
+    assert module.load_runner_state(path) == {"generation":2}
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_atomic_writer_closes_descriptor_if_stream_construction_fails(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation":1}')
+    closed = []
+    real_close = implementation.os.close
+    def fail_open(fd, *args, **kwargs):
+        raise OSError("stream construction failed")
+    def close(fd):
+        closed.append(fd)
+        real_close(fd)
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: True)
+    monkeypatch.setattr(implementation.os, "fdopen", fail_open)
+    monkeypatch.setattr(implementation.os, "close", close)
+    with pytest.raises(OSError, match="stream construction failed"):
+        module._write_runner_state_atomic(path, {"generation":2})
+    assert len(closed) == 1
+    assert module.load_runner_state(path) == {"generation":1}
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_runner_state_sharing_denials_have_bounded_retry(monkeypatch, windows):
+    from types import SimpleNamespace
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    clock = iter([0.0, 0.1, 0.6])
+    calls, delays = [], []
+    error = PermissionError("sharing denied")
+    def denied():
+        calls.append(True)
+        raise error
+    monkeypatch.setattr(implementation, "_is_windows", lambda:windows)
+    monkeypatch.setattr(implementation, "time", SimpleNamespace(monotonic=lambda:next(clock), sleep=delays.append))
+    with pytest.raises(PermissionError) as raised:
+        implementation._run_with_windows_file_sharing_retry(denied)
+    assert raised.value is error
+    assert len(calls) == (2 if windows else 1)
+    assert delays == ([0.01] if windows else [])

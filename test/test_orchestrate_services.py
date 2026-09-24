@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import pytest
 from copy import deepcopy
 import importlib
 from types import SimpleNamespace
@@ -996,7 +997,8 @@ def test_render_service_panel_health_gate_skips_non_mapping_worker_health_rows(m
     _placeholder_with_dataframe(fake_st)
 
 
-def test_render_service_panel_handles_status_error_and_cached_health_failures(monkeypatch, tmp_path):
+@pytest.mark.parametrize("evidence_failure", ["none", "report", "initialization"])
+def test_render_service_panel_handles_status_error_and_cached_health_failures(monkeypatch, tmp_path, evidence_failure):
     session_state = _SessionState(
         {
             "args_serialized": "foo=1",
@@ -1012,6 +1014,14 @@ def test_render_service_panel_handles_status_error_and_cached_health_failures(mo
         "DataFrame",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(ValueError("df boom")),
     )
+
+    if evidence_failure != "none":
+        operation = "append_run_process" if evidence_failure == "initialization" else "write_run_report"
+
+        def deny_evidence_write(*args, **kwargs):
+            raise OSError("evidence directory is read-only")
+
+        monkeypatch.setattr(orchestrate_services.run_markdown_evidence, operation, deny_evidence_write)
 
     deps = orchestrate_services.OrchestrateServiceDeps(
         reset_traceback_skip=lambda: None,
@@ -1054,12 +1064,21 @@ def test_render_service_panel_handles_status_error_and_cached_health_failures(mo
     )
 
     assert fake_st._placeholders[0].last_code is not None
+    if evidence_failure == "initialization":
+        assert any("evidence could not be initialized" in msg for msg in fake_st._error_messages)
+        assert session_state.get("service_status_cache") != "stopped"
+        return
     assert session_state["service_status_cache"] == "stopped"
     assert session_state["service_health_cache"] == []
     assert any("completed with status 'stopped'" in msg for msg in fake_st._success_messages)
 
 
-def test_render_service_panel_handles_start_failure_and_health_parse_failure(monkeypatch, tmp_path):
+@pytest.mark.parametrize("report_write_failure", [False, True])
+def test_render_service_panel_handles_start_failure_and_health_parse_failure(monkeypatch, tmp_path, report_write_failure):
+    if report_write_failure:
+        def deny_report(*args, **kwargs):
+            raise OSError("report directory is read-only")
+        monkeypatch.setattr(orchestrate_services.run_markdown_evidence, "write_run_report", deny_report)
     session_state = _SessionState(
         {
             "args_serialized": "foo=1",

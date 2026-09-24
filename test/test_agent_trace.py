@@ -443,3 +443,52 @@ def test_disappearing_lock_is_not_declared_stale(tmp_path, monkeypatch):
     implementation = sys.modules[module._lock_is_stale.__module__]
     monkeypatch.setattr(implementation, "_lock_owner_alive", lambda payload: False)
     assert module._lock_is_stale(tmp_path / "removed", now=100000) is False
+
+
+@pytest.mark.parametrize("ownership", ["missing_meta", "missing_run_id"])
+def test_existing_trace_without_valid_ownership_cannot_be_adopted(tmp_path, ownership):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.initialize()
+    store.append("session_start")
+    original = store.events_path.read_bytes()
+    if ownership == "missing_meta":
+        store.meta_path.unlink()
+    else:
+        store.meta_path.write_text("{}")
+    with pytest.raises(FileExistsError, match="cannot be resumed"):
+        store.initialize()
+    assert store.events_path.read_bytes() == original
+
+
+def test_trace_pagination_rejects_modified_record_anchor(tmp_path):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.append("session_start", message="first marker")
+    store.append("tool_done", message="second marker")
+    first = module.trace_page(tmp_path, limit=1)
+    cursor = first["next_cursor"]
+    with store.events_path.open("r+b") as stream:
+        payload = stream.read()
+        stream.seek(0)
+        offset = payload.index(b"\n") + 1
+        anchor_start = max(0, offset - 64)
+        index = next(i for i in range(anchor_start, offset) if 48 <= payload[i] <= 57)
+        replacement = b"8" if payload[index:index+1] != b"8" else b"9"
+        stream.write(payload[:index] + replacement + payload[index+1:])
+    with pytest.raises(ValueError, match="Stale or invalid trace cursor"):
+        module.trace_page(tmp_path, cursor=cursor)
+
+
+def test_trace_pagination_skips_blank_records_and_retries_budget_deferred_record(tmp_path):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.append("session_start")
+    store.append("tool_done", metadata={"large": "x"*3000})
+    payload = store.events_path.read_bytes()
+    store.events_path.write_bytes(b"\n" + payload)
+    first = module.trace_page(tmp_path, limit=10, max_bytes=4096)
+    assert [event["sequence"] for event in first["events"]] == [1]
+    second = module.trace_page(tmp_path, cursor=first["next_cursor"], limit=10, max_bytes=8192)
+    assert [event["sequence"] for event in second["events"]] == [2]
+    assert second["events"][0]["metadata"]["large"] == "x"*3000
