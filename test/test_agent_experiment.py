@@ -333,3 +333,101 @@ def test_experiment_rejects_symlinked_root_and_output_parent(tmp_path):
     (root / "inside").symlink_to(root, target_is_directory=True)
     with pytest.raises(ValueError, match="files cannot use symlinks"):
         experiment.confined(root, "inside/output.json")
+
+
+@pytest.mark.parametrize("changed,value,message", [
+    ("files", [], "Select 1-256"),
+    ("entrypoint", "missing.py", "Select 1-256"),
+    ("grader", "candidate.py", "independent grader"),
+    ("outputs", [], "1-64 outputs"),
+    ("outputs", ["candidate.py"], "distinct"),
+    ("checks", [], "1-100 unique"),
+    ("checks", ["doubled", "doubled"], "unique"),
+    ("checks", ["invalid check"], "identifiers"),
+    ("checks", [1], "identifiers"),
+    ("timeout_seconds", True, "between 1 and 3600"),
+    ("timeout_seconds", 0, "between 1 and 3600"),
+    ("timeout_seconds", 3601, "between 1 and 3600"),
+    ("arguments", ["x"] * 65, "arguments exceed"),
+    ("arguments", [42], "arguments exceed"),
+    ("arguments", ["x" * 4097], "arguments exceed"),
+])
+def test_prepare_rejects_invalid_contract_before_creating_evidence(tmp_path, changed, value, message):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "candidate.py").write_text("pass")
+    (source / "grader.py").write_text("pass")
+    root = tmp_path / "evidence"
+    kwargs = dict(source_root=source, output_dir=root, files=["candidate.py", "grader.py"],
+                  entrypoint="candidate.py", grader="grader.py", outputs=["result.json"], checks=["doubled"])
+    kwargs[changed] = value
+    with pytest.raises(ValueError, match=message):
+        experiment.prepare_experiment(**kwargs)
+    assert not root.exists()
+
+
+def test_prepare_detects_source_mutation_during_snapshot_copy(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "candidate.py").write_text("pass")
+    (source / "grader.py").write_text("pass")
+    root = tmp_path / "evidence"
+    original_copy = experiment.shutil.copyfile
+    def corrupted_copy(src, dest):
+        result = original_copy(src, dest)
+        Path(dest).write_text("changed during snapshot")
+        return result
+    monkeypatch.setattr(experiment.shutil, "copyfile", corrupted_copy)
+    with pytest.raises(ValueError, match="Source changed while freezing"):
+        experiment.prepare_experiment(source_root=source, output_dir=root,
+            files=["candidate.py", "grader.py"], entrypoint="candidate.py", grader="grader.py",
+            outputs=["result.json"], checks=["doubled"])
+    assert not (root / "plan.json").exists()
+
+
+def test_prepare_input_budget_applies_before_publication(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "candidate.py").write_text("pass")
+    (source / "grader.py").write_text("pass")
+    root = tmp_path / "evidence"
+    monkeypatch.setattr(experiment, "MAX_INPUT_BYTES", 1)
+    with pytest.raises(ValueError, match="exceed 50 MiB"):
+        experiment.prepare_experiment(source_root=source, output_dir=root,
+            files=["candidate.py", "grader.py"], entrypoint="candidate.py", grader="grader.py",
+            outputs=["result.json"], checks=["doubled"])
+    assert not root.exists()
+
+
+@pytest.mark.parametrize("payload", [
+    {}, {"schema": "unsupported", "checks": {"doubled": True}},
+    {"schema": experiment.ACCEPTANCE_SCHEMA, "checks": []},
+    {"schema": experiment.ACCEPTANCE_SCHEMA, "checks": {"other": True}},
+    {"schema": experiment.ACCEPTANCE_SCHEMA, "checks": {"doubled": 1}},
+    {"schema": experiment.ACCEPTANCE_SCHEMA, "checks": {"doubled": "true"}},
+])
+def test_acceptance_requires_exact_boolean_check_contract(tmp_path, payload):
+    path = tmp_path / "acceptance.json"
+    path.write_text(json.dumps(payload))
+    assert experiment._acceptance({"checks": ["doubled"]}, path, 0) == {
+        "status": "insufficient_evidence", "checks": {"doubled": None}}
+
+
+@pytest.mark.parametrize("check_value,returncode,status", [(True, 0, "passed"), (False, 0, "failed"), (True, 1, "failed")])
+def test_acceptance_success_requires_both_grader_exit_and_check(tmp_path, check_value, returncode, status):
+    path = tmp_path / "acceptance.json"
+    path.write_text(json.dumps({"schema": experiment.ACCEPTANCE_SCHEMA, "checks": {"doubled": check_value}}))
+    assert experiment._acceptance({"checks": ["doubled"]}, path, returncode)["status"] == status
+
+
+def test_missing_or_symlinked_output_is_reported_missing(tmp_path):
+    workspace = tmp_path / "attempts" / "first" / "workspace"
+    workspace.mkdir(parents=True)
+    (workspace / "valid.json").write_text("{}")
+    external = tmp_path / "external.json"
+    external.write_text("{}")
+    (workspace / "escaped.json").symlink_to(external)
+    records, missing = experiment._output_records(tmp_path, {
+        "outputs": ["valid.json", "absent.json", "escaped.json"]}, "first")
+    assert [record["path"] for record in records] == ["attempts/first/workspace/valid.json"]
+    assert missing == ["absent.json", "escaped.json"]

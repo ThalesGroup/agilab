@@ -533,3 +533,93 @@ def test_failed_solver_protocol_releases_the_single_run_lock(energy_contract, mo
         runner.run_scenario(settings)
     assert runner._lock.acquire(blocking=False)
     runner._lock.release()
+
+@pytest.mark.parametrize("entrypoint", ["_child_main", "_cli_main"])
+@pytest.mark.parametrize("case", ["missing", "single-json", "single-settings", "batch-json", "batch-length", "batch-item", "workers"])
+def test_energy_child_cli_rejects_invalid_requests_before_pool_launch(
+    energy_contract, monkeypatch, capsys, entrypoint, case,
+):
+    import json
+    _, runner, settings, _ = energy_contract
+    requests = {
+        "missing": [], "single-json": ["--single", "{"],
+        "single-settings": ["--single", '{"hours": 0}'],
+        "batch-json": ["--batch", "{"], "batch-length": ["--batch", "[]"],
+        "batch-item": ["--batch", json.dumps([settings, settings, {"hours": 0}, settings])],
+        "workers": ["--batch", json.dumps([settings] * 4), "--workers", "9"],
+    }
+    monkeypatch.setattr(sys, "argv", ["energy_runner.py", *requests[case]])
+    monkeypatch.setattr(runner, "cpu_limits", lambda: {"effective_cpus": 4})
+    def forbidden(*args):
+        pytest.fail("invalid input must not reach the worker pool")
+    monkeypatch.setattr(runner, "_child_run_batch", forbidden)
+    with pytest.raises(SystemExit) as error:
+        getattr(runner, entrypoint)()
+    assert error.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert json.loads(captured.err)["error"]
+
+
+@pytest.mark.parametrize("entrypoint", ["_child_main", "_cli_main"])
+@pytest.mark.parametrize("batch_mode", [False, True])
+def test_energy_child_cli_forwards_validated_scenarios_and_worker_count(
+    energy_contract, monkeypatch, capsys, entrypoint, batch_mode,
+):
+    import json
+    _, runner, settings, _ = energy_contract
+    requests = ["--batch", json.dumps([settings] * 4), "--workers", "2"] if batch_mode else ["--single", json.dumps(settings)]
+    monkeypatch.setattr(sys, "argv", ["energy_runner.py", *requests])
+    monkeypatch.setattr(runner, "cpu_limits", lambda: {"effective_cpus": 4})
+    calls = []
+    def run(items, workers):
+        calls.append((items, workers))
+        return {"rows": [], "workers": workers}
+    monkeypatch.setattr(runner, "_child_run_batch", run)
+    getattr(runner, entrypoint)()
+    expected_count = 4 if batch_mode else 1
+    assert calls == [([{"case": i, "settings": settings} for i in range(expected_count)], 2 if batch_mode else 1)]
+    output = capsys.readouterr()
+    assert json.loads(output.out) == {"rows": [], "workers": 2 if batch_mode else 1}
+    assert output.err == ""
+
+
+def test_energy_child_cli_rejects_conflicting_modes(energy_contract, monkeypatch, capsys):
+    import json
+    _, runner, settings, _ = energy_contract
+    monkeypatch.setattr(sys, "argv", ["energy_runner.py", "--single", json.dumps(settings), "--batch", json.dumps([settings] * 4)])
+    with pytest.raises(SystemExit) as error:
+        runner._cli_main()
+    assert error.value.code == 1
+    assert "mutually exclusive" in json.loads(capsys.readouterr().err)["error"]
+
+
+def test_energy_core_cli_serializes_finite_evidence_and_numpy_scalars(
+    energy_contract, monkeypatch, capsys,
+):
+    import json
+    core, _, settings, _ = energy_contract
+    monkeypatch.setattr(sys, "argv", ["energy_core.py", "--settings", json.dumps(settings)])
+    result = {"nested": [float("nan"), float("inf"), 1.25, np.int64(7),
+                         np.float32(2.5), np.float32("nan"), ("label", True)]}
+    monkeypatch.setattr(core, "solve_scenario", lambda supplied: result)
+    core._main()
+    assert json.loads(capsys.readouterr().out) == {"nested": [None, None, 1.25, 7, 2.5, None, ["label", True]]}
+
+
+@pytest.mark.parametrize("bad_json", [False, True])
+def test_energy_core_cli_emits_structured_errors(energy_contract, monkeypatch, capsys, bad_json):
+    import json
+    core, _, settings, _ = energy_contract
+    monkeypatch.setattr(sys, "argv", ["energy_core.py", "--settings", "{" if bad_json else json.dumps(settings)])
+    def fail(settings):
+        raise RuntimeError("solver unavailable")
+    monkeypatch.setattr(core, "solve_scenario", fail)
+    if bad_json:
+        with pytest.raises(SystemExit) as error:
+            core._main()
+        assert error.value.code == 1
+        assert "invalid JSON" in json.loads(capsys.readouterr().err)["error"]
+    else:
+        core._main()
+        assert json.loads(capsys.readouterr().out) == {"error": "RuntimeError: solver unavailable"}

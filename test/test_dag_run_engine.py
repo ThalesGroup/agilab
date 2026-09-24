@@ -1465,3 +1465,200 @@ def test_dag_engine_loads_saved_draft_and_dispatches_first_runnable_stage(tmp_pa
     assert dispatched.dispatched_unit_id == "queue"
     assert reloaded["summary"]["running_unit_ids"] == ["queue"]
     assert reloaded["summary"]["blocked_unit_ids"] == ["relay"]
+
+
+@pytest.mark.parametrize("proc_text, read_error, expected", [
+    ("42 (worker (nested)) " + " ".join(str(value) for value in range(20)), None, "procfs:19"),
+    ("truncated", None, ""),
+    ("", FileNotFoundError("gone"), None),
+    ("", PermissionError("procfs unavailable"), ""),
+])
+def test_linux_process_incarnation_requires_readable_start_time(proc_text, read_error, expected, monkeypatch):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    probes = []
+    monkeypatch.setattr(module, "os", SimpleNamespace(name="posix", kill=lambda pid, sig: probes.append((pid, sig))))
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    class ProcPath:
+        def __init__(self, path):
+            assert path == "/proc/42/stat"
+        def read_text(self, **kwargs):
+            if read_error:
+                raise read_error
+            return proc_text
+    monkeypatch.setattr(module, "Path", ProcPath)
+    assert module._process_incarnation(42) == expected
+    assert probes == [(42, 0)]
+
+
+@pytest.mark.parametrize("outcome", ["dead", "permission", "ps_error", "vanished", "unknown"])
+def test_process_incarnation_preserves_dead_vs_unknown_without_signalling_processes(outcome, monkeypatch):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    probes = []
+    def probe(pid, sig):
+        probes.append((pid, sig))
+        if outcome == "dead" or (outcome == "vanished" and len(probes) == 2):
+            raise ProcessLookupError()
+        if outcome == "permission":
+            raise PermissionError()
+    def ps(*args, **kwargs):
+        if outcome == "ps_error":
+            raise subprocess.TimeoutExpired(args[0], 2)
+        return SimpleNamespace(returncode=1, stdout="")
+    monkeypatch.setattr(module, "os", SimpleNamespace(name="posix", kill=probe))
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="darwin"))
+    monkeypatch.setattr(module, "subprocess", SimpleNamespace(run=ps, SubprocessError=subprocess.SubprocessError))
+    assert module._process_incarnation(42) == (None if outcome in {"dead", "vanished"} else "")
+    assert all(sig == 0 for pid, sig in probes)
+
+
+@pytest.mark.parametrize("owner, incarnation, expected", [
+    ({}, "live", None),
+    ({"pid": "invalid", "thread_id": 1, "process_incarnation": "live"}, "live", None),
+    ({"pid": 123, "thread_id": 1}, "live", None),
+    ({"pid": 123, "thread_id": 1, "process_incarnation": "live"}, "", None),
+    ({"pid": 123, "thread_id": 1, "process_incarnation": "live"}, None, False),
+    ({"pid": 123, "thread_id": 1, "process_incarnation": "live"}, "reused-pid", False),
+    ({"pid": 123, "thread_id": 1, "process_incarnation": "live"}, "live", True),
+])
+def test_execution_owner_liveness_never_confuses_unknown_with_dead(owner, incarnation, expected, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    monkeypatch.setattr(module, "_CURRENT_PROCESS_PID", 999)
+    monkeypatch.setattr(module, "os", SimpleNamespace(getpid=lambda: 999))
+    monkeypatch.setattr(module, "_process_incarnation", lambda pid: incarnation)
+    owner = {"host": module.socket.gethostname(), **owner}
+    assert module._execution_owner_liveness(tmp_path / "state.json", {
+        "attempt_id": "attempt", "owner": owner,
+    }) is expected
+
+
+def test_current_process_owner_requires_matching_registered_thread_and_start_proof(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    monkeypatch.setattr(module, "_CURRENT_PROCESS_PID", 42)
+    monkeypatch.setattr(module, "_CURRENT_PROCESS_INCARNATION", "start")
+    monkeypatch.setattr(module, "os", SimpleNamespace(getpid=lambda: 42))
+    monkeypatch.setattr(module, "_ACTIVE_EXECUTION_OWNERS", {})
+    monkeypatch.setattr(module, "_FINISHED_EXECUTION_OWNERS", set())
+    path = tmp_path / "state.json"
+    active = {"attempt_id": "attempt", "owner": {
+        "host": module.socket.gethostname(), "pid": 42, "thread_id": 7, "process_incarnation": "start",
+    }}
+    key = module._execution_owner_key(path, "attempt")
+    assert module._execution_owner_liveness(path, active) is None
+    module._ACTIVE_EXECUTION_OWNERS[key] = 8
+    assert module._execution_owner_liveness(path, active) is False
+    module._ACTIVE_EXECUTION_OWNERS[key] = 7
+    assert module._execution_owner_liveness(path, active) is True
+    module._FINISHED_EXECUTION_OWNERS.add(key)
+    assert module._execution_owner_liveness(path, active) is False
+    monkeypatch.setattr(module, "_CURRENT_PROCESS_INCARNATION", "")
+    with pytest.raises(RuntimeError, match="Could not prove"):
+        module._current_execution_owner()
+
+
+def test_claimed_tokens_require_exact_attempt_and_running_unit_state():
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    def unit(name, *, attempt="wanted", state="running", attempt_state="running", token="token"):
+        return {"id": name, "dispatch_status": state, "execution_attempt": {
+            "id": attempt, "status": attempt_state, "idempotency_token": token,
+        }}
+    state = {"units": [
+        unit("valid"), unit("old", attempt="old"), unit("completed", state="completed"),
+        unit("terminal", attempt_state="failed"), unit("blank", token=" "), unit(""),
+        {"id": "unclaimed"},
+    ]}
+    assert module._claimed_unit_tokens(state, "wanted") == {"valid": "token"}
+    assert module._active_unit_tokens({}) == {}
+    assert module._active_unit_tokens({"active_execution": {"attempt_id": "a", "unit_tokens": []}}) == {}
+    assert module._active_unit_tokens({"active_execution": {
+        "attempt_id": "a", "unit_tokens": {"good": "token", "": "ignored", "blank": ""},
+    }}) == {"good": "token"}
+
+
+@pytest.mark.parametrize("bad_claim, message", [
+    ("empty", "must claim at least one unique"),
+    ("duplicate", "duplicate per-unit idempotency"),
+])
+def test_execution_transaction_refuses_invalid_claim_without_persisting(bad_claim, message, tmp_path):
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    engine = module.DagRunEngine(
+        repo_root=Path.cwd(), lab_dir=tmp_path, dag_path=_sample_dag_path(Path.cwd()),
+        attempt_id_fn=lambda: "claim-contract",
+    )
+    state, state_path, _ = engine.load_or_create_state()
+    before = state_path.read_bytes()
+    def invalid_action(observed, attempt_id, persist_claim):
+        claim = deepcopy(observed)
+        if bad_claim == "duplicate":
+            for unit in claim["units"][:2]:
+                unit["dispatch_status"] = "running"
+                unit["execution_attempt"] = {
+                    "id": attempt_id, "status": "running", "idempotency_token": "duplicated-token",
+                }
+        persist_claim(claim)
+        pytest.fail("An invalid claim must never reach external execution")
+    with pytest.raises(RuntimeError, match=message):
+        engine._run_execution_state_transaction(state, action=invalid_action, trigger_action="test")
+    assert state_path.read_bytes() == before
+    assert "active_execution" not in state
+
+
+@pytest.mark.parametrize("reset", [False, True])
+def test_load_or_create_state_only_adopts_concurrent_creation_without_explicit_reset(reset, tmp_path, monkeypatch):
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    engine = module.DagRunEngine(
+        repo_root=Path.cwd(), lab_dir=tmp_path, dag_path=_sample_dag_path(Path.cwd()),
+    )
+    state, state_path, dag_path = engine.load_or_create_state()
+    snapshots = iter([(None, "missing"), (state, "concurrent")])
+    monkeypatch.setattr(module, "load_runner_state_snapshot", lambda path: next(snapshots))
+    @contextmanager
+    def conflict(*args, **kwargs):
+        raise module.RunnerStateConflictError(state_path, expected_revision="missing", actual_revision="concurrent")
+        yield
+    monkeypatch.setattr(module, "runner_state_write_transaction", conflict)
+    if reset:
+        with pytest.raises(module.RunnerStateConflictError):
+            engine.load_or_create_state(reset=True)
+    else:
+        restored, restored_path, restored_dag = engine.load_or_create_state()
+        assert restored is state
+        assert restored_path == state_path and restored_dag == dag_path
+
+
+@pytest.mark.parametrize("failure", ["double_claim", "changed_active_token", "changed_unit_token", "nonterminal"])
+def test_execution_finalization_keeps_exact_claim_recoverable_for_invalid_adapter_results(failure, tmp_path):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_run_engine")
+    engine = module.DagRunEngine(
+        repo_root=Path.cwd(), lab_dir=tmp_path, dag_path=_sample_dag_path(Path.cwd()),
+        attempt_id_fn=lambda: "invalid-finalization",
+    )
+    state, state_path, _ = engine.load_or_create_state()
+    unit_id = str(state["units"][0]["id"])
+    def invalid_action(observed, attempt_id, persist_claim):
+        claim = deepcopy(observed)
+        unit = claim["units"][0]
+        unit["dispatch_status"] = "running"
+        unit["execution_attempt"] = {"id": attempt_id, "status": "running", "idempotency_token": "exact-token"}
+        persist_claim(claim)
+        if failure == "double_claim":
+            persist_claim(claim)
+        final = deepcopy(claim)
+        if failure == "changed_active_token":
+            final["active_execution"]["unit_tokens"][unit_id] = "wrong-token"
+        elif failure == "changed_unit_token":
+            final["units"][0]["execution_attempt"]["idempotency_token"] = "wrong-token"
+            final["units"][0]["dispatch_status"] = "completed"
+        return SimpleNamespace(state=final)
+    expected = RuntimeError if failure == "double_claim" else module.RunnerStateAttemptConflictError
+    with pytest.raises(expected):
+        engine._run_execution_state_transaction(state, action=invalid_action, trigger_action="contract")
+    saved = module.load_runner_state(state_path)
+    assert saved["active_execution"]["status"] == "recovery_required"
+    assert saved["active_execution"]["unit_tokens"] == {unit_id: "exact-token"}
+    assert saved["active_execution"]["attempt_id"] == "invalid-finalization"
+    assert saved["units"][0]["dispatch_status"] == "running"

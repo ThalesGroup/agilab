@@ -4878,8 +4878,10 @@ def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monk
     )
 
 
-def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_path):
+@pytest.mark.parametrize("generation_mode", [pipeline_lab.GENERATION_MODE_SAFE_ACTIONS, pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET])
+def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_path, generation_mode):
     saved = []
+    autofix_calls = []
     runtime_root = tmp_path / "runtime_b"
     (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
@@ -4889,7 +4891,8 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
             "demo_new_q": "new generated stage",
         },
         buttons={"demo_add_stage_btn": True},
-        selectboxes={"demo_new_venv": str(runtime_root)},
+        selectboxes={"demo_new_venv": str(runtime_root),
+                     "demo_new_generation_mode": pipeline_lab.GENERATION_MODE_LABELS[generation_mode]},
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -4910,7 +4913,7 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         ask_gpt=lambda *_args, **_kwargs: ["", "new generated stage", "model", "print('new')", "detail"],
-        maybe_autofix_generated_code=lambda **_kwargs: ("print('fixed')", "fixed-model", "fixed-detail"),
+        maybe_autofix_generated_code=lambda **kwargs: autofix_calls.append(kwargs) or ("print('fixed')", "fixed-model", "fixed-detail"),
         save_stage=lambda *args, **kwargs: saved.append((args, kwargs)),
     )
     env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
@@ -4922,7 +4925,14 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
     assert args[2] == 1
     assert kwargs["venv_map"][1] == str(runtime_root)
     assert kwargs["engine_map"][1] == "agi.run"
-    assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == pipeline_lab.GENERATION_MODE_SAFE_ACTIONS
+    assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == generation_mode
+    if generation_mode == pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET:
+        assert len(autofix_calls) == 1
+        assert autofix_calls[0]["merged_code"] == "# detail\nprint('new')"
+        assert args[1][2:5] == ["fixed-model", "print('fixed')", "fixed-detail"]
+    else:
+        assert autofix_calls == []
+        assert args[1][3] == "print('new')"
     assert ("rerun", "called") in fake_st.messages
 
 
@@ -7244,3 +7254,106 @@ def test_multi_app_readiness_view_exposes_blocked_plan_and_next_action(monkeypat
     assert ("markdown", "**Plan readiness**") in fake_st.messages
     assert any("Next action:" in message for _, message in fake_st.messages)
     assert any("Run mode:" in message for _, message in fake_st.messages)
+
+
+@pytest.mark.parametrize("action", ["save_automation_settings", "suggest_stage_dependencies", "save_stage_dependencies"])
+def test_workflow_dependency_controls_persist_only_reviewed_changes(action, tmp_path, monkeypatch):
+    stages = [
+        {"id": "train", "Q": "Train", "C": "print('train')", "outputs": ["out/model"]},
+        {"id": "evaluate", "Q": "Evaluate", "C": "load('out/model')", "inputs": ["out/model"]},
+    ]
+    fake_st = _FakeStreamlit(
+        {"demo": [0, "", "", "", "", "", 0],
+         "demo__pipeline_stage_deps": "corrupt",
+         "demo__pipeline_deps_evaluate": ["train"]},
+        buttons={f"demo_{action}": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_a, **_k: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda env: [])
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_a, **_k: {})
+    automation = []
+    monkeypatch.setattr(pipeline_lab, "_persist_automation_preferences",
+                        lambda module, path, settings, **kwargs: automation.append(settings))
+    persisted = []
+    reruns = []
+    bumps = []
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_a, **_k: stages,
+        force_persist_stage=lambda module, path, index, entry: persisted.append((index, entry)),
+        rerun_fragment_or_app=lambda: reruns.append(True),
+        bump_history_revision=lambda: bumps.append(True),
+    )
+    env = SimpleNamespace(active_app=tmp_path / "demo_project", envars={}, app="demo_project")
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "demo_project", env, deps)
+    assert reruns == [True]
+    if action == "save_automation_settings":
+        assert len(automation) == 1
+        assert set(automation[0]) == {"profile", "max_workers"}
+        assert persisted == []
+    elif action == "suggest_stage_dependencies":
+        assert fake_st.session_state["demo__pipeline_stage_deps"] == {"train": [], "evaluate": ["train"]}
+        assert fake_st.session_state["demo__pipeline_deps_evaluate"] == ["train"]
+        assert persisted == [] and bumps == []
+    else:
+        assert [(index, entry["id"], entry["deps"]) for index, entry in persisted] == [
+            (0, "train", []), (1, "evaluate", ["train"]),
+        ]
+        assert bumps == [True]
+    assert all("deps" not in entry for entry in stages)
+
+
+def test_stale_snippet_cleanup_preserves_unrelated_selection_and_refuses_unknown_path_state(tmp_path, monkeypatch):
+    stale = tmp_path / "stale.py"
+    unrelated = tmp_path / "unrelated.py"
+    stale.write_text("stale", encoding="utf-8")
+    fake_st = _FakeStreamlit({"snippet_file": str(unrelated)})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    assert pipeline_lab._stale_snippet_paths_resolved([stale]) is False
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    assert fake_st.session_state["snippet_file"] == str(unrelated)
+    fake_st.session_state["snippet_file"] = str(tmp_path / "." / "stale.py")
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    assert "snippet_file" not in fake_st.session_state
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    stale.unlink()
+    assert pipeline_lab._stale_snippet_paths_resolved([stale]) is True
+    # Corrupt persisted session values must not authorize cleanup completion.
+    assert pipeline_lab._stale_snippet_paths_resolved([{"path": "invalid"}]) is False
+    assert pipeline_lab._stale_snippet_path_key({"path": "invalid"}) == "{'path': 'invalid'}"
+    pipeline_lab._rerun_after_stale_snippet_cleanup(SimpleNamespace())
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_workflow_cockpit_roots_survive_unavailable_share_methods(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    def unavailable():
+        raise OSError("share disconnected")
+    env = SimpleNamespace(app="", workflow_data_root_path=unavailable, share_root_path=unavailable, runenv=tmp_path)
+    roots = pipeline_lab._workflow_cockpit_input_roots(env, tmp_path, tmp_path / "stages.toml")
+    assert roots == [tmp_path, tmp_path / "home" / "localshare" / "agi"]
+
+
+@pytest.mark.parametrize("project_scope", [False, True])
+def test_workflow_graph_concurrent_state_conflict_reruns_before_rendering_stale_state(project_scope, tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit({
+        "conflict_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_PROJECT if project_scope else pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG,
+    })
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    def conflict(*args, **kwargs):
+        raise pipeline_lab.RunnerStateConflictError(tmp_path / "state.json", expected_revision="stale", actual_revision="current")
+    target = "_load_or_create_pipeline_stages_runner_state" if project_scope else "_load_or_create_global_runner_state"
+    monkeypatch.setattr(pipeline_lab, target, conflict)
+    monkeypatch.setattr(pipeline_lab, "_render_global_runner_state_view",
+                        lambda **kwargs: pytest.fail("stale state must not be rendered"))
+    pipeline_lab._render_global_runner_state_panel(
+        SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project"),
+        tmp_path, "conflict", pipeline_stages=[{"C": "print(1)"}] if project_scope else None,
+        stages_file=tmp_path / "lab_stages.toml",
+    )
+    assert any(kind == "warning" and "changed in another session" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+    assert not any(kind == "error" for kind, _ in fake_st.messages)

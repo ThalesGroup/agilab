@@ -5340,3 +5340,74 @@ def test_pytorch_playground_app_provider_and_package_docs(tmp_path: Path) -> Non
     assert "pytorch_playground_project" in readme
     assert "agi-app-pytorch-playground" in readme
     assert "generic app-agnostic analysis page" in readme
+
+@pytest.mark.parametrize("identity,expected", [
+    ("active", True), ("app-path", True), ("wrong-app", False),
+    ("name-only", True), ("sibling-root", False), ("direct-root", True), ("builtin-root", True),
+])
+def test_app_surface_environment_identity_does_not_reuse_other_checkout_settings(
+    monkeypatch, tmp_path, identity, expected,
+):
+    module = _load_app_surface_module("pytorch_surface_identity_contract_" + identity)
+    active = tmp_path / "apps" / "demo_project"
+    if identity == "builtin-root":
+        active = tmp_path / "apps" / "builtin" / "demo_project"
+    states = {
+        "active": SimpleNamespace(active_app=active),
+        "app-path": SimpleNamespace(app_path=active),
+        "wrong-app": SimpleNamespace(app="other_project", apps_path=active.parent),
+        "name-only": SimpleNamespace(app="demo_project"),
+        "sibling-root": SimpleNamespace(app="demo_project", apps_path=tmp_path / "other-apps"),
+        "direct-root": SimpleNamespace(app="demo_project", apps_path=active.parent),
+        "builtin-root": SimpleNamespace(app="demo_project", apps_path=tmp_path / "apps"),
+    }
+    try:
+        assert module._env_matches_active_app(states[identity], active) is expected
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+@pytest.mark.parametrize("matches", [False, True])
+def test_app_surface_only_uses_settings_owned_by_active_project(monkeypatch, tmp_path, matches):
+    module = _load_app_surface_module("pytorch_surface_settings_owner_contract")
+    active = tmp_path / "apps" / "demo_project"
+    custom = tmp_path / "custom-settings.toml"
+    env = SimpleNamespace(app="demo_project" if matches else "different_project",
+                          apps_path=active.parent, app_settings_file=custom)
+    seen = []
+    args = SimpleNamespace()
+    app_args = SimpleNamespace(load_args=lambda path: seen.append(Path(path)) or args,
+                               ensure_defaults=lambda value, **kwargs: value)
+    package = importlib.import_module("pytorch_playground")
+    monkeypatch.setattr(package, "app_args", app_args)
+    try:
+        assert module._load_orchestrate_args(active, env=env) == (env, args)
+        assert seen == [custom if matches else active / "src/app_settings.toml"]
+    finally:
+        sys.modules.pop(module.__name__, None)
+
+
+@pytest.mark.parametrize("failure", [ImportError("missing dependency"), ValueError("invalid configuration"),
+                                    RuntimeError("unexpected configuration failure")])
+def test_app_surface_analysis_reports_configuration_failure_without_training(
+    monkeypatch, tmp_path, failure,
+):
+    module = _load_app_surface_module("pytorch_surface_configuration_failure_contract")
+    messages, rendered = [], []
+    fake_streamlit = SimpleNamespace(error=messages.append)
+    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    package = importlib.import_module("pytorch_playground")
+    def fail_config(args):
+        raise failure
+    monkeypatch.setattr(package, "app_args", SimpleNamespace(to_playground_config=fail_config))
+    monkeypatch.setattr(module, "_load_orchestrate_args", lambda *a, **k: (SimpleNamespace(), SimpleNamespace()))
+    monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda *args: [tmp_path])
+    monkeypatch.setattr(module, "_has_evidence", lambda paths: True)
+    monkeypatch.setattr(module, "_render_dependency_import_error", lambda error, **kwargs: messages.append(str(error)))
+    monkeypatch.setattr(module, "_load_playground_ui_or_report", lambda **kwargs: rendered.append(True))
+    try:
+        module._render_analysis_surface(tmp_path / "demo_project", configure_page=False)
+    finally:
+        sys.modules.pop(module.__name__, None)
+    assert messages and str(failure) in messages[0]
+    assert not rendered
