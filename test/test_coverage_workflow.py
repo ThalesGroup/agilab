@@ -522,3 +522,12 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
         assert "uses: actions/upload-artifact@" in block
         assert "# v7" in block
         assert "retention-days: 3" in block
+
+def test_codecov_waits_for_all_component_and_aggregate_uploads() -> None:
+    """A partial component report must not trigger an early PR notification."""
+    config = CODECOV_CONFIG_PATH.read_text(encoding="utf-8")
+    uploads = len(re.findall(r"uses: codecov/codecov-action@", _workflow_text()))
+    assert uploads > 1
+    assert re.search(rf"codecov:\n  notify:\n    after_n_builds: {uploads}\n", config)
+    assert re.search(rf"comment:\n  after_n_builds: {uploads}\n", config)
+    assert '      - "codecov.yml"' in _workflow_text()

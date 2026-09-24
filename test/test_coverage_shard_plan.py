@@ -192,3 +192,24 @@ def test_write_plan_files_and_print_args_round_trip(tmp_path, capsys) -> None:
         "test/test_ci_artifact_harvest_report.py",
     ]
     assert "test/test_*_report.py" not in printed
+
+@pytest.mark.parametrize("with_timings", [False, True])
+def test_agent_notebook_and_demo_tests_are_in_coverage_plan(tmp_path, with_timings) -> None:
+    """Existing product tests must not disappear from the coverage workflow."""
+    module = _load_module()
+    junit = tmp_path / "junit-agi-gui-support.xml"
+    if with_timings:
+        _write_junit(junit, [("test.test_agent_experiment", "experiment", 1.0)])
+    plan = module.build_plan([str(junit)])
+    scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
+    expected = set()
+    for folder in ("agent_runtime", "demos", "notebooks"):
+        for source in (module.REPO_ROOT / "src/agilab" / folder).glob("*.py"):
+            for stem in (source.stem, f"agent_{source.stem}"):
+                test = f"test/test_{stem}.py"
+                if (module.REPO_ROOT / test).is_file():
+                    expected.add(test)
+    assert expected
+    assert not expected - scheduled, (
+        f"Agent/notebook/demo tests omitted from coverage: {sorted(expected - scheduled)}"
+    )

@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - ".coveragerc*"
+      - "codecov.yml"
       - ".github/workflows/coverage.yml"
       - "pyproject.toml"
       - "src/**"

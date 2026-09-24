@@ -1,3 +1,10 @@
+# Five component uploads plus the final repository-wide upload.
+# Keep both gates aligned with the uploads in .github/workflows/coverage.yml.
+codecov:
+  notify:
+    after_n_builds: 6
+comment:
+  after_n_builds: 6
 coverage:
   status:
     project:
