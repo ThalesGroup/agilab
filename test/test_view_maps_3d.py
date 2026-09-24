@@ -1415,3 +1415,31 @@ def test_view_maps_3d_page_regex_mode_normalizes_non_list_seed_without_select_al
     module.page()
 
     assert fake_st.session_state[module._vm3d_key("df_files_selected")] == ["flight.csv"]
+
+
+@pytest.mark.parametrize("saved_preferences", [False, True])
+def test_view_maps_3d_cli_recovery_preserves_same_app_preferences(monkeypatch, tmp_path, saved_preferences):
+    module = _load_view_maps_3d_module()
+    active = tmp_path / "apps/demo_project"
+    active.mkdir(parents=True)
+    state = {module.APP_SCOPE_KEY: str(active.resolve())}
+    if saved_preferences:
+        state.update(TABLE_MAX_ROWS=7, GUI_SAMPLING=3, datadir=str(tmp_path / "selected"))
+    env = SimpleNamespace(is_source_env=True, is_worker_env=False,
+                          TABLE_MAX_ROWS=100, GUI_SAMPLING=2, AGILAB_EXPORT_ABS=tmp_path / "export")
+    calls = []
+
+    def session_for_app(**kwargs):
+        calls.append(kwargs)
+        return env
+
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(module, "AgiEnv", SimpleNamespace(session_for_app=session_for_app))
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app=" + str(active)])
+    assert module._bootstrap_env_from_active_app() is True
+    assert calls == [{"apps_path": active.parent, "app": active.name, "verbose": 1}]
+    assert state["env"] is env
+    assert env.init_done is True
+    assert state["TABLE_MAX_ROWS"] == (7 if saved_preferences else 100)
+    assert state["GUI_SAMPLING"] == (3 if saved_preferences else 2)
+    assert state["datadir"] == (str(tmp_path / "selected") if saved_preferences else tmp_path / "export")

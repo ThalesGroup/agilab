@@ -874,7 +874,8 @@ def test_view_barycentric_repo_path_and_visible_file_helpers(monkeypatch, tmp_pa
     assert any("dataset is empty" in message.lower() for message in warnings)
 
 
-def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("raw_count", [None, "invalid", -5, 999])
+def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp_path: Path, raw_count) -> None:
     module = _load_module()
     datadir = tmp_path / "data"
     datadir.mkdir()
@@ -945,7 +946,9 @@ def test_view_barycentric_page_persists_and_calls_visualisation(monkeypatch, tmp
     )
 
     env = SimpleNamespace(target="demo_bary", projects=["demo_bary"], app_settings_file=settings_path)
+    session_state[module._vb_key("row_limit")] = raw_count
     module.page(env)
+    assert session_state[module._vb_key("row_limit")] == len(dataset)
 
     assert visualisation_calls
     pivot_df, selected_format, selected_name, selected_x1, selected_x2, color = visualisation_calls[0]
@@ -1051,3 +1054,17 @@ def test_view_barycentric_main_reports_outer_exception(monkeypatch) -> None:
     module.main()
 
     assert any("arg boom" in message for message in errors)
+
+
+@pytest.mark.parametrize("options,current,default,expected", [
+    ([], "saved", "fallback", None),
+    (["x", "y"], "removed", "y", "y"),
+    (["x", "y"], "removed", "missing", "x"),
+    (["x", "y"], "y", "x", "y"),
+])
+def test_barycentric_choice_repair_preserves_valid_selection(monkeypatch, options, current, default, expected):
+    module = _load_module()
+    state = {"selected": current}
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    assert module._ensure_choice_state("selected", options, default) == expected
+    assert state["selected"] == (current if not options else expected)

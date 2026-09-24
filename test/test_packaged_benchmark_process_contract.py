@@ -304,3 +304,23 @@ def test_matrix_marks_unstarted_slots_when_budget_expires(
     with pytest.raises(RuntimeError, match="budget.*exhausted"):
         matrix_runner(total_timeout=1)
     assert benchmark.popen.call_count == 1
+
+
+def test_benchmark_cli_forwards_bounded_arguments_and_writes_json(benchmark, monkeypatch, capsys):
+    run = Mock(return_value={"ok": True, "runs": []})
+    monkeypatch.setattr(benchmark.runner, "run_benchmark", run)
+    status = benchmark.runner.main(["--width", "8", "--height", "6", "--iterations", "10",
+        "--workers", "2", "--repeats", "1", "--tile-rows", "3", "--child-timeout", "4",
+        "--total-timeout", "9", "--out", "result.json"])
+    assert status == 0
+    assert json.loads(capsys.readouterr().out) == {"ok": True, "runs": []}
+    run.assert_called_once_with(8, 6, 10, 2, 1, 3, 4.0, 9.0, out_path="result.json")
+
+
+@pytest.mark.parametrize("error", [ValueError("invalid parameters"), RuntimeError("busy")])
+def test_benchmark_cli_reports_failure_without_success_json(benchmark, monkeypatch, capsys, error):
+    monkeypatch.setattr(benchmark.runner, "run_benchmark", Mock(side_effect=error))
+    assert benchmark.runner.main([]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "benchmark failed: " + str(error) in captured.err

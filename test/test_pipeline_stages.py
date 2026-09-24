@@ -1052,3 +1052,49 @@ def test_find_legacy_agi_run_stages_negative_selection_and_state_helpers(monkeyp
     assert [str(path) for path in pipeline_stages.get_available_virtualenvs(env)] == ["a", "b", "c", "d", "e"]
 
     assert pipeline_stages.is_orchestrate_locked_stage({pipeline_stages.ORCHESTRATE_LOCKED_STAGE_KEY: True}) is True
+
+
+def test_automation_preferences_normalize_persist_and_remove_without_losing_stages(tmp_path):
+    module = importlib.import_module("agilab.pipeline.pipeline_stages")
+    path = tmp_path / "lab_stages.toml"
+    module.persist_automation_preferences("demo", path, {"profile":"  fast  ", "max_workers":"3"})
+    assert module.load_automation_preferences("demo", path) == {"profile":"fast", "max_workers":3}
+    before = path.read_bytes()
+    module.persist_automation_preferences("demo", path, {"profile":"fast", "max_workers":3})
+    assert path.read_bytes() == before
+    module.persist_automation_preferences("demo", path, {"max_workers":"invalid"})
+    assert module.load_automation_preferences("demo", path) == {}
+
+
+def test_automation_preferences_preserve_malformed_contract(tmp_path, caplog):
+    module = importlib.import_module("agilab.pipeline.pipeline_stages")
+    path = tmp_path / "lab_stages.toml"
+    path.write_text("[broken")
+    assert module.load_automation_preferences("demo", path) == {}
+    module.persist_automation_preferences("demo", path, {"profile":"fast"})
+    assert path.read_text() == "[broken"
+    assert "saving automation metadata" in caplog.text
+
+
+def test_automation_preferences_refuse_incompatible_metadata(tmp_path, caplog):
+    module = importlib.import_module("agilab.pipeline.pipeline_stages")
+    path = tmp_path / "lab_stages.toml"
+    path.write_text('__meta__="invalid"')
+    assert module.load_automation_preferences("demo", path) == {}
+    module.persist_automation_preferences("demo", path, {"profile":"fast"})
+    assert path.read_text() == '__meta__="invalid"'
+    assert "Refusing to persist automation metadata" in caplog.text
+
+
+def test_automation_preferences_report_unwritable_contract(tmp_path, monkeypatch, caplog):
+    module = importlib.import_module("agilab.pipeline.pipeline_stages")
+    path = tmp_path / "lab_stages.toml"
+    original = Path.open
+    def denied(target, mode="r", *args, **kwargs):
+        if target == path and mode == "wb":
+            raise PermissionError("read-only contract")
+        return original(target, mode, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", denied)
+    module.persist_automation_preferences("demo", path, {"profile":"fast"})
+    assert not path.exists()
+    assert "Failed to persist automation metadata" in caplog.text

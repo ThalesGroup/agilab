@@ -163,6 +163,12 @@ def test_autoencoder_latentspace_ensure_repo_on_path_adds_src_and_repo(monkeypat
     module_path = app_root / "autoencoder_latentspace.py"
     module_path.write_text("# stub\n", encoding="utf-8")
 
+    # The runtime extends an already imported package in place. Isolate that
+    # mutable search path as well as sys.path so the synthetic checkout cannot
+    # become the root used by later orchestration imports.
+    package = sys.modules.get("agilab")
+    if package is not None and getattr(package, "__path__", None) is not None:
+        monkeypatch.setattr(package, "__path__", list(package.__path__))
     monkeypatch.setattr(module, "__file__", str(module_path))
     monkeypatch.setattr(module.sys, "path", [])
     module.ensure_repo_on_path(module.__file__)
@@ -680,7 +686,8 @@ def test_page_loads_legacy_view_autoencoder_latentspace_settings(monkeypatch, tm
     )
 
 
-def test_page_does_not_train_until_user_clicks_train(monkeypatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("raw_count", [None, "invalid", -100, 999])
+def test_page_does_not_train_until_user_clicks_train(monkeypatch, tmp_path: Path, raw_count) -> None:
     module = _load_module()
     settings_path = tmp_path / "app_settings.toml"
     settings_path.write_text("", encoding="utf-8")
@@ -742,7 +749,11 @@ def test_page_does_not_train_until_user_clicks_train(monkeypatch, tmp_path: Path
     )
     env = SimpleNamespace(target="demo", projects=["demo_project"], app_settings_file=settings_path)
 
+    module.st.session_state[module._ae_key("row_limit")] = raw_count
+    module.st.session_state[module._ae_key("latent_dimension")] = raw_count
     module.page(env)
+    assert 10 <= module.st.session_state[module._ae_key("row_limit")] <= len(data)
+    assert module.st.session_state[module._ae_key("latent_dimension")] == 2
 
     assert not trained
     assert any("Training runs locally" in message for message in infos)
@@ -853,3 +864,34 @@ def test_autoencoder_latentspace_smoke_renders(
 
     assert not at.exception
     assert any("Dimension Reduction" in title.value for title in at.title)
+
+
+@pytest.mark.parametrize("already_scoped", [False, True])
+def test_autoencoder_same_app_retains_trained_session_on_legacy_scope_migration(
+    monkeypatch, tmp_path, already_scoped
+):
+    module = _load_module()
+    active = tmp_path / "apps/demo_project"
+    retained = object()
+    state = {
+        "apps_path": str(active.parent), "app": active.name,
+        "data": retained, "df_file": "selected.csv",
+    }
+    if already_scoped:
+        state[module.APP_SCOPE_KEY] = str(active.resolve())
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    module._reset_state_for_active_app(active)
+    assert state[module.APP_SCOPE_KEY] == str(active.resolve())
+    assert state["data"] is retained
+    assert state["df_file"] == "selected.csv"
+
+
+def test_autoencoder_data_directory_change_handles_clean_session(monkeypatch):
+    module = _load_module()
+    state = {"input_datadir": "new-directory"}
+    calls = []
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
+    monkeypatch.setattr(module, "initialize_csv_files", lambda: calls.append(state["datadir"]))
+    module.update_datadir("datadir", "input_datadir")
+    assert state == {"input_datadir": "new-directory", "datadir": "new-directory"}
+    assert calls == ["new-directory"]

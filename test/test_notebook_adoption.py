@@ -59,3 +59,66 @@ def test_rewriting_terminal_result_keeps_receipt_identifier(tmp_path):
     receipt = _record(root)
     write_completion_receipt(root, {"status": "passed", "seconds": 1})
     assert json.loads((root / "completion_receipt.json").read_text())["receipt_id"] == receipt["receipt_id"]
+
+
+@pytest.mark.parametrize(("field", "value", "message"), [
+    ("schema", "other", "Unsupported"),
+    ("receipt_id", "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA", "anonymous receipt"),
+    ("status", "running", "terminal build"),
+    ("source_kind", "remote", "source kind"),
+    ("verification_scope", "scientific_correctness", "verification scope"),
+    ("duration_bucket", "unknown", "duration bucket"),
+    ("agilab_version", "", "release identifier"),
+    ("agilab_version", "x"*41, "release identifier"),
+    ("agilab_version", "private/path", "release identifier"),
+    ("agilab_version", 3, "release identifier"),
+])
+def test_adoption_receipt_rejects_invalid_public_fields(tmp_path, field, value, message):
+    receipt = _record(tmp_path / "run")
+    receipt[field] = value
+    with pytest.raises(ValueError, match=message):
+        validate_receipt(receipt)
+
+
+@pytest.mark.parametrize(("seconds", "bucket"), [(299, "under_5m"), (300, "5_to_15m"), (899, "5_to_15m"), (900, "15m_or_more")])
+def test_receipt_duration_buckets_preserve_boundary_semantics(tmp_path, seconds, bucket):
+    root = tmp_path / "run"
+    root.mkdir()
+    write_completion_receipt(root, {"status":"passed", "seconds":seconds})
+    assert json.loads((root / "completion_receipt.json").read_text())["duration_bucket"] == bucket
+    assert list(tmp_path.glob(".adoption-*.tmp")) == []
+
+
+@pytest.mark.parametrize("source", ["runs", "receipts", "issues"])
+def test_adoption_cli_counts_only_supplied_receipts(tmp_path, monkeypatch, capsys, source):
+    import sys
+    from agilab.agent_runtime import notebook_adoption
+    receipt = _record(tmp_path / "run")
+    if source == "runs":
+        argv = ["adoption", "--runs", str(tmp_path)]
+    elif source == "receipts":
+        directory = tmp_path / "submitted"
+        directory.mkdir()
+        (directory / "receipt.json").write_text(json.dumps(receipt))
+        argv = ["adoption", "--receipts", str(directory)]
+    else:
+        path = tmp_path / "issues.json"
+        path.write_text(json.dumps([{"body":"No receipt"}, {"body":"Receipt\n```json\n"+json.dumps(receipt)+"\n```"}]))
+        argv = ["adoption", "--github-issues", str(path)]
+    monkeypatch.setattr(sys, "argv", argv)
+    assert notebook_adoption.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["reported_builds"] == 1
+    assert report["reported_first_builds"] == 1
+    assert report["visitor_count"] is None
+
+
+def test_adoption_cli_rejects_malformed_submissions(tmp_path, monkeypatch, capsys):
+    import sys
+    from agilab.agent_runtime import notebook_adoption
+    (tmp_path / "invalid.json").write_text("{")
+    monkeypatch.setattr(sys, "argv", ["adoption", "--receipts", str(tmp_path)])
+    with pytest.raises(SystemExit) as raised:
+        notebook_adoption.main()
+    assert raised.value.code == 2
+    assert "error:" in capsys.readouterr().err

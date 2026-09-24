@@ -933,3 +933,46 @@ def test_external_execution_claim_fails_closed_without_persistence_callback(tmp_
             no_op_context,
             {"units": [], "events": [], "artifacts": []},
         )
+
+
+@pytest.mark.parametrize("case", ["missing_active", "wrong_active_token", "missing_unit", "completed_unit", "wrong_unit_token"])
+def test_recovery_rejects_stale_or_foreign_claim_without_mutating_state(case):
+    import copy
+    module = importlib.import_module("agilab.dag.dag_execution_adapters")
+    state = {"active_execution":{"unit_tokens":{"stage":"token"}},
+             "units":[{"id":"stage", "dispatch_status":"running",
+                       "execution_attempt":{"idempotency_token":"token"}}]}
+    if case == "missing_active":
+        state.pop("active_execution")
+    elif case == "wrong_active_token":
+        state["active_execution"]["unit_tokens"]["stage"] = "other"
+    elif case == "missing_unit":
+        state["units"] = []
+    elif case == "completed_unit":
+        state["units"][0]["dispatch_status"] = "completed"
+    else:
+        state["units"][0]["execution_attempt"]["idempotency_token"] = "other"
+    before = copy.deepcopy(state)
+    with pytest.raises(ValueError, match="token|missing from runner state"):
+        module.recover_execution_attempt(state, unit_id="stage",
+            idempotency_token="token", timestamp="2026-09-24T10:00:00Z")
+    assert state == before
+
+
+def test_recovery_preserves_other_ambiguous_parallel_claims():
+    import copy
+    module = importlib.import_module("agilab.dag.dag_execution_adapters")
+    state = {"active_execution":{"unit_tokens":{"stage":"token", "other":"other-token"}},
+             "units":[{"id":"stage", "dispatch_status":"running",
+                       "execution_attempt":{"idempotency_token":"token"}},
+                      {"id":"other", "dispatch_status":"running",
+                       "execution_attempt":{"idempotency_token":"other-token"}}],
+             "artifacts":[], "events":[], "summary":{}}
+    before = copy.deepcopy(state)
+    recovered = module.recover_execution_attempt(state, unit_id="stage",
+        idempotency_token="token", timestamp="2026-09-24T10:00:00Z")
+    assert state == before
+    assert recovered["active_execution"]["unit_tokens"] == {"other":"other-token"}
+    assert recovered["active_execution"]["status"] == "recovery_required"
+    assert recovered["units"][0]["execution_attempt"]["status"] == "recovered_failed"
+    assert recovered["units"][1] == state["units"][1]

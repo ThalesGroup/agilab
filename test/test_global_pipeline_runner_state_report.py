@@ -567,3 +567,63 @@ def test_runner_state_transaction_serializes_stale_multiprocess_sessions(tmp_pat
         {"kind": "created"},
         {"kind": "completed"},
     ]
+
+
+@pytest.mark.parametrize("handle,flush_result,expected", [(None, True, False), (-1, True, False), (123, True, True), (123, False, False)])
+def test_windows_flush_contract_checks_handle_and_closes_after_flush(monkeypatch, tmp_path, handle, flush_result, expected):
+    import ctypes
+    from unittest.mock import Mock
+    module = _load_core_module()
+    invalid = ctypes.c_void_p(-1).value
+    native_handle = invalid if handle == -1 else handle
+    create = Mock(return_value=native_handle)
+    flush = Mock(return_value=flush_result)
+    close = Mock()
+    library = SimpleNamespace(CreateFileW=create, FlushFileBuffers=flush, CloseHandle=close)
+    monkeypatch.setattr(ctypes, "WinDLL", Mock(return_value=library), raising=False)
+    assert module._flush_windows_directory(tmp_path) is expected
+    assert create.call_args.args[0] == str(tmp_path)
+    assert create.call_args.args[1] == 0x40000000
+    assert create.call_args.args[2] == 7
+    assert create.call_args.args[4:6] == (3, 0x02000000)
+    if handle in (None, -1):
+        flush.assert_not_called()
+        close.assert_not_called()
+    else:
+        flush.assert_called_once_with(123)
+        close.assert_called_once_with(123)
+
+
+@pytest.mark.parametrize("failure_at", ["open", "flush", "close"])
+def test_windows_flush_failure_never_claims_durability(monkeypatch, tmp_path, failure_at):
+    import ctypes
+    from unittest.mock import Mock
+    module = _load_core_module()
+    create = Mock(return_value=123, side_effect=OSError("open failed") if failure_at == "open" else None)
+    flush = Mock(return_value=True, side_effect=OSError("flush failed") if failure_at == "flush" else None)
+    close = Mock(side_effect=OSError("close failed") if failure_at == "close" else None)
+    monkeypatch.setattr(ctypes, "WinDLL", Mock(return_value=SimpleNamespace(
+        CreateFileW=create, FlushFileBuffers=flush, CloseHandle=close)), raising=False)
+    assert module._flush_windows_directory(tmp_path) is False
+    assert close.call_count == (0 if failure_at == "open" else 1)
+
+
+def test_runner_state_rejects_file_in_directory_hierarchy(tmp_path):
+    module = _load_core_module()
+    path = tmp_path / "not-a-directory"
+    path.write_text("keep")
+    with pytest.raises(NotADirectoryError):
+        module._ensure_directory_hierarchy_durable(path / "child")
+    assert path.read_text() == "keep"
+
+
+def test_required_durability_failure_preserves_existing_runner_state(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation": 1}')
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: False)
+    with pytest.raises(module.RunnerStateDurabilityError):
+        module._write_runner_state_atomic(path, {"generation": 2}, require_directory_fsync=True)
+    assert path.read_text() == '{"generation": 1}'
+    assert not list(tmp_path.glob(".*.tmp"))
