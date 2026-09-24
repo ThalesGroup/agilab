@@ -553,3 +553,18 @@ def test_security_hygiene_main_prints_pretty_json(capsys) -> None:
     assert payload["schema"] == "agilab.security_hygiene.v1"
     assert payload["status"] == "pass"
     assert payload["summary"]["skipped"] == 2
+
+def test_coverage_upload_gate_ignores_version_comment_but_rejects_advisory_upload(tmp_path: Path) -> None:
+    module = _load_module()
+    source = Path(".github/workflows/coverage.yml").read_text()
+    workflow = tmp_path / ".github/workflows/coverage.yml"
+    workflow.parent.mkdir(parents=True)
+    workflow.write_text(source.replace("# v7.1.1", "# next-compatible-version"))
+    assert module._coverage_upload_gate_check(tmp_path)["status"] == "pass"
+
+    marker = "      - name: Upload agi-web coverage to Codecov"
+    assert source.count(marker) == 1
+    workflow.write_text(source.replace(marker, marker + "\n        continue-on-error: true"))
+    result = module._coverage_upload_gate_check(tmp_path)
+    assert result["status"] == "fail"
+    assert "Upload agi-web coverage to Codecov" in result["details"]["failing_steps"]

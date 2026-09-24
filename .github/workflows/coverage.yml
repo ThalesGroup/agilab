@@ -89,7 +89,7 @@ jobs:
 
       - name: Upload agi-env coverage to Codecov
         if: always() && hashFiles('coverage-agi-env.xml') != ''
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage-agi-env.xml
           flags: agi-env,agi-core
@@ -199,7 +199,7 @@ jobs:
 
       - name: Upload agi-node coverage to Codecov
         if: always() && hashFiles('coverage-agi-node.xml') != ''
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage-agi-node.xml
           flags: agi-node,agi-core
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload agi-cluster coverage to Codecov
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage-agi-cluster.xml
           flags: agi-cluster,agi-core
@@ -398,7 +398,7 @@ jobs:
 
       - name: Upload agi-web coverage to Codecov
         if: always() && hashFiles('coverage-agi-web.xml') != ''
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage-agi-web.xml
           flags: agi-web
@@ -541,7 +541,7 @@ jobs:
 
       - name: Upload agi-gui coverage to Codecov
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./coverage-agi-gui.xml
           flags: agi-gui
@@ -596,7 +596,7 @@ jobs:
           gpg --batch --list-keys 27034E7FDB850E0BBC2C62FF806BB28AED779869 >/dev/null
 
       - name: Upload repo-wide agilab coverage to Codecov
-        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml
           use_oidc: true
