@@ -171,3 +171,131 @@ def test_spawn_worker_can_reimport_test_module():
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
+
+def test_unclassified_mode_covers_new_root_tests_without_running_named_chunks(monkeypatch):
+    module = _load_module()
+    general = module.RootTestGroup("general:test_new", ("test/test_new.py",), ("test/test_new.py",))
+    named = module.RootTestGroup("support", ("test/test_known.py",), ("test/test_known.py",))
+    monkeypatch.setattr(module, "build_root_test_groups", lambda: (general, named))
+    captured = []
+    monkeypatch.setattr(module, "run_root_test_groups", lambda groups, **kwargs: captured.extend(groups) or 0)
+    assert module.main(["--unclassified"]) == 0
+    assert captured == [general]
+
+
+def test_demo_groups_preserve_bundle_working_directories():
+    module = _load_module()
+    groups = module.build_demo_test_groups()
+    expected = set((REPO_ROOT / "src/agilab/demos/resources").glob("*/tests.py"))
+    assert expected
+    assert {group.working_directory / "tests.py" for group in groups} == expected
+    for group in groups:
+        command = module._pytest_command(
+            group, Path("test-results/coverage-demos.db"), Path("test-results"),
+            REPO_ROOT / ".coveragerc.demo-resources",
+        )
+        assert "pytest" in command
+        assert "tools.testing.pytest_entrypoint" not in command
+        assert f"--rcfile={REPO_ROOT / '.coveragerc.demo-resources'}" in command
+        assert group.pytest_args[-1] == "tests.py"
+
+
+def test_coverage_groups_keep_process_isolation_and_collect_each_report(tmp_path, monkeypatch):
+    from coverage import CoverageData
+
+    module = _load_module()
+    checkout = tmp_path / "checkout"
+    sources = checkout / "src/agilab"
+    sources.mkdir(parents=True)
+    (sources / "example.py").write_text("def answer():\n    return 42\n")
+    tests = checkout / "test"
+    tests.mkdir()
+    (tests / "test_first.py").write_text(
+        "import sys, example\n"
+        "def test_first():\n"
+        "    sys.modules['coverage_contract_pollution'] = object()\n"
+        "    assert example.answer() == 42\n"
+    )
+    (tests / "test_second.py").write_text(
+        "import sys, example\n"
+        "def test_second():\n"
+        "    assert 'coverage_contract_pollution' not in sys.modules\n"
+        "    assert example.answer() == 42\n"
+    )
+    (checkout / ".coveragerc.agi-gui").write_text("[run]\nbranch = true\n")
+    monkeypatch.setattr(module, "REPO_ROOT", checkout)
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join((str(REPO_ROOT), str(sources))))
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/not-the-test-environment")
+    groups = [
+        module.RootTestGroup(f"general:{name}", ("-c", "/dev/null", f"test/test_{name}.py"), (f"test/test_{name}.py",))
+        for name in ("first", "second")
+    ]
+    output = tmp_path / "evidence"
+    assert module.run_root_test_groups(
+        groups, coverage_data_file=output / "coverage.db", junit_dir=output,
+    ) == 0
+    databases = list(output.glob("coverage.db.*"))
+    assert len(databases) == 2
+    assert len(list(output.glob("junit-agi-gui-general-*.xml"))) == 2
+    for path in databases:
+        data = CoverageData(basename=str(path))
+        data.read()
+        assert 2 in data.lines(str(sources / "example.py"))
+
+
+def test_demo_runner_isolates_checkout_package_and_parent_conftest(tmp_path, monkeypatch):
+    module = _load_module()
+    root = tmp_path / "agilab"
+    demo = root / "src/agilab/demos/resources/minimal_demo"
+    demo.mkdir(parents=True)
+    for package in (root, root / "src/agilab", root / "src/agilab/demos"):
+        (package / "__init__.py").touch()
+    (root / "conftest.py").write_text("raise RuntimeError('unrelated parent configuration')\n")
+    (demo / "local_kernel.py").write_text("ANSWER = 42\n")
+    (demo / "tests.py").write_text(
+        "from local_kernel import ANSWER\n"
+        "def test_local_bundle_contract():\n"
+        "    assert ANSWER == 42\n"
+    )
+    monkeypatch.setattr(module, "REPO_ROOT", root)
+    groups = module.build_demo_test_groups()
+    assert len(groups) == 1
+    assert module.run_root_test_groups(groups) == 0
+
+
+def test_distinct_source_tests_are_isolated_and_external_model_test_is_ignored():
+    module = _load_module()
+    groups = module.build_root_test_groups()
+    source_groups = [group for group in groups if group.name.startswith("general:source-")]
+    expected = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "src/agilab/test").glob("test_*.py")
+        if path.relative_to(REPO_ROOT).as_posix() not in module.GLOBAL_IGNORES
+        and not (REPO_ROOT / "test" / path.name).exists()
+    }
+    assert expected == {path for group in source_groups for path in group.test_files}
+    assert all(len(group.test_files) == 1 for group in source_groups)
+    assert all(f"--confcutdir={REPO_ROOT / 'src/agilab/test'}" in group.pytest_args for group in source_groups)
+
+
+def test_source_test_collection_survives_same_named_outer_package(tmp_path, monkeypatch):
+    module = _load_module()
+    root = tmp_path / "agilab"
+    source_tests = root / "src/agilab/test"
+    source_tests.mkdir(parents=True)
+    for package in (root, root / "src/agilab", source_tests):
+        (package / "__init__.py").touch()
+    (root / "conftest.py").write_text("raise RuntimeError('outer package pollution')\n")
+    (source_tests / "test_hermetic.py").write_text("def test_source_contract():\n    assert 2 + 2 == 4\n")
+    (source_tests / "test_model_returns_code.py").write_text("raise RuntimeError('external model invoked')\n")
+    monkeypatch.setattr(module, "REPO_ROOT", root)
+    monkeypatch.setattr(module, "ROOT_TEST_DIR", root / "test")
+    monkeypatch.setattr(module, "static_chunk_args", lambda: {})
+    groups = module.build_root_test_groups()
+    assert len(groups) == 1
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts=", *groups[0].pytest_args],
+        cwd=root, capture_output=True, text=True, check=False,
+        env=module._pytest_environment(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

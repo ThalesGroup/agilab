@@ -5,12 +5,16 @@ on:
     branches: ["main"]
     paths:
       - ".coveragerc*"
+      - "codecov.yml"
+      - ".github/requirements/ci-free-threaded-coverage.*"
       - ".github/workflows/coverage.yml"
       - "pyproject.toml"
       - "src/**"
       - "test/**"
       - "tools/coverage_badge_guard.py"
       - "tools/coverage_shard_plan.py"
+      - "tools/testing/root_test_runner.py"
+      - "tools/builtin_app_tests.py"
       - "tools/coverage_timing_report.py"
       - "tools/generate_component_coverage_badges.py"
       - "tools/workflow_parity.py"
@@ -245,7 +249,7 @@ jobs:
 
   agi-gui:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -257,9 +261,14 @@ jobs:
           - pages-rest
           - views
           - reports
+          - general
+          - demos
+          - builtin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: ${{ matrix.chunk == 'general' }}
 
       - name: Set up Python 3.13
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -323,6 +332,48 @@ jobs:
           }
 
           label="${{ matrix.chunk }}"
+          if [ "$label" = builtin ]; then
+            timeout 16m uv --preview-features extra-build-dependencies run python tools/builtin_app_tests.py --keep-going \
+              --coverage-data-file=test-results/coverage-agi-gui-builtin.db \
+              --junit-dir=test-results
+            exit 0
+          fi
+          if [ "$label" = demos ]; then
+            uv run --no-project --python 3.14t python -m venv --copies --without-pip "$RUNNER_TEMP/coverage-free-threaded"
+            uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python" \
+              --require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt
+            export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"
+            demo_requirements=()
+            for test_file in src/agilab/demos/resources/*/tests.py; do
+              requirements="${test_file%/tests.py}/requirements.txt"
+              test -f "$requirements"
+              demo_requirements+=(--with-requirements "$requirements")
+            done
+            timeout 16m uv run --no-project --python 3.13 \
+              --with 'coverage>=7.16,<8' "${demo_requirements[@]}" \
+              python -m tools.testing.root_test_runner --demos \
+              --coverage-config=.coveragerc.demo-resources \
+              --coverage-data-file=test-results/coverage-agi-gui-demos.db \
+              --junit-dir=test-results
+            # This standalone example owns Python 3.12 and its dependency pins.
+            timeout 3m uv run --no-project --python 3.12 \
+              --with 'featuretools==1.31.0' --with 'pandas==2.3.3' \
+              --with 'woodwork==0.31.0' --with 'setuptools==80.9.0' \
+              --with 'coverage==7.16.1' --with pytest --with pytest-asyncio \
+              python -m coverage run --parallel-mode --rcfile=.coveragerc.agi-gui \
+              --data-file=test-results/coverage-agi-gui-demos.db \
+              -m pytest --noconftest -q -o addopts= \
+              --junitxml=test-results/junit-agi-gui-demos-telemetry.xml \
+              test/test_telemetry_feature_evidence.py
+            exit 0
+          fi
+          if [ "$label" = general ]; then
+            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
+              python -m tools.testing.root_test_runner --unclassified \
+              --coverage-data-file=test-results/coverage-agi-gui-general.db \
+              --junit-dir=test-results
+            exit 0
+          fi
           uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py write \
             --output-dir test-results/coverage-agi-gui-shards \
             test-results/coverage-agi-gui-timing-cache/junit-agi-gui-*.xml
@@ -354,7 +405,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-gui-junit-${{ matrix.chunk }}
-          path: test-results/junit-agi-gui-${{ matrix.chunk }}.xml
+          path: test-results/junit-agi-gui-${{ matrix.chunk }}*.xml
           if-no-files-found: ignore
           retention-days: 3
 
@@ -462,7 +513,7 @@ jobs:
           import subprocess
           import sys
 
-          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports")
+          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports", "general", "demos", "builtin")
           paths: list[str] = []
           missing: list[str] = []
           for chunk in chunks:
@@ -490,6 +541,15 @@ jobs:
             --rcfile=.coveragerc.agi-gui \
             --data-file=.coverage.agi-gui \
             -o coverage-agi-gui.xml
+
+          # Root and GUI tests also exercise core APIs. Preserve those observations
+          # for the aggregate report without changing the GUI component boundary.
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
+            python -m coverage xml \
+            --rcfile=.coveragerc.agi-core \
+            --data-file=.coverage.agi-gui \
+            --include='*/agi_node/*,*/agi_cluster/*,*/agi_env/*' \
+            -o coverage-gui-observed-core.xml
 
       - name: Upload JUnit results
         if: always()
@@ -554,7 +614,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-agi-gui-xml
-          path: coverage-agi-gui.xml
+          path: |
+            coverage-agi-gui.xml
+            coverage-gui-observed-core.xml
           if-no-files-found: error
           retention-days: 3
 
@@ -585,9 +647,6 @@ jobs:
           cp merged-coverage/coverage-*.xml .
           python tools/generate_component_coverage_badges.py
 
-      - name: Verify committed badges are up to date
-        run: git diff --exit-code -- badges/
-
       - name: Import Codecov uploader key for repo-wide upload
         shell: bash
         run: |
@@ -598,7 +657,10 @@ jobs:
       - name: Upload repo-wide agilab coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
-          files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml
+          files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml,./merged-coverage/coverage-gui-observed-core.xml
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
+
+      - name: Verify committed badges are up to date
+        run: git diff --exit-code -- badges/

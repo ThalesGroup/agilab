@@ -1,6 +1,8 @@
 """Tests for the shared in-worker pool engine (agi_node.agi_dispatcher.worker_pool_support)."""
 
 import heapq
+import importlib
+from pathlib import Path
 import logging
 import multiprocessing
 import threading
@@ -87,8 +89,27 @@ class FailingWorker(EngineWorker):
         return pd.DataFrame({"col": [x]})
 
 
+_DEMO_RESOURCES = Path(__file__).resolve().parents[2] / "demos" / "resources"
+_POOL_ENGINE_MODULES = [
+    "agi_node.agi_dispatcher.worker_pool_support",
+    *[
+        f"agilab.demos.resources.{path.parent.name}.agilab_pool"
+        for path in sorted(_DEMO_RESOURCES.glob("*/agilab_pool.py"))
+    ],
+]
+
+
+@pytest.fixture(autouse=True, params=_POOL_ENGINE_MODULES)
+def pool_engine_contract(request, monkeypatch):
+    """Apply the worker contract to every shipped standalone pool engine."""
+    engine = importlib.import_module(request.param)
+    monkeypatch.setitem(globals(), "worker_pool_support", engine)
+    monkeypatch.setattr(pandas_module, "worker_pool_support", engine)
+    return engine
+
+
 @pytest.fixture(autouse=True)
-def _patch_pool(monkeypatch):
+def _patch_pool(monkeypatch, pool_engine_contract):
     RecordingPool.instances = []
     monkeypatch.setattr(pandas_module, "ProcessPoolExecutor", RecordingPool)
     yield

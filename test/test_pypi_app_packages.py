@@ -850,3 +850,70 @@ def test_preflight_fetch_failure_and_cli_json_edges(monkeypatch, capsys):
 
     assert module.main(["remove", "agi-app-demo", "--dry-run", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["requirement"] == "agi-app-demo"
+
+
+@pytest.mark.parametrize("releases", [
+    None, [], {"bad-version": [{}]}, {"1.0": []}, {"1.0": "invalid"},
+    {"1.0": [{"yanked": True}]}, {"2.0": [{}]},
+])
+def test_version_resolution_rejects_missing_or_ineligible_candidates(releases):
+    module = _load_module()
+    with pytest.raises(ValueError, match="No non-yanked"):
+        module._selected_release_version({"releases": releases}, "agi-app-demo<2")
+
+
+@pytest.mark.parametrize("info", [{"version": "bad-version"}, {"version": "3.0"}, [], None])
+def test_version_resolution_rejects_invalid_or_out_of_range_fallback(info):
+    module = _load_module()
+    with pytest.raises(ValueError, match="No non-yanked"):
+        module._selected_release_version({"info": info}, "agi-app-demo<2")
+
+
+def test_version_resolution_keeps_valid_release_despite_malformed_siblings():
+    module = _load_module()
+    assert module._selected_release_version({"releases": {
+        "broken": [{}], "9.0": [{"yanked": True}], "1.4": [{}], "1.2": [{}], "2.0": [{}],
+    }}, "agi-app-demo<2") == "1.4"
+
+
+@pytest.mark.parametrize("file_info", [None, {}, {"digests": []}, {"digests": {"sha256": "not-a-hash"}}])
+def test_wheel_without_valid_digest_cannot_become_pinned_target(file_info):
+    module = _load_module()
+    assert module._wheel_sha256(file_info) == ""
+
+
+@pytest.mark.parametrize("change,message", [
+    ({"requirement": "agi-app-other"}, "requirement does not match"),
+    ({"status": "error", "issues": ()}, "preflight failed"),
+    ({"package": "not-an-app"}, "invalid preflight identity"),
+])
+def test_invalid_preflight_never_invokes_package_installer(change, message):
+    from unittest.mock import Mock
+    module = _load_module()
+    values = dict(status="pass", requirement="agi-app-demo", package="agi-app-demo",
+        resolved_requirement="agi-app-demo==1.0",
+        metadata=module.PypiAppMetadata(package="agi-app-demo", version="1.0",
+            wheel_url="https://files.pythonhosted.org/agi_app_demo-1.0-py3-none-any.whl", wheel_sha256="a" * 64))
+    values.update(change)
+    runner = Mock(side_effect=AssertionError("installer must not run"))
+    result = module.run_pypi_app_install("agi-app-demo", preflight=module.PypiAppPreflight(**values), runner=runner)
+    assert result.status == "error"
+    assert message in result.output_tail
+    runner.assert_not_called()
+
+
+@pytest.mark.parametrize("filename,version", [("broken.whl", "1.0"), ("agi_app_demo-1.0-py3-none-any.whl", "not-a-version")])
+def test_malformed_wheel_identity_is_rejected(filename, version):
+    module = _load_module()
+    metadata = module.PypiAppMetadata(package="agi-app-demo", version=version,
+        wheel_url="https://files.pythonhosted.org/" + filename, wheel_sha256="a" * 64)
+    with pytest.raises(ValueError, match="invalid wheel filename or version"):
+        module._trusted_wheel_install_target(metadata)
+
+
+def test_version_resolution_requires_packaging_before_inspecting_payload(monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._selected_release_version.__module__]
+    monkeypatch.setattr(implementation, "Requirement", None)
+    with pytest.raises(ValueError, match="packaging dependency"):
+        module._selected_release_version({}, "agi-app-demo")

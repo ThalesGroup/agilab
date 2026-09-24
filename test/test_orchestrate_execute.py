@@ -2673,3 +2673,52 @@ def test_orchestrate_execute_remaining_direct_helper_edges(monkeypatch, tmp_path
     body, omitted = orchestrate_execute.run_log_view_body("a\nb", max_lines=0)
     assert body == "a\nb"
     assert omitted == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["write_run_plan", "append_run_process", "write_run_report", "write_run_evidence_manifest"])
+async def test_run_evidence_failure_is_visible_and_initialization_prevents_execution(monkeypatch, tmp_path, phase):
+    from unittest.mock import AsyncMock, Mock
+    for directory in (tmp_path / "project" / ".venv", tmp_path / "wenv" / ".venv"):
+        directory.mkdir(parents=True)
+    fake_st = _FakeStreamlit({"app_settings": {"args": {}}, "benchmark": False,
+        "df_export_file": str(tmp_path / "export.csv"), "profile_report_file": tmp_path / "profile.html"},
+        buttons={"run_btn": True})
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(orchestrate_execute._run_markdown_evidence, phase,
+                        Mock(side_effect=PermissionError("evidence write denied")))
+    run = AsyncMock(return_value=("", ""))
+    env = SimpleNamespace(dataframe_path=tmp_path, app_data_rel=None, runenv=tmp_path / "runenv",
+        app="flight_telemetry_project", wenv_abs=tmp_path / "wenv", snippet_tail="pass", run_agi=run)
+    await orchestrate_execute.render_execute_section(env=env, project_path=tmp_path / "project",
+        app_state_name=env.app, controls_visible=True, show_run_panel=True, cmd="asyncio.run(main())",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state))
+    initialization = phase in {"write_run_plan", "append_run_process"}
+    assert run.await_count == (0 if initialization else 1)
+    assert any(kind == ("error" if initialization else "warning") and "evidence" in message
+               and "denied" in message for kind, message in fake_st.messages)
+    if initialization:
+        assert fake_st.session_state["_last_execute_failed"] is True
+
+
+@pytest.mark.asyncio
+async def test_runtime_failure_shows_actionable_diagnostic_and_preserves_error(monkeypatch, tmp_path):
+    from unittest.mock import AsyncMock
+    for directory in (tmp_path / "project" / ".venv", tmp_path / "wenv" / ".venv"):
+        directory.mkdir(parents=True)
+    fake_st = _FakeStreamlit({"app_settings": {"args": {}}, "benchmark": False,
+        "df_export_file": str(tmp_path / "export.csv"), "profile_report_file": tmp_path / "profile.html"},
+        buttons={"run_btn": True})
+    monkeypatch.setattr(orchestrate_execute, "st", fake_st)
+    monkeypatch.setattr(orchestrate_execute, "classify_runtime_failure", lambda *args, **kwargs:
+        SimpleNamespace(title="Missing runtime", detail="A dependency is unavailable", next_action="Deploy workers"))
+    run = AsyncMock(side_effect=RuntimeError("missing dependency"))
+    env = SimpleNamespace(dataframe_path=tmp_path, app_data_rel=None, runenv=tmp_path / "runenv",
+        app="flight_telemetry_project", wenv_abs=tmp_path / "wenv", snippet_tail="pass", run_agi=run)
+    await orchestrate_execute.render_execute_section(env=env, project_path=tmp_path / "project",
+        app_state_name=env.app, controls_visible=True, show_run_panel=True, cmd="asyncio.run(main())",
+        deps=_make_execute_deps(fake_st.messages, fake_st.session_state))
+    assert ("info", "Missing runtime") in fake_st.messages
+    assert ("info", "Next: Deploy workers") in fake_st.messages
+    assert fake_st.session_state["_last_execute_failed"] is True
+    assert Path(fake_st.session_state["last_run_report_path"]).is_file()

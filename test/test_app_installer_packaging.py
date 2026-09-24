@@ -2445,3 +2445,79 @@ def test_data_quality_gate_readme_points_to_existing_quality_artifacts() -> None
     assert "data_quality_report.md" in text
     assert "gate_decision.json" in text
     assert "decision_card.json" in text
+
+
+def test_payload_copy_replaces_only_selected_project_and_handles_absent_source(tmp_path, monkeypatch):
+    support = _load_app_project_build_support()
+    source = tmp_path / "source"
+    project = source / "apps" / "builtin" / "fixture_project"
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname="fixture"\n')
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source)
+    monkeypatch.setattr(support, "repo_root", lambda: tmp_path / "missing-tools")
+    target = tmp_path / "payload"
+    old = target / "fixture_project"
+    old.mkdir(parents=True)
+    (old / "stale.txt").write_text("old")
+    sibling = target / "unrelated.txt"
+    sibling.write_text("keep")
+    assert support.copy_app_project_payload("fixture_project", target) == []
+    assert not (old / "stale.txt").exists()
+    assert (old / "pyproject.toml").read_text() == '[project]\nname="fixture"\n'
+    assert sibling.read_text() == "keep"
+    assert support.copy_app_project_payload("absent_project", target) == []
+    assert not (target / "absent_project").exists()
+
+
+@pytest.mark.parametrize("kind", ["missing", "directory", "changed"])
+def test_payload_regular_file_validation_rejects_unstable_input(tmp_path, monkeypatch, kind):
+    from types import SimpleNamespace
+    support = _load_app_project_build_support()
+    source, destination = tmp_path / "source", tmp_path / "destination"
+    if kind == "directory":
+        source.mkdir()
+    elif kind == "changed":
+        source.write_text("original")
+        replacement = tmp_path / "replacement"
+        replacement.write_text("substituted")
+        real_os = support.os
+        def open_after_replacement(path, flags):
+            replacement.replace(source)
+            return real_os.open(path, flags)
+        values = dict(vars(real_os))
+        values["open"] = open_after_replacement
+        monkeypatch.setattr(support, "os", SimpleNamespace(**values))
+    with pytest.raises(ValueError, match="stable regular|changed before"):
+        support._copy_stable_regular_file(source, destination, label="fixture payload")
+    assert not destination.exists()
+
+
+def test_umbrella_payload_refresh_removes_stale_examples_and_preserves_unrelated_target(tmp_path, monkeypatch):
+    support = _load_app_project_build_support()
+    source = tmp_path / "source"
+    (source / "apps" / "builtin" / "fixture_project").mkdir(parents=True)
+    (source / "apps" / "builtin" / "fixture_project" / "README.md").write_text("new app")
+    (source / "examples").mkdir()
+    (source / "examples" / "README.md").write_text("new example")
+    target = tmp_path / "payload"
+    for directory in (target / "agilab" / "examples", target / "agilab" / "apps" / "builtin" / "fixture_project"):
+        directory.mkdir(parents=True)
+        (directory / "stale.txt").write_text("old")
+    monkeypatch.setattr(support, "repo_agilab_root", lambda: source)
+    monkeypatch.setattr(support, "repo_root", lambda: tmp_path / "missing-tools")
+    monkeypatch.setattr(support, "BASE_BUILTIN_TEMPLATE_PROJECTS", ("absent_project", "fixture_project"))
+    support.copy_agi_apps_umbrella_payload(target)
+    assert not list(target.rglob("stale.txt"))
+    assert (target / "agilab" / "examples" / "README.md").read_text() == "new example"
+    assert (target / "agilab" / "apps" / "builtin" / "fixture_project" / "README.md").read_text() == "new app"
+
+
+def test_payload_catalog_round_trip_matches_declared_project_specs(tmp_path):
+    support = _load_app_project_build_support()
+    support.write_agi_apps_catalog(tmp_path)
+    catalog = json.loads((tmp_path / "catalog.json").read_text())
+    assert catalog == list(support.APP_PROJECT_SPECS)
+    for entry in catalog:
+        assert support.app_project_spec(entry["project"]) == entry
+    with pytest.raises(KeyError):
+        support.app_project_spec("missing_project")

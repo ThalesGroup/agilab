@@ -1,0 +1,350 @@
+"""Reject altered benchmark evidence without requiring a free-threaded runtime."""
+
+import copy
+import hashlib
+import importlib.util
+from pathlib import Path
+
+import pytest
+
+
+@pytest.fixture
+def evidence():
+    path = (
+        Path(__file__).resolve().parents[1]
+        / "src/agilab/demos/resources/free_threading_demo/benchmark.py"
+    )
+    spec = importlib.util.spec_from_file_location("_packaged_benchmark_evidence", path)
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    params = {
+        "width": 2,
+        "height": 2,
+        "iterations": 2,
+        "workers": 1,
+        "mode": "gil_on_threads",
+    }
+    runtime = {
+        "free_threaded_build": True,
+        "gil_enabled": True,
+        "version": "synthetic-runtime",
+    }
+    tile = {"tile_id": 0, "row_start": 0, "row_stop": 2}
+    # Four corner points: (-2,+/-1.2) escape after one step; (1,+/-1.2) after two.
+    counts = [1, 2, 1, 2]
+    digest = hashlib.sha256(b"001002001002").hexdigest()
+    record = dict(
+        tile,
+        counts=counts,
+        pid=100,
+        thread_id=200,
+        start=10.0,
+        end=11.0,
+        runtime_before=copy.deepcopy(runtime),
+        runtime_after=copy.deepcopy(runtime),
+        gil_before=True,
+        gil_after=True,
+    )
+    result = dict(
+        params,
+        before=copy.deepcopy(runtime),
+        after=copy.deepcopy(runtime),
+        records=[record],
+        engine_start=10.0,
+        engine_end=12.0,
+        engine_seconds=1.0,
+        actual_workers=1,
+        pool_width=1,
+        digest=digest,
+        backend="thread (forced by env)",
+    )
+    kwargs = dict(
+        expected_params=params,
+        expected_mode="gil_on_threads",
+        expected_interpreter_version="synthetic-runtime",
+        expected_free_threaded=True,
+        expected_gil=True,
+        expected_tiles=[tile],
+        expected_width=2,
+        expected_height=2,
+        expected_iterations=2,
+        wall_seconds=3.0,
+    )
+    return runner, result, kwargs
+
+
+def test_valid_corner_calculation_is_independently_verified(evidence):
+    runner, result, kwargs = evidence
+    runner._validate_child_result(result, **kwargs)
+    assert (
+        runner._compute_reference_digest(2, 2, 2)
+        == hashlib.sha256(b"001002001002").hexdigest()
+    )
+
+
+@pytest.mark.parametrize(
+    "path,value,reason",
+    [
+        (("width",), 3, "param mismatch"),
+        (("height",), 3, "param mismatch"),
+        (("iterations",), 3, "param mismatch"),
+        (("workers",), 2, "param mismatch"),
+        (("mode",), "wrong", "param mismatch"),
+        (("before", "free_threaded_build"), False, "free_threaded_build"),
+        (("after", "free_threaded_build"), False, "free_threaded_build"),
+        (("before", "gil_enabled"), False, "GIL state"),
+        (("after", "gil_enabled"), False, "GIL state"),
+        (("before", "version"), "other", "Interpreter version"),
+        (("records",), [], "no records"),
+        (("records",), {}, "no records"),
+        (("records", 0, "tile_id"), 1, "Tile mismatch"),
+        (("records", 0, "row_start"), "0", "Invalid row bounds"),
+        (("records", 0, "row_start"), -1, "Invalid row range"),
+        (("records", 0, "row_stop"), 3, "Invalid row range"),
+        (("records", 0, "row_stop"), 1, "row bounds"),
+        (("records", 0, "counts"), [1], "counts length"),
+        (("records", 0, "counts"), [True, 2, 1, 2], "invalid count"),
+        (("records", 0, "counts"), [-1, 2, 1, 2], "invalid count"),
+        (("records", 0, "counts"), [3, 2, 1, 2], "invalid count"),
+        (("records", 0, "pid"), 0, "invalid pid"),
+        (("records", 0, "pid"), True, "invalid pid"),
+        (("records", 0, "thread_id"), False, "invalid thread_id"),
+        (("records", 0, "thread_id"), -1, "invalid thread_id"),
+        (("engine_start",), "10", "not numeric"),
+        (("engine_end",), float("inf"), "not finite"),
+        (("engine_end",), 10, "engine_end <="),
+        (("records", 0, "start"), "10", "non-numeric"),
+        (("records", 0, "end"), float("nan"), "non-finite"),
+        (("records", 0, "end"), 10, "non-positive duration"),
+        (("records", 0, "start"), 9, "outside engine bracket"),
+        (("engine_seconds",), True, "not numeric"),
+        (("engine_seconds",), 0, "not finite/positive"),
+        (("engine_seconds",), float("inf"), "not finite/positive"),
+        (("engine_seconds",), 4, "> wall_seconds"),
+        (("engine_seconds",), 2.5, "> engine_end-engine_start"),
+        (("actual_workers",), True, "actual_workers invalid"),
+        (("actual_workers",), 0, "actual_workers invalid"),
+        (("pool_width",), True, "pool_width invalid"),
+        (("pool_width",), 0, "pool_width invalid"),
+        (("digest",), "", "digest invalid"),
+        (("digest",), "f" * 64, "Digest mismatch"),
+        (("after", "version"), "other", "before/after dicts differ"),
+        (("records", 0, "runtime_before"), {}, "runtime_before/after mismatch"),
+        (("records", 0, "runtime_after"), {}, "runtime_before/after mismatch"),
+        (("records", 0, "gil_before"), False, "gil_before"),
+        (("records", 0, "gil_after"), False, "gil_after"),
+        (("backend",), "process", "backend mismatch"),
+        (("actual_workers",), 2, "distinct"),
+        (("pool_width",), 2, "expected_workers"),
+    ],
+)
+def test_corrupted_child_evidence_is_rejected(evidence, path, value, reason):
+    runner, result, kwargs = evidence
+    target = result
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    with pytest.raises(RuntimeError, match=reason):
+        runner._validate_child_result(result, **kwargs)
+
+
+def test_duplicate_tiles_are_rejected(evidence):
+    runner, result, kwargs = evidence
+    result["records"].append(copy.deepcopy(result["records"][0]))
+    with pytest.raises(RuntimeError, match="Duplicate tile_ids"):
+        runner._validate_child_result(result, **kwargs)
+
+
+def test_self_consistent_digest_cannot_hide_incorrect_computation(evidence):
+    runner, result, kwargs = evidence
+    result["records"][0]["counts"] = [2, 2, 2, 2]
+    result["digest"] = hashlib.sha256(b"002002002002").hexdigest()
+    with pytest.raises(RuntimeError, match="Digest mismatch vs reference"):
+        runner._validate_child_result(result, **kwargs)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -float("inf")])
+def test_nested_nonfinite_results_are_rejected(evidence, value):
+    runner, _, _ = evidence
+    with pytest.raises((RuntimeError, ValueError)):
+        runner._reject_nonfinite({"runs": [{"measurement": value}]})
+
+
+def test_finite_nested_results_are_accepted(evidence):
+    runner, _, _ = evidence
+    runner._reject_nonfinite({"runs": [{"measurement": 1.5, "status": "ok"}]})
+
+@pytest.mark.parametrize("kind", ["probe", "child"])
+@pytest.mark.parametrize("outcome", ["success", "spawn-error", "timeout", "interrupted", "exit-error", "invalid-json"])
+def test_benchmark_subprocess_failures_are_bounded_and_cleaned(evidence, monkeypatch, kind, outcome):
+    import json
+    import subprocess
+    from types import SimpleNamespace
+    runner = evidence[0]
+    calls, cleaned = [], []
+    class Child:
+        pid = 8765
+        returncode = 3 if outcome == "exit-error" else 0
+        def communicate(self, timeout):
+            calls.append(("timeout", timeout))
+            if outcome == "timeout":
+                raise subprocess.TimeoutExpired("benchmark", timeout)
+            if outcome == "interrupted":
+                raise KeyboardInterrupt()
+            payload = {"free_threaded_build": True, "gil_enabled": False, "version": "test"}
+            return (b"bad-json" if outcome == "invalid-json" else json.dumps(payload).encode()), b"child diagnostic"
+    child = Child()
+    def launch(command, **kwargs):
+        calls.append((command, kwargs))
+        if outcome == "spawn-error":
+            raise OSError("cannot launch")
+        return child
+    monkeypatch.setattr(runner, "subprocess", SimpleNamespace(
+        Popen=launch, PIPE=subprocess.PIPE, TimeoutExpired=subprocess.TimeoutExpired))
+    monkeypatch.setattr(runner, "_kill_process_group", lambda proc, pgid: cleaned.append((proc, pgid)))
+    monkeypatch.setattr(runner, "os", SimpleNamespace(environ={
+        "PYTHON_GIL": "1", "AGILAB_POOL_ITEM_TIMEOUT": "0", "KEEP": "value"}))
+    def invoke():
+        if kind == "probe":
+            return runner._probe_interpreter("/private/python", 2.0)
+        return runner._launch_child("/private/python", "/private/core.py",
+                                    "gil_off_threads", {}, "/private/work", 2.0)
+    if outcome == "success":
+        result = invoke()
+        info = result if kind == "probe" else result[0]
+        assert info["free_threaded_build"] is True
+    else:
+        exception = KeyboardInterrupt if outcome == "interrupted" else RuntimeError
+        with pytest.raises(exception):
+            invoke()
+    command, options = calls[0]
+    assert command[:3] == ["/private/python", "-X", "gil=0"]
+    assert options["start_new_session"] is True
+    assert "PYTHON_GIL" not in options["env"]
+    assert "AGILAB_POOL_ITEM_TIMEOUT" not in options["env"]
+    assert options["env"]["KEEP"] == "value"
+    if outcome == "spawn-error":
+        assert not cleaned
+    else:
+        assert cleaned and all(pair == (child, child.pid) for pair in cleaned)
+        assert calls[1] == ("timeout", 2.0)
+
+
+@pytest.mark.parametrize("v2,v1,env,expected", [
+    ("250000 100000", ("-1", "100000"), None, 2),
+    ("max 100000", ("150000", "100000"), None, 1),
+    ("max 100000", ("-1", "100000"), "3", 3),
+    ("bad quota", ("bad", "0"), "invalid", 8),
+    ("0 0", ("0", "0"), "-2", 8),
+    ("50000 100000", ("-1", "100000"), "7", 1),
+])
+def test_effective_cpu_budget_respects_quotas_and_rejects_invalid_overrides(
+    evidence, monkeypatch, v2, v1, env, expected,
+):
+    from io import StringIO
+    from types import SimpleNamespace
+    runner = evidence[0]
+    environment = {} if env is None else {"CPU_CORES": env}
+    monkeypatch.setattr(runner, "os", SimpleNamespace(
+        cpu_count=lambda: 64, process_cpu_count=lambda: 12,
+        sched_getaffinity=lambda pid: set(range(10)), environ=environment))
+    values = {"/sys/fs/cgroup/cpu.max": v2,
+              "/sys/fs/cgroup/cpu/cpu.cfs_quota_us": v1[0],
+              "/sys/fs/cgroup/cpu/cpu.cfs_period_us": v1[1]}
+    monkeypatch.setattr(runner, "open", lambda path, mode: StringIO(values[path]), raising=False)
+    result = runner.effective_cpus()
+    assert result["effective_cpus"] == expected
+    assert result["host_cpu_count"] == 64
+
+
+def test_effective_cpu_budget_falls_back_when_all_probes_are_unavailable(evidence, monkeypatch):
+    from types import SimpleNamespace
+    runner = evidence[0]
+    def unavailable(*args):
+        raise OSError("unavailable")
+    monkeypatch.setattr(runner, "os", SimpleNamespace(
+        cpu_count=lambda: None, process_cpu_count=unavailable,
+        sched_getaffinity=unavailable, environ={}))
+    monkeypatch.setattr(runner, "open", unavailable, raising=False)
+    assert runner.effective_cpus() == {"effective_cpus": 1}
+
+
+@pytest.mark.parametrize("mode,pids,threads,error", [
+    ("gil_on_processes", [101, 102], [1, 1], None),
+    ("gil_on_processes", [101, 101], [1, 2], "distinct PIDs"),
+    ("gil_on_threads", [101, 101], [1, 2], None),
+    ("gil_on_threads", [101, 102], [1, 1], "expected 1 PID"),
+])
+def test_benchmark_worker_identity_matches_execution_mode(evidence, mode, pids, threads, error):
+    runner, result, kwargs = evidence
+    original = result["records"][0]
+    tiles = [{"tile_id": 0, "row_start": 0, "row_stop": 1},
+             {"tile_id": 1, "row_start": 1, "row_stop": 2}]
+    records = []
+    for i, tile in enumerate(tiles):
+        record = copy.deepcopy(original)
+        record.update(tile, counts=original["counts"][2*i:2*i+2], pid=pids[i], thread_id=threads[i])
+        records.append(record)
+    result.update(records=records, workers=2, pool_width=2, actual_workers=2, mode=mode,
+                  backend="process" if mode == "gil_on_processes" else "thread (forced by env)")
+    kwargs["expected_params"].update(workers=2, mode=mode)
+    kwargs.update(expected_mode=mode, expected_tiles=tiles)
+    if error:
+        with pytest.raises(RuntimeError, match=error):
+            runner._validate_child_result(result, **kwargs)
+    else:
+        runner._validate_child_result(result, **kwargs)
+
+
+@pytest.mark.parametrize("field,value,message", [
+    ("actual_workers", 2, "len\\(distinct"),
+    ("pool_width", 2, "expected_workers"),
+    ("engine_seconds", 2.5, "engine_end-engine_start"),
+])
+def test_benchmark_rejects_fabricated_parallel_width_or_elapsed_time(evidence, field, value, message):
+    runner, result, kwargs = evidence
+    result[field] = value
+    with pytest.raises(RuntimeError, match=message):
+        runner._validate_child_result(result, **kwargs)
+
+
+@pytest.mark.parametrize("group_state", ["live", "gone", "own", "unknown-parent"])
+@pytest.mark.parametrize("reap_fails", [False, True])
+def test_group_cleanup_never_signals_parent_and_bounds_leader_reap(evidence, monkeypatch, group_state, reap_fails):
+    import subprocess
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    runner, _, _ = evidence
+    signals = []
+    def signal_group(pgid, signal_number):
+        assert pgid == 881
+        signals.append(signal_number)
+        if group_state == "gone":
+            raise ProcessLookupError()
+    own = Mock(return_value=881 if group_state == "own" else 999,
+               side_effect=OSError("unknown") if group_state == "unknown-parent" else None)
+    monkeypatch.setattr(runner, "os", SimpleNamespace(getpgid=own, killpg=signal_group))
+    monkeypatch.setattr(runner, "signal", SimpleNamespace(SIGTERM=15, SIGKILL=9))
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=Mock(side_effect=[0, 0, 100]),
+                                                        sleep=lambda _: None))
+    child = SimpleNamespace(pid=881, wait=Mock(side_effect=subprocess.TimeoutExpired("owned", 1) if reap_fails else None))
+    if reap_fails:
+        with pytest.raises(RuntimeError, match="Failed to reap child"):
+            runner._kill_process_group(child, 881)
+    else:
+        runner._kill_process_group(child, 881)
+    child.wait.assert_called_once_with(timeout=1.0)
+    if group_state == "own":
+        assert signals == []
+    elif group_state in {"live", "unknown-parent"}:
+        assert signals[0] == 15 and signals[-1] == 9
+
+
+@pytest.mark.parametrize("available", ["killpg", "getpgid", "neither"])
+def test_missing_process_group_api_rejects_benchmark_platform(evidence, monkeypatch, available):
+    from types import SimpleNamespace
+    runner, _, _ = evidence
+    attrs = {available: lambda *args: None} if available != "neither" else {}
+    monkeypatch.setattr(runner, "os", SimpleNamespace(**attrs))
+    with pytest.raises(RuntimeError, match="Cannot guarantee safe"):
+        runner._ensure_process_group_support()

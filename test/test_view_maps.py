@@ -1917,3 +1917,40 @@ def test_view_maps_page_warns_without_lat_lon_columns(tmp_path, monkeypatch) -> 
         "Latitude and Longitude columns are required for the map." in message
         for message in fake_st.calls["warning"]
     )
+
+
+def test_view_maps_recursive_payload_has_stable_display_fallback():
+    module = _load_view_maps_module()
+    payload = {}
+    payload["self"] = payload
+    assert module._stable_display_value(payload) == repr(payload)
+    assert module._stable_display_value("station") == "station"
+
+
+@pytest.mark.parametrize("saved,fallback,expected", [
+    ("latitude", "longitude", 1), ("removed", "latitude", 1), ("removed", "missing", 0),
+])
+def test_view_maps_column_selection_prefers_valid_saved_then_fallback(saved, fallback, expected):
+    module = _load_view_maps_module()
+    assert module._select_column_index(["longitude", "latitude"], saved, fallback) == expected
+
+
+@pytest.mark.parametrize("latitude,longitude", [(None, "lon"), ("lat", None), ("missing", "lon")])
+def test_view_maps_overlay_requires_available_coordinate_columns(latitude, longitude):
+    module = _load_view_maps_module()
+    assert module._coordinate_overlay_points(
+        pd.DataFrame({"lat": [1], "lon": [2]}), latitude, longitude
+    ).empty
+
+
+def test_view_maps_no_owned_settings_change_does_not_touch_file(tmp_path):
+    module = _load_view_maps_module()
+    path = tmp_path / "settings.toml"
+    path.write_text('[unrelated]\nkeep = true\n')
+    before = path.read_bytes()
+    result = module._persist_view_maps_settings(
+        SimpleNamespace(app_settings_file=path), {"unrelated": {"keep": True}},
+        {"latitude": "lat"}, (),
+    )
+    assert result["view_maps"] == {"latitude": "lat"}
+    assert path.read_bytes() == before

@@ -1018,3 +1018,169 @@ def test_dag_run_engine_emits_workflow_evidence_on_state_writes(tmp_path: Path) 
     assert executed_manifest["runner_state"]["path"] == str(state_path)
     assert executed_manifest["artifact_contracts"]["produced_count"] >= 1
     assert executed_ledger["manifest_id"] == executed_manifest["manifest_id"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "message"),
+    [(b"{", "not valid JSON"), (b"\\xff", "not valid JSON"),
+     (b"[]", "must be a JSON object"), (None, "could not be read")],
+)
+def test_runner_snapshot_rejects_unreadable_or_non_object_state(tmp_path, raw, message):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    path = tmp_path / "runner_state.json"
+    if raw is not None:
+        path.write_bytes(raw)
+    with pytest.raises(ValueError, match=message):
+        module._read_matching_runner_state(state={}, state_path=path)
+
+
+@pytest.mark.parametrize("raw", ["{", "[]", '{"kind":"unrelated"}'])
+def test_corrupt_latest_pointer_is_preserved_for_diagnosis(tmp_path, raw):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    path = tmp_path / "latest.json"
+    path.write_text(raw, encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid latest workflow evidence pointer"):
+        module._write_latest_if_newer(path, {"manifest_id": "new"})
+    assert path.read_text(encoding="utf-8") == raw
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [("{", "completion marker:"),
+     ("[]", "completion marker:"),
+     ('{"schema_version":2}', "marker schema"),
+     ('{"schema_version":1,"kind":"other"}', "marker kind"),
+     ('{"schema_version":1,"kind":"agilab.workflow_evidence.complete","manifest_id":"other"}',
+      "manifest mismatch"),
+     ('{"schema_version":1,"kind":"agilab.workflow_evidence.complete","manifest_id":"run"}',
+      "files are missing")],
+)
+def test_completion_marker_rejects_invalid_identity_before_reading_artifacts(tmp_path, payload, message):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    marker = tmp_path / module.WORKFLOW_EVIDENCE_COMPLETION_FILENAME
+    marker.write_text(payload, encoding="utf-8")
+    with pytest.raises(ValueError, match=message):
+        module._validate_completion_marker(tmp_path, "run")
+    assert marker.read_text(encoding="utf-8") == payload
+
+
+@pytest.mark.parametrize("same_payload", [False, True])
+def test_immutable_publication_preserves_winner_created_during_flush(tmp_path, monkeypatch, same_payload):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    path = tmp_path / "receipt.json"
+    expected = {"run": "ours"}
+    winner = module._json_document_text(expected if same_payload else {"run": "winner"})
+    real_fsync = module.os.fsync
+    published = False
+
+    def publish_during_flush(fd):
+        nonlocal published
+        real_fsync(fd)
+        if not published:
+            published = True
+            path.write_text(winner, encoding="utf-8")
+
+    monkeypatch.setattr(module.os, "fsync", publish_during_flush)
+    if same_payload:
+        assert module._write_immutable_json(path, expected) == path
+    else:
+        with pytest.raises(FileExistsError, match="Refusing to overwrite"):
+            module._write_immutable_json(path, expected)
+    assert path.read_text(encoding="utf-8") == winner
+    assert list(tmp_path.glob(".receipt.json.*.tmp")) == []
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_sharing_retry_propagates_persistent_denial_with_bounded_attempts(monkeypatch, windows):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    clock = iter([0.0, 0.1, 0.6])
+    delays = []
+    attempts = []
+    failure = PermissionError("sharing denied")
+
+    def denied():
+        attempts.append(True)
+        raise failure
+
+    monkeypatch.setattr(module, "_is_windows", lambda: windows)
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda: next(clock), sleep=delays.append))
+    with pytest.raises(PermissionError) as raised:
+        module._run_with_windows_sharing_retry(denied)
+    assert raised.value is failure
+    assert len(attempts) == (2 if windows else 1)
+    assert delays == ([module._WINDOWS_SHARING_RETRY_INTERVAL_SECONDS] if windows else [])
+
+
+def test_latest_revision_normalizes_timezones_and_invalid_legacy_event_counts():
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    utc = {"updated_at": "2026-09-24T10:00:00", "manifest_id": "same"}
+    offset = {"updated_at": "2026-09-24T12:00:00+02:00", "manifest_id": "same",
+              "revision": {"event_count": "invalid"}}
+    assert module._latest_revision(utc) == module._latest_revision(offset)
+    assert module._latest_revision({"updated_at": "unknown"}) < module._latest_revision(utc)
+
+
+@pytest.mark.parametrize("fail_open", [False, True])
+def test_directory_sync_failure_is_best_effort_and_closes_open_descriptor(monkeypatch, tmp_path, fail_open):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    closed = []
+
+    def open_directory(path, flags):
+        assert path == tmp_path
+        if fail_open:
+            raise OSError("directory handles unavailable")
+        return 123
+
+    def fail_sync(fd):
+        assert fd == 123
+        raise OSError("directory sync unavailable")
+
+    monkeypatch.setattr(module, "os", SimpleNamespace(
+        open=open_directory, fsync=fail_sync, close=closed.append, O_RDONLY=0))
+    module._fsync_directory(tmp_path)
+    assert closed == ([] if fail_open else [123])
+
+
+def test_completed_manifest_requires_identity_even_with_valid_header(tmp_path):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    path = tmp_path / module.WORKFLOW_RUN_MANIFEST_FILENAME
+    path.write_text(json.dumps({"schema_version": 4,
+        "kind": module.WORKFLOW_RUN_MANIFEST_KIND, "status": "pass"}), encoding="utf-8")
+    with pytest.raises(ValueError, match="manifest_id is required"):
+        module.load_workflow_run_manifest(path)
+
+
+@pytest.mark.parametrize("raw", [None, "{"])
+def test_completion_inventory_rejects_missing_or_malformed_manifest(tmp_path, raw):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    if raw is not None:
+        (tmp_path / module.WORKFLOW_RUN_MANIFEST_FILENAME).write_text(raw, encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid workflow evidence manifest"):
+        module._completion_filenames(tmp_path)
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_bundle_reuse_rejects_incomplete_or_changed_immutable_payloads(tmp_path, missing):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    paths = {key: tmp_path / (key + ".json") for key in ("manifest", "graph", "ledger", "state_snapshot")}
+    payloads = {key: {"kind": key} for key in paths}
+    for key, path in paths.items():
+        path.write_text(module._json_document_text(payloads[key]), encoding="utf-8")
+    if missing:
+        paths["ledger"].unlink()
+    else:
+        paths["ledger"].write_text('{"tampered":true}', encoding="utf-8")
+    kwargs = {key + "_path": path for key, path in paths.items()}
+    kwargs.update(payloads)
+    with pytest.raises(FileExistsError, match="Incomplete immutable|Refusing to overwrite"):
+        module._verify_existing_bundle(**kwargs)
+    assert not (tmp_path / module.WORKFLOW_EVIDENCE_COMPLETION_FILENAME).exists()
+
+
+def test_state_timestamp_uses_last_timestamped_event_and_clock_only_as_last_resort(monkeypatch):
+    module = importlib.import_module("agilab.workflow.workflow_run_manifest")
+    monkeypatch.setattr(module, "utc_now", lambda: "clock")
+    assert module._state_timestamp({"events": [{"timestamp": "earlier"}, {"timestamp": "last"}, None, {}]}) == "last"
+    assert module._state_timestamp({"events": "not an event collection"}) == "clock"

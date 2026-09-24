@@ -16,7 +16,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.coverage_shard_plan import static_chunk_args
+from tools.coverage_shard_plan import GLOBAL_IGNORES, static_chunk_args
 from tools.testing.pytest_entrypoint import cleaned_test_environment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,6 +29,7 @@ class RootTestGroup:
     name: str
     pytest_args: tuple[str, ...]
     test_files: tuple[str, ...]
+    working_directory: Path | None = None
 
 
 def _repo_relative(path: Path) -> str:
@@ -101,6 +102,18 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
         RootTestGroup(f"general:{Path(path).stem}", (path,), (path,))
         for path in general
     ]
+    # Source-only regressions must not share collection with the outer test
+    # package: a checkout named agilab otherwise shadows src/agilab.
+    source_tests = REPO_ROOT / "src/agilab/test"
+    for path in sorted(source_tests.glob("test_*.py")):
+        relative = _repo_relative(path)
+        if relative in GLOBAL_IGNORES or (ROOT_TEST_DIR / path.name).is_file():
+            continue
+        groups.append(RootTestGroup(
+            f"general:source-{path.stem}",
+            (f"--confcutdir={source_tests}", relative),
+            (relative,),
+        ))
     groups.extend(chunk_groups)
 
     planned = {path for group in groups for path in group.test_files}
@@ -112,14 +125,48 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
     return tuple(groups)
 
 
-def _pytest_command(group: RootTestGroup) -> tuple[str, ...]:
+def build_demo_test_groups() -> tuple[RootTestGroup, ...]:
+    """Discover the test entrypoints shipped with standalone demo bundles."""
+    resources = REPO_ROOT / "src/agilab/demos/resources"
+    return tuple(
+        RootTestGroup(
+            f"demos:{path.parent.name}",
+            ("-c", "/dev/null", "--confcutdir=.", "-o", "pythonpath=.", "-p", "no:cacheprovider", "tests.py"),
+            (_repo_relative(path),),
+            path.parent,
+        )
+        for path in sorted(resources.glob("*/tests.py"))
+    )
+
+
+def _pytest_command(
+    group: RootTestGroup,
+    coverage_data_file: Path | None = None,
+    junit_dir: Path | None = None,
+    coverage_config: Path | None = None,
+) -> tuple[str, ...]:
+    prefix = (sys.executable,)
+    if coverage_data_file is not None:
+        prefix += (
+            "-m", "coverage", "run",
+            f"--rcfile={(coverage_config or REPO_ROOT / '.coveragerc.agi-gui').resolve()}",
+            f"--source={REPO_ROOT / 'src/agilab'}",
+            f"--data-file={coverage_data_file.resolve()}", "--parallel-mode",
+        )
+    reports = ()
+    if junit_dir is not None:
+        name = group.name.replace(":", "-")
+        reports = (f"--junitxml={junit_dir.resolve() / f'junit-agi-gui-{name}.xml'}",)
+    selection = ("-m", "not integration") if coverage_data_file is not None else ()
     return (
-        sys.executable,
+        *prefix,
         "-m",
-        "tools.testing.pytest_entrypoint",
+        "pytest" if group.working_directory is not None else "tools.testing.pytest_entrypoint",
         "-q",
         "-o",
         "addopts=",
+        *reports,
+        *selection,
         *group.pytest_args,
     )
 
@@ -134,9 +181,16 @@ def run_root_test_groups(
     groups: Sequence[RootTestGroup],
     *,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    coverage_data_file: Path | None = None,
+    junit_dir: Path | None = None,
+    coverage_config: Path | None = None,
 ) -> int:
     """Run every group in a fresh interpreter and aggregate failures."""
 
+    if coverage_data_file is not None:
+        coverage_data_file.parent.mkdir(parents=True, exist_ok=True)
+    if junit_dir is not None:
+        junit_dir.mkdir(parents=True, exist_ok=True)
     aggregate_returncode = 0
     for group in groups:
         print(
@@ -145,8 +199,8 @@ def run_root_test_groups(
             flush=True,
         )
         completed = runner(
-            _pytest_command(group),
-            cwd=REPO_ROOT,
+            _pytest_command(group, coverage_data_file, junit_dir, coverage_config),
+            cwd=group.working_directory or REPO_ROOT,
             check=False,
             env=_pytest_environment(),
         )
@@ -175,13 +229,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Print the group names and test-file counts without running pytest.",
     )
+    parser.add_argument("--demos", action="store_true", help="Run standalone demo bundles in their own working directories.")
+    parser.add_argument("--coverage-config", type=Path, help="Coverage configuration for this suite.")
+    parser.add_argument("--unclassified", action="store_true", help="Run root tests outside the named coverage chunks.")
+    parser.add_argument("--coverage-data-file", type=Path, help="Collect isolated parallel coverage files under this prefix.")
+    parser.add_argument("--junit-dir", type=Path, help="Write one JUnit report per isolated group.")
     args = parser.parse_args(argv)
-    groups = build_root_test_groups()
+    if args.demos and args.unclassified:
+        parser.error("--demos and --unclassified are mutually exclusive")
+    groups = build_demo_test_groups() if args.demos else build_root_test_groups()
+    if args.unclassified:
+        groups = tuple(group for group in groups if group.name.startswith("general:"))
     if args.list:
         for group in groups:
             print(f"{group.name}\t{len(group.test_files)}")
         return 0
-    return run_root_test_groups(groups)
+    return run_root_test_groups(groups, coverage_data_file=args.coverage_data_file, junit_dir=args.junit_dir, coverage_config=args.coverage_config)
 
 
 if __name__ == "__main__":

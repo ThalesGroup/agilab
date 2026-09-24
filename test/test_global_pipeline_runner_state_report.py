@@ -567,3 +567,129 @@ def test_runner_state_transaction_serializes_stale_multiprocess_sessions(tmp_pat
         {"kind": "created"},
         {"kind": "completed"},
     ]
+
+
+@pytest.mark.parametrize("handle,flush_result,expected", [(None, True, False), (-1, True, False), (123, True, True), (123, False, False)])
+def test_windows_flush_contract_checks_handle_and_closes_after_flush(monkeypatch, tmp_path, handle, flush_result, expected):
+    import ctypes
+    from unittest.mock import Mock
+    module = _load_core_module()
+    invalid = ctypes.c_void_p(-1).value
+    native_handle = invalid if handle == -1 else handle
+    create = Mock(return_value=native_handle)
+    flush = Mock(return_value=flush_result)
+    close = Mock()
+    library = SimpleNamespace(CreateFileW=create, FlushFileBuffers=flush, CloseHandle=close)
+    monkeypatch.setattr(ctypes, "WinDLL", Mock(return_value=library), raising=False)
+    assert module._flush_windows_directory(tmp_path) is expected
+    assert create.call_args.args[0] == str(tmp_path)
+    assert create.call_args.args[1] == 0x40000000
+    assert create.call_args.args[2] == 7
+    assert create.call_args.args[4:6] == (3, 0x02000000)
+    if handle in (None, -1):
+        flush.assert_not_called()
+        close.assert_not_called()
+    else:
+        flush.assert_called_once_with(123)
+        close.assert_called_once_with(123)
+
+
+@pytest.mark.parametrize("failure_at", ["open", "flush", "close"])
+def test_windows_flush_failure_never_claims_durability(monkeypatch, tmp_path, failure_at):
+    import ctypes
+    from unittest.mock import Mock
+    module = _load_core_module()
+    create = Mock(return_value=123, side_effect=OSError("open failed") if failure_at == "open" else None)
+    flush = Mock(return_value=True, side_effect=OSError("flush failed") if failure_at == "flush" else None)
+    close = Mock(side_effect=OSError("close failed") if failure_at == "close" else None)
+    monkeypatch.setattr(ctypes, "WinDLL", Mock(return_value=SimpleNamespace(
+        CreateFileW=create, FlushFileBuffers=flush, CloseHandle=close)), raising=False)
+    assert module._flush_windows_directory(tmp_path) is False
+    assert close.call_count == (0 if failure_at == "open" else 1)
+
+
+def test_runner_state_rejects_file_in_directory_hierarchy(tmp_path):
+    module = _load_core_module()
+    path = tmp_path / "not-a-directory"
+    path.write_text("keep")
+    with pytest.raises(NotADirectoryError):
+        module._ensure_directory_hierarchy_durable(path / "child")
+    assert path.read_text() == "keep"
+
+
+def test_required_durability_failure_preserves_existing_runner_state(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation": 1}')
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: False)
+    with pytest.raises(module.RunnerStateDurabilityError):
+        module._write_runner_state_atomic(path, {"generation": 2}, require_directory_fsync=True)
+    assert path.read_text() == '{"generation": 1}'
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_expired_transaction_cannot_commit_after_lock_release(tmp_path):
+    module = _load_core_module()
+    path = tmp_path / "runner-state.json"
+    module.write_runner_state(path, {"generation":1})
+    with module.runner_state_transaction(path) as transaction:
+        assert transaction.state == {"generation":1}
+    with pytest.raises(RuntimeError, match="no longer active"):
+        transaction.commit({"generation":2})
+    assert module.load_runner_state(path) == {"generation":1}
+
+
+def test_required_postrename_durability_failure_preserves_visible_state_but_blocks_evidence(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation":1}')
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: True)
+    monkeypatch.setattr(implementation, "_fsync_runner_state_directory", lambda path: False)
+    with pytest.raises(module.RunnerStateDurabilityError):
+        module._write_runner_state_atomic(path, {"generation":2}, require_directory_fsync=True)
+    assert module.load_runner_state(path) == {"generation":2}
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+def test_atomic_writer_closes_descriptor_if_stream_construction_fails(monkeypatch, tmp_path):
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    path = tmp_path / "runner-state.json"
+    path.write_text('{"generation":1}')
+    closed = []
+    real_close = implementation.os.close
+    def fail_open(fd, *args, **kwargs):
+        raise OSError("stream construction failed")
+    def close(fd):
+        closed.append(fd)
+        real_close(fd)
+    monkeypatch.setattr(implementation, "_ensure_directory_hierarchy_durable", lambda path: True)
+    monkeypatch.setattr(implementation.os, "fdopen", fail_open)
+    monkeypatch.setattr(implementation.os, "close", close)
+    with pytest.raises(OSError, match="stream construction failed"):
+        module._write_runner_state_atomic(path, {"generation":2})
+    assert len(closed) == 1
+    assert module.load_runner_state(path) == {"generation":1}
+    assert not list(tmp_path.glob(".*.tmp"))
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_runner_state_sharing_denials_have_bounded_retry(monkeypatch, windows):
+    from types import SimpleNamespace
+    module = _load_core_module()
+    implementation = sys.modules[module._write_runner_state_atomic.__module__]
+    clock = iter([0.0, 0.1, 0.6])
+    calls, delays = [], []
+    error = PermissionError("sharing denied")
+    def denied():
+        calls.append(True)
+        raise error
+    monkeypatch.setattr(implementation, "_is_windows", lambda:windows)
+    monkeypatch.setattr(implementation, "time", SimpleNamespace(monotonic=lambda:next(clock), sleep=delays.append))
+    with pytest.raises(PermissionError) as raised:
+        implementation._run_with_windows_file_sharing_retry(denied)
+    assert raised.value is error
+    assert len(calls) == (2 if windows else 1)
+    assert delays == ([0.01] if windows else [])

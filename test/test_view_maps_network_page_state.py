@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import networkx as nx
 import numpy as np
+import pytest
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
@@ -1516,3 +1517,126 @@ def test_view_maps_network_page_handles_invalid_focus_pair_and_timeindexless_all
 
     assert selectboxes["Focus demand (optional)"] is None
     assert infos
+
+
+def test_view_maps_network_split_query_does_not_persist_forced_layout(
+    tmp_path, create_temp_app_project, monkeypatch
+):
+    project_dir, share_root = _create_pair_overlay_project(
+        tmp_path, create_temp_app_project, target_name="split_query_contract"
+    )
+    settings_path = project_dir / "src" / "app_settings.toml"
+    with settings_path.open("a") as stream:
+        stream.write("show_map = true\nshow_graph = true\n")
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        for key, value in {
+            "AGI_EXPORT_DIR": str(tmp_path / "export"),
+            "AGI_LOCAL_SHARE": str(tmp_path / "localshare"),
+            "AGI_CLUSTER_SHARE": str(share_root),
+            "OPENAI_API_KEY": "dummy",
+            "IS_SOURCE_ENV": "1",
+            "AGILAB_ACTIVE_APP": str(project_dir),
+        }.items():
+            monkeypatch.setenv(key, value)
+        at = AppTest.from_file(PAGE_PATH, default_timeout=30)
+        at.query_params["view"] = "graph"
+        at.query_params["alloc_pair"] = "bad:pair"
+        at.query_params["alloc_time_index"] = "bad-time"
+        at.run()
+        assert not at.exception
+        assert _widget_by_label(at.checkbox, "Show topology graph").value is True
+        assert _widget_by_label(at.checkbox, "Show map view").value is False
+        assert _widget_by_label(at.selectbox, "Focus demand (optional)").value is None
+        at.query_params["view"] = "map"
+        at.query_params["alloc_pair"] = "1001:2002"
+        at.run()
+        assert not at.exception
+        assert _widget_by_label(at.checkbox, "Show map view").value is True
+        assert _widget_by_label(at.checkbox, "Show topology graph").value is False
+    import tomllib
+
+    saved = tomllib.loads(settings_path.read_text())["view_maps_network"]
+    assert saved["show_map"] is True
+    assert saved["show_graph"] is True
+
+
+def test_view_maps_network_multifile_selection_preserves_explicit_deselection(
+    tmp_path, create_temp_app_project, monkeypatch
+):
+    project_dir, share_root = _create_pair_overlay_project(
+        tmp_path, create_temp_app_project, target_name="multifile_contract"
+    )
+    csv_path = share_root / "flight_trajectory" / "network.csv"
+    other = csv_path.with_name("other.csv")
+    frame = pd.read_csv(csv_path)
+    frame.to_csv(other, index=False)
+    argv = [Path(PAGE_PATH).name, "--active-app", str(project_dir)]
+    with patch.object(sys, "argv", argv):
+        for key, value in {
+            "AGI_EXPORT_DIR": str(tmp_path / "export"),
+            "AGI_LOCAL_SHARE": str(tmp_path / "localshare"),
+            "AGI_CLUSTER_SHARE": str(share_root),
+            "OPENAI_API_KEY": "dummy",
+            "IS_SOURCE_ENV": "1",
+            "AGILAB_ACTIVE_APP": str(project_dir),
+        }.items():
+            monkeypatch.setenv(key, value)
+        at = AppTest.from_file(PAGE_PATH, default_timeout=30).run()
+        assert not at.exception
+        mode = next(
+            widget
+            for widget in at.radio
+            if widget.key == "view_maps_network:df_select_mode"
+        )
+        mode.set_value("Regex (multi)").run()
+        assert not at.exception
+        files = next(
+            widget
+            for widget in at.multiselect
+            if widget.key == "view_maps_network:df_files"
+        )
+        assert files.value == []
+        files.set_value(["other.csv"]).run()
+        assert not at.exception
+        files = next(
+            widget
+            for widget in at.multiselect
+            if widget.key == "view_maps_network:df_files"
+        )
+        assert files.value == ["other.csv"]
+        files.set_value([]).run()
+        assert not at.exception
+        assert any(
+            "Please select at least one dataset" in warning.value
+            for warning in at.warning
+        )
+
+
+@pytest.mark.parametrize("saved_selection", [["network.csv", "removed.csv"], None, "network.csv"])
+def test_view_maps_network_multifile_repairs_stale_or_invalid_saved_selection(
+    tmp_path, create_temp_app_project, monkeypatch, saved_selection
+):
+    project_dir, share_root = _create_pair_overlay_project(
+        tmp_path, create_temp_app_project, target_name="multifile_repair"
+    )
+    for key, value in {
+        "AGI_EXPORT_DIR": str(tmp_path / "export"),
+        "AGI_LOCAL_SHARE": str(tmp_path / "localshare"),
+        "AGI_CLUSTER_SHARE": str(share_root),
+        "OPENAI_API_KEY": "dummy",
+        "IS_SOURCE_ENV": "1",
+        "AGILAB_ACTIVE_APP": str(project_dir),
+    }.items():
+        monkeypatch.setenv(key, value)
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project_dir)]):
+        at = AppTest.from_file(PAGE_PATH, default_timeout=30).run()
+        assert not at.exception
+        at.session_state["view_maps_network:df_files"] = saved_selection
+        mode = next(w for w in at.radio if w.key == "view_maps_network:df_select_mode")
+        mode.set_value("Regex (multi)").run()
+        assert not at.exception
+        selected = next(w for w in at.multiselect if w.key == "view_maps_network:df_files")
+        assert selected.value == ["network.csv"]
+        assert at.session_state["view_maps_network:df_file"] == "network.csv"
+        assert not any("No selected dataframes" in item.value for item in at.error)

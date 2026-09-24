@@ -1429,3 +1429,484 @@ def test_run_all_stages_releases_lock_and_restores_view_when_publication_fails(t
         assert found.value is cancellation
         assert 'manifest write failed' in '\n'.join(found.value.__notes__)
         assert [item['status'] for item in published[0]['stages']] == ['failed', 'skipped_after_failure']
+
+@pytest.mark.parametrize("raw, expected", [
+    ({"z": {"b", "a"}, "a": (Path("first"), [None, False, 9, " "])}, ["first", "9", "a", "b"]),
+    (True, []), (None, []), ("", []),
+])
+def test_nested_output_path_inventory_is_deterministic(raw, expected):
+    module = _import_pipeline_run_controls()
+    assert module._iter_path_specs(raw) == expected
+
+
+@pytest.mark.parametrize("raw", [
+    None, True, 1, "", [], {}, (), set(), ["ok", None],
+    {"valid": "ok", "incomplete": []}, ["ok", {"broken": False}],
+])
+def test_parallel_contract_rejects_incomplete_output_declarations(raw):
+    module = _import_pipeline_run_controls()
+    outputs, reason = module._stage_parallel_output_contract(
+        {"automation": {"parallel_safe": True, "outputs": raw}}
+    )
+    assert outputs == []
+    assert "complete" in reason
+
+
+@pytest.mark.parametrize("raw", [
+    "https://host/output", "`command`", "$ROOT/out", "{root}/out", "out/*",
+    "out/?", "out/[ab]", "%ROOT%/out",
+])
+def test_parallel_contract_rejects_dynamic_outputs(raw):
+    module = _import_pipeline_run_controls()
+    outputs, reason = module._stage_parallel_output_contract(
+        {"automation": {"parallel_safe": True, "outputs": [raw]}}
+    )
+    assert outputs == []
+    assert "dynamic or invalid" in reason
+
+
+def test_parallel_contract_normalizes_nested_literal_roots_and_resolution_errors(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    entry = {"parallel_safe": "yes", "outputs": {"z": {"out/b", "out/a"}, "a": [Path("out/a")]}}
+    assert module._stage_parallel_output_contract(entry) == (["out/a", "out/b"], None)
+    for resolver in (lambda *_a, **_k: None, lambda *_a, **_k: (_ for _ in ()).throw(OSError("unavailable"))):
+        monkeypatch.setattr(module, "_resolve_stage_output_path", resolver)
+        outputs, reason = module._stage_parallel_output_contract(
+            entry, env=SimpleNamespace(), stages_file=tmp_path / "stages.toml"
+        )
+        assert outputs == []
+        assert "could not be resolved" in reason
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ('"././out/result"', "out/result"),
+    ("C:\\clustershare\\user\\output", "user/output"),
+    ("/mnt/localshare/agi/result", "result"),
+    ("/mnt/share/agi/result", "result"),
+    ("https://example.test/result", ""), ("$ROOT/result", ""), ("", ""),
+])
+def test_dependency_paths_normalize_shares_without_treating_remote_urls_as_files(raw, expected):
+    assert _import_pipeline_run_controls()._normalize_dependency_path(raw) == expected
+
+
+def test_dependency_inference_extracts_file_fields_but_ignores_stage_identity():
+    module = _import_pipeline_run_controls()
+    entry = {
+        "id": "not/a/path", "deps": ["not/a/path"],
+        "input_paths": {"b": "https://host/remote", "a": ["./data/train", "$ROOT/missing"]},
+        "C": "load('data/train'); save('data/model')",
+    }
+    assert module._literal_stage_paths(entry) == ["data/model", "data/train"]
+    assert module._stage_deps({"depends_on": " "}) == []
+    assert module._stage_deps({"dependencies": (" a ", "", 2)}) == ["a", "2"]
+    assert module._stage_deps({"deps": False}) == []
+    assert module._stage_declared_outputs({
+        "D": "app/install", "outputs": ["./out/model", "$ROOT/dynamic"],
+        "C": "data_out='out/data'; params={'output_dir': 'out/metrics'}",
+    }) == ["out/data", "out/metrics", "out/model"]
+
+
+def test_workflow_data_root_falls_back_after_invalid_environment_paths(tmp_path):
+    module = _import_pipeline_run_controls()
+    def unavailable():
+        raise OSError("share disconnected")
+    stages_file = tmp_path / "lab_stages.toml"
+    env = SimpleNamespace(workflow_data_root_path=unavailable, share_root_path=lambda: None,
+                          agi_share_path_abs=object(), share_root=tmp_path / "share")
+    assert module._workflow_data_root(env, stages_file) == tmp_path / "share"
+    assert module._workflow_data_root(SimpleNamespace(), stages_file) == tmp_path
+    assert module._resolve_stage_output_path("$ROOT/out", env=env, stages_file=stages_file) is None
+    assert module._resolve_stage_output_path(str(tmp_path / "absolute"), env=env, stages_file=stages_file) == tmp_path / "absolute"
+
+
+@pytest.mark.parametrize("entry, selected, ui_engine, default, expected", [
+    ({"E": "valid-entry", "R": "agi.run"}, "valid-selected", "runpy", "valid-default", ("agi.run", "valid-entry")),
+    ({"E": "invalid", "R": "runpy"}, "valid-selected", "", "", ("agi.run", "valid-selected")),
+    ({"R": "runpy"}, "", "agi.install", "", ("agi.install", "valid-active")),
+    ({}, "", "", "", ("runpy", "")),
+    ({}, "", "", "valid-default", ("agi.run", "valid-default")),
+    ({"R": "agi.run"}, "", "", "", ("agi.run", "valid-active")),
+])
+def test_runtime_selection_preserves_explicit_agi_contract(entry, selected, ui_engine, default, expected, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module._pipeline_stages, "normalize_runtime_path", lambda value: str(value))
+    monkeypatch.setattr(module._pipeline_runtime, "is_valid_runtime_root", lambda value: str(value).startswith("valid-"))
+    result = module._resolve_stage_engine_runtime(
+        entry, env=SimpleNamespace(active_app="valid-active"), idx=0,
+        selected_map={0: selected}, engine_map={0: ui_engine}, default_runtime=default,
+    )
+    assert result == expected
+
+
+@pytest.mark.parametrize("mutation, expected", [
+    ({"enabled": False}, "disabled or skipped"),
+    ({"automation": {"enabled": False}}, "disabled or skipped"),
+    ({"skip": True}, "disabled or skipped"),
+    ({"automation": {"skip": True}}, "disabled or skipped"),
+    ({"parallel_safe": False}, "no complete parallel output contract"),
+    ({"C": ""}, "not runnable"),
+    ({"R": "runpy"}, "does not use an explicit AGI runtime"),
+])
+def test_parallel_wave_refuses_unrunnable_or_unsafe_stages(mutation, expected, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module._pipeline_stages, "is_runnable_stage", lambda entry: bool(entry.get("C")))
+    monkeypatch.setattr(module, "_resolve_stage_engine_runtime", lambda entry, **kw: (entry["R"], "runtime" if entry["R"].startswith("agi.") else ""))
+    stages = [
+        {"id": "first", "C": "print(1)", "R": "agi.run", "parallel_safe": True, "outputs": ["first"]},
+        {"id": "second", "C": "print(2)", "R": "agi.run", "parallel_safe": True, "outputs": ["second"]},
+    ]
+    stages[0].update(mutation)
+    reason = module._parallel_agi_wave_ineligibility_reason(
+        stages, [0, 1], profile="balanced", env=SimpleNamespace(),
+        stages_file=tmp_path / "stages.toml", selected_map={}, engine_map={}, default_runtime="",
+    )
+    assert expected in reason
+    assert "first" in reason
+
+@pytest.mark.parametrize("failure", ["payload", "unlock", "close", "foreign_token"])
+def test_pipeline_lock_release_closes_owned_fd_even_when_cleanup_fails(failure, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    lock_path = tmp_path / "owned.lock"
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    calls = []
+    real_close = os.close
+    def write_payload(actual_fd, payload):
+        calls.append(("write", actual_fd, payload))
+        if failure == "payload":
+            raise OSError("cannot clear payload")
+    def unlock(actual_fd):
+        calls.append(("unlock", actual_fd))
+        if failure == "unlock":
+            raise OSError("cannot unlock")
+    def close(actual_fd):
+        calls.append(("close", actual_fd))
+        real_close(actual_fd)
+        if failure == "close":
+            raise OSError("close acknowledgement failed")
+    monkeypatch.setattr(module, "_write_pipeline_lock_payload", write_payload)
+    monkeypatch.setattr(module, "_unlock_pipeline_file", unlock)
+    # Keep the process-wide os module unchanged for other threads.
+    monkeypatch.setattr(module, "os", SimpleNamespace(close=close))
+    handle = {"path": str(lock_path), "token": "mine", "fd": fd,
+              "payload": {"token": "other" if failure == "foreign_token" else "mine"}}
+    module._release_pipeline_run_lock(handle, "cleanup")
+    assert handle["fd"] is None
+    assert ("unlock", fd) in calls and ("close", fd) in calls
+    assert any(call[0] == "write" for call in calls) is (failure != "foreign_token")
+    with pytest.raises(OSError):
+        os.fstat(fd)
+    if failure != "foreign_token":
+        assert not fake_st.session_state.get("cleanup__run_logs")
+
+
+def test_pipeline_output_evidence_distinguishes_missing_large_directory_and_hash_failure(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    stages = tmp_path / "stages.toml"
+    (tmp_path / "directory").mkdir()
+    (tmp_path / "large").write_bytes(b"larger than cap")
+    (tmp_path / "small").write_bytes(b"x")
+    monkeypatch.setattr(module, "PIPELINE_AUTOMATION_OUTPUT_HASH_MAX_BYTES", 1)
+    records = module._stage_output_records(
+        {"outputs": ["missing", "directory", "large", "small", "$INVALID/path"]},
+        env=SimpleNamespace(), stages_file=stages,
+    )
+    by_spec = {row["spec"]: row for row in records}
+    assert set(by_spec) == {"missing", "directory", "large", "small"}
+    assert by_spec["missing"]["sha256_status"] == "missing"
+    assert by_spec["missing"]["size_bytes"] is None
+    assert by_spec["directory"]["sha256_status"] == "directory"
+    assert by_spec["large"]["sha256_status"] == "too_large"
+    assert by_spec["large"]["sha256"] == ""
+    assert by_spec["small"]["sha256_status"] == "ok"
+    assert len(by_spec["small"]["sha256"]) == 64
+    original_read = Path.read_bytes
+    def unreadable(path):
+        if path == tmp_path / "small":
+            raise PermissionError("output unreadable")
+        return original_read(path)
+    monkeypatch.setattr(Path, "read_bytes", unreadable)
+    failed = module._stage_output_records({"outputs": ["small"]}, env=SimpleNamespace(), stages_file=stages)
+    assert failed[0]["sha256_status"] == "error"
+    assert failed[0]["sha256"] == ""
+
+
+@pytest.mark.parametrize("value, expected", [(True, True), (None, False), (" off ", False), (" Y ", True), (0, False), (2, True)])
+def test_pipeline_automation_flags_do_not_treat_false_strings_as_truthy(value, expected):
+    assert _import_pipeline_run_controls()._truthy_pipeline_flag(value) is expected
+
+
+def test_parallel_wave_records_all_outcomes_before_propagating_failure(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_resolve_stage_engine_runtime", lambda *_a, **_k: ("agi.run", str(tmp_path)))
+    monkeypatch.setattr(module._pipeline_runtime, "label_for_stage_runtime", lambda *_a, **_k: "runtime")
+    monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code)
+    monkeypatch.setattr(module._pipeline_runtime, "python_for_stage", lambda *_a, **_k: sys.executable)
+    completed = []
+    failure = RuntimeError("stage-one failed")
+    def run_child(command, *, cwd, extra_env):
+        index = extra_env["AGILAB_PIPELINE_STAGE_INDEX"]
+        assert cwd == tmp_path
+        assert extra_env["AGILAB_PIPELINE_PROFILE"] == "fast"
+        assert extra_env["AGILAB_PIPELINE_RUN_ID"] == "run-123"
+        assert Path(command[1]).is_file()
+        completed.append(index)
+        if index == "1":
+            raise failure
+        (tmp_path / "result.txt").write_text("ok", encoding="utf-8")
+        return ""
+    monkeypatch.setattr(module, "_run_stage_subprocess", run_child)
+    records = []
+    with pytest.raises(RuntimeError) as captured:
+        module._run_parallel_agi_wave(
+            stages=[
+                {"C": "print('base')", "profiles": {"fast": {"C": "print('fast')"}}},
+                {"C": "print('second')", "outputs": ["result.txt"]},
+            ],
+            wave=[0, 1], profile="fast", env=SimpleNamespace(runenv=tmp_path),
+            index_page="wave", stages_file=tmp_path / "stages.toml", run_id="run-123",
+            selected_map={}, engine_map={}, default_runtime="", target_base=tmp_path,
+            max_workers=2, manifest_stage_records=records, log_placeholder=None,
+        )
+    assert captured.value is failure
+    assert sorted(completed) == ["1", "2"]
+    assert [record["status"] for record in records] == ["failed", "completed"]
+    assert all(record["finished_at"] and record["duration_seconds"] >= 0 for record in records)
+    assert records[0]["profile_override_applied"] is True
+    assert records[0]["error"] == "stage-one failed"
+    assert records[1]["outputs"][0]["sha256_status"] == "ok"
+    assert "print('fast')" in Path(records[0]["script_path"]).read_text(encoding="utf-8")
+    assert any("no captured stdout" in message for message in fake_st.session_state["wave__run_logs"])
+
+
+def _execution_adapter_for_contract(module, tmp_path, stages, *, max_workers=1):
+    plan = module.PipelineExecutionPlan(
+        stages=stages, sequence=list(range(len(stages))), waves=[list(range(len(stages)))],
+        profile="fast", max_workers=max_workers,
+        stage_ids={idx: f"stage-{idx}" for idx in range(len(stages))}, stage_deps={},
+    )
+    return module._PipelineExecutionAdapter(
+        lab_dir=tmp_path, index_page_str="adapter", stages_file=tmp_path / "lab_stages.toml",
+        env=SimpleNamespace(runenv=tmp_path), stream_run_command_fn=lambda *_a, **_k: "",
+        log_placeholder=None, plan=plan, selected_map={}, engine_map={}, details_store={},
+        original_stage=None, original_selected="", original_engine="", snippet_file=None,
+        lock_handle=None,
+    )
+
+
+@pytest.mark.parametrize("mode, expected", [
+    ("disabled", "skipped_disabled"), ("cached", "skipped_outputs_exist"),
+    ("empty", "skipped_not_runnable"),
+])
+def test_execution_adapter_records_skip_reason_without_starting_a_process(mode, expected, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    cached = tmp_path / "cached.txt"
+    cached.write_text("already produced", encoding="utf-8")
+    entry = {"C": "print(1)", "outputs": ["cached.txt"]}
+    if mode == "disabled":
+        entry["profiles"] = {"fast": {"enabled": False}}
+    elif mode == "cached":
+        entry["skip_if_outputs_exist"] = True
+    else:
+        entry["C"] = ""
+    adapter = _execution_adapter_for_contract(module, tmp_path, [entry])
+    state = module.PipelineRunState(run_id="skip-contract", started_at="now", started_monotonic=0)
+    adapter._execute_stage(state, None, 0)
+    assert state.executed == 0 and state.skipped == 1
+    assert state.stage_records[0]["status"] == expected
+    assert state.stage_records[0]["started_at"] == ""
+    assert state.stage_records[0]["finished_at"]
+    assert state.stage_records[0]["outputs"][0]["sha256_status"] == "ok"
+    assert state.stage_records[0]["profile_override_applied"] is (mode == "disabled")
+
+
+@pytest.mark.parametrize("parallel", [False, True])
+def test_execution_adapter_wave_respects_eligibility_and_records_completed_count(parallel, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    adapter = _execution_adapter_for_contract(module, tmp_path, [{"C": "1"}, {"C": "2"}], max_workers=2)
+    nested = tmp_path / "duplicated" / "duplicated"
+    adapter.stages_file = nested / "stages.toml"
+    calls = []
+    monkeypatch.setattr(module, "_parallel_agi_wave_ineligibility_reason",
+                        lambda *_a, **_k: None if parallel else "stage lacks a complete output contract")
+    def run_parallel(**kwargs):
+        assert kwargs["target_base"] == nested.parent
+        assert kwargs["wave"] == [0, 1]
+        calls.append("parallel")
+        return 2
+    monkeypatch.setattr(module, "_run_parallel_agi_wave", run_parallel)
+    monkeypatch.setattr(adapter, "_execute_stage", lambda state, tracker, idx: calls.append(idx))
+    state = module.PipelineRunState(run_id="wave-contract", started_at="now", started_monotonic=0)
+    adapter._execute_wave(state, None, 1, [0, 1])
+    assert calls == (["parallel"] if parallel else [0, 1])
+    assert state.executed == (2 if parallel else 0)
+
+
+def test_pipeline_lock_stale_cleanup_is_bounded_and_forced_failure_never_acquires(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda env: tmp_path / "stale.lock")
+    monkeypatch.setattr(module, "_try_pipeline_file_lock", lambda fd: False)
+    monkeypatch.setattr(module, "_inspect_pipeline_run_lock", lambda env: {"is_stale": True, "stale_reason": "expired"})
+    cleanups = []
+    monkeypatch.setattr(module, "_clear_pipeline_run_lock", lambda *args, **kwargs: cleanups.append(kwargs["reason"]) or True)
+    assert module._acquire_pipeline_run_lock(SimpleNamespace(), "page") is None
+    assert cleanups == ["expired", "expired"]
+    assert any("after stale cleanup retries" in message for kind, message in fake_st.messages if kind == "warning")
+    monkeypatch.setattr(module, "_clear_pipeline_run_lock", lambda *args, **kwargs: False)
+    assert module._acquire_pipeline_run_lock(SimpleNamespace(), "page", force=True) is None
+
+
+def test_pipeline_lock_startup_failure_releases_fd_and_stops_heartbeat(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    monkeypatch.setattr(module, "_pipeline_lock_path", lambda env: tmp_path / "startup.lock")
+    handles = []
+    stopped = []
+    def fail_start(handle):
+        handles.append(dict(handle))
+        raise RuntimeError("heartbeat startup failed")
+    monkeypatch.setattr(module, "_start_pipeline_lock_heartbeat", fail_start)
+    monkeypatch.setattr(module, "_stop_pipeline_lock_heartbeat", lambda handle: stopped.append(handle["token"]))
+    with pytest.raises(RuntimeError, match="heartbeat startup failed"):
+        module._acquire_pipeline_run_lock(SimpleNamespace(), "page")
+    assert len(handles) == 1
+    assert stopped == [handles[0]["token"]]
+    with pytest.raises(OSError):
+        os.fstat(handles[0]["fd"])
+
+
+def test_pipeline_lock_refresh_never_updates_foreign_owner_and_tolerates_write_failure(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    writes = []
+    def fail_write(fd, payload):
+        writes.append((fd, dict(payload)))
+        raise OSError("filesystem unavailable")
+    monkeypatch.setattr(module, "_write_pipeline_lock_payload", fail_write)
+    handle = {"path": tmp_path / "lock", "token": "mine", "fd": 123,
+              "payload": {"token": "another", "heartbeat_at": 0}}
+    module._refresh_pipeline_run_lock(handle)
+    assert writes == []
+    handle["payload"]["token"] = "mine"
+    module._refresh_pipeline_run_lock(handle)
+    assert len(writes) == 1
+    assert writes[0][1]["heartbeat_at"] > 0
+
+
+@pytest.mark.parametrize("left, right, expected", [
+    ("", "out", False), ("out", "", False), ("/out", "out", False),
+    (".", "any/path", True), ("out", ".", True), ("OUT", "out/model", True),
+    ("out/model", "out/models", False),
+])
+def test_output_conflict_detection_handles_root_scope_and_path_boundaries(left, right, expected):
+    module = _import_pipeline_run_controls()
+    assert module._declared_outputs_overlap(left, right) is expected
+
+
+def test_output_conflict_detection_preserves_lexical_guard_when_share_resolution_fails(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    def unavailable(*args, **kwargs):
+        raise OSError("share offline")
+    monkeypatch.setattr(module, "_resolve_stage_output_path", unavailable)
+    assert module._declared_outputs_overlap(
+        "out", "out/model", env=SimpleNamespace(), stages_file=tmp_path / "stages.toml",
+    )
+    graph = module._pipeline_dependency_dot(
+        stage_ids={0: 'train"model', 1: "evaluate", 2: "publish"},
+        stage_deps={0: [], 1: ['train"model', "not-selected"], 2: ["evaluate"]},
+        waves=[[0, 1, 999], [2]],
+    )
+    assert '"train\\"model" -> "evaluate"' in graph
+    assert '"evaluate" -> "publish"' in graph
+    assert "not-selected" not in graph
+    assert "rank=same" in graph
+
+
+@pytest.mark.parametrize("stat_error, expected", [(False, "not_regular_file"), (True, "stat_error")])
+def test_stage_output_evidence_preserves_nonregular_and_unstatable_artifacts(stat_error, expected, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    class OutputPath:
+        def exists(self):
+            return True
+        def is_file(self):
+            return False
+        def is_dir(self):
+            return False
+        def stat(self):
+            if stat_error:
+                raise PermissionError("artifact changed during inspection")
+            return SimpleNamespace(st_size=0, st_mtime=123)
+        def __str__(self):
+            return str(tmp_path / "artifact")
+    monkeypatch.setattr(module, "_resolve_stage_output_path", lambda *args, **kwargs: OutputPath())
+    records = module._stage_output_records({"outputs": ["artifact"]}, env=SimpleNamespace(), stages_file=tmp_path / "stages.toml")
+    assert records[0]["exists"] is True
+    assert records[0]["sha256"] == ""
+    assert records[0]["sha256_status"] == expected
+    assert records[0]["size_bytes"] == (None if stat_error else 0)
+
+
+@pytest.mark.parametrize("dependencies, error_text", [
+    ({"first": ["second"], "second": ["first"]}, "cycle"),
+    ({"first": ["missing"], "second": []}, "unknown stage id"),
+])
+def test_run_pipeline_rejects_dependency_errors_before_acquiring_any_lock(dependencies, error_text, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit({
+        "page": [0, "", "", "", "", "", 0],
+        "snippet_file": str(tmp_path / "snippet.py"),
+    })
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock",
+                        lambda *_a, **_k: pytest.fail("invalid dependency plans must not acquire a lock"))
+    module.run_all_stages(
+        tmp_path, "page", tmp_path / "stages.toml", tmp_path / "module",
+        SimpleNamespace(), pipeline_max_workers="corrupt",
+        pipeline_stage_deps=dependencies,
+        load_all_stages_fn=lambda *_a: [
+            {"id": "first", "C": "print(1)"}, {"id": "second", "C": "print(2)"},
+        ],
+        stream_run_command_fn=lambda *_a, **_k: pytest.fail("invalid plans must never execute"),
+    )
+    assert any(kind == "error" and error_text in message for kind, message in fake_st.messages)
+    assert "page__last_pipeline_waves" not in fake_st.session_state
+    assert any("Run workflow aborted" in message for message in fake_st.session_state["page__run_logs"])
+
+
+@pytest.mark.parametrize("error", [OSError("disk full"), RuntimeError("replace failed"), TypeError("invalid payload"), ValueError("encoding failed")])
+def test_manifest_write_failure_preserves_last_verified_manifest(error, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit({"page__last_pipeline_manifest_file": "previous-valid.json"})
+    monkeypatch.setattr(module, "st", fake_st)
+    attempted = []
+    def fail_write(path, payload):
+        attempted.append((path, payload))
+        raise error
+    monkeypatch.setattr(module, "_write_json_atomic", fail_write)
+    result = module._write_pipeline_automation_manifest(
+        env=SimpleNamespace(runenv=tmp_path), index_page="page", run_id="current-run",
+        profile="balanced", status="completed", lab_dir=tmp_path, stages_file=tmp_path / "stages.toml",
+        sequence=[0], waves=[[0]], max_workers=1, stage_ids={0: "first"}, stage_deps={0: []},
+        stages=[], started_at="start", finished_at="finish", executed=1, skipped=0, error="",
+    )
+    assert result is None
+    assert fake_st.session_state["page__last_pipeline_manifest_file"] == "previous-valid.json"
+    assert len(attempted) == 1
+    assert attempted[0][1]["run_id"] == "current-run"
+
+
+def test_manifest_default_path_uses_project_scoped_logs_without_mutation(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    run, latest = module._pipeline_manifest_paths(SimpleNamespace(target="project"), "page", "run-id")
+    assert run == tmp_path / "log/execute/project/pipeline_automation_run-id.json"
+    assert latest.parent == run.parent
+    assert not run.parent.exists()

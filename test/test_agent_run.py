@@ -1925,3 +1925,99 @@ def test_agent_run_render_and_validation_remaining_edges(tmp_path: Path, monkeyp
     monkeypatch.setattr(module, "list_agent_runs", lambda *_args, **_kwargs: [missing_parent])
     orphan_lineage = module.agent_lineage_payload(tmp_path, run_id="orphan")
     assert orphan_lineage["ancestors"] == []
+
+
+@pytest.mark.parametrize("failure,expected", [
+    (KeyboardInterrupt(), (130, "operator_cancelled", "fail")),
+    (SystemExit(None), (0, "system_exit", "pass")),
+    (SystemExit(0), (0, "system_exit", "pass")),
+    (SystemExit(42), (42, "system_exit", "fail")),
+    (SystemExit(-1), (1, "system_exit", "fail")),
+    (SystemExit(256), (1, "system_exit", "fail")),
+    (SystemExit("failure"), (1, "system_exit", "fail")),
+    (FileNotFoundError(), (127, "execution_infrastructure_error", "fail")),
+    (PermissionError(), (126, "execution_infrastructure_error", "fail")),
+    (RuntimeError(), (125, "execution_infrastructure_error", "fail")),
+])
+def test_terminal_evidence_retains_shell_exit_semantics(failure, expected):
+    module = _load_module()
+    assert module._terminal_evidence_semantics(failure) == expected
+
+
+@pytest.mark.parametrize("preexisting", [False, True])
+def test_terminal_evidence_fallback_preserves_committed_artifact(tmp_path, monkeypatch, preexisting):
+    module = _load_module()
+    implementation = sys.modules[module._ensure_atomic_failure_artifact.__module__]
+    path = tmp_path / "run_manifest.json"
+    if preexisting:
+        path.write_text("already committed")
+    calls = []
+    def denied(*args):
+        calls.append(args)
+        raise PermissionError("replace temporarily unavailable")
+    monkeypatch.setattr(implementation, "_atomic_write_text", denied)
+    module._ensure_atomic_failure_artifact(path, "terminal evidence")
+    assert len(calls) == 2
+    assert path.read_text() == ("already committed" if preexisting else "terminal evidence")
+    assert not list(tmp_path.glob("*.terminal.tmp"))
+
+
+def test_terminal_evidence_retries_transient_atomic_write(tmp_path, monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._ensure_atomic_failure_artifact.__module__]
+    original = implementation._atomic_write_text
+    attempts = []
+    def transient(path, text):
+        attempts.append(path)
+        if len(attempts) == 1:
+            raise OSError("transient")
+        return original(path, text)
+    monkeypatch.setattr(implementation, "_atomic_write_text", transient)
+    path = tmp_path / "run_manifest.json"
+    module._ensure_atomic_failure_artifact(path, "complete")
+    assert path.read_text() == "complete"
+    assert len(attempts) == 2
+
+
+def test_terminal_evidence_failed_rename_cleans_temporary_artifact(tmp_path, monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._ensure_atomic_failure_artifact.__module__]
+    from unittest.mock import Mock
+    original_os = implementation.os
+    monkeypatch.setattr(implementation, "_atomic_write_text", Mock(side_effect=PermissionError("replace denied")))
+    monkeypatch.setattr(implementation, "os", types.SimpleNamespace(
+        fdopen=original_os.fdopen,
+        fsync=original_os.fsync,
+        rename=Mock(side_effect=PermissionError("rename denied")),
+    ))
+    path = tmp_path / "run_manifest.json"
+    with pytest.raises(OSError, match="Could not publish terminal") as raised:
+        module._ensure_atomic_failure_artifact(path, "complete")
+    assert isinstance(raised.value.__cause__, PermissionError)
+    assert not path.exists()
+    assert not list(tmp_path.glob(".*.terminal.tmp"))
+
+
+@pytest.mark.parametrize("failure", [OSError("trace unavailable"), ValueError("invalid trace"), TypeError("invalid shape")])
+def test_trace_inspection_failure_remains_explicit_in_evidence(tmp_path, monkeypatch, failure):
+    module = _load_module()
+    implementation = sys.modules[module._safe_trace_artifact_payload.__module__]
+    from unittest.mock import Mock
+    monkeypatch.setattr(implementation, "trace_artifact_payload", Mock(side_effect=failure))
+    payload = module._safe_trace_artifact_payload(tmp_path)
+    assert payload["schema"] == "agilab.agent_trace.v1"
+    assert payload["exists"] is False
+    assert payload["event_count"] == 0
+    assert payload["error"] == str(failure)
+
+
+def test_unreadable_artifact_does_not_hide_terminal_failure(tmp_path, monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._safe_file_payload.__module__]
+    from unittest.mock import Mock
+    monkeypatch.setattr(implementation, "_file_payload", Mock(side_effect=PermissionError("artifact unreadable")))
+    path = tmp_path / "stderr.txt"
+    path.write_text("preserved")
+    payload = module._safe_file_payload(path)
+    assert payload == {"path": str(path), "exists": True, "error": "artifact unreadable"}
+    assert path.read_text() == "preserved"

@@ -448,3 +448,133 @@ def test_fixture_contract_rejects_duplicate_cases_and_checks(frozen):
     fixtures["cases"][0]["checks"].append("task")
     with pytest.raises(ValueError, match="unique"):
         evaluation._cases(fixtures)
+
+
+@pytest.mark.parametrize("cases,message", [
+    (None, "between 1 and 1000"), ([], "between 1 and 1000"),
+    ([{"id": "x", "checks": ["unknown"]}], "Each case must name"),
+    ([{"id": "x", "checks": []}], "Each case must name"),
+    ([{"id": " ", "checks": ["task"]}], "nonempty string"),
+    ([{"id": "x" * 1001, "checks": ["task"]}], "at most 1000"),
+])
+def test_plan_rejects_malformed_fixture_contract_before_freezing(frozen, cases, message):
+    root, plan = frozen
+    (root / "fixtures.json").write_text(json.dumps({"cases": cases}))
+    with pytest.raises(ValueError, match=message):
+        evaluation.create_evaluation_plan(root=root, skill="skill", fixtures="fixtures.json", grader="grader.py",
+                                          evaluator=plan["evaluator"])
+
+
+@pytest.mark.parametrize("mode", [None, "auto", "model"])
+def test_plan_requires_declared_supported_evaluator_mode(frozen, mode):
+    root, plan = frozen
+    evaluator = dict(plan["evaluator"], mode=mode)
+    with pytest.raises(ValueError, match="Evaluation mode"):
+        evaluation.create_evaluation_plan(root=root, skill="skill", fixtures="fixtures.json", grader="grader.py",
+                                          evaluator=evaluator)
+
+
+@pytest.mark.parametrize("missing", ["skill/SKILL.md", "grader.py"])
+def test_plan_requires_all_declared_source_files(frozen, missing):
+    root, plan = frozen
+    (root / missing).unlink()
+    with pytest.raises(ValueError, match="SKILL.md|evidence file is missing"):
+        evaluation.create_evaluation_plan(root=root, skill="skill", fixtures="fixtures.json", grader="grader.py",
+                                          evaluator=plan["evaluator"])
+
+
+@pytest.mark.parametrize("change,message", [
+    (lambda p: p.update(schema="unsupported"), "Unsupported evidence schema"),
+    (lambda p: p.update(sha256="NOT A DIGEST"), "lowercase SHA-256"),
+])
+def test_plan_loading_rejects_unsupported_or_malformed_seal(frozen, change, message):
+    root, plan = frozen
+    payload = deepcopy(plan)
+    change(payload)
+    (root / "plan.json").write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match=message):
+        evaluation._load_plan(root, "plan.json")
+
+
+@pytest.mark.parametrize("change,message", [
+    (lambda p: p.update(cases=[{"id": "different", "checks": ["task"]}]), "Plan cases do not match"),
+    (lambda p: p["evaluator"].update(mode="unknown"), "Unsupported evaluation mode"),
+])
+def test_resealed_plan_cannot_change_semantics_of_frozen_inputs(frozen, change, message):
+    root, plan = frozen
+    payload = deepcopy(plan)
+    payload.pop("sha256")
+    change(payload)
+    payload = evaluation._seal(payload)
+    (root / "plan.json").write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match=message):
+        evaluation._load_plan(root, "plan.json")
+
+
+@pytest.mark.parametrize("timestamp", [None, 42, "2026-09-24T10:00:00"])
+def test_evaluation_timestamps_require_explicit_timezone(timestamp):
+    with pytest.raises(ValueError, match="timezone-aware"):
+        evaluation._timestamp(timestamp)
+
+
+def test_failed_evaluation_publication_cleans_temp_and_preserves_existing_evidence(frozen, monkeypatch):
+    root, plan = frozen
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    real_os = evaluation.os
+    monkeypatch.setattr(evaluation, "os", SimpleNamespace(fsync=real_os.fsync,
+        link=Mock(side_effect=PermissionError("publication denied"))))
+    with pytest.raises(PermissionError, match="publication denied"):
+        evaluation.persist_evaluation(root, "new-plan.json", plan)
+    assert not (root / "new-plan.json").exists()
+    assert not list(root.glob(".skill-evaluation-*"))
+    assert json.loads((root / "plan.json").read_text()) == plan
+
+
+@pytest.mark.parametrize("change", ["non_list_cases", "unplanned_check"])
+def test_invalid_grader_contract_is_preserved_as_failed_verifiable_receipt(frozen, change):
+    root, _ = frozen
+    path = run_fixture(frozen)
+    def corrupt(result):
+        if change == "non_list_cases":
+            result["cases"] = {}
+        else:
+            result["cases"][0]["checks"]["unplanned"] = {"status":"passed", "evidence":"outside frozen plan"}
+    write_observations(path, corrupt)
+    receipt = evaluation.create_evaluation_receipt(root=root, plan_path="plan.json", agent_run=path)
+    assert receipt["summary"]["status"] == "failed"
+    assert receipt["summary"]["checks"]["passed"] == 0
+    assert "list" in receipt["observation_error"] if change == "non_list_cases" else "unplanned check" in receipt["observation_error"]
+    evaluation.persist_evaluation(root, "receipt.json", receipt)
+    assert evaluation.verify_evaluation_receipt(root=root, receipt_path="receipt.json")["verification"] == "passed"
+
+
+@pytest.mark.parametrize("change", [
+    {"kind":"other"}, {"schema_version":True}, {"schema_version":2},
+    {"status":"pass", "returncode":1}, {"status":"fail", "returncode":0},
+])
+def test_receipt_rejects_wrong_run_schema_or_contradictory_terminal_result(frozen, change):
+    root, _ = frozen
+    path = run_fixture(frozen)
+    payload = json.loads(path.read_text())
+    payload.update(change)
+    path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="agent-run v1|contradicts"):
+        evaluation.create_evaluation_receipt(root=root, plan_path="plan.json", agent_run=path)
+
+
+def test_plan_cli_persists_frozen_inputs_and_prints_digest(frozen, capsys):
+    root, _ = frozen
+    result = evaluation.main([
+        "--root", str(root), "plan", "--skill", "skill", "--fixtures", "fixtures.json",
+        "--grader", "grader.py", "--runtime", "python", "--runtime-version", "3",
+        "--model", "not_used", "--mode", "deterministic_fixture", "--output", "cli-plan.json",
+    ])
+    assert result == 0
+    report = json.loads(capsys.readouterr().out)
+    stored = json.loads((root / "cli-plan.json").read_text())
+    assert report["plan_sha256"] == stored["sha256"]
+    assert {case["id"]: set(case["checks"]) for case in stored["cases"]} == {
+        case["id"]: set(case["checks"])
+        for case in json.loads((root / "fixtures.json").read_text())["cases"]
+    }

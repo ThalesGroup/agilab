@@ -78,7 +78,8 @@ jobs:
             .github/requirements/ci-lock-audit.txt \
             .github/requirements/ci-publish.txt \
             .github/requirements/ci-pypi-web.txt \
-            .github/requirements/ci-hf-release.txt
+            .github/requirements/ci-hf-release.txt \
+            .github/requirements/ci-free-threaded-coverage.txt
           do
             pip-audit \
               --requirement "$requirements" \
@@ -145,3 +146,13 @@ jobs:
           import tools.hf_space_release_sync
           import tools.pypi_publish
           PY
+
+      - name: Clean-install free-threaded coverage lock
+        uses: ./.github/actions/setup-locked-python-tools
+        with:
+          requirements: .github/requirements/ci-free-threaded-coverage.txt
+
+      - name: Import-smoke coverage tooling
+        env:
+          PIP_NO_INDEX: "1"
+        run: python -c "import coverage; assert coverage.__version__ == '7.16.1'"

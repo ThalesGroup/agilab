@@ -391,3 +391,104 @@ def test_agent_trace_meta_publication_rolls_back_on_replace_failure(tmp_path: Pa
 
     assert not (tmp_path / module.META_FILENAME).exists()
     assert list(tmp_path.glob(f".{module.META_FILENAME}.*.tmp")) == []
+
+
+@pytest.mark.parametrize("budget", [True, 0, 2047, 65537, "4096"])
+def test_trace_page_rejects_invalid_budget_before_open(tmp_path, budget):
+    module = _load_module()
+    with pytest.raises(ValueError, match="max_bytes"):
+        module.trace_page(tmp_path / "missing", max_bytes=budget)
+
+
+@pytest.mark.parametrize("limit", [True, 0, 101, "20"])
+def test_trace_tail_rejects_invalid_limit_before_open(tmp_path, limit):
+    module = _load_module()
+    with pytest.raises(ValueError, match="limit"):
+        module.trace_tail(tmp_path / "missing", limit=limit)
+
+
+@pytest.mark.parametrize("lock_acquired,rewrite_fails,expected", [(False, False, False), (True, False, True), (True, True, False)])
+def test_stale_lock_cleanup_respects_exclusive_lock_and_releases_handle(tmp_path, monkeypatch, lock_acquired, rewrite_fails, expected):
+    from unittest.mock import Mock
+    module = _load_module()
+    implementation = sys.modules[module._clear_stale_lock.__module__]
+    path = tmp_path / "trace.lock"
+    path.write_text('{"old": true}')
+    monkeypatch.setattr(implementation, "_lock_is_stale", lambda path: True)
+    handles = []
+    def acquire(handle):
+        handles.append(handle)
+        return lock_acquired
+    rewrite = Mock(side_effect=OSError("write denied") if rewrite_fails else None)
+    unlock = Mock()
+    monkeypatch.setattr(implementation, "_try_lock_handle", acquire)
+    monkeypatch.setattr(implementation, "_rewrite_locked_handle", rewrite)
+    monkeypatch.setattr(implementation, "_unlock_handle", unlock)
+    assert module._clear_stale_lock(path) is expected
+    assert handles[0].closed
+    unlock.assert_called_once_with(handles[0])
+    assert rewrite.call_count == int(lock_acquired)
+
+
+def test_live_lock_is_not_reopened_for_cleanup(tmp_path, monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._clear_stale_lock.__module__]
+    monkeypatch.setattr(implementation, "_lock_is_stale", lambda path: False)
+    assert module._clear_stale_lock(tmp_path / "missing") is False
+    assert not (tmp_path / "missing").exists()
+
+
+def test_disappearing_lock_is_not_declared_stale(tmp_path, monkeypatch):
+    module = _load_module()
+    implementation = sys.modules[module._lock_is_stale.__module__]
+    monkeypatch.setattr(implementation, "_lock_owner_alive", lambda payload: False)
+    assert module._lock_is_stale(tmp_path / "removed", now=100000) is False
+
+
+@pytest.mark.parametrize("ownership", ["missing_meta", "missing_run_id"])
+def test_existing_trace_without_valid_ownership_cannot_be_adopted(tmp_path, ownership):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.initialize()
+    store.append("session_start")
+    original = store.events_path.read_bytes()
+    if ownership == "missing_meta":
+        store.meta_path.unlink()
+    else:
+        store.meta_path.write_text("{}")
+    with pytest.raises(FileExistsError, match="cannot be resumed"):
+        store.initialize()
+    assert store.events_path.read_bytes() == original
+
+
+def test_trace_pagination_rejects_modified_record_anchor(tmp_path):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.append("session_start", message="first marker")
+    store.append("tool_done", message="second marker")
+    first = module.trace_page(tmp_path, limit=1)
+    cursor = first["next_cursor"]
+    with store.events_path.open("r+b") as stream:
+        payload = stream.read()
+        stream.seek(0)
+        offset = payload.index(b"\n") + 1
+        anchor_start = max(0, offset - 64)
+        index = next(i for i in range(anchor_start, offset) if 48 <= payload[i] <= 57)
+        replacement = b"8" if payload[index:index+1] != b"8" else b"9"
+        stream.write(payload[:index] + replacement + payload[index+1:])
+    with pytest.raises(ValueError, match="Stale or invalid trace cursor"):
+        module.trace_page(tmp_path, cursor=cursor)
+
+
+def test_trace_pagination_skips_blank_records_and_retries_budget_deferred_record(tmp_path):
+    module = _load_module()
+    store = module.AgentTraceStore(tmp_path, run_id="run")
+    store.append("session_start")
+    store.append("tool_done", metadata={"large": "x"*3000})
+    payload = store.events_path.read_bytes()
+    store.events_path.write_bytes(b"\n" + payload)
+    first = module.trace_page(tmp_path, limit=10, max_bytes=4096)
+    assert [event["sequence"] for event in first["events"]] == [1]
+    second = module.trace_page(tmp_path, cursor=first["next_cursor"], limit=10, max_bytes=8192)
+    assert [event["sequence"] for event in second["events"]] == [2]
+    assert second["events"][0]["metadata"]["large"] == "x"*3000

@@ -5,6 +5,7 @@ source =
 
 [report]
 omit =
+    src/agilab/demos/resources/*/tests.py
     src/agilab/main_page.py
     src/agilab/lab_run.py
     src/agilab/pages/*.py

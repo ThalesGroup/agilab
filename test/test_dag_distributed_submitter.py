@@ -725,3 +725,58 @@ def test_stage_subprocess_runner_raises_with_trimmed_failure(monkeypatch, tmp_pa
     message = str(err.value)
     assert "Distributed DAG stage `flight_telemetry_project` failed" in message
     assert len(message) < 4100
+
+
+def test_worker_log_forwarding_resumes_at_last_offset_and_tolerates_closed_consumer(tmp_path):
+    import io
+    module = importlib.import_module("agilab.dag.dag_distributed_submitter")
+    path = tmp_path / "worker.log"
+    offsets = {}
+    stream = io.StringIO()
+    module._tee_log_file_update(path, stream, offsets)
+    assert offsets == {}
+    path.write_text("first\n")
+    module._tee_log_file_update(path, stream, offsets)
+    with path.open("a") as output:
+        output.write("second\n")
+    module._tee_log_file_update(path, stream, offsets)
+    assert stream.getvalue() == "first\nsecond\n"
+    stream.close()
+    with path.open("a") as output:
+        output.write("third\n")
+    module._tee_log_file_update(path, stream, offsets)
+    assert offsets[str(path)] == path.stat().st_size
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("worker log\n{invalid\n{}", None),
+    ('{"result":null}', "AGI.run returned no result"),
+    ('{"result":{"status":"error"}}', "AGI.run reported an error result"),
+    ('{"result":{"status":"error","message":"worker unavailable"}}', "worker unavailable"),
+    ('{"result":{"status":"ok"}}\ntrailing worker log', None),
+])
+def test_distributed_result_parser_uses_last_valid_result(text, expected):
+    module = importlib.import_module("agilab.dag.dag_distributed_submitter")
+    result = module._stage_result_failure(text)
+    assert result is None if expected is None else expected in result
+
+
+@pytest.mark.parametrize("windows", [False, True])
+def test_settings_sharing_denial_stops_at_deadline_without_busy_loop(tmp_path, monkeypatch, windows):
+    from types import SimpleNamespace
+    module = importlib.import_module("agilab.dag.dag_distributed_submitter")
+    path = tmp_path / "settings.toml"
+    calls, delays = [], []
+    clock = iter([0.0, 0.1, 0.6])
+    original = Path.open
+    def denied(target, *args, **kwargs):
+        if target == path:
+            calls.append(True)
+            raise PermissionError("sharing denial")
+        return original(target, *args, **kwargs)
+    monkeypatch.setattr(Path, "open", denied)
+    monkeypatch.setattr(module, "os", SimpleNamespace(name="nt" if windows else "posix"))
+    monkeypatch.setattr(module, "time", SimpleNamespace(monotonic=lambda:next(clock), sleep=delays.append))
+    assert module._read_settings_file_stdlib(path) == {}
+    assert len(calls) == (2 if windows else 1)
+    assert delays == ([0.01] if windows else [])

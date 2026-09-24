@@ -193,3 +193,100 @@ def test_pipeline_workflow_insights_root_shim_exports_schema() -> None:
 
     assert shim.PIPELINE_WORKFLOW_INSIGHTS_SCHEMA == classified.PIPELINE_WORKFLOW_INSIGHTS_SCHEMA
     assert shim.PIPELINE_AUTOPILOT_PREFLIGHT_SCHEMA == classified.PIPELINE_AUTOPILOT_PREFLIGHT_SCHEMA
+
+
+def test_autopilot_tolerates_malformed_history_and_data_rows_without_reusing_unknown_outputs():
+    manifest = {"stage_results": [
+        None, {"stage": "bad", "status": "success"},
+        {"stage": -1, "status": "invalid"}, {"index": "0", "state": "failed"},
+        {"stage_index": "2", "result": "completed"}, {"stage": 3},
+    ]}
+    preflight = insights.build_autopilot_preflight(
+        stages=[{"R": "agi.run"}, {"R": "agi.run"}, {"R": "agi.run"}],
+        sequence=[-1, 0, 1, 2, 99], quality={},
+        data_availability={"rows": [
+            None, {"kind": "output", "stage": "broken"},
+            {"kind": "input", "stage": []}, {"kind": "output", "stage": 0},
+            {"kind": "input", "stage": 0},
+        ], "missing_inputs": [None]},
+        model_artifacts=[], manifest=manifest,
+    )
+    assert preflight["summary"]["stage_count"] == 3
+    assert [row["manifest_status"] for row in preflight["stage_plan"]] == ["failed", "completed", ""]
+    assert all(row["decision"] == "run" for row in preflight["stage_plan"])
+    assert preflight["status"] == "ready"
+
+
+def test_autopilot_dependency_and_model_incompatibilities_block_before_execution():
+    preflight = insights.build_autopilot_preflight(
+        stages=[{"R": "agi.run"}], sequence=[0],
+        quality={"dependency_error": "cycle: train -> evaluate -> train"},
+        data_availability={}, current_versions={"sklearn_version": "1.8"},
+        model_artifacts=[
+            {"name": "missing.pkl", "metadata": None, "metadata_status": "missing"},
+            {"name": "old.pkl", "metadata_status": "versioned",
+             "metadata": {"scikit_learn_version": "1.7"}},
+        ],
+        manifest={"stages": "corrupt"},
+    )
+    assert preflight["ready"] is False
+    assert preflight["status"] == "blocked"
+    assert {row["kind"] for row in preflight["blockers"]} == {"dependency", "model-compatibility"}
+    compatibility = next(row for row in preflight["blockers"] if row["kind"] == "model-compatibility")
+    assert compatibility["recorded"] == "1.7"
+    assert compatibility["current"] == "1.8"
+    assert {row["issue"] for row in preflight["warnings"]} == {
+        "missing model metadata", "missing feature shape/schema metadata",
+    }
+
+
+def test_model_artifact_discovery_respects_depth_limits_duplicates_and_metadata_integrity(tmp_path):
+    root = tmp_path / "models"
+    root.mkdir()
+    model = root / "a.pkl"
+    model.write_bytes(b"opaque-model")
+    model.with_suffix(".pkl.json").write_text("[]", encoding="utf-8")
+    model.with_suffix(".json").write_text('{"torch_version": "2.0", "input_dim": 4}', encoding="utf-8")
+    nested = root / "deep"
+    nested.mkdir()
+    (nested / "b.pkl").write_bytes(b"nested")
+    hidden = root / ".cache"
+    hidden.mkdir()
+    (hidden / "secret.pkl").write_bytes(b"hidden")
+    (root / "readme.txt").write_text("not a model", encoding="utf-8")
+    found = insights.discover_model_artifacts([root, root, tmp_path / "missing"], max_depth=0)
+    assert len(found) == 1
+    assert found[0]["path"] == str(model)
+    assert found[0]["metadata_status"] == "versioned"
+    assert found[0]["metadata"]["input_dim"] == 4
+    assert len(insights.discover_model_artifacts([root], max_files=1)) == 1
+    assert insights.discover_model_artifacts([model])[0]["path"] == str(model)
+
+
+def test_pandas_audit_skips_unreadable_source_and_reports_bounded_findings(tmp_path):
+    (tmp_path / "broken.py").write_bytes(b"\xff")
+    source = tmp_path / "pandas_usage.py"
+    source.write_text(
+        "import pandas as pd\ndf['x'][0] = 1\ndf['y'][0] = 2\n",
+        encoding="utf-8",
+    )
+    report = insights.audit_pandas_compat([tmp_path / "missing", tmp_path], max_findings=1)
+    assert report["total"] == 1
+    assert report["truncated"] is True
+    assert report["findings"][0]["line"] == 2
+    assert report["findings"][0]["kind"] == "chained-assignment"
+    assert insights.audit_pandas_compat([tmp_path / "broken.py"])["total"] == 0
+
+
+def test_stage_path_specs_preserve_nested_paths_and_remove_exact_duplicates():
+    result = insights.stage_path_specs({
+        "inputs": {"z": [None, False, " ", Path("data/b")], "a": ("data/a", "data/a")},
+        "model_path": " model.pkl ",
+        "artifact_path": "artifact.json",
+        "automation": {"outputs": {"out/b", "out/a"}},
+    })
+    assert {(row["kind"], row["path"]) for row in result} == {
+        ("input", "data/a"), ("input", "data/b"), ("artifact", "model.pkl"),
+        ("artifact", "artifact.json"), ("output", "out/a"), ("output", "out/b"),
+    }
+    assert len(result) == 6

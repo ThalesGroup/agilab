@@ -104,6 +104,8 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"test/**"',
         '"tools/coverage_badge_guard.py"',
         '"tools/coverage_shard_plan.py"',
+        '"tools/testing/root_test_runner.py"',
+        '"tools/builtin_app_tests.py"',
         '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
@@ -453,6 +455,7 @@ def test_repo_wide_codecov_file_list_has_no_whitespace_tokens() -> None:
         "./merged-coverage/coverage-agi-cluster.xml",
         "./merged-coverage/coverage-agi-gui.xml",
         "./merged-coverage/coverage-agi-web.xml",
+        "./merged-coverage/coverage-gui-observed-core.xml",
     ]
 
     assert files.split(",") == expected_files
@@ -522,3 +525,107 @@ def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
         assert "uses: actions/upload-artifact@" in block
         assert "# v7" in block
         assert "retention-days: 3" in block
+
+def test_codecov_waits_for_all_component_and_aggregate_uploads() -> None:
+    """A partial component report must not trigger an early PR notification."""
+    config = CODECOV_CONFIG_PATH.read_text(encoding="utf-8")
+    uploads = len(re.findall(r"uses: codecov/codecov-action@", _workflow_text()))
+    assert uploads > 1
+    assert re.search(rf"codecov:\n  notify:\n    after_n_builds: {uploads}\n", config)
+    assert re.search(rf"comment:\n  after_n_builds: {uploads}\n", config)
+    assert '      - "codecov.yml"' in _workflow_text()
+
+def test_coverage_includes_isolated_general_tests_and_standalone_demo_processes():
+    workflow = _workflow_text()
+    combine = _agi_gui_combine_block()
+    for name in ("general", "demos", "builtin"):
+        assert f"          - {name}" in workflow
+        assert f'"{name}"' in combine
+        assert f"--coverage-data-file=test-results/coverage-agi-gui-{name}.db" in workflow
+    assert "tools.testing.root_test_runner --unclassified" in workflow
+    assert "tools.testing.root_test_runner --demos" in workflow
+    assert "AGILAB_FREE_THREADING_PYTHON=" in workflow
+    assert "--coverage-config=.coveragerc.demo-resources" in workflow
+    assert "patch = subprocess" in Path(".coveragerc.demo-resources").read_text()
+    assert 'src/agilab/demos/resources/*/tests.py' in CODECOV_CONFIG_PATH.read_text()
+
+
+
+def test_demo_coverage_interpreter_survives_uv_command_exit():
+    workflow = _workflow_text()
+    assert "python -m venv --copies --without-pip" in workflow
+    assert 'uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python"' in workflow
+    assert 'export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"' in workflow
+    assert "python tools/builtin_app_tests.py" in workflow
+
+
+
+def test_aggregate_retains_core_observations_from_gui_suites():
+    workflow = _workflow_text()
+    combine = _step_block("Write agi-gui coverage XML")
+    assert "--include='*/agi_node/*,*/agi_cluster/*,*/agi_env/*'" in combine
+    assert "-o coverage-gui-observed-core.xml" in combine
+    assert "            coverage-gui-observed-core.xml" in _step_block("Archive agi-gui coverage XML")
+    assert "./merged-coverage/coverage-gui-observed-core.xml" in workflow
+    # The component upload still uses its own bounded report.
+    assert "files: ./coverage-agi-gui.xml" in workflow
+
+
+
+def test_free_threaded_coverage_install_uses_versioned_hash_lock():
+    workflow = _workflow_text()
+    chunk = _step_block("Run agi-gui coverage chunk")
+    assert "--require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt" in chunk
+    assert "uv.lock" not in chunk
+    assert '".github/requirements/ci-free-threaded-coverage.*"' in workflow.split("workflow_dispatch:", 1)[0]
+    requirements = Path(".github/requirements/ci-free-threaded-coverage.txt").read_text()
+    assert "coverage==7.16.1" in requirements
+    assert "--hash=sha256:" in requirements
+
+
+
+def test_optional_evidence_suites_use_their_supported_runtimes():
+    import tomllib
+
+    chunk = _step_block("Run agi-gui coverage chunk")
+    source = Path("src/agilab/examples/telemetry_features/preview_telemetry_features.py").read_text()
+    metadata = source.split("# ///")[1].splitlines()[1:]
+    contract = tomllib.loads("\n".join(line.removeprefix("# ") for line in metadata))
+    assert contract["requires-python"] == ">=3.12,<3.13"
+    assert "--no-project --python 3.12" in chunk
+    for dependency in contract["dependencies"]:
+        assert f"--with '{dependency}'" in chunk
+    assert "--with 'tiktoken==0.14.0'" in chunk
+    assert "--junitxml=test-results/junit-agi-gui-demos-telemetry.xml" in chunk
+    assert "test/test_telemetry_feature_evidence.py" in chunk
+
+
+def test_general_coverage_checkout_materializes_lfs_for_fresh_clone_proof():
+    import yaml
+
+    workflow = yaml.safe_load(_workflow_text())
+    checkout = next(step for step in workflow['jobs']['agi-gui']['steps'] if step.get('name') == 'Checkout')
+    assert checkout['with']['lfs'] == "${{ matrix.chunk == 'general' }}"
+    root_suite = yaml.safe_load(Path('.github/workflows/root-test-suite.yml').read_text())
+    root_checkout = next(step for step in root_suite['jobs']['root-tests']['steps'] if step.get('name') == 'Checkout')
+    assert root_checkout['with']['lfs'] is True
+
+
+
+def test_demo_environment_uses_every_tested_bundles_requirements():
+    chunk = _step_block("Run agi-gui coverage chunk")
+    assert "for test_file in src/agilab/demos/resources/*/tests.py" in chunk
+    assert 'demo_requirements+=(--with-requirements "$requirements")' in chunk
+    assert '"${demo_requirements[@]}"' in chunk
+
+def test_complete_codecov_report_is_uploaded_before_badge_freshness_gate():
+    import yaml
+    jobs = yaml.safe_load(Path(".github/workflows/coverage.yml").read_text())["jobs"]
+    steps = jobs["agilab"]["steps"]
+    names = [step["name"] for step in steps]
+    upload = names.index("Upload repo-wide agilab coverage to Codecov")
+    badge_check = names.index("Verify committed badges are up to date")
+    assert upload < badge_check
+    assert steps[upload]["with"]["fail_ci_if_error"] is True
+    assert steps[badge_check]["run"] == "git diff --exit-code -- badges/"
+    assert not steps[badge_check].get("continue-on-error", False)

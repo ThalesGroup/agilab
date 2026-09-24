@@ -161,3 +161,105 @@ def test_sklearn_pipeline_artifact_summary_matches_persisted_file(tmp_path: Path
     assert partial.payload["run_count"] == 1
     assert partial.payload["test_rows"] == summary["metrics"]["test_rows"]
     assert "run_manifest.json" in partial.payload["artifact_paths"]
+
+
+@pytest.mark.parametrize("reset", [False, True])
+def test_worker_exports_real_training_evidence_and_preserves_unrelated_files(tmp_path, monkeypatch, reset):
+    import importlib
+    module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
+    monkeypatch.setattr(module, "_runtime", {})
+    share = tmp_path / "share"
+    export = tmp_path / "export"
+    output = share / "sklearn_pipeline" / "evidence"
+    artifact = export / "sklearn_pipeline_project" / "sklearn_pipeline"
+    for directory in (output, artifact):
+        directory.mkdir(parents=True)
+        (directory / "stale.txt").write_text("old")
+    sibling = share / "unrelated.txt"
+    sibling.write_text("keep")
+    worker = SklearnPipelineWorker()
+    worker.env = SimpleNamespace(
+        resolve_share_path=lambda value: share / Path(value),
+        AGILAB_EXPORT_ABS=export,
+        target="sklearn_pipeline_project",
+    )
+    worker.args = dict(data_out="sklearn_pipeline/evidence", sample_count=80, reset_target=reset)
+    worker._worker_id = 2
+    worker.start()
+    assert worker.data_out == output
+    assert worker.artifact_dir == artifact
+    for directory in (output, artifact):
+        assert (directory / "stale.txt").exists() is (not reset)
+    worker.pool_init(worker.pool_vars)
+    frame = worker.work_pool("single-run")
+    assert len(frame) == 1
+    assert frame.iloc[0]["worker_id"] == 2
+    assert frame.iloc[0]["data_out"] == str(output)
+    assert frame.iloc[0]["artifact_dir"] == str(artifact)
+    for path in output.rglob("*"):
+        if path.is_file():
+            assert (artifact / path.relative_to(output)).read_bytes() == path.read_bytes()
+    assert (output / "model.joblib").is_file()
+    assert (output / "run_manifest.json").is_file()
+    assert sibling.read_text() == "keep"
+
+
+@pytest.mark.parametrize("representation", ["model", "dict", "namespace", "object"])
+def test_worker_args_accept_runtime_representations_without_private_transport_fields(representation):
+    import importlib
+    module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
+    values = dict(sample_count=80, seed=34)
+    if representation == "model":
+        value = SklearnPipelineArgs(**values)
+    elif representation == "dict":
+        value = dict(**values, _transport="ignored")
+    elif representation == "namespace":
+        value = SimpleNamespace(**values, _transport="ignored")
+    else:
+        class Payload:
+            pass
+        value = Payload()
+        value.__dict__.update(values, _transport="ignored")
+    result = module._args_with_defaults(value)
+    assert result.sample_count == 80
+    assert result.seed == 34
+    assert not hasattr(result, "_transport")
+    if representation == "model":
+        assert result is value
+
+
+@pytest.mark.parametrize("plan,worker_id,expected", [
+    ([[["a", "b"], ("c",), "d"]], 0, ["a", "b", "c", "d"]),
+    ([[["other"]], [["mine"]]], 1, ["mine"]),
+    ([], 0, []),
+    (None, 0, []),
+    (["invalid-batches"], 0, []),
+    ([[["other"]]], 1, []),
+])
+@pytest.mark.parametrize("started", [None, 10.0])
+def test_worker_schedule_only_processes_assigned_batches(monkeypatch, plan, worker_id, expected, started):
+    import importlib
+    from unittest.mock import Mock
+    module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
+    monkeypatch.setattr(module.BaseWorker, "_t0", started)
+    monkeypatch.setattr(module, "time", SimpleNamespace(time=lambda: 20.0))
+    worker = SklearnPipelineWorker()
+    worker._worker_id = worker_id
+    processed = []
+    completed = []
+    worker.work_pool = lambda item: processed.append(item) or {"item": item}
+    worker.work_done = lambda summary: completed.append(summary["item"])
+    worker.stop = Mock()
+    elapsed = worker.works(plan, None)
+    assert processed == completed == expected
+    worker.stop.assert_called_once_with()
+    assert elapsed == (0.0 if started is None else 10.0)
+
+
+def test_artifact_copy_to_same_directory_preserves_existing_payload(tmp_path):
+    import importlib
+    module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
+    payload = tmp_path / "metrics.json"
+    payload.write_text('{"accuracy": 1}')
+    module._copy_artifacts(tmp_path, tmp_path / ".")
+    assert payload.read_text() == '{"accuracy": 1}'

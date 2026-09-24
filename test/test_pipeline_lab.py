@@ -4878,8 +4878,10 @@ def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monk
     )
 
 
-def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_path):
+@pytest.mark.parametrize("generation_mode", [pipeline_lab.GENERATION_MODE_SAFE_ACTIONS, pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET])
+def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_path, generation_mode):
     saved = []
+    autofix_calls = []
     runtime_root = tmp_path / "runtime_b"
     (runtime_root / ".venv").mkdir(parents=True)
     fake_st = _FakeStreamlit(
@@ -4889,7 +4891,8 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
             "demo_new_q": "new generated stage",
         },
         buttons={"demo_add_stage_btn": True},
-        selectboxes={"demo_new_venv": str(runtime_root)},
+        selectboxes={"demo_new_venv": str(runtime_root),
+                     "demo_new_generation_mode": pipeline_lab.GENERATION_MODE_LABELS[generation_mode]},
         multiselects={"demo_run_sequence_widget": [0]},
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -4910,7 +4913,7 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
         render_pipeline_view=lambda *_args, **_kwargs: None,
         inspect_pipeline_run_lock=lambda *_args, **_kwargs: None,
         ask_gpt=lambda *_args, **_kwargs: ["", "new generated stage", "model", "print('new')", "detail"],
-        maybe_autofix_generated_code=lambda **_kwargs: ("print('fixed')", "fixed-model", "fixed-detail"),
+        maybe_autofix_generated_code=lambda **kwargs: autofix_calls.append(kwargs) or ("print('fixed')", "fixed-model", "fixed-detail"),
         save_stage=lambda *args, **kwargs: saved.append((args, kwargs)),
     )
     env = SimpleNamespace(active_app=tmp_path / "flight_telemetry_project", envars={}, app="flight_telemetry_project")
@@ -4922,7 +4925,14 @@ def test_display_lab_tab_existing_stages_generates_new_stage(monkeypatch, tmp_pa
     assert args[2] == 1
     assert kwargs["venv_map"][1] == str(runtime_root)
     assert kwargs["engine_map"][1] == "agi.run"
-    assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == pipeline_lab.GENERATION_MODE_SAFE_ACTIONS
+    assert kwargs["extra_fields"][pipeline_lab.STAGE_GENERATION_MODE_FIELD] == generation_mode
+    if generation_mode == pipeline_lab.GENERATION_MODE_PYTHON_SNIPPET:
+        assert len(autofix_calls) == 1
+        assert autofix_calls[0]["merged_code"] == "# detail\nprint('new')"
+        assert args[1][2:5] == ["fixed-model", "print('fixed')", "fixed-detail"]
+    else:
+        assert autofix_calls == []
+        assert args[1][3] == "print('new')"
     assert ("rerun", "called") in fake_st.messages
 
 
@@ -5105,15 +5115,29 @@ def test_display_lab_tab_selected_safe_action_template_populates_existing_code_e
     assert editor_bodies[0] == fake_st.session_state["demo_code_stage_0"]
 
 
-def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatch, tmp_path):
+@pytest.mark.parametrize("loader_mode", ["current", "legacy", "legacy_unavailable", "unavailable", "invalid", "cached"])
+def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatch, tmp_path, loader_mode):
     pinned_stage = _safe_action_stage(pinned=True)
     selected_label = _safe_action_option_label(pinned_stage)
     saved = []
+    frame = pipeline_lab.pd.DataFrame({"station": ["Paris"]})
+    load_calls = []
+    def load_cached(path, **kwargs):
+        load_calls.append(kwargs)
+        if loader_mode == "cached":
+            pytest.fail("an existing DataFrame must take precedence over disk")
+        if loader_mode.startswith("legacy") and kwargs:
+            raise TypeError("old loader has no with_index argument")
+        if loader_mode in {"unavailable", "legacy_unavailable"}:
+            raise OSError("data source unavailable")
+        return {"invalid": True} if loader_mode == "invalid" else frame
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
             "demo__run_sequence": [0],
             "demo_new_q": "",
+            "df_file": str(tmp_path / "selected.csv"),
+            "loaded_df": frame if loader_mode == "cached" else None,
         },
         buttons={"demo_add_stage_btn": True},
         selectboxes={"demo_safe_action_choice_add": selected_label},
@@ -5130,6 +5154,7 @@ def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatc
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
 
     deps = _make_lab_deps(
+        load_df_cached=load_cached,
         load_all_stages=lambda *_args, **_kwargs: [pinned_stage],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
         render_pipeline_view=lambda *_args, **_kwargs: None,
@@ -5149,6 +5174,13 @@ def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatc
     assert kwargs["extra_fields"][pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD] is True
     assert kwargs["extra_fields"][pipeline_lab.STAGE_ACTION_CONTRACT_FIELD] == pinned_stage[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD]
 
+
+    if loader_mode == "cached":
+        assert load_calls == []
+    elif loader_mode.startswith("legacy"):
+        assert load_calls == [{"with_index": False}, {}]
+    else:
+        assert load_calls == [{"with_index": False}]
 
 def test_display_lab_tab_pin_safe_action_persists_pinned_metadata(monkeypatch, tmp_path):
     safe_stage = _safe_action_stage(pinned=False)
@@ -6936,3 +6968,414 @@ def test_safe_action_pin_stage_update_records_schema_hash_for_valid_dataframe():
 
     assert fields[pipeline_lab.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD]
     assert fields[pipeline_lab.STAGE_ACTION_CONTRACT_SHA256_FIELD]
+
+
+@pytest.mark.parametrize("contents", ["not-json", "[]", "null", "{}"])
+def test_automation_manifest_summary_ignores_absent_or_empty_evidence(monkeypatch, tmp_path, contents):
+    path = tmp_path / "automation-evidence.json"
+    path.write_text(contents)
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="summary")
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(tmp_path / "missing.json"), key_prefix="missing")
+    assert fake_st.messages == []
+    assert pipeline_lab._load_pipeline_automation_manifest("") is None
+
+
+@pytest.mark.parametrize("show_outputs", [False, True])
+@pytest.mark.parametrize("graph", ["", "digraph pipeline { prepare -> train; }"])
+def test_automation_manifest_summary_exposes_recorded_evidence_on_request(
+    monkeypatch, tmp_path, show_outputs, graph
+):
+    manifest = {
+        "schema": pipeline_lab._pipeline_run_controls_module.PIPELINE_AUTOMATION_SCHEMA,
+        "status": "failed", "profile": "balanced", "max_workers": 2,
+        "duration_seconds": 65.5, "waves": [[0], [1, 2]], "error": "training failed",
+        "summary": {"stage_count": 3, "executed": 2, "skipped": 1, "failed": 1},
+        "dependency_graph_dot": graph,
+        "stages": [
+            {"stage_index": 0, "status": "passed", "outputs": [
+                {"spec": "features.csv", "exists": True, "is_file": True,
+                 "size_bytes": 12, "sha256_status": "ok", "sha256": "a" * 64,
+                 "path": "artifacts/features.csv"},
+                {"spec": "large.bin", "exists": True, "is_file": True,
+                 "sha256_status": "too_large"},
+            ]},
+            {"stage_index": 1, "status": "failed", "outputs": [
+                {"spec": "model.bin", "exists": False},
+            ]},
+        ],
+    }
+    path = tmp_path / "automation-evidence.json"
+    path.write_text(json.dumps(manifest))
+    before = path.read_bytes()
+    fake_st = _FakeStreamlit(checkboxes={
+        "summary_automation_manifest_outputs": show_outputs,
+        "summary_automation_manifest_graph": True,
+    })
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    tables = []
+    monkeypatch.setattr(pipeline_lab, "render_paginated_dataframe",
+                        lambda _st, frame, **kwargs: tables.append((frame, kwargs)))
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="summary")
+    metrics = {text for kind, text in fake_st.messages if kind == "metric"}
+    assert {
+        "Status=failed", "Schema=current", "Profile=balanced", "Workers=2",
+        "Waves=2", "Duration=1m 5.5s", "Stages=3", "Executed=2", "Skipped=1",
+        "Failed=1", "Outputs=3", "Existing=2", "Hashed=1", "Too large=1",
+    } <= metrics
+    assert ("error", "Run error: training failed") in fake_st.messages
+    assert ("caption", "Declared outputs missing in latest manifest: 1") in fake_st.messages
+    assert ("caption", "Waves: 0 -> 1 + 2") in fake_st.messages
+    assert bool(tables) is show_outputs
+    if show_outputs:
+        frame, options = tables[0]
+        assert frame["spec"].tolist() == ["features.csv", "large.bin", "model.bin"]
+        assert frame["exists"].tolist() == [True, True, False]
+        assert options["key"] == "summary_automation_manifest_outputs_table"
+    assert fake_st.graphviz_sources == ([graph] if graph else [])
+    if not graph:
+        assert ("caption", "No dependency graph was recorded in this manifest.") in fake_st.messages
+    assert path.read_bytes() == before
+
+
+def test_automation_manifest_summary_defaults_without_optional_outputs(monkeypatch, tmp_path):
+    path = tmp_path / "minimal-automation-evidence.json"
+    path.write_text(json.dumps({"status": "passed", "waves": "unavailable"}))
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="minimal")
+    metrics = {text for kind, text in fake_st.messages if kind == "metric"}
+    assert {"Status=passed", "Schema=unknown", "Profile=balanced", "Workers=1",
+            "Waves=0", "Duration=unknown", "Stages=0"} <= metrics
+    assert not fake_st.graphviz_sources
+    assert not any(label == "Show output evidence" for label, _ in fake_st.checkbox_calls)
+
+@pytest.mark.parametrize("outcome", ["unselected", "success", "token_conflict", "state_conflict", "no_tokens"])
+def test_durable_runner_recovery_uses_exact_token_and_never_dispatches(outcome, monkeypatch, tmp_path):
+    state = {
+        "summary": {}, "source": {}, "units": [], "artifacts": [],
+        "active_execution": {"attempt_id": "attempt-7", "unit_tokens": {"alpha": "exact-token"}},
+    }
+    if outcome == "no_tokens":
+        state["active_execution"]["unit_tokens"] = None
+    clicked = outcome not in {"unselected", "no_tokens"}
+    key = "recover_global_runner_recover_" + pipeline_lab._multi_app_dag_source_token("exact-token")
+    fake_st = _FakeStreamlit(buttons={key: clicked})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    recovered = []
+
+    class Engine:
+        def real_run_support(self, state):
+            return SimpleNamespace(supported=True, message="", status="Executable", adapter="test")
+
+        def recover_execution_attempt_transaction(self, actual_state, **kwargs):
+            assert actual_state is state
+            recovered.append(kwargs)
+            if outcome == "token_conflict":
+                raise pipeline_lab.RunnerStateAttemptConflictError(
+                    tmp_path / "state.json", expected_attempt_id="attempt-7", actual_attempt_id="attempt-8"
+                )
+            if outcome == "state_conflict":
+                raise pipeline_lab.RunnerStateConflictError(
+                    tmp_path / "state.json", expected_revision="old", actual_revision="new"
+                )
+
+    pipeline_lab._render_global_runner_state_view(
+        state=state, state_path=tmp_path / "state.json", dag_path=None,
+        dag_engine=Engine(), repo_root=tmp_path, index_page_str="recover",
+    )
+    assert any("final outcome is unknown" in message for _, message in fake_st.messages)
+    assert not any(label in {"Run next stage", "Run ready stages", "Preview next ready step"}
+                   for label, _ in fake_st.button_calls)
+    assert recovered == ([{"unit_id": "alpha", "idempotency_token": "exact-token"}] if clicked else [])
+    if outcome == "success":
+        assert any(kind == "success" and "Reset the plan explicitly" in message for kind, message in fake_st.messages)
+    elif outcome.endswith("conflict"):
+        assert any("recovery token changed" in message for _, message in fake_st.messages)
+        assert not any(kind == "success" for kind, _ in fake_st.messages)
+    assert (("rerun", "called") in fake_st.messages) is clicked
+
+
+@pytest.mark.parametrize("action", ["run_next_stage", "run_ready_stages", "dispatch_next"])
+def test_runner_state_conflict_during_actions_reload_without_success(action, monkeypatch, tmp_path):
+    state = {"summary": {}, "source": {}, "units": [], "artifacts": []}
+    fake_st = _FakeStreamlit(buttons={f"conflict_global_runner_{action}": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    calls = []
+
+    class Engine:
+        def real_run_support(self, state):
+            return SimpleNamespace(supported=True, message="", status="Executable", adapter="test")
+
+        def fail(self, state, **kwargs):
+            calls.append(kwargs)
+            raise pipeline_lab.RunnerStateConflictError(
+                tmp_path / "state.json", expected_revision="old", actual_revision="new"
+            )
+
+        run_next_controlled_stage_transaction = fail
+        run_ready_controlled_stages_transaction = fail
+        dispatch_next_runnable_transaction = fail
+
+    pipeline_lab._render_global_runner_state_view(
+        state=state, state_path=tmp_path / "state.json", dag_path=None,
+        dag_engine=Engine(), repo_root=tmp_path, index_page_str="conflict",
+    )
+    assert len(calls) == 1
+    assert any("Workflow state changed in another session" in message for _, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+    assert not any(kind == "success" for kind, _ in fake_st.messages)
+
+
+@pytest.mark.parametrize("action", ["run_next_stage", "run_ready_stages"])
+def test_runner_actions_stop_for_required_recovery_without_rerun(action, monkeypatch, tmp_path):
+    fake_st = _FakeStreamlit(buttons={f"recovery_global_runner_{action}": True})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    class Engine:
+        def real_run_support(self, state):
+            return SimpleNamespace(supported=True, message="", status="Executable", adapter="test")
+
+        def fail(self, state, **kwargs):
+            raise pipeline_lab.RunnerStateRecoveryRequiredError(tmp_path / "state.json", attempt_id="attempt-7")
+
+        run_next_controlled_stage_transaction = fail
+        run_ready_controlled_stages_transaction = fail
+
+    pipeline_lab._render_global_runner_state_view(
+        state={"summary": {}, "source": {}, "units": [], "artifacts": []},
+        state_path=tmp_path / "state.json", dag_path=None,
+        dag_engine=Engine(), repo_root=tmp_path, index_page_str="recovery",
+    )
+    assert any("active workflow attempt must be recovered" in message for _, message in fake_st.messages)
+    assert not any(kind in {"success", "rerun", "error"} for kind, _ in fake_st.messages)
+
+@pytest.mark.parametrize("lines, lock, expected", [
+    (["Run workflow completed"], None, "complete"),
+    (["Run workflow completed", "Command failed"], {"is_stale": True}, "failed"),
+    (["Traceback: failure"], {"is_stale": False}, "running"),
+    ([], {"is_stale": True}, ""),
+    (["Traceback old"] + ["recent progress"] * 25, None, ""),
+])
+def test_pipeline_recovered_log_status_uses_current_lock_and_recent_tail(lines, lock, expected):
+    assert pipeline_lab._infer_pipeline_page_log_status(lines, lock) == expected
+
+
+def test_pipeline_log_hydration_preserves_live_session_logs_and_explicit_failure(tmp_path, monkeypatch):
+    disk_log = tmp_path / "pipeline_saved.log"
+    disk_log.write_text("Run workflow completed\n", encoding="utf-8")
+    monkeypatch.setattr(pipeline_lab, "_workflow_run_log_dir", lambda env: tmp_path)
+    state = {
+        "page__run_logs": ("in-memory progress", "Command failed"),
+        "page__last_run_log_file": str(disk_log),
+        "page__last_run_status": "failed",
+    }
+    result = pipeline_lab._hydrate_pipeline_page_run_state_from_disk("page", object(), state, None)
+    assert result == {"lock_state": None, "log_file": str(disk_log), "loaded_lines": 0, "status": "failed"}
+    assert state["page__run_logs"] == ("in-memory progress", "Command failed")
+    assert "page__run_state_hydrated_notice" not in state
+
+
+def test_pipeline_log_hydration_reconnects_to_lock_owned_log_before_newer_unrelated_log(tmp_path, monkeypatch):
+    owned_log = tmp_path / "run_owned.log"
+    owned_log.write_text("line 1\nline 2\n", encoding="utf-8")
+    unrelated_log = tmp_path / "pipeline_other.log"
+    unrelated_log.write_text("Command failed\n", encoding="utf-8")
+    monkeypatch.setattr(pipeline_lab, "_workflow_run_log_dir", lambda env: tmp_path)
+    lock = {"is_stale": False, "payload": {"log_file_path": str(owned_log)}}
+    state = {}
+    result = pipeline_lab._hydrate_pipeline_page_run_state_from_disk("page", object(), state, lambda env: lock)
+    assert result["log_file"] == str(owned_log)
+    assert result["status"] == "running"
+    assert result["loaded_lines"] == 2
+    assert state["page__run_logs"] == ["line 1", "line 2"]
+    assert "Reconnected" in state["page__run_state_hydrated_notice"]
+
+
+@pytest.mark.parametrize("lock", [None, [], {}, {"payload": []}, {"payload": {}}, {"payload": {"log_file_path": "/nonexistent/agilab-test-only.log"}}])
+def test_pipeline_log_recovery_ignores_incomplete_or_stale_log_references(lock):
+    assert pipeline_lab._pipeline_page_log_from_lock(lock) is None
+
+
+@pytest.mark.parametrize("populated", [False, True])
+def test_workflow_cockpit_displays_preflight_blockers_and_evidence_from_local_artifacts(populated, tmp_path, monkeypatch):
+    import inspect
+
+    render = inspect.unwrap(pipeline_lab._render_workflow_cockpit)
+    fake_st = _FakeStreamlit()
+    fake_st.tabs = lambda labels: [_Ctx(fake_st) for _ in labels]
+    monkeypatch.setitem(render.__globals__, "st", fake_st)
+    monkeypatch.setitem(render.__globals__, "_workflow_cockpit_roots", lambda *_a: [tmp_path])
+    monkeypatch.setitem(render.__globals__, "_workflow_cockpit_input_roots", lambda *_a: [tmp_path])
+    monkeypatch.setitem(render.__globals__, "_workflow_cockpit_pandas_paths", lambda: [tmp_path])
+    tables = {}
+    monkeypatch.setitem(render.__globals__, "render_paginated_dataframe",
+                        lambda _st, data, **kwargs: tables.setdefault(kwargs["key"], data))
+    stages = []
+    manifest_path = ""
+    if populated:
+        (tmp_path / "model.pkl").write_bytes(b"opaque model")
+        (tmp_path / "risky.py").write_text("import pandas as pd\ndf['x'][0] = 3\n", encoding="utf-8")
+        manifest = tmp_path / "manifest.json"
+        manifest.write_text(json.dumps({"status": "success", "outputs": [
+            {"exists": True, "sha256": "a" * 64}
+        ]}), encoding="utf-8")
+        manifest_path = str(manifest)
+        stages = [
+            {"id": "train", "R": "runpy", "inputs": ["missing.csv"], "outputs": ["trained.pkl"]},
+            {"id": "evaluate", "deps": ["train"], "R": "agi.run", "outputs": ["scores.json"]},
+        ]
+    render(
+        key_prefix="contract", env=SimpleNamespace(), lab_dir=tmp_path,
+        stages_file=tmp_path / "lab_stages.toml", stages=stages,
+        sequence=list(range(len(stages))), waves=[[0], [1]] if populated else [],
+        stage_ids_by_idx={0: "train", 1: "evaluate"} if populated else {},
+        deps_by_stage_id={"train": [], "evaluate": ["train"]} if populated else {},
+        manifest_path=manifest_path, dependency_error="dependency cycle" if populated else None,
+    )
+    if populated:
+        assert any(kind == "error" and "Autopilot blocked" in message for kind, message in fake_st.messages)
+        assert any("Positive evidence" in message for _, message in fake_st.messages)
+        assert any("Risk categories" in message for _, message in fake_st.messages)
+        assert {"contract_cockpit_autopilot_blockers", "contract_cockpit_autopilot_warnings",
+                "contract_cockpit_models", "contract_cockpit_data", "contract_cockpit_pandas"} <= set(tables)
+    else:
+        assert any("No declared data paths" in message for _, message in fake_st.messages)
+        assert any("No model artifacts" in message for _, message in fake_st.messages)
+        assert any(kind == "success" and "No pandas" in message for kind, message in fake_st.messages)
+
+
+def test_invalid_evidence_graph_shows_issues_and_inspectable_rows_without_writing(tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    tables = {}
+    monkeypatch.setattr(pipeline_lab, "render_paginated_dataframe",
+                        lambda _st, data, **kwargs: tables.setdefault(kwargs["key"], data))
+    graph = tmp_path / "workflow-evidence-graph.json"
+    graph.write_text(json.dumps({
+        "schema": "unsupported", "summary": [],
+        "nodes": [{"id": "n", "kind": "artifact", "label": "output"}],
+        "edges": [{"source": "n", "target": "absent", "kind": "produced"}],
+    }), encoding="utf-8")
+    before = graph.read_bytes()
+    pipeline_lab._render_workflow_evidence_graph(graph)
+    assert any(kind == "warning" for kind, _ in fake_st.messages)
+    assert any("nodes" in key for key in tables)
+    assert any("edges" in key for key in tables)
+    assert graph.read_bytes() == before
+    pipeline_lab._render_workflow_evidence_graph(tmp_path / "missing.json")
+    assert any("does not exist" in message for _, message in fake_st.messages)
+
+
+def test_multi_app_readiness_view_exposes_blocked_plan_and_next_action(monkeypatch):
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    state = {"summary": {"unit_count": 1, "blocked_unit_ids": ["a"]},
+             "units": [{"id": "a", "dispatch_status": "blocked", "deps": ["missing"]}]}
+    pipeline_lab._render_multi_app_dag_readiness(state)
+    assert ("markdown", "**Plan readiness**") in fake_st.messages
+    assert any("Next action:" in message for _, message in fake_st.messages)
+    assert any("Run mode:" in message for _, message in fake_st.messages)
+
+
+@pytest.mark.parametrize("action", ["save_automation_settings", "suggest_stage_dependencies", "save_stage_dependencies"])
+def test_workflow_dependency_controls_persist_only_reviewed_changes(action, tmp_path, monkeypatch):
+    stages = [
+        {"id": "train", "Q": "Train", "C": "print('train')", "outputs": ["out/model"]},
+        {"id": "evaluate", "Q": "Evaluate", "C": "load('out/model')", "inputs": ["out/model"]},
+    ]
+    fake_st = _FakeStreamlit(
+        {"demo": [0, "", "", "", "", "", 0],
+         "demo__pipeline_stage_deps": "corrupt",
+         "demo__pipeline_deps_evaluate": ["train"]},
+        buttons={f"demo_{action}": True},
+    )
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    monkeypatch.setattr(pipeline_lab, "code_editor", lambda *_a, **_k: None)
+    monkeypatch.setattr(pipeline_lab, "get_custom_buttons", lambda: [])
+    monkeypatch.setattr(pipeline_lab, "get_info_bar", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
+    monkeypatch.setattr(pipeline_lab, "get_available_virtualenvs", lambda env: [])
+    monkeypatch.setattr(pipeline_lab, "get_existing_snippets", lambda *_a, **_k: {})
+    automation = []
+    monkeypatch.setattr(pipeline_lab, "_persist_automation_preferences",
+                        lambda module, path, settings, **kwargs: automation.append(settings))
+    persisted = []
+    reruns = []
+    bumps = []
+    deps = _make_lab_deps(
+        load_all_stages=lambda *_a, **_k: stages,
+        force_persist_stage=lambda module, path, index, entry: persisted.append((index, entry)),
+        rerun_fragment_or_app=lambda: reruns.append(True),
+        bump_history_revision=lambda: bumps.append(True),
+    )
+    env = SimpleNamespace(active_app=tmp_path / "demo_project", envars={}, app="demo_project")
+    pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "demo_project", env, deps)
+    assert reruns == [True]
+    if action == "save_automation_settings":
+        assert len(automation) == 1
+        assert set(automation[0]) == {"profile", "max_workers"}
+        assert persisted == []
+    elif action == "suggest_stage_dependencies":
+        assert fake_st.session_state["demo__pipeline_stage_deps"] == {"train": [], "evaluate": ["train"]}
+        assert fake_st.session_state["demo__pipeline_deps_evaluate"] == ["train"]
+        assert persisted == [] and bumps == []
+    else:
+        assert [(index, entry["id"], entry["deps"]) for index, entry in persisted] == [
+            (0, "train", []), (1, "evaluate", ["train"]),
+        ]
+        assert bumps == [True]
+    assert all("deps" not in entry for entry in stages)
+
+
+def test_stale_snippet_cleanup_preserves_unrelated_selection_and_refuses_unknown_path_state(tmp_path, monkeypatch):
+    stale = tmp_path / "stale.py"
+    unrelated = tmp_path / "unrelated.py"
+    stale.write_text("stale", encoding="utf-8")
+    fake_st = _FakeStreamlit({"snippet_file": str(unrelated)})
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    assert pipeline_lab._stale_snippet_paths_resolved([stale]) is False
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    assert fake_st.session_state["snippet_file"] == str(unrelated)
+    fake_st.session_state["snippet_file"] = str(tmp_path / "." / "stale.py")
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    assert "snippet_file" not in fake_st.session_state
+    pipeline_lab._clear_selected_stale_snippet([stale])
+    stale.unlink()
+    assert pipeline_lab._stale_snippet_paths_resolved([stale]) is True
+    # Corrupt persisted session values must not authorize cleanup completion.
+    assert pipeline_lab._stale_snippet_paths_resolved([{"path": "invalid"}]) is False
+    assert pipeline_lab._stale_snippet_path_key({"path": "invalid"}) == "{'path': 'invalid'}"
+    pipeline_lab._rerun_after_stale_snippet_cleanup(SimpleNamespace())
+    assert ("rerun", "called") in fake_st.messages
+
+
+def test_workflow_cockpit_roots_survive_unavailable_share_methods(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    def unavailable():
+        raise OSError("share disconnected")
+    env = SimpleNamespace(app="", workflow_data_root_path=unavailable, share_root_path=unavailable, runenv=tmp_path)
+    roots = pipeline_lab._workflow_cockpit_input_roots(env, tmp_path, tmp_path / "stages.toml")
+    assert roots == [tmp_path, tmp_path / "home" / "localshare" / "agi"]
+
+
+@pytest.mark.parametrize("project_scope", [False, True])
+def test_workflow_graph_concurrent_state_conflict_reruns_before_rendering_stale_state(project_scope, tmp_path, monkeypatch):
+    fake_st = _FakeStreamlit({
+        "conflict_pipeline_scope": pipeline_lab.PIPELINE_SCOPE_PROJECT if project_scope else pipeline_lab.PIPELINE_SCOPE_MULTI_APP_DAG,
+    })
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    def conflict(*args, **kwargs):
+        raise pipeline_lab.RunnerStateConflictError(tmp_path / "state.json", expected_revision="stale", actual_revision="current")
+    target = "_load_or_create_pipeline_stages_runner_state" if project_scope else "_load_or_create_global_runner_state"
+    monkeypatch.setattr(pipeline_lab, target, conflict)
+    monkeypatch.setattr(pipeline_lab, "_render_global_runner_state_view",
+                        lambda **kwargs: pytest.fail("stale state must not be rendered"))
+    pipeline_lab._render_global_runner_state_panel(
+        SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project"),
+        tmp_path, "conflict", pipeline_stages=[{"C": "print(1)"}] if project_scope else None,
+        stages_file=tmp_path / "lab_stages.toml",
+    )
+    assert any(kind == "warning" and "changed in another session" in message for kind, message in fake_st.messages)
+    assert ("rerun", "called") in fake_st.messages
+    assert not any(kind == "error" for kind, _ in fake_st.messages)

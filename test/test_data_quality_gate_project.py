@@ -686,3 +686,70 @@ def test_data_quality_gate_args_reject_unsafe_output_paths() -> None:
             validate_relative_data_out(value)
         with pytest.raises(ValueError):
             DataQualityGateArgs(baseline_csv=value)
+
+
+@pytest.mark.parametrize("field,payload,message", [
+    ("contract_json", "[]", "must be an object"),
+    ("thresholds_json", "[]", "must be an object"),
+    ("thresholds_json", '{"max_null_rate": "not-a-number"}', "must be numeric"),
+    ("thresholds_json", '{"thresholds": {"max_null_rate": []}}', "must be numeric"),
+])
+def test_invalid_policy_inputs_cannot_publish_quality_decision(tmp_path, field, payload, message):
+    policy = tmp_path / "policy.json"
+    policy.write_text(payload)
+    output = tmp_path / "evidence"
+    with pytest.raises(ValueError, match=message):
+        build_data_quality_gate_artifacts(output_dir=output, **{field: policy})
+    assert not (output / "run_manifest.json").exists()
+    assert not (output / "data_quality_summary.json").exists()
+
+
+@pytest.mark.parametrize("missing", ["baseline", "candidate"])
+def test_missing_csv_is_reported_before_evidence_generation(tmp_path, missing):
+    baseline, candidate = tmp_path / "baseline.csv", tmp_path / "candidate.csv"
+    for name, path in (("baseline", baseline), ("candidate", candidate)):
+        if name != missing:
+            path.write_text("age,target\n12,0\n")
+    output = tmp_path / "evidence"
+    with pytest.raises(FileNotFoundError, match=missing + "_csv not found"):
+        build_data_quality_gate_artifacts(output_dir=output, baseline_csv=baseline, candidate_csv=candidate)
+    assert not list(output.iterdir())
+
+
+@pytest.mark.parametrize("columns", [
+    ["age", "target"],
+    {"age": "numeric", "target": {"kind": "binary"}},
+    {"age": None, "target": {"required": 1, "drift": 0}},
+])
+def test_compact_contract_forms_are_persisted_with_normalized_policy(tmp_path, columns):
+    policy = tmp_path / "policy.json"
+    policy.write_text(json.dumps({
+        "columns": columns,
+        "allow_unexpected_columns": "yes",
+        "target_column": " target ",
+        "identifier_columns": "customer_id",
+        "leakage_name_patterns": " target_proxy ",
+    }))
+    from data_quality_gate.domain import core
+    contract, thresholds, sources = core._load_gate_configuration(contract_json=policy, thresholds_json=None)
+    assert set(contract["columns"]) == {"age", "target"}
+    assert contract["columns"]["age"]["kind"] == "numeric"
+    assert contract["columns"]["target"]["role"] == "target"
+    assert contract["columns"]["target"]["required"] is True
+    assert contract["columns"]["target"]["drift"] is False
+    assert contract["allow_unexpected_columns"] is True
+    assert contract["target_column"] == "target"
+    assert contract["identifier_columns"] == ["customer_id"]
+    assert contract["leakage_name_patterns"] == ["target_proxy"]
+    assert sources["contract_json"]["sha256"] == hashlib.sha256(policy.read_bytes()).hexdigest()
+    assert thresholds["max_null_rate"] == .02
+
+
+def test_threshold_metadata_is_ignored_without_discarding_valid_override(tmp_path):
+    from data_quality_gate.domain import core
+    policy = tmp_path / "thresholds.json"
+    policy.write_text(json.dumps({"schema": THRESHOLDS_SCHEMA, "max_null_rate": "0.04", "comment": "reviewed"}))
+    _, thresholds, _ = core._load_gate_configuration(contract_json="  ", thresholds_json=policy)
+    assert thresholds["max_null_rate"] == .04
+    assert "schema" not in thresholds
+    assert "comment" not in thresholds

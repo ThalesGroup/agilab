@@ -5145,3 +5145,227 @@ def test_restore_pipeline_snapshot_handles_non_dict_active_entry(monkeypatch, tm
 
     assert error is None
     assert fake_st.session_state["idx"][:6] == [0, "", "", "", "", ""]
+
+
+@pytest.mark.parametrize("current, imported, allow_upsert, message", [
+    ([{"id": "a"}, {"id": "a"}], [{"id": "a"}], True, "duplicate matching"),
+    ([{"id": "a"}], [{"id": "a"}], False, "collides"),
+    ([{}], [{"NB_SOURCE_MODULE": "other", "NB_SOURCE_MODULE_INDEX": 0}], True, "positionally update module"),
+    ([], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "no longer exists"),
+    ([{"id": "new-id"}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "now has explicit ID"),
+    ([{}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "no stage identity fingerprint"),
+    ([{}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0, "NB_SOURCE_STAGE_FINGERPRINT": "stale"}], True, "no longer matches"),
+    ([{}], [{"C": "print(1)"}], True, "Cannot safely update"),
+])
+def test_notebook_merge_refuses_ambiguous_or_stale_identity_without_mutating_inputs(
+    current, imported, allow_upsert, message,
+):
+    before_current = json.dumps(current, sort_keys=True)
+    before_import = json.dumps(imported, sort_keys=True)
+    with pytest.raises(ValueError, match=message):
+        pipeline_editor._merge_notebook_import_stage_entries(
+            current, imported, allow_upsert=allow_upsert, module_key="module",
+        )
+    assert json.dumps(current, sort_keys=True) == before_current
+    assert json.dumps(imported, sort_keys=True) == before_import
+
+
+def test_notebook_merge_rejects_repeated_source_position_after_first_verified_update():
+    current = [{"C": "print(1)", "custom": {"preserve": True}}]
+    fingerprint = pipeline_editor.notebook_stage_fingerprint("module", 0, current[0])
+    imported = {"C": "print(2)", "NB_SOURCE_MODULE": "module",
+                "NB_SOURCE_MODULE_INDEX": 0, "NB_SOURCE_STAGE_FINGERPRINT": fingerprint}
+    merged = pipeline_editor._merge_notebook_import_stage_entries(
+        current, [imported], allow_upsert=True, module_key="module",
+    )
+    assert merged[0]["C"] == "print(2)"
+    assert merged[0]["custom"] == {"preserve": True}
+    merged[0]["custom"]["preserve"] = False
+    assert current[0]["custom"]["preserve"] is True
+    with pytest.raises(ValueError, match="duplicate source position"):
+        pipeline_editor._merge_notebook_import_stage_entries(
+            current, [imported, imported], allow_upsert=True, module_key="module",
+        )
+
+
+@pytest.mark.parametrize("entries, message", [
+    ([{"deps": "upstream"}], "no explicit stage ID"),
+    ([{"id": "a"}, {"stage_id": "a"}], "Duplicate workflow stage ID"),
+    ([{"id": "a", "dependencies": ["missing"]}], "missing stage ID"),
+    ([{"id": "a", "depends_on": "b"}, {"id": "b", "deps": "a"}], "cycle or self-dependency"),
+    ([{"id": "a", "deps": "a"}], "cycle or self-dependency"),
+])
+def test_notebook_dependency_validation_rejects_invalid_graph(entries, message):
+    with pytest.raises(ValueError, match=message):
+        pipeline_editor._validate_notebook_import_dependencies(
+            {"module": entries, "__meta__": {}, "scalar": 1},
+            {"module": entries},
+        )
+
+
+def test_notebook_import_merge_preserves_unrelated_content_and_updates_sequence(tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
+        'preserved = "original"\n\n[__meta__]\nmodule__sequence = [0, 50, true]\n'
+        'custom = "keep"\n\n[[module]]\nid = "first"\nC = "print(1)"\n',
+        encoding="utf-8",
+    )
+    preview = {"toml_content": {
+        "__meta__": {"imported": "yes"},
+        "module": [{"id": "second", "deps": ["first"], "C": "print(2)"}],
+        "preserved": "replacement", "added": "new",
+    }}
+    before = stages_file.read_bytes()
+    result = pipeline_editor._notebook_import_content_for_write(preview, stages_file)
+    assert result["preserved"] == "original"
+    assert result["added"] == "new"
+    assert result["__meta__"]["module__sequence"] == [0, 1]
+    assert result["__meta__"]["custom"] == "keep"
+    assert result["__meta__"]["imported"] == "yes"
+    assert [entry["id"] for entry in result["module"]] == ["first", "second"]
+    assert stages_file.read_bytes() == before
+
+
+@pytest.mark.parametrize("content, preview, message, error", [
+    ('module = "scalar"\n', {"toml_content": {"module": [{"id": "a"}]}}, "non-list", ValueError),
+    ("", {"toml_content": [], "write_mode": "merge"}, "must be a mapping", TypeError),
+    ("", {"toml_content": {}, "write_mode": "erase"}, "Unsupported", ValueError),
+])
+def test_notebook_import_invalid_merge_never_writes_file(content, preview, message, error, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(content, encoding="utf-8")
+    with pytest.raises(error, match=message):
+        pipeline_editor._notebook_import_content_for_write(preview, stages_file)
+    assert stages_file.read_text(encoding="utf-8") == content
+
+
+@pytest.mark.parametrize("payload, requested, expected", [
+    ({}, "explicit", "explicit"),
+    ({}, "", "demo_project"),
+    ({"only": []}, "absent", "only"),
+    ({"first": [], "second": []}, "second", "second"),
+])
+def test_notebook_export_selects_only_unambiguous_workflow_module(payload, requested, expected, tmp_path):
+    from agilab.notebooks import notebook_export_support as export
+    context = export.NotebookExportContext(
+        project_name="demo_project", module_path=requested, artifact_dir=str(tmp_path / "artifacts"),
+    )
+    notebook = export.build_notebook_document(payload, tmp_path / "lab_stages.toml", export_context=context)
+    assert notebook["metadata"]["agilab"]["module_key"] == expected
+
+
+def test_notebook_export_rejects_ambiguous_module_without_writing(tmp_path):
+    from agilab.notebooks import notebook_export_support as export
+    context = export.NotebookExportContext(project_name="demo_project", module_path="unknown", artifact_dir=str(tmp_path))
+    with pytest.raises(ValueError, match="Unable to identify the active workflow module"):
+        export.build_notebook_document({"first": [], "second": []}, tmp_path / "lab_stages.toml", export_context=context)
+    assert not (tmp_path / "lab_stages.ipynb").exists()
+
+
+def test_notebook_export_preserves_import_identity_and_safe_metadata_types(tmp_path):
+    from agilab.notebooks import notebook_export_support as export
+    context = export.NotebookExportContext(project_name="demo_project", module_path="demo", artifact_dir=str(tmp_path))
+    stage = {
+        "id": "source-stage", "label": "Train model", "kind": "training", "C": "print('model')",
+        "R": "runpy", "produces": ["model.pkl"],
+        "NB_CELL_ID": "source-cell", "NB_CELL_INDEX": "unrecorded",
+        "NB_EXECUTION_COUNT": "never-run", "NB_SOURCE_NOTEBOOK": "training.ipynb",
+        "NB_ENV_HINTS": ["numpy"], "NB_ARTIFACT_REFERENCES": ["model.pkl"],
+        "NB_RUNTIME_ROLE": "manager", "NB_CONTEXT_IDS": ["context"],
+        "automation": {"outputs": [Path("model.pkl")]},
+    }
+    notebook = export.build_notebook_document(
+        {"demo": [stage], "__meta__": {"demo__automation": {"profile": ""},
+                                     "demo__sequence": [True, "0", 99, 0, 0]}},
+        tmp_path / "lab_stages.toml", export_context=context,
+    )
+    manifest = export.build_notebook_export_manifest(notebook, tmp_path / "lab_stages.ipynb")
+    source = next(record for record in manifest["stage_cells"] if record["kind"] == "source")
+    assert source["stage_id"] == "source-stage"
+    assert source["stage_id_explicit"] is True
+    assert len(source["source_stage_fingerprint"]) == 64
+    assert source["label"] == "Train model"
+    assert source["stage_kind"] == "training"
+    assert source["produces"] == ["model.pkl"]
+    assert source["notebook_import"]["source_cell_index"] == "unrecorded"
+    assert source["notebook_import"]["execution_count"] == "never-run"
+    text = json.dumps(notebook)
+    assert "training.ipynb" in text and "source-cell" in text
+    assert "Environment hints" in text and "Artifact references" in text
+    assert stage["automation"]["outputs"] == [Path("model.pkl")]
+
+
+@pytest.mark.parametrize("source, expected", [
+    ("STAGE_003_CODE = 7", "STAGE_003_CODE = 7"),
+    ("STAGE_003_CODE = unknown()", "STAGE_003_CODE = unknown()"),
+    ("STAGE_003_CODE = 'print(1)'", "print(1)"),
+    ("STAGE_003_CODE = 'unterminated", "STAGE_003_CODE = 'unterminated"),
+    ("other = STAGE_003_CODE = 'ignored'", "other = STAGE_003_CODE = 'ignored'"),
+])
+def test_notebook_source_extraction_never_executes_nonliteral_assignments(source, expected):
+    from agilab.notebooks import notebook_export_support as export
+    assert export._extract_stage_source_from_exported_cell({"source": source}, 3) == expected
+
+
+def test_notebook_export_fingerprint_captures_legacy_values_and_nested_metadata():
+    from agilab.notebooks import notebook_export_support as export
+    assert export.notebook_stage_fingerprint("module", 0, "print(1)") != export.notebook_stage_fingerprint("module", 0, 1)
+    source = {"C": "print(1)", "depends_on": " prerequisite ", "automation": {"outputs": (Path("model"),)}}
+    same = {"C": "print(1)", "deps": ["prerequisite"], "automation": {"outputs": ["model"]}}
+    assert export.notebook_stage_fingerprint("module", 0, source) == export.notebook_stage_fingerprint("module", 0, same)
+    assert export.notebook_stage_fingerprint("module", 1, source) != export.notebook_stage_fingerprint("module", 0, source)
+
+
+@pytest.mark.parametrize("provider_mode", ["missing", "legacy", "renderer_error"])
+def test_notebook_export_optional_page_provider_handles_missing_and_legacy_apis(provider_mode, tmp_path, monkeypatch):
+    from agilab.notebooks import notebook_export_support as export
+    script = tmp_path / "analysis.py"
+    script.write_text("def render(): pass\n", encoding="utf-8")
+    if provider_mode == "missing":
+        monkeypatch.setitem(sys.modules, "agi_pages", None)
+        assert export._discover_agi_pages_bundle("analysis") == {}
+        return
+    calls = []
+    def script_path(module_name):
+        calls.append(module_name)
+        return script
+    def renderer(module_name):
+        if provider_mode == "renderer_error":
+            raise RuntimeError("renderer unavailable")
+        return f"{script}:render"
+    monkeypatch.setitem(sys.modules, "agi_pages", SimpleNamespace(
+        script_path=script_path, inline_renderer_target=renderer,
+    ))
+    result = export._discover_agi_pages_bundle("analysis", pages_root=tmp_path)
+    assert result["script_path"] == str(script)
+    assert result["inline_renderer"] == ("" if provider_mode == "renderer_error" else f"{script}:render")
+    assert calls == ["analysis"]
+
+
+@pytest.mark.parametrize("target, expected", [
+    (None, ""), (":render", ""), ("some.module:render", ""),
+    ("relative/view.py:render", "relative/view.py"),
+])
+def test_notebook_inline_renderer_evidence_only_treats_file_targets_as_paths(target, expected):
+    from agilab.notebooks import notebook_export_support as export
+    assert export._inline_renderer_module_path(target) == expected
+
+
+def test_notebook_sync_sources_exclude_unreadable_files_and_duplicate_records(tmp_path, monkeypatch):
+    from agilab.notebooks import notebook_export_support as export
+    source = tmp_path / "analysis.py"
+    source.write_text("def render(): pass\n", encoding="utf-8")
+    record = export._sync_source_record("page", source, module="analysis")
+    assert len(record["sha256"]) == 64
+    assert export._dedupe_sync_sources([
+        record, dict(record), {"path": str(source), "sha256": ""},
+        {"path": "", "sha256": "unknown"},
+    ]) == [record]
+    original_read = Path.read_bytes
+    def unreadable(path):
+        if path == source:
+            raise PermissionError("renderer source unavailable")
+        return original_read(path)
+    monkeypatch.setattr(Path, "read_bytes", unreadable)
+    assert export._file_sha256(source) == ""
+    assert export._dedupe_sync_sources([export._sync_source_record("page", source)]) == []

@@ -1893,3 +1893,39 @@ def test_select_all_state_helpers_update_columns():
     orchestrate_page_support.update_select_all(session_state)
     assert session_state["check_all"] is False
     assert session_state["selected_cols"] == ["a", "b"]
+
+@pytest.mark.parametrize("requirement,expected", [
+    ("requests>=2", ("requests",)),
+    ("python-dotenv>=1", ("dotenv",)),
+    ("dask[ distributed , array ]>=2026", ("dask", "distributed")),
+    ("requests; python_version >= '3.13'", ()),
+    ("???", ()), ("agi-env>=1", ()), ("agilab", ()),
+    ("pandas-stubs", ()), ("types-requests", ()),
+])
+def test_dependency_inspection_without_packaging_is_conservative(monkeypatch, requirement, expected):
+    module = sys.modules[orchestrate_page_support._dependency_modules_from_requirement.__module__]
+    monkeypatch.setattr(module, "_PackagingRequirement", None)
+    assert module._dependency_modules_from_requirement(requirement) == expected
+
+
+@pytest.mark.parametrize("configuration,expected", [
+    ("version = 3.13.8\n", "3.13.8"),
+    ("home = /example\nversion = 3.14\n", "3.14.0"),
+    ("VERSION = 3.14.0rc1\n", "3.14.0"),
+    ("version = invalid\n", None),
+    ("home = /example\n", None), ("not an assignment\n", None),
+])
+def test_dependency_markers_use_target_venv_version(tmp_path, configuration, expected):
+    (tmp_path / "pyvenv.cfg").write_text(configuration)
+    assert orchestrate_page_support._python_full_version_from_venv_cfg(tmp_path) == expected
+    environment = orchestrate_page_support._marker_environment_for_venv(tmp_path)
+    if expected:
+        assert environment["python_full_version"] == expected
+        assert environment["python_version"] == ".".join(expected.split(".")[:2])
+    assert environment["extra"] == ""
+
+
+def test_unavailable_marker_library_returns_no_invented_environment(monkeypatch, tmp_path):
+    module = sys.modules[orchestrate_page_support._marker_environment_for_venv.__module__]
+    monkeypatch.setattr(module, "_packaging_default_environment", None)
+    assert module._marker_environment_for_venv(tmp_path) == {}
