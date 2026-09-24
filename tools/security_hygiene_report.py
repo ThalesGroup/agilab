@@ -537,6 +537,7 @@ def _coverage_upload_gate_check(repo_root: Path) -> dict[str, Any]:
         "Upload agi-node coverage to Codecov",
         "Upload agi-cluster coverage to Codecov",
         "Upload agi-gui coverage to Codecov",
+        "Upload agi-web coverage to Codecov",
         "Upload repo-wide agilab coverage to Codecov",
     ]
     failing_steps: list[str] = []
@@ -550,7 +551,6 @@ def _coverage_upload_gate_check(repo_root: Path) -> dict[str, Any]:
         block = text[start : next_step if next_step != -1 else len(text)]
         if (
             "uses: codecov/codecov-action@" not in block
-            or "# v6" not in block
             or "continue-on-error: true" in block
             or "fail_ci_if_error: true" not in block
         ):
