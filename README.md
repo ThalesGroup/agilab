@@ -215,7 +215,7 @@ below.</sub>
 
 <p>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="Repo guardrails" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main" alt="Coverage workflow" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml?query=branch%3Amain+event%3Apush"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=push" alt="Coverage workflow (main push)" /></a>
   <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="Measured-scope coverage" /></a>
 </p>
 
