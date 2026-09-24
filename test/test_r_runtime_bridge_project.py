@@ -402,3 +402,87 @@ def test_r_runtime_bridge_actual_rscript_contract_when_available(tmp_path):
     assert summary["metrics"]["mean"] == 3.0
     assert round(summary["metrics"]["sd"], 4) == 1.5811
     assert (tmp_path / "evidence" / "artifacts" / "summary.txt").is_file()
+
+
+@pytest.mark.parametrize("plan,worker_id,expected", [
+    ([[["a", "b"], ("c",), "d"]], 0, ["a", "b", "c", "d"]),
+    ([[["other"]], [["mine"]]], 1, ["mine"]),
+    (None, 0, []), ([], 0, []), (["invalid"], 0, []),
+])
+@pytest.mark.parametrize("started", [None, 10.0])
+def test_r_worker_dispatches_only_assigned_work(monkeypatch, plan, worker_id, expected, started):
+    from unittest.mock import Mock
+    import r_runtime_bridge_worker.r_runtime_bridge_worker as module
+    monkeypatch.setattr(module.BaseWorker, "_t0", started)
+    monkeypatch.setattr(module, "time", SimpleNamespace(time=lambda: 20.0))
+    worker = module.RRuntimeBridgeWorker()
+    worker._worker_id = worker_id
+    calls = []
+    worker.work_pool = lambda item: calls.append(item) or {"item": item}
+    worker.work_done = Mock()
+    worker.stop = Mock()
+    assert worker.works(plan, None) == (0.0 if started is None else 10.0)
+    assert calls == expected
+    assert [call.args[0] for call in worker.work_done.call_args_list] == [{"item": x} for x in expected]
+    worker.stop.assert_called_once_with()
+
+
+@pytest.mark.parametrize("active", [False, True])
+def test_r_worker_script_resolution_uses_active_app_or_cwd(tmp_path, monkeypatch, active):
+    import r_runtime_bridge_worker.r_runtime_bridge_worker as module
+    monkeypatch.chdir(tmp_path)
+    worker = module.RRuntimeBridgeWorker()
+    app = tmp_path / "app"
+    worker.env = SimpleNamespace(active_app=app if active else None)
+    assert worker._resolve_script_path("scripts/task.R") == (app if active else tmp_path) / "scripts/task.R"
+    absolute = tmp_path / "explicit.R"
+    assert worker._resolve_script_path(absolute) == absolute
+    assert worker._current_app_root() == (app if active else None)
+
+
+@pytest.mark.parametrize("representation", ["model", "namespace", "object"])
+def test_r_worker_accepts_runtime_arg_shapes(representation):
+    import r_runtime_bridge_worker.r_runtime_bridge_worker as module
+    from r_runtime_bridge import RRuntimeBridgeArgs
+    if representation == "model":
+        value = RRuntimeBridgeArgs()
+    elif representation == "namespace":
+        value = SimpleNamespace(timeout_seconds=23, _transport="ignored")
+    else:
+        class Payload:
+            pass
+        value = Payload()
+        value.__dict__.update(timeout_seconds=23, _transport="ignored")
+    result = module._args_with_defaults(value)
+    if representation == "model":
+        assert result is value
+    else:
+        assert result.timeout_seconds == 23
+    assert not hasattr(result, "_transport")
+
+
+def test_r_worker_reset_confines_removal_to_own_evidence(tmp_path, monkeypatch):
+    import r_runtime_bridge_worker.r_runtime_bridge_worker as module
+    monkeypatch.setattr(module, "_runtime", {})
+    share, export = tmp_path / "share", tmp_path / "export"
+    output = share / "r_runtime_bridge" / "evidence"
+    artifact = export / "r_runtime_bridge_project" / "r_runtime_bridge"
+    for directory in (output, artifact):
+        directory.mkdir(parents=True)
+        (directory / "stale.txt").write_text("old")
+    (share / "unrelated.txt").write_text("keep")
+    worker = module.RRuntimeBridgeWorker()
+    worker.env = SimpleNamespace(resolve_share_path=lambda value: share / Path(value),
+                                 AGILAB_EXPORT_ABS=export, target="r_runtime_bridge_project",
+                                 active_app=tmp_path / "app")
+    worker.args = dict(data_out="r_runtime_bridge/evidence", reset_target=True)
+    worker.start()
+    assert worker.data_out == output
+    assert worker.artifact_dir == artifact
+    assert not list(output.iterdir())
+    assert not list(artifact.iterdir())
+    assert (share / "unrelated.txt").read_text() == "keep"
+    worker.pool_init(worker.pool_vars)
+    assert worker._current_args() is worker.args
+    assert worker._current_script_path() == worker.script_path
+    module._copy_artifacts(output, output)

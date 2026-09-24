@@ -5115,15 +5115,29 @@ def test_display_lab_tab_selected_safe_action_template_populates_existing_code_e
     assert editor_bodies[0] == fake_st.session_state["demo_code_stage_0"]
 
 
-def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatch, tmp_path):
+@pytest.mark.parametrize("loader_mode", ["current", "legacy", "legacy_unavailable", "unavailable", "invalid", "cached"])
+def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatch, tmp_path, loader_mode):
     pinned_stage = _safe_action_stage(pinned=True)
     selected_label = _safe_action_option_label(pinned_stage)
     saved = []
+    frame = pipeline_lab.pd.DataFrame({"station": ["Paris"]})
+    load_calls = []
+    def load_cached(path, **kwargs):
+        load_calls.append(kwargs)
+        if loader_mode == "cached":
+            pytest.fail("an existing DataFrame must take precedence over disk")
+        if loader_mode.startswith("legacy") and kwargs:
+            raise TypeError("old loader has no with_index argument")
+        if loader_mode in {"unavailable", "legacy_unavailable"}:
+            raise OSError("data source unavailable")
+        return {"invalid": True} if loader_mode == "invalid" else frame
     fake_st = _FakeStreamlit(
         {
             "demo": [0, "", "", "", "", "", 0],
             "demo__run_sequence": [0],
             "demo_new_q": "",
+            "df_file": str(tmp_path / "selected.csv"),
+            "loaded_df": frame if loader_mode == "cached" else None,
         },
         buttons={"demo_add_stage_btn": True},
         selectboxes={"demo_safe_action_choice_add": selected_label},
@@ -5140,6 +5154,7 @@ def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatc
     monkeypatch.setattr(pipeline_lab, "get_css_text", lambda: {})
 
     deps = _make_lab_deps(
+        load_df_cached=load_cached,
         load_all_stages=lambda *_args, **_kwargs: [pinned_stage],
         load_pipeline_conceptual_dot=lambda *_args, **_kwargs: (None, None),
         render_pipeline_view=lambda *_args, **_kwargs: None,
@@ -5159,6 +5174,13 @@ def test_display_lab_tab_add_stage_reuses_selected_pinned_safe_action(monkeypatc
     assert kwargs["extra_fields"][pipeline_lab.STAGE_SAFE_ACTION_PINNED_FIELD] is True
     assert kwargs["extra_fields"][pipeline_lab.STAGE_ACTION_CONTRACT_FIELD] == pinned_stage[pipeline_lab.STAGE_ACTION_CONTRACT_FIELD]
 
+
+    if loader_mode == "cached":
+        assert load_calls == []
+    elif loader_mode.startswith("legacy"):
+        assert load_calls == [{"with_index": False}, {}]
+    else:
+        assert load_calls == [{"with_index": False}]
 
 def test_display_lab_tab_pin_safe_action_persists_pinned_metadata(monkeypatch, tmp_path):
     safe_stage = _safe_action_stage(pinned=False)

@@ -1851,3 +1851,62 @@ def test_stage_output_evidence_preserves_nonregular_and_unstatable_artifacts(sta
     assert records[0]["sha256"] == ""
     assert records[0]["sha256_status"] == expected
     assert records[0]["size_bytes"] == (None if stat_error else 0)
+
+
+@pytest.mark.parametrize("dependencies, error_text", [
+    ({"first": ["second"], "second": ["first"]}, "cycle"),
+    ({"first": ["missing"], "second": []}, "unknown stage id"),
+])
+def test_run_pipeline_rejects_dependency_errors_before_acquiring_any_lock(dependencies, error_text, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit({
+        "page": [0, "", "", "", "", "", 0],
+        "snippet_file": str(tmp_path / "snippet.py"),
+    })
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "_acquire_pipeline_run_lock",
+                        lambda *_a, **_k: pytest.fail("invalid dependency plans must not acquire a lock"))
+    module.run_all_stages(
+        tmp_path, "page", tmp_path / "stages.toml", tmp_path / "module",
+        SimpleNamespace(), pipeline_max_workers="corrupt",
+        pipeline_stage_deps=dependencies,
+        load_all_stages_fn=lambda *_a: [
+            {"id": "first", "C": "print(1)"}, {"id": "second", "C": "print(2)"},
+        ],
+        stream_run_command_fn=lambda *_a, **_k: pytest.fail("invalid plans must never execute"),
+    )
+    assert any(kind == "error" and error_text in message for kind, message in fake_st.messages)
+    assert "page__last_pipeline_waves" not in fake_st.session_state
+    assert any("Run workflow aborted" in message for message in fake_st.session_state["page__run_logs"])
+
+
+@pytest.mark.parametrize("error", [OSError("disk full"), RuntimeError("replace failed"), TypeError("invalid payload"), ValueError("encoding failed")])
+def test_manifest_write_failure_preserves_last_verified_manifest(error, tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit({"page__last_pipeline_manifest_file": "previous-valid.json"})
+    monkeypatch.setattr(module, "st", fake_st)
+    attempted = []
+    def fail_write(path, payload):
+        attempted.append((path, payload))
+        raise error
+    monkeypatch.setattr(module, "_write_json_atomic", fail_write)
+    result = module._write_pipeline_automation_manifest(
+        env=SimpleNamespace(runenv=tmp_path), index_page="page", run_id="current-run",
+        profile="balanced", status="completed", lab_dir=tmp_path, stages_file=tmp_path / "stages.toml",
+        sequence=[0], waves=[[0]], max_workers=1, stage_ids={0: "first"}, stage_deps={0: []},
+        stages=[], started_at="start", finished_at="finish", executed=1, skipped=0, error="",
+    )
+    assert result is None
+    assert fake_st.session_state["page__last_pipeline_manifest_file"] == "previous-valid.json"
+    assert len(attempted) == 1
+    assert attempted[0][1]["run_id"] == "current-run"
+
+
+def test_manifest_default_path_uses_project_scoped_logs_without_mutation(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    run, latest = module._pipeline_manifest_paths(SimpleNamespace(target="project"), "page", "run-id")
+    assert run == tmp_path / "log/execute/project/pipeline_automation_run-id.json"
+    assert latest.parent == run.parent
+    assert not run.parent.exists()

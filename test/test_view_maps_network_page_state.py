@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import networkx as nx
 import numpy as np
+import pytest
 import pandas as pd
 from streamlit.testing.v1 import AppTest
 
@@ -1610,3 +1611,32 @@ def test_view_maps_network_multifile_selection_preserves_explicit_deselection(
             "Please select at least one dataset" in warning.value
             for warning in at.warning
         )
+
+
+@pytest.mark.parametrize("saved_selection", [["network.csv", "removed.csv"], None, "network.csv"])
+def test_view_maps_network_multifile_repairs_stale_or_invalid_saved_selection(
+    tmp_path, create_temp_app_project, monkeypatch, saved_selection
+):
+    project_dir, share_root = _create_pair_overlay_project(
+        tmp_path, create_temp_app_project, target_name="multifile_repair"
+    )
+    for key, value in {
+        "AGI_EXPORT_DIR": str(tmp_path / "export"),
+        "AGI_LOCAL_SHARE": str(tmp_path / "localshare"),
+        "AGI_CLUSTER_SHARE": str(share_root),
+        "OPENAI_API_KEY": "dummy",
+        "IS_SOURCE_ENV": "1",
+        "AGILAB_ACTIVE_APP": str(project_dir),
+    }.items():
+        monkeypatch.setenv(key, value)
+    with patch.object(sys, "argv", [Path(PAGE_PATH).name, "--active-app", str(project_dir)]):
+        at = AppTest.from_file(PAGE_PATH, default_timeout=30).run()
+        assert not at.exception
+        at.session_state["view_maps_network:df_files"] = saved_selection
+        mode = next(w for w in at.radio if w.key == "view_maps_network:df_select_mode")
+        mode.set_value("Regex (multi)").run()
+        assert not at.exception
+        selected = next(w for w in at.multiselect if w.key == "view_maps_network:df_files")
+        assert selected.value == ["network.csv"]
+        assert at.session_state["view_maps_network:df_file"] == "network.csv"
+        assert not any("No selected dataframes" in item.value for item in at.error)

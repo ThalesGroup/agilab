@@ -209,3 +209,91 @@ def test_origin_change_clears_cached_secrets_without_persisting_them() -> None:
     )
     assert state == {"provider_origin": "https://new.example"}
     assert "PROVIDER_API_KEY" not in envars
+
+
+@pytest.mark.parametrize("url", ["ftp://example.test", "https:///missing", "https://user:pass@example.test", "https://example.test/#fragment", "https://example.test:bad"])
+def test_malformed_endpoint_rejected_before_dns(url):
+    from unittest.mock import Mock
+    resolver = Mock(side_effect=AssertionError("DNS must not run"))
+    with pytest.raises(LlmEndpointPolicyError):
+        validate_llm_endpoint(url, resolver=resolver)
+    resolver.assert_not_called()
+
+
+@pytest.mark.parametrize("trusted", ["https://example.test/private", "https://example.test?token=x"])
+def test_trust_configuration_requires_exact_origins(trusted):
+    with pytest.raises(LlmEndpointPolicyError, match="without paths or queries"):
+        validate_llm_endpoint("https://example.test", envars={LLM_TRUSTED_ORIGINS_ENV: trusted},
+                              resolver=_resolver("8.8.8.8"))
+
+
+@pytest.mark.parametrize("records", [[], [()], [None], [(0, 0, 0, "", ("not-an-ip", 443))]])
+def test_malformed_dns_answers_fail_closed(records):
+    with pytest.raises(LlmEndpointPolicyError, match="did not resolve"):
+        validate_llm_endpoint("https://example.test", resolver=lambda *a, **k: records)
+
+
+@pytest.mark.parametrize("address", ["0.0.0.0", "224.0.0.1", "240.0.0.1", "::"])
+def test_trusted_origin_cannot_enable_nonroutable_addresses(address):
+    host = f"[{address}]" if ":" in address else address
+    endpoint = f"https://{host}"
+    with pytest.raises(LlmEndpointPolicyError, match="non-routable"):
+        validate_llm_endpoint(endpoint, envars={LLM_TRUSTED_ORIGINS_ENV: endpoint})
+
+
+@pytest.mark.parametrize("secure", [False, True])
+def test_pinned_connections_refuse_proxy_tunnels_before_connecting(secure):
+    from unittest.mock import Mock
+    from agilab.security import llm_endpoint_policy as policy
+    cls = policy._PinnedHTTPSConnection if secure else policy._PinnedHTTPConnection
+    connection = cls("example.test", pinned_addresses=("8.8.8.8",))
+    connection.set_tunnel("proxy.test")
+    connection._create_connection = Mock(side_effect=AssertionError("must not connect"))
+    with pytest.raises(LlmEndpointPolicyError, match="Proxy tunneling"):
+        connection.connect()
+    connection._create_connection.assert_not_called()
+
+
+def test_pinned_socket_fallback_retains_last_transport_error():
+    from unittest.mock import Mock
+    from agilab.security import llm_endpoint_policy as policy
+    final = OSError("second refused")
+    connect = Mock(side_effect=[OSError("first refused"), final])
+    connection = SimpleNamespace(_create_connection=connect, port=443, timeout=7, source_address=None)
+    with pytest.raises(OSError) as raised:
+        policy._connect_pinned_socket(connection, ("8.8.8.8", "8.8.4.4"))
+    assert raised.value is final
+    assert [call.args[0] for call in connect.call_args_list] == [("8.8.8.8", 443), ("8.8.4.4", 443)]
+
+
+def test_httpcore_backend_rejects_host_change_and_unix_socket():
+    from unittest.mock import Mock
+    from agilab.security import llm_endpoint_policy as policy
+    delegate = Mock()
+    backend = policy._build_pinned_httpcore_backend(SimpleNamespace(NetworkBackend=object),
+        expected_host="example.test", pinned_addresses=("8.8.8.8",), delegate=delegate)
+    with pytest.raises(LlmEndpointPolicyError, match="outside"):
+        backend.connect_tcp("other.test", 443)
+    with pytest.raises(LlmEndpointPolicyError, match="Unix sockets"):
+        backend.connect_unix_socket("/tmp/untrusted.sock")
+    delegate.connect_tcp.assert_not_called()
+    backend.sleep(.1)
+    delegate.sleep.assert_called_once_with(.1)
+
+
+def test_httpcore_backend_uses_only_validated_fallback_addresses():
+    from unittest.mock import Mock
+    from agilab.security import llm_endpoint_policy as policy
+    stream = object()
+    delegate = SimpleNamespace(connect_tcp=Mock(side_effect=[OSError("refused"), stream]))
+    backend = policy._build_pinned_httpcore_backend(SimpleNamespace(NetworkBackend=object),
+        expected_host="example.test", pinned_addresses=("8.8.8.8", "8.8.4.4"), delegate=delegate)
+    assert backend.connect_tcp("EXAMPLE.TEST.", 443, timeout=3) is stream
+    assert [call.args for call in delegate.connect_tcp.call_args_list] == [("8.8.8.8", 443), ("8.8.4.4", 443)]
+
+
+@pytest.mark.parametrize("module", [SimpleNamespace(), SimpleNamespace(NetworkBackend=object)])
+def test_unsupported_httpcore_backend_fails_closed(module):
+    from agilab.security import llm_endpoint_policy as policy
+    with pytest.raises(RuntimeError, match="supported httpcore"):
+        policy._build_pinned_httpcore_backend(module, expected_host="example.test", pinned_addresses=("8.8.8.8",))
