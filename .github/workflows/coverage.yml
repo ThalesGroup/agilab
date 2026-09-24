@@ -6,6 +6,7 @@ on:
     paths:
       - ".coveragerc*"
       - "codecov.yml"
+      - ".github/requirements/ci-free-threaded-coverage.*"
       - ".github/workflows/coverage.yml"
       - "pyproject.toml"
       - "src/**"
@@ -337,21 +338,8 @@ jobs:
           fi
           if [ "$label" = demos ]; then
             uv run --no-project --python 3.14t python -m venv --copies --without-pip "$RUNNER_TEMP/coverage-free-threaded"
-            uv run --no-project --python 3.13 python - <<'PY'
-          import os
-          import tomllib
-          from pathlib import Path
-
-          lock = tomllib.loads(Path("uv.lock").read_text())
-          package = next(package for package in lock["package"] if package["name"] == "coverage")
-          hashes = sorted({wheel["hash"] for wheel in package["wheels"]})
-          if not hashes or any(not digest.startswith("sha256:") for digest in hashes):
-              raise SystemExit("coverage requires SHA-256 wheel hashes in uv.lock")
-          requirement = f"coverage=={package['version']} " + " ".join(f"--hash={digest}" for digest in hashes)
-          Path(os.environ["RUNNER_TEMP"], "agilab-coverage-interpreter-requirements.txt").write_text(requirement + "\n")
-          PY
             uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python" \
-              --require-hashes --no-build "$RUNNER_TEMP/agilab-coverage-interpreter-requirements.txt"
+              --require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt
             export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"
             timeout 16m uv run --no-project --python 3.13 \
               --with 'coverage>=7.16,<8' --with-requirements src/agilab/demos/resources/milp_energy_demo/requirements.txt \

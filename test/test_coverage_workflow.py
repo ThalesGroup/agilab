@@ -572,9 +572,12 @@ def test_aggregate_retains_core_observations_from_gui_suites():
 
 
 
-def test_free_threaded_coverage_install_uses_locked_wheel_hashes():
+def test_free_threaded_coverage_install_uses_versioned_hash_lock():
     workflow = _workflow_text()
-    assert 'tomllib.loads(Path("uv.lock").read_text())' in workflow
-    assert 'package["name"] == "coverage"' in workflow
-    assert 'wheel["hash"] for wheel in package["wheels"]' in workflow
-    assert '--require-hashes --no-build "$RUNNER_TEMP/agilab-coverage-interpreter-requirements.txt"' in workflow
+    chunk = _step_block("Run agi-gui coverage chunk")
+    assert "--require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt" in chunk
+    assert "uv.lock" not in chunk
+    assert '".github/requirements/ci-free-threaded-coverage.*"' in workflow.split("workflow_dispatch:", 1)[0]
+    requirements = Path(".github/requirements/ci-free-threaded-coverage.txt").read_text()
+    assert "coverage==7.16.1" in requirements
+    assert "--hash=sha256:" in requirements

@@ -31,6 +31,7 @@ def test_current_ci_tool_locks_match_direct_inputs() -> None:
     pairs = ci_tool_lock_integrity.validate_requirement_directory(REQUIREMENTS_ROOT)
 
     assert [input_path.name for input_path, _lock_path in pairs] == [
+        "ci-free-threaded-coverage.in",
         "ci-hf-release.in",
         "ci-lock-audit.in",
         "ci-publish.in",

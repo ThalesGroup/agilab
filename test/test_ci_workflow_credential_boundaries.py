@@ -64,6 +64,7 @@ LOCK_INTEGRITY_TRIGGER_PATHS = {
 }
 
 EXPECTED_DIRECT_PINS = {
+    "ci-free-threaded-coverage.in": ["coverage==7.16.1"],
     "ci-hf-release.in": [
         "click==8.4.2",
         "huggingface-hub==1.24.0",
