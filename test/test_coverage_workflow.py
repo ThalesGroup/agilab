@@ -617,3 +617,15 @@ def test_demo_environment_uses_every_tested_bundles_requirements():
     assert "for test_file in src/agilab/demos/resources/*/tests.py" in chunk
     assert 'demo_requirements+=(--with-requirements "$requirements")' in chunk
     assert '"${demo_requirements[@]}"' in chunk
+
+def test_complete_codecov_report_is_uploaded_before_badge_freshness_gate():
+    import yaml
+    jobs = yaml.safe_load(Path(".github/workflows/coverage.yml").read_text())["jobs"]
+    steps = jobs["agilab"]["steps"]
+    names = [step["name"] for step in steps]
+    upload = names.index("Upload repo-wide agilab coverage to Codecov")
+    badge_check = names.index("Verify committed badges are up to date")
+    assert upload < badge_check
+    assert steps[upload]["with"]["fail_ci_if_error"] is True
+    assert steps[badge_check]["run"] == "git diff --exit-code -- badges/"
+    assert not steps[badge_check].get("continue-on-error", False)

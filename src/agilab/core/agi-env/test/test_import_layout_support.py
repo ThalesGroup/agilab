@@ -474,3 +474,95 @@ def test_hosted_editable_roots_reject_external_directory_symlinks(
     )
 
     assert hosted_editable_source_import_roots(venv) == ()
+
+@pytest.mark.parametrize("statement", [
+    "import (", "import __editable___demo_finder",
+    "import __editable___demo_finder; pass",
+    "import __editable___demo_finder as alias; alias.install()",
+    "import __editable___demo_finder, os; __editable___demo_finder.install()",
+    "import other; other.install()",
+    "import __editable___demo_finder; __editable___demo_finder.install(1)",
+    "import __editable___demo_finder; __editable___demo_finder.install(enabled=True)",
+    "import __editable___demo_finder; install()",
+    "import __editable___demo_finder; other.install()",
+    "import __editable___demo_finder; __editable___demo_finder.remove()",
+])
+def test_pth_rejects_noncanonical_executable_statements(tmp_path, statement):
+    package = _write_importable_package(tmp_path, "safe_package")
+    (tmp_path / "__editable___demo_finder.py").write_text(
+        f"MAPPING = {{'safe_package': {str(package)!r}}}\n"
+    )
+    (tmp_path / "editable.pth").write_text(statement + "\n")
+    assert inspect_pth_import_layout(tmp_path).module_locations == ()
+
+
+@pytest.mark.parametrize("source", [
+    "MAPPING = {",
+    "raise RuntimeError('must never execute')",
+    "MAPPING = dict(safe_package='package')",
+    "MAPPING = {}; MAPPING = {'safe_package': 'package'}",
+    "MAPPING = []",
+    "MAPPING = {123: 'package', 'bad-name': 'package', 'safe_package': 42}",
+    "NAMESPACES = {'safe_package': 12}",
+    "NAMESPACES = {'safe_package': [None, '', 'missing']}",
+])
+def test_editable_finder_malformed_metadata_cannot_expose_imports(tmp_path, source):
+    _write_importable_package(tmp_path, "package")
+    _write_finder(tmp_path, "__editable___demo_finder", source)
+    assert inspect_pth_import_layout(tmp_path).module_locations == ()
+
+
+def test_editable_finder_literal_annotations_and_duplicate_pth_are_safe(tmp_path):
+    package = _write_importable_package(tmp_path, "package")
+    namespace = tmp_path / "namespace"
+    namespace.mkdir()
+    _write_finder(tmp_path, "__editable___demo_finder",
+                  "MAPPING: dict = {'safe_package': 'package'}\n"
+                  "NAMESPACES: dict = {'safe_namespace': ['namespace']}\n")
+    (tmp_path / "duplicate.pth").write_text(
+        "import __editable___demo_finder; __editable___demo_finder.install()\n"
+    )
+    assert inspect_pth_import_layout(tmp_path).module_locations == (
+        ("safe_package", package.resolve()), ("safe_namespace", namespace.resolve())
+    )
+
+
+@pytest.mark.parametrize("payload", ["not-json", "[]", "null", "{}", '{"url": 42}',
+                                     '{"url": "https://example.invalid/project"}',
+                                     '{"url": "file:"}'])
+def test_distribution_provenance_rejects_missing_or_nonlocal_project(tmp_path, payload):
+    metadata = tmp_path / "demo-1.0.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text("Name: demo\nVersion: 1.0\n")
+    (metadata / "direct_url.json").write_text(payload)
+    assert distribution_installation_matches((tmp_path,), "demo") is True
+    assert distribution_installation_matches(
+        (tmp_path,), "demo", expected_projects=(tmp_path / "expected",)
+    ) is False
+
+
+@pytest.mark.parametrize("toml", [
+    "this is not toml", "[tool]\nsetuptools = 42",
+    "[tool.setuptools]\npackages = {find = {}}",
+    "[tool.setuptools]\npackages = [42, 'bad-name', '']",
+])
+def test_project_metadata_rejects_nonexplicit_module_exports(tmp_path, toml):
+    (tmp_path / "pyproject.toml").write_text(toml)
+    assert top_level_modules_from_project(tmp_path) == ()
+
+
+def test_distribution_record_filters_metadata_and_keeps_native_modules(tmp_path):
+    metadata = tmp_path / "demo-1.0.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text("Name: demo\nVersion: 1.0\n")
+    (metadata / "top_level.txt").write_text("# no exports\n__private__\nbad-name\n")
+    (metadata / "RECORD").write_text(
+        "\n".join(["demo.dist-info/METADATA,,", "demo.egg-info/PKG-INFO,,",
+                   "demo.data/data/file,,", "__editable___demo_finder.py,,",
+                   "ordinary.py,,", "native.cpython-313.so,,", "windows.pyd,,",
+                   "macos.dylib,,", "package/submodule.py,,", "bad-name/file,,",
+                   "README.md,,", ",,"])
+    )
+    assert top_level_modules_from_distribution((tmp_path,), "demo") == (
+        "ordinary", "native", "windows", "macos", "package"
+    )

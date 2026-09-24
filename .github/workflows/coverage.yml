@@ -647,9 +647,6 @@ jobs:
           cp merged-coverage/coverage-*.xml .
           python tools/generate_component_coverage_badges.py
 
-      - name: Verify committed badges are up to date
-        run: git diff --exit-code -- badges/
-
       - name: Import Codecov uploader key for repo-wide upload
         shell: bash
         run: |
@@ -664,3 +661,6 @@ jobs:
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
+
+      - name: Verify committed badges are up to date
+        run: git diff --exit-code -- badges/
