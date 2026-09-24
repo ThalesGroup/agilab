@@ -436,7 +436,7 @@ def test_codecov_uploads_are_blocking_coverage_publication_gates() -> None:
         block = _step_block(step_name)
 
         assert "uses: codecov/codecov-action@" in block
-        assert "# v6" in block
+        assert "# v7.1.1" in block
         assert "continue-on-error: true" not in block
         assert "fail_ci_if_error: true" in block
 
