@@ -111,3 +111,78 @@ def test_historical_owner_rename_failure_is_retryable(lease, monkeypatch):
         assert cli.release_remote_target_lease(target, token) is False
     assert cli._read_remote_target_lease(target)["token"] == token
     assert cli.release_remote_target_lease(target, token) is True
+
+
+@pytest.mark.parametrize(
+    "replacement,authorized",
+    [
+        ("invalid", ["a" * 32]),
+        ("b" * 32, []),
+        ("b" * 32, ["invalid"]),
+        ("b" * 32, ["a" * 32, "a" * 32]),
+        ("a" * 32, ["a" * 32]),
+        ("b" * 32, ["c" * 32]),
+    ],
+)
+def test_recovery_requires_distinct_exact_generation_authority(
+    lease, replacement, authorized
+):
+    target, token, lock = lease
+    before = {p.name: p.read_bytes() for p in lock.iterdir()}
+    assert cli.recover_remote_target_lease(target, replacement, authorized) is False
+    assert {p.name: p.read_bytes() for p in lock.iterdir()} == before
+    assert cli.remote_target_lease_owned(target, token)
+
+
+def test_recovery_is_idempotent_for_already_acquired_replacement(lease):
+    target, token, _ = lease
+    assert cli.recover_remote_target_lease(target, token, ["b" * 32])
+    assert cli.remote_target_lease_owned(target, token)
+
+
+def test_recovery_cannot_acquire_after_failed_generation_release(lease, monkeypatch):
+    target, token, _ = lease
+    calls = []
+    monkeypatch.setattr(cli, "release_remote_target_lease", lambda *args: False)
+    monkeypatch.setattr(
+        cli, "acquire_remote_target_lease", lambda *args: calls.append(args)
+    )
+    assert cli.recover_remote_target_lease(target, "b" * 32, [token]) is False
+    assert calls == []
+    assert cli.remote_target_lease_owned(target, token)
+
+
+@pytest.mark.parametrize("stage", ["publication", "owner", "marker"])
+def test_interrupted_acquire_preserves_exact_recovery_capability(
+    tmp_path, monkeypatch, stage
+):
+    target = tmp_path / "worker"
+    token = "a" * 32
+    lock = cli._remote_target_lease_path(target)
+    marker = cli._remote_target_lease_marker(lock, token)
+    original = Path.open
+
+    def interrupted(path, *args, **kwargs):
+        selected = (
+            (stage == "publication" and ".acquire-claim-" in path.name)
+            or (stage == "owner" and path.name.startswith(".owner."))
+            or (stage == "marker" and path == marker)
+        )
+        if selected:
+            raise PermissionError("injected acquire interruption")
+        return original(path, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", interrupted)
+        assert cli.acquire_remote_target_lease(target, token, "install") is False
+
+    if stage == "publication":
+        assert not lock.exists()
+        assert not cli._acquire_publication_claims(lock, token)
+        assert cli.acquire_remote_target_lease(target, token, "install")
+    else:
+        assert lock.exists()
+        assert cli._acquire_publication_claims(lock, token)
+        assert cli.recover_remote_target_lease(target, "b" * 32, ["c" * 32]) is False
+        assert cli.recover_remote_target_lease(target, "b" * 32, [token]) is True
+        assert cli.remote_target_lease_owned(target, "b" * 32)

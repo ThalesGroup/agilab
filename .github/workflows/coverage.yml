@@ -267,6 +267,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: ${{ matrix.chunk == 'general' }}
 
       - name: Set up Python 3.13
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -347,10 +349,20 @@ jobs:
               --coverage-config=.coveragerc.demo-resources \
               --coverage-data-file=test-results/coverage-agi-gui-demos.db \
               --junit-dir=test-results
+            # This standalone example owns Python 3.12 and its dependency pins.
+            timeout 3m uv run --no-project --python 3.12 \
+              --with 'featuretools==1.31.0' --with 'pandas==2.3.3' \
+              --with 'woodwork==0.31.0' --with 'setuptools==80.9.0' \
+              --with 'coverage==7.16.1' --with pytest --with pytest-asyncio \
+              python -m coverage run --parallel-mode --rcfile=.coveragerc.agi-gui \
+              --data-file=test-results/coverage-agi-gui-demos.db \
+              -m pytest --noconftest -q -o addopts= \
+              --junitxml=test-results/junit-agi-gui-demos-telemetry.xml \
+              test/test_telemetry_feature_evidence.py
             exit 0
           fi
           if [ "$label" = general ]; then
-            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook \
+            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
               python -m tools.testing.root_test_runner --unclassified \
               --coverage-data-file=test-results/coverage-agi-gui-general.db \
               --junit-dir=test-results

@@ -581,3 +581,31 @@ def test_free_threaded_coverage_install_uses_versioned_hash_lock():
     requirements = Path(".github/requirements/ci-free-threaded-coverage.txt").read_text()
     assert "coverage==7.16.1" in requirements
     assert "--hash=sha256:" in requirements
+
+
+
+def test_optional_evidence_suites_use_their_supported_runtimes():
+    import tomllib
+
+    chunk = _step_block("Run agi-gui coverage chunk")
+    source = Path("src/agilab/examples/telemetry_features/preview_telemetry_features.py").read_text()
+    metadata = source.split("# ///")[1].splitlines()[1:]
+    contract = tomllib.loads("\n".join(line.removeprefix("# ") for line in metadata))
+    assert contract["requires-python"] == ">=3.12,<3.13"
+    assert "--no-project --python 3.12" in chunk
+    for dependency in contract["dependencies"]:
+        assert f"--with '{dependency}'" in chunk
+    assert "--with 'tiktoken==0.14.0'" in chunk
+    assert "--junitxml=test-results/junit-agi-gui-demos-telemetry.xml" in chunk
+    assert "test/test_telemetry_feature_evidence.py" in chunk
+
+
+def test_general_coverage_checkout_materializes_lfs_for_fresh_clone_proof():
+    import yaml
+
+    workflow = yaml.safe_load(_workflow_text())
+    checkout = next(step for step in workflow['jobs']['agi-gui']['steps'] if step.get('name') == 'Checkout')
+    assert checkout['with']['lfs'] == "${{ matrix.chunk == 'general' }}"
+    root_suite = yaml.safe_load(Path('.github/workflows/root-test-suite.yml').read_text())
+    root_checkout = next(step for step in root_suite['jobs']['root-tests']['steps'] if step.get('name') == 'Checkout')
+    assert root_checkout['with']['lfs'] is True
