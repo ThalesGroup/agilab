@@ -37,6 +37,11 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "support",
         (
             "src/agilab/lib/agi-gui/test",
+            "src/agilab/test/test_data_connector_live_smoke_ssrf.py",
+            "src/agilab/test/test_pipeline_ai_sandbox_modes.py",
+            "src/agilab/test/test_about_ssh_host_key_policy.py",
+            "src/agilab/test/test_pipeline_ai_code_safety.py",
+            "src/agilab/test/test_orchestrate_app_args_import_scope.py",
             "src/agilab/core/test/test_worker_pool_support.py",
             "src/agilab/lib/agi-web/test",
             "test/test_action_execution.py",

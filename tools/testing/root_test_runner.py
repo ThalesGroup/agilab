@@ -119,7 +119,7 @@ def build_demo_test_groups() -> tuple[RootTestGroup, ...]:
     return tuple(
         RootTestGroup(
             f"demos:{path.parent.name}",
-            ("-c", "/dev/null", "-o", "pythonpath=.", "-p", "no:cacheprovider", "tests.py"),
+            ("-c", "/dev/null", "--confcutdir=.", "-o", "pythonpath=.", "-p", "no:cacheprovider", "tests.py"),
             (_repo_relative(path),),
             path.parent,
         )

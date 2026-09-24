@@ -241,3 +241,23 @@ def test_coverage_groups_keep_process_isolation_and_collect_each_report(tmp_path
         data = CoverageData(basename=str(path))
         data.read()
         assert 2 in data.lines(str(sources / "example.py"))
+
+
+def test_demo_runner_isolates_checkout_package_and_parent_conftest(tmp_path, monkeypatch):
+    module = _load_module()
+    root = tmp_path / "agilab"
+    demo = root / "src/agilab/demos/resources/minimal_demo"
+    demo.mkdir(parents=True)
+    for package in (root, root / "src/agilab", root / "src/agilab/demos"):
+        (package / "__init__.py").touch()
+    (root / "conftest.py").write_text("raise RuntimeError('unrelated parent configuration')\n")
+    (demo / "local_kernel.py").write_text("ANSWER = 42\n")
+    (demo / "tests.py").write_text(
+        "from local_kernel import ANSWER\n"
+        "def test_local_bundle_contract():\n"
+        "    assert ANSWER == 42\n"
+    )
+    monkeypatch.setattr(module, "REPO_ROOT", root)
+    groups = module.build_demo_test_groups()
+    assert len(groups) == 1
+    assert module.run_root_test_groups(groups) == 0

@@ -6936,3 +6936,85 @@ def test_safe_action_pin_stage_update_records_schema_hash_for_valid_dataframe():
 
     assert fields[pipeline_lab.STAGE_DATAFRAME_SCHEMA_SHA256_FIELD]
     assert fields[pipeline_lab.STAGE_ACTION_CONTRACT_SHA256_FIELD]
+
+
+@pytest.mark.parametrize("contents", ["not-json", "[]", "null", "{}"])
+def test_automation_manifest_summary_ignores_absent_or_empty_evidence(monkeypatch, tmp_path, contents):
+    path = tmp_path / "automation-evidence.json"
+    path.write_text(contents)
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="summary")
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(tmp_path / "missing.json"), key_prefix="missing")
+    assert fake_st.messages == []
+    assert pipeline_lab._load_pipeline_automation_manifest("") is None
+
+
+@pytest.mark.parametrize("show_outputs", [False, True])
+@pytest.mark.parametrize("graph", ["", "digraph pipeline { prepare -> train; }"])
+def test_automation_manifest_summary_exposes_recorded_evidence_on_request(
+    monkeypatch, tmp_path, show_outputs, graph
+):
+    manifest = {
+        "schema": pipeline_lab._pipeline_run_controls_module.PIPELINE_AUTOMATION_SCHEMA,
+        "status": "failed", "profile": "balanced", "max_workers": 2,
+        "duration_seconds": 65.5, "waves": [[0], [1, 2]], "error": "training failed",
+        "summary": {"stage_count": 3, "executed": 2, "skipped": 1, "failed": 1},
+        "dependency_graph_dot": graph,
+        "stages": [
+            {"stage_index": 0, "status": "passed", "outputs": [
+                {"spec": "features.csv", "exists": True, "is_file": True,
+                 "size_bytes": 12, "sha256_status": "ok", "sha256": "a" * 64,
+                 "path": "artifacts/features.csv"},
+                {"spec": "large.bin", "exists": True, "is_file": True,
+                 "sha256_status": "too_large"},
+            ]},
+            {"stage_index": 1, "status": "failed", "outputs": [
+                {"spec": "model.bin", "exists": False},
+            ]},
+        ],
+    }
+    path = tmp_path / "automation-evidence.json"
+    path.write_text(json.dumps(manifest))
+    before = path.read_bytes()
+    fake_st = _FakeStreamlit(checkboxes={
+        "summary_automation_manifest_outputs": show_outputs,
+        "summary_automation_manifest_graph": True,
+    })
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    tables = []
+    monkeypatch.setattr(pipeline_lab, "render_paginated_dataframe",
+                        lambda _st, frame, **kwargs: tables.append((frame, kwargs)))
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="summary")
+    metrics = {text for kind, text in fake_st.messages if kind == "metric"}
+    assert {
+        "Status=failed", "Schema=current", "Profile=balanced", "Workers=2",
+        "Waves=2", "Duration=1m 5.5s", "Stages=3", "Executed=2", "Skipped=1",
+        "Failed=1", "Outputs=3", "Existing=2", "Hashed=1", "Too large=1",
+    } <= metrics
+    assert ("error", "Run error: training failed") in fake_st.messages
+    assert ("caption", "Declared outputs missing in latest manifest: 1") in fake_st.messages
+    assert ("caption", "Waves: 0 -> 1 + 2") in fake_st.messages
+    assert bool(tables) is show_outputs
+    if show_outputs:
+        frame, options = tables[0]
+        assert frame["spec"].tolist() == ["features.csv", "large.bin", "model.bin"]
+        assert frame["exists"].tolist() == [True, True, False]
+        assert options["key"] == "summary_automation_manifest_outputs_table"
+    assert fake_st.graphviz_sources == ([graph] if graph else [])
+    if not graph:
+        assert ("caption", "No dependency graph was recorded in this manifest.") in fake_st.messages
+    assert path.read_bytes() == before
+
+
+def test_automation_manifest_summary_defaults_without_optional_outputs(monkeypatch, tmp_path):
+    path = tmp_path / "minimal-automation-evidence.json"
+    path.write_text(json.dumps({"status": "passed", "waves": "unavailable"}))
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    pipeline_lab._render_pipeline_automation_manifest_summary(str(path), key_prefix="minimal")
+    metrics = {text for kind, text in fake_st.messages if kind == "metric"}
+    assert {"Status=passed", "Schema=unknown", "Profile=balanced", "Workers=1",
+            "Waves=0", "Duration=unknown", "Stages=0"} <= metrics
+    assert not fake_st.graphviz_sources
+    assert not any(label == "Show output evidence" for label, _ in fake_st.checkbox_calls)
