@@ -3417,3 +3417,100 @@ def test_view_maps_network_direct_helper_remaining_edges(
         pd.DataFrame({"source": ["1"], "destination": ["2"]}),
         pd.DataFrame({"flight_id": ["1"], "long": [1.0]}),
     ) == []
+
+
+def test_view_maps_network_filters_nonfinite_and_unconvertible_metrics(
+    monkeypatch, tmp_path
+):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    frame = pd.DataFrame(
+        {
+            "metrics": [
+                {
+                    "sat": [1, "bad", None, float("inf"), float("nan"), "2.5"],
+                    "opt": float("inf"),
+                },
+                {"sat": ("3",), "ivdl": object()},
+                {"sat": None, "opt": 4},
+            ]
+        }
+    )
+    assert module.extract_metrics(frame, "metrics") == {
+        "sat": [1.0, 2.5, 3.0],
+        "opt": [4.0],
+    }
+    assert module._to_plotly_color([1, 2]) == "#888"
+    assert module._label_for_link("custom_radio_link") == "CUSTOM RADIO"
+    assert module._label_for_link("custom_radio") == "CUSTOM RADIO"
+
+
+def test_view_maps_network_nat_timeline_downsamples_by_rows(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    frame = pd.DataFrame(
+        {
+            "node_id": ["a"] * 5,
+            "map_time": pd.to_datetime([None] * 5),
+            "value": range(5),
+        }
+    )
+    assert module._downsample_heatmap_timeline(frame, 2)["value"].tolist() == [0, 2, 4]
+
+
+def test_view_maps_network_parquet_old_polars_streaming_contract(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    expected = pd.DataFrame({"source": [1], "destination": [2]})
+    calls = []
+
+    def collect(**kwargs):
+        calls.append(kwargs)
+        if "engine" in kwargs:
+            raise TypeError("old Polars has no engine keyword")
+        return SimpleNamespace(to_pandas=lambda: expected)
+
+    monkeypatch.setitem(
+        sys.modules,
+        "polars",
+        SimpleNamespace(scan_parquet=lambda _: SimpleNamespace(collect=collect)),
+    )
+    assert module._read_parquet_frame(tmp_path / "fixture.parquet") is expected
+    assert calls == [{"engine": "streaming"}, {"streaming": True}]
+
+
+@pytest.mark.parametrize(
+    "settings,owned",
+    [
+        ({"view_maps_network": None}, ()),
+        ({"view_maps_network": "invalid", "unrelated": {"keep": 1}}, ("show_map",)),
+    ],
+)
+def test_view_maps_network_settings_recovery_preserves_unowned_content(
+    monkeypatch, tmp_path, settings, owned
+):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        module, "st", SimpleNamespace(session_state={"app_settings": settings})
+    )
+    calls = []
+
+    def update(path, payload, **kwargs):
+        calls.append((path, payload, kwargs["owned_paths"]))
+        return {"unrelated": {"keep": 1}}, False
+
+    monkeypatch.setattr(module, "update_app_settings_owned", update)
+    module._persist_app_settings(
+        SimpleNamespace(app_settings_file=tmp_path / "settings.toml"), owned
+    )
+    if owned:
+        assert settings == {"unrelated": {"keep": 1}, "view_maps_network": {}}
+        assert calls[0][2] == (("view_maps_network", "show_map"),)
+    else:
+        assert calls == []
+
+
+def test_view_maps_network_metadata_import_failure_is_explicit(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        module.importlib.util, "spec_from_file_location", lambda *args: None
+    )
+    with pytest.raises(RuntimeError, match="Unable to load page metadata"):
+        module._load_page_meta()

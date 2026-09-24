@@ -186,3 +186,124 @@ def test_interrupted_acquire_preserves_exact_recovery_capability(
         assert cli.recover_remote_target_lease(target, "b" * 32, ["c" * 32]) is False
         assert cli.recover_remote_target_lease(target, "b" * 32, [token]) is True
         assert cli.remote_target_lease_owned(target, "b" * 32)
+
+
+@pytest.mark.parametrize("claim_kind", ["owner", "publication"])
+@pytest.mark.parametrize("action", ["release", "recover"])
+def test_interrupted_claim_resumption_keeps_exact_generation_authority(
+    lease, claim_kind, action
+):
+    target, token, lock = lease
+    cli._remote_target_lease_marker(lock, token).unlink()
+    prefix = "release-owner-claim" if claim_kind == "owner" else "acquire-claim"
+    claim = lock.parent / f".{lock.name}.{prefix}-{token}-interrupted"
+    (lock / "owner.json").rename(claim)
+    assert cli.recover_remote_target_lease(target, "b" * 32, ["c" * 32]) is False
+    assert claim.exists()
+    if action == "recover":
+        assert cli.recover_remote_target_lease(target, "b" * 32, [token])
+        assert cli.remote_target_lease_owned(target, "b" * 32)
+    else:
+        assert cli.release_remote_target_lease(target, token)
+        assert not lock.exists()
+    assert not claim.exists()
+
+
+@pytest.mark.parametrize("failure_point", ["generation", "quarantine"])
+def test_historical_owner_claim_is_restored_after_io_failure(
+    lease, monkeypatch, failure_point
+):
+    target, token, lock = lease
+    cli._remote_target_lease_marker(lock, token).unlink()
+    original_open, original_rename = Path.open, Path.rename
+
+    def open_file(path, *args, **kwargs):
+        if failure_point == "generation" and path.name == f"release-generation-{token}":
+            raise PermissionError("generation unavailable")
+        return original_open(path, *args, **kwargs)
+
+    def rename(path, dest):
+        if failure_point == "quarantine" and path == lock:
+            raise PermissionError("quarantine unavailable")
+        return original_rename(path, dest)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "open", open_file)
+        patch.setattr(Path, "rename", rename)
+        assert cli.release_remote_target_lease(target, token) is False
+    if failure_point == "generation":
+        assert cli._read_remote_target_lease(target)["token"] == token
+    else:
+        claims = cli._release_owner_claims(lock, token)
+        assert len(claims) == 1
+        assert cli._read_json_file(claims[0])["token"] == token
+    assert cli.release_remote_target_lease(target, token)
+
+
+def test_existing_tombstone_cannot_authorize_removing_same_generation_again(lease):
+    target, token, lock = lease
+    tombstone = cli._remote_release_tombstone(lock, token)
+    tombstone.mkdir()
+    (tombstone / "keep").write_text("first release retained")
+    assert cli.release_remote_target_lease(target, token) is False
+    assert lock.exists()
+    assert cli._read_remote_target_lease(target)["token"] == token
+    assert (tombstone / "keep").read_text() == "first release retained"
+
+
+@pytest.mark.parametrize("error", [FileNotFoundError, PermissionError])
+def test_release_racing_successor_never_removes_new_owner(lease, monkeypatch, error):
+    target, token, lock = lease
+    original_rename = Path.rename
+    tombstone = cli._remote_release_tombstone(lock, token)
+    successor = "b" * 32
+
+    def rename(path, destination):
+        if path == lock:
+            original_rename(path, tombstone)
+            assert cli.acquire_remote_target_lease(target, successor, "run")
+            raise error("another releaser completed the transition")
+        return original_rename(path, destination)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "rename", rename)
+        assert cli.release_remote_target_lease(target, token) is True
+    assert cli.remote_target_lease_owned(target, successor)
+    before = {p.name: p.read_bytes() for p in lock.iterdir()}
+    assert cli.release_remote_target_lease(target, token) is True
+    assert {p.name: p.read_bytes() for p in lock.iterdir()} == before
+
+
+def test_recovery_loses_to_competing_acquire_without_removing_successor(
+    lease, monkeypatch
+):
+    target, token, lock = lease
+    original_release = cli.release_remote_target_lease
+
+    def release(target, generation):
+        result = original_release(target, generation)
+        assert cli.acquire_remote_target_lease(target, "c" * 32, "competing manager")
+        return result
+
+    monkeypatch.setattr(cli, "release_remote_target_lease", release)
+    assert cli.recover_remote_target_lease(target, "b" * 32, [token]) is False
+    assert cli.remote_target_lease_owned(target, "c" * 32)
+
+
+@pytest.mark.parametrize("payload", ["[]", "null", '"text"', "broken"])
+def test_malformed_claims_do_not_authorize_release(lease, payload):
+    target, token, lock = lease
+    cli._remote_target_lease_marker(lock, token).unlink()
+    (lock / "owner.json").unlink()
+    for prefix in ("release-owner-claim", "acquire-claim"):
+        claim = lock.parent / f".{lock.name}.{prefix}-{token}-bad"
+        claim.write_text(payload)
+    assert cli.release_remote_target_lease(target, token) is False
+    assert cli.recover_remote_target_lease(target, "b" * 32, [token]) is False
+    assert lock.exists()
+
+
+def test_recovery_of_absent_lock_acquires_new_generation(tmp_path):
+    target = tmp_path / "worker"
+    assert cli.recover_remote_target_lease(target, "b" * 32, ["a" * 32])
+    assert cli.remote_target_lease_owned(target, "b" * 32)

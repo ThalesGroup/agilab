@@ -419,3 +419,117 @@ def test_overlap_requires_different_processes_and_intersecting_intervals(
     row = copy.deepcopy(branch["rows"][0])
     row.update(pid=other_pid, start_monotonic=start, end_monotonic=end)
     assert runner._check_overlap([branch["rows"][0], row]) is expected
+
+@pytest.mark.parametrize("returncode,timeout", [(0, False), (2, False), (None, True)])
+def test_child_launch_is_isolated_bounded_and_always_cleaned(energy_contract, monkeypatch, returncode, timeout):
+    import subprocess
+    from types import SimpleNamespace
+    _, runner, _, _ = energy_contract
+    calls, cleaned = [], []
+    class Child:
+        def __init__(self):
+            self.returncode = returncode
+        def communicate(self, timeout):
+            calls.append(("communicate", timeout))
+            if self.returncode is None:
+                raise subprocess.TimeoutExpired("solver", timeout)
+            return b'{"rows": []}', b"diagnostic"
+    child = Child()
+    def launch(command, **kwargs):
+        calls.append((command, kwargs))
+        return child
+    proxy = SimpleNamespace(Popen=launch, PIPE=subprocess.PIPE, TimeoutExpired=subprocess.TimeoutExpired)
+    monkeypatch.setitem(sys.modules, "subprocess", proxy)
+    monkeypatch.setattr(runner, "_cleanup_process_group", cleaned.append)
+    text, elapsed, success = runner._launch_child_safe(["--single", "{}"], 2.5, "/isolated", {"PRIVATE": "1"})
+    assert success is (returncode == 0)
+    assert text == ("" if timeout else '{"rows": []}')
+    assert elapsed >= 0
+    command, options = calls[0]
+    assert command[-2:] == ["--single", "{}"]
+    assert options["start_new_session"] is True
+    assert options["cwd"] == "/isolated" and options["env"] == {"PRIVATE": "1"}
+    assert calls[1] == ("communicate", 2.5)
+    assert cleaned == [child]
+
+
+@pytest.mark.parametrize("failure", ["spawn", "communicate"])
+def test_child_launch_errors_still_reach_cleanup(energy_contract, monkeypatch, failure):
+    import subprocess
+    from types import SimpleNamespace
+    _, runner, _, _ = energy_contract
+    cleaned = []
+    child = SimpleNamespace()
+    def broken_communication(**kwargs):
+        raise OSError("read failed")
+    child.communicate = broken_communication
+    def launch(*args, **kwargs):
+        if failure == "spawn":
+            raise OSError("spawn failed")
+        return child
+    monkeypatch.setitem(sys.modules, "subprocess", SimpleNamespace(
+        Popen=launch, PIPE=subprocess.PIPE, TimeoutExpired=subprocess.TimeoutExpired))
+    monkeypatch.setattr(runner, "_cleanup_process_group", cleaned.append)
+    with pytest.raises(OSError):
+        runner._launch_child_safe([], 1, "/isolated", {})
+    assert cleaned == [None if failure == "spawn" else child]
+
+
+@pytest.mark.parametrize("group_exists,reap_failures", [(False, 0), (True, 0), (True, 1), (False, 2)])
+def test_owned_process_cleanup_is_bounded_and_reports_unreapable_child(
+    energy_contract, monkeypatch, group_exists, reap_failures,
+):
+    from types import SimpleNamespace
+    _, runner, _, _ = energy_contract
+    signals, waits = [], []
+    def killpg(pid, sig):
+        assert pid == 98765
+        signals.append(sig)
+        if not group_exists:
+            raise ProcessLookupError()
+    def wait(*, timeout):
+        waits.append(timeout)
+        if len(waits) <= reap_failures:
+            raise TimeoutError()
+    clock = iter([0, 1])
+    monkeypatch.setattr(runner, "os", SimpleNamespace(killpg=killpg))
+    monkeypatch.setattr(runner, "signal", SimpleNamespace(SIGTERM=15, SIGKILL=9))
+    monkeypatch.setattr(runner, "time", SimpleNamespace(monotonic=lambda: next(clock)))
+    child = SimpleNamespace(pid=98765, wait=wait)
+    if reap_failures == 2:
+        with pytest.raises(RuntimeError, match="Failed to reap"):
+            runner._cleanup_process_group(child)
+    else:
+        runner._cleanup_process_group(child)
+    assert len(waits) == min(reap_failures + 1, 2)
+    assert all(timeout == runner._REAP_TIMEOUT for timeout in waits)
+    if group_exists:
+        assert runner.signal.SIGTERM in signals and runner.signal.SIGKILL in signals
+
+
+def test_solver_child_environment_discards_inherited_pool_overrides(energy_contract, monkeypatch):
+    from types import SimpleNamespace
+    _, runner, _, _ = energy_contract
+    inherited = {"AGILAB_POOL_EXECUTOR": "thread", "AGILAB_POOL_ITEM_TIMEOUT": "0",
+                 "OMP_NUM_THREADS": "500", "PATH": "preserved"}
+    monkeypatch.setattr(runner, "os", SimpleNamespace(environ=inherited))
+    env = runner._build_child_env()
+    assert env["AGILAB_POOL_EXECUTOR"] == "process"
+    assert "AGILAB_POOL_ITEM_TIMEOUT" not in env
+    assert env["PATH"] == "preserved"
+    assert all(env[key] == "1" for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"))
+    assert inherited["OMP_NUM_THREADS"] == "500"
+
+
+@pytest.mark.parametrize("response,success,error", [
+    ("{}", False, "single child failed"),
+    ("{}", True, "expected 1 row"),
+    ('{"rows": [{}, {}]}', True, "expected 1 row"),
+])
+def test_failed_solver_protocol_releases_the_single_run_lock(energy_contract, monkeypatch, response, success, error):
+    _, runner, settings, _ = energy_contract
+    monkeypatch.setattr(runner, "_launch_child_safe", lambda *args: (response, 0.1, success))
+    with pytest.raises(RuntimeError, match=error):
+        runner.run_scenario(settings)
+    assert runner._lock.acquire(blocking=False)
+    runner._lock.release()

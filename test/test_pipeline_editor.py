@@ -5145,3 +5145,95 @@ def test_restore_pipeline_snapshot_handles_non_dict_active_entry(monkeypatch, tm
 
     assert error is None
     assert fake_st.session_state["idx"][:6] == [0, "", "", "", "", ""]
+
+
+@pytest.mark.parametrize("current, imported, allow_upsert, message", [
+    ([{"id": "a"}, {"id": "a"}], [{"id": "a"}], True, "duplicate matching"),
+    ([{"id": "a"}], [{"id": "a"}], False, "collides"),
+    ([{}], [{"NB_SOURCE_MODULE": "other", "NB_SOURCE_MODULE_INDEX": 0}], True, "positionally update module"),
+    ([], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "no longer exists"),
+    ([{"id": "new-id"}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "now has explicit ID"),
+    ([{}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0}], True, "no stage identity fingerprint"),
+    ([{}], [{"NB_SOURCE_MODULE": "module", "NB_SOURCE_MODULE_INDEX": 0, "NB_SOURCE_STAGE_FINGERPRINT": "stale"}], True, "no longer matches"),
+    ([{}], [{"C": "print(1)"}], True, "Cannot safely update"),
+])
+def test_notebook_merge_refuses_ambiguous_or_stale_identity_without_mutating_inputs(
+    current, imported, allow_upsert, message,
+):
+    before_current = json.dumps(current, sort_keys=True)
+    before_import = json.dumps(imported, sort_keys=True)
+    with pytest.raises(ValueError, match=message):
+        pipeline_editor._merge_notebook_import_stage_entries(
+            current, imported, allow_upsert=allow_upsert, module_key="module",
+        )
+    assert json.dumps(current, sort_keys=True) == before_current
+    assert json.dumps(imported, sort_keys=True) == before_import
+
+
+def test_notebook_merge_rejects_repeated_source_position_after_first_verified_update():
+    current = [{"C": "print(1)", "custom": {"preserve": True}}]
+    fingerprint = pipeline_editor.notebook_stage_fingerprint("module", 0, current[0])
+    imported = {"C": "print(2)", "NB_SOURCE_MODULE": "module",
+                "NB_SOURCE_MODULE_INDEX": 0, "NB_SOURCE_STAGE_FINGERPRINT": fingerprint}
+    merged = pipeline_editor._merge_notebook_import_stage_entries(
+        current, [imported], allow_upsert=True, module_key="module",
+    )
+    assert merged[0]["C"] == "print(2)"
+    assert merged[0]["custom"] == {"preserve": True}
+    merged[0]["custom"]["preserve"] = False
+    assert current[0]["custom"]["preserve"] is True
+    with pytest.raises(ValueError, match="duplicate source position"):
+        pipeline_editor._merge_notebook_import_stage_entries(
+            current, [imported, imported], allow_upsert=True, module_key="module",
+        )
+
+
+@pytest.mark.parametrize("entries, message", [
+    ([{"deps": "upstream"}], "no explicit stage ID"),
+    ([{"id": "a"}, {"stage_id": "a"}], "Duplicate workflow stage ID"),
+    ([{"id": "a", "dependencies": ["missing"]}], "missing stage ID"),
+    ([{"id": "a", "depends_on": "b"}, {"id": "b", "deps": "a"}], "cycle or self-dependency"),
+    ([{"id": "a", "deps": "a"}], "cycle or self-dependency"),
+])
+def test_notebook_dependency_validation_rejects_invalid_graph(entries, message):
+    with pytest.raises(ValueError, match=message):
+        pipeline_editor._validate_notebook_import_dependencies(
+            {"module": entries, "__meta__": {}, "scalar": 1},
+            {"module": entries},
+        )
+
+
+def test_notebook_import_merge_preserves_unrelated_content_and_updates_sequence(tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(
+        'preserved = "original"\n\n[__meta__]\nmodule__sequence = [0, 50, true]\n'
+        'custom = "keep"\n\n[[module]]\nid = "first"\nC = "print(1)"\n',
+        encoding="utf-8",
+    )
+    preview = {"toml_content": {
+        "__meta__": {"imported": "yes"},
+        "module": [{"id": "second", "deps": ["first"], "C": "print(2)"}],
+        "preserved": "replacement", "added": "new",
+    }}
+    before = stages_file.read_bytes()
+    result = pipeline_editor._notebook_import_content_for_write(preview, stages_file)
+    assert result["preserved"] == "original"
+    assert result["added"] == "new"
+    assert result["__meta__"]["module__sequence"] == [0, 1]
+    assert result["__meta__"]["custom"] == "keep"
+    assert result["__meta__"]["imported"] == "yes"
+    assert [entry["id"] for entry in result["module"]] == ["first", "second"]
+    assert stages_file.read_bytes() == before
+
+
+@pytest.mark.parametrize("content, preview, message, error", [
+    ('module = "scalar"\n', {"toml_content": {"module": [{"id": "a"}]}}, "non-list", ValueError),
+    ("", {"toml_content": [], "write_mode": "merge"}, "must be a mapping", TypeError),
+    ("", {"toml_content": {}, "write_mode": "erase"}, "Unsupported", ValueError),
+])
+def test_notebook_import_invalid_merge_never_writes_file(content, preview, message, error, tmp_path):
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(content, encoding="utf-8")
+    with pytest.raises(error, match=message):
+        pipeline_editor._notebook_import_content_for_write(preview, stages_file)
+    assert stages_file.read_text(encoding="utf-8") == content

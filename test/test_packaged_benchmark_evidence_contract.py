@@ -173,3 +173,97 @@ def test_nested_nonfinite_results_are_rejected(evidence, value):
 def test_finite_nested_results_are_accepted(evidence):
     runner, _, _ = evidence
     runner._reject_nonfinite({"runs": [{"measurement": 1.5, "status": "ok"}]})
+
+@pytest.mark.parametrize("kind", ["probe", "child"])
+@pytest.mark.parametrize("outcome", ["success", "spawn-error", "timeout", "interrupted", "exit-error", "invalid-json"])
+def test_benchmark_subprocess_failures_are_bounded_and_cleaned(evidence, monkeypatch, kind, outcome):
+    import json
+    import subprocess
+    from types import SimpleNamespace
+    runner = evidence[0]
+    calls, cleaned = [], []
+    class Child:
+        pid = 8765
+        returncode = 3 if outcome == "exit-error" else 0
+        def communicate(self, timeout):
+            calls.append(("timeout", timeout))
+            if outcome == "timeout":
+                raise subprocess.TimeoutExpired("benchmark", timeout)
+            if outcome == "interrupted":
+                raise KeyboardInterrupt()
+            payload = {"free_threaded_build": True, "gil_enabled": False, "version": "test"}
+            return (b"bad-json" if outcome == "invalid-json" else json.dumps(payload).encode()), b"child diagnostic"
+    child = Child()
+    def launch(command, **kwargs):
+        calls.append((command, kwargs))
+        if outcome == "spawn-error":
+            raise OSError("cannot launch")
+        return child
+    monkeypatch.setattr(runner, "subprocess", SimpleNamespace(
+        Popen=launch, PIPE=subprocess.PIPE, TimeoutExpired=subprocess.TimeoutExpired))
+    monkeypatch.setattr(runner, "_kill_process_group", lambda proc, pgid: cleaned.append((proc, pgid)))
+    monkeypatch.setattr(runner, "os", SimpleNamespace(environ={
+        "PYTHON_GIL": "1", "AGILAB_POOL_ITEM_TIMEOUT": "0", "KEEP": "value"}))
+    def invoke():
+        if kind == "probe":
+            return runner._probe_interpreter("/private/python", 2.0)
+        return runner._launch_child("/private/python", "/private/core.py",
+                                    "gil_off_threads", {}, "/private/work", 2.0)
+    if outcome == "success":
+        result = invoke()
+        info = result if kind == "probe" else result[0]
+        assert info["free_threaded_build"] is True
+    else:
+        exception = KeyboardInterrupt if outcome == "interrupted" else RuntimeError
+        with pytest.raises(exception):
+            invoke()
+    command, options = calls[0]
+    assert command[:3] == ["/private/python", "-X", "gil=0"]
+    assert options["start_new_session"] is True
+    assert "PYTHON_GIL" not in options["env"]
+    assert "AGILAB_POOL_ITEM_TIMEOUT" not in options["env"]
+    assert options["env"]["KEEP"] == "value"
+    if outcome == "spawn-error":
+        assert not cleaned
+    else:
+        assert cleaned and all(pair == (child, child.pid) for pair in cleaned)
+        assert calls[1] == ("timeout", 2.0)
+
+
+@pytest.mark.parametrize("v2,v1,env,expected", [
+    ("250000 100000", ("-1", "100000"), None, 2),
+    ("max 100000", ("150000", "100000"), None, 1),
+    ("max 100000", ("-1", "100000"), "3", 3),
+    ("bad quota", ("bad", "0"), "invalid", 8),
+    ("0 0", ("0", "0"), "-2", 8),
+    ("50000 100000", ("-1", "100000"), "7", 1),
+])
+def test_effective_cpu_budget_respects_quotas_and_rejects_invalid_overrides(
+    evidence, monkeypatch, v2, v1, env, expected,
+):
+    from io import StringIO
+    from types import SimpleNamespace
+    runner = evidence[0]
+    environment = {} if env is None else {"CPU_CORES": env}
+    monkeypatch.setattr(runner, "os", SimpleNamespace(
+        cpu_count=lambda: 64, process_cpu_count=lambda: 12,
+        sched_getaffinity=lambda pid: set(range(10)), environ=environment))
+    values = {"/sys/fs/cgroup/cpu.max": v2,
+              "/sys/fs/cgroup/cpu/cpu.cfs_quota_us": v1[0],
+              "/sys/fs/cgroup/cpu/cpu.cfs_period_us": v1[1]}
+    monkeypatch.setattr(runner, "open", lambda path, mode: StringIO(values[path]), raising=False)
+    result = runner.effective_cpus()
+    assert result["effective_cpus"] == expected
+    assert result["host_cpu_count"] == 64
+
+
+def test_effective_cpu_budget_falls_back_when_all_probes_are_unavailable(evidence, monkeypatch):
+    from types import SimpleNamespace
+    runner = evidence[0]
+    def unavailable(*args):
+        raise OSError("unavailable")
+    monkeypatch.setattr(runner, "os", SimpleNamespace(
+        cpu_count=lambda: None, process_cpu_count=unavailable,
+        sched_getaffinity=unavailable, environ={}))
+    monkeypatch.setattr(runner, "open", unavailable, raising=False)
+    assert runner.effective_cpus() == {"effective_cpus": 1}
