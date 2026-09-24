@@ -1,16 +1,22 @@
 #!/usr/bin/env python3
-"""Fail locally when coverage badge SVGs are stale.
+"""Validate coverage badge freshness and the published workflow status.
 
 The coverage workflow regenerates badges from Cobertura XML artifacts and then
 fails if ``badges/`` differs. This local guard mirrors that final gate and can
 also require XML inputs to be newer than coverage-sensitive files changed since
 the upstream branch.
+
+Use --readme-only for the offline main/push link contract. The separate
+--check-public-workflow postflight compares the exact public SVG with Actions
+after coverage completes, allowing its cache to settle.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
+from html.parser import HTMLParser
 import os
 import subprocess
 import sys
@@ -18,6 +24,8 @@ import time
 from pathlib import Path
 from types import ModuleType
 from typing import Iterable, Sequence
+from urllib.parse import parse_qs, urlparse
+import xml.etree.ElementTree as ET
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +74,126 @@ class GuardError(RuntimeError):
     """Coverage badge guard failure."""
 
 
+
+WORKFLOW_PATH = "/ThalesGroup/agilab/actions/workflows/coverage.yml"
+WORKFLOW_RUNS_API = "repos/ThalesGroup/agilab/actions/workflows/coverage.yml/runs?branch=main&event=push&per_page=1"
+
+
+class _WorkflowBadgeParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.links: list[str] = []
+        self.badges: list[tuple[str, str, str]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "a":
+            self.links.append(attributes.get("href") or "")
+        if tag == "img":
+            source = attributes.get("src") or ""
+            label = attributes.get("alt") or ""
+            if "coverage.yml/badge.svg" in source or label.lower().startswith("coverage workflow"):
+                self.badges.append((source, self.links[-1] if self.links else "", label))
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "a" and self.links:
+            self.links.pop()
+
+
+def readme_workflow_badge(readme: Path) -> str:
+    """Require a transparent main/push scope for both image and destination."""
+    try:
+        parser = _WorkflowBadgeParser()
+        parser.feed(readme.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise GuardError(f"Cannot read workflow badge from {readme}: {exc}") from exc
+    if len(parser.badges) != 1:
+        raise GuardError("README must contain exactly one coverage workflow badge.")
+    source, destination, label = parser.badges[0]
+    image, link = urlparse(source), urlparse(destination)
+    if (
+        image.scheme != "https" or image.netloc != "github.com"
+        or image.path != WORKFLOW_PATH + "/badge.svg"
+        or parse_qs(image.query) != {"branch": ["main"], "event": ["push"]}
+        or image.fragment
+    ):
+        raise GuardError("Coverage workflow badge must use the GitHub main/push URL; no static success image or cache-busting token.")
+    if (
+        link.scheme != "https" or link.netloc != "github.com"
+        or link.path != WORKFLOW_PATH
+        or parse_qs(link.query) != {"query": ["branch:main event:push"]}
+        or link.fragment
+    ):
+        raise GuardError("Coverage workflow badge link must select branch:main event:push.")
+    if label != "Coverage workflow (main push)":
+        raise GuardError("Coverage workflow badge label must disclose its main push scope.")
+    return source
+
+
+def _public_command(command: list[str]) -> str:
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GuardError(f"Public badge verification could not run {command[0]}: {exc}") from exc
+    if result.returncode:
+        raise GuardError(f"Public badge verification failed in {command[0]}: {result.stderr.strip()[:600]}")
+    return result.stdout
+
+
+def public_workflow_badge(
+    source: str, *, run_id: int | None = None, attempts: int = 7, delay: float = 50,
+) -> str:
+    """Compare the exact published SVG against Actions, allowing its 300s cache TTL.
+
+    A superseded workflow_run event never compares its old result to a newer
+    branch badge. Its successor owns the subsequent postflight verification.
+    """
+    if attempts < 1 or not 0 <= delay <= 60:
+        raise GuardError("Badge verification needs at least one attempt and a delay between 0 and 60 seconds.")
+    observed = "unknown"
+    for attempt in range(attempts):
+        try:
+            payload = json.loads(_public_command(["gh", "api", WORKFLOW_RUNS_API]))
+            latest = payload["workflow_runs"][0]
+            latest_id = int(latest["id"])
+            conclusion = latest["conclusion"]
+            state = latest["status"]
+        except (ValueError, TypeError, KeyError, IndexError) as exc:
+            raise GuardError("GitHub returned no valid main push coverage run.") from exc
+        if run_id is not None and latest_id != run_id:
+            return f"Badge postflight superseded by run {latest_id}; no verdict on the newer run."
+        if state != "completed":
+            raise GuardError(f"Coverage run {latest_id} is still {state}; public badge verification is pending.")
+        if conclusion == "success":
+            expected = "passing"
+        elif conclusion in {"failure", "timed_out", "action_required", "startup_failure"}:
+            expected = "failing"
+        else:
+            raise GuardError(f"Coverage run {latest_id} concluded {conclusion!r}; no supported badge verdict.")
+        run_url = f"https://github.com/ThalesGroup/agilab/actions/runs/{latest_id}"
+        svg = _public_command(["curl", "--fail", "--silent", "--show-error", "--location",
+                               "--max-redirs", "3", "--max-time", "20", source])
+        try:
+            document = ET.fromstring(svg)
+            if document.tag.rsplit("}", 1)[-1] != "svg":
+                raise GuardError("Public workflow badge is not an SVG document.")
+            title = next((element.text for element in document.iter()
+                          if element.tag.rsplit("}", 1)[-1] == "title"), None)
+        except ET.ParseError as exc:
+            raise GuardError("Public workflow badge is not valid SVG XML.") from exc
+        observed = title or "missing SVG title"
+        if observed == f"coverage - {expected}":
+            return f"Public badge matches coverage run {latest_id}: {conclusion} ({run_url})."
+        if attempt + 1 < attempts:
+            print(f"Badge shows {observed!r}; run {latest_id} is {conclusion}. Waiting for cache ({attempt + 1}/{attempts}).")
+            time.sleep(delay)
+    raise GuardError(
+        f"Public badge mismatch: coverage run {latest_id} is {conclusion}, but the README image "
+        f"shows {observed!r} after {attempts} checks. This is a stale or inconsistent image, "
+        f"not evidence of a new test failure. Inspect {run_url} and {source}."
+    )
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -109,6 +237,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Emit a compact JSON-like diagnostic payload for automation.",
     )
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--readme-only", action="store_true",
+                      help="Check the README main/push workflow badge contract without coverage XML.")
+    mode.add_argument("--check-public-workflow", action="store_true",
+                      help="Check README configuration and compare its public SVG to Actions (requires gh and curl).")
+    parser.add_argument("--workflow-run-id", type=int,
+                        help="Postflight run identity; skip a superseded run instead of comparing it to a newer badge.")
     return parser
 
 
@@ -451,15 +586,21 @@ def _render_result(success: bool, paths: list[str], components: list[str], messa
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
+    if args.workflow_run_id is not None and not args.check_public_workflow:
+        parser.error("--workflow-run-id requires --check-public-workflow")
     try:
+        if args.readme_only or args.check_public_workflow:
+            source = readme_workflow_badge(REPO_ROOT / "README.md")
+            message = (public_workflow_badge(source, run_id=args.workflow_run_id)
+                       if args.check_public_workflow else "README coverage workflow badge contract passed.")
+            print(json.dumps({"success": True, "message": message}) if args.json else message)
+            return 0
         success, paths, components, messages = run_guard(args)
     except GuardError as exc:
         print(f"coverage_badge_guard: {exc}", file=sys.stderr)
         return 2
 
     if args.json:
-        import json
-
         print(
             json.dumps(
                 {

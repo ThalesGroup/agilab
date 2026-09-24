@@ -70,6 +70,9 @@ jobs:
           version: "0.10.7"
           prune-cache: true
 
+      - name: Guard README coverage workflow badge
+        run: python tools/coverage_badge_guard.py --readme-only
+
       - name: Resolve Playwright version for browser cache key
         id: playwright-version
         run: |
