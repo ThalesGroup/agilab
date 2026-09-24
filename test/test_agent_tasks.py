@@ -280,3 +280,68 @@ def test_dead_worker_does_not_prove_candidate_cancelled(tmp_path, order):
         deadline = time.monotonic() + 5
         while counter.exists() and not late.exists() and time.monotonic() < deadline:
             time.sleep(0.02)
+
+def test_cli_register_submit_approve_execute_and_inspect(tmp_path, capsys):
+    store, state, _, counter = prepare(tmp_path)
+    root = str(store.root)
+
+    def call(*args):
+        assert tasks.main(list(args)) == 0
+        return json.loads(capsys.readouterr().out)
+
+    registered = call("register", root, "cli-demo", "experiments/demo")
+    assert registered["action_id"] == "cli-demo"
+    actions = call("list", root)
+    assert {row["action_id"] for row in actions["actions"]} == {"demo", "cli-demo"}
+    submitted = call("submit", root, "demo", "request-1")
+    assert submitted["task_id"] == state["task_id"]
+    approved = call("approve", root, state["task_id"], "--plan-sha256", state["plan_sha256"], "--attempt", "1")
+    assert approved["status"] == "queued"
+    completed = call("worker", root, state["task_id"], "--attempt", "1")
+    assert completed["status"] == "completed"
+    assert counter.read_text() == "x"
+    for command in ("status", "reconcile"):
+        assert call(command, root, state["task_id"])["status"] == "completed"
+    assert counter.read_text() == "x"
+
+
+def test_cli_denial_retry_and_cancellation_require_fresh_attempt(tmp_path, capsys):
+    store, state, _, counter = prepare(tmp_path)
+    root, task_id = str(store.root), state["task_id"]
+    assert tasks.main(["deny", root, task_id, "--plan-sha256", state["plan_sha256"], "--attempt", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "denied"
+    assert tasks.main(["retry", root, task_id, "--attempt", "1"]) == 1
+    assert "Only interrupted, failed or cancelled" in capsys.readouterr().err
+    task_id = store.submit("demo", "cancel-and-retry")["task_id"]
+    assert tasks.main(["cancel", root, task_id, "--attempt", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "cancelled"
+    assert tasks.main(["retry", root, task_id, "--attempt", "1"]) == 0
+    retried = json.loads(capsys.readouterr().out)
+    assert retried["status"] == "awaiting_approval" and retried["attempt"] == 2
+    assert tasks.main(["cancel", root, task_id, "--attempt", "1"]) == 1
+    assert capsys.readouterr().err
+    assert store.status(task_id)["status"] == "awaiting_approval"
+    assert tasks.main(["cancel", root, task_id, "--attempt", "2"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "cancelled"
+    assert not counter.exists()
+
+
+def test_cli_resume_does_not_repeat_a_completed_candidate(tmp_path, monkeypatch, capsys):
+    store, state, _, counter = prepare(tmp_path)
+    approve(store, state)
+    run = experiment.run_agent_command
+
+    def interrupt(config, **kwargs):
+        if config.metadata["experiment_role"] == "grader":
+            raise OSError("interruption before grading")
+        return run(config, **kwargs)
+
+    monkeypatch.setattr(experiment, "run_agent_command", interrupt)
+    assert store.work(state["task_id"], attempt=1)["status"] == "interrupted"
+    monkeypatch.setattr(experiment, "run_agent_command", run)
+    root, task_id = str(store.root), state["task_id"]
+    assert tasks.main(["resume", root, task_id, "--attempt", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "queued"
+    assert tasks.main(["worker", root, task_id, "--attempt", "1"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "completed"
+    assert counter.read_text() == "x"

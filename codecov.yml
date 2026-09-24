@@ -52,6 +52,7 @@ flags:
       - src/agilab/core/agi-cluster
       - src/agilab/core/agi-core
 ignore:
+  - "src/agilab/demos/resources/*/tests.py"
   - "**/test/**"
   - "**/tests/**"
   - "**/sitecustomize.py"

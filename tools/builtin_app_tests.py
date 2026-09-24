@@ -47,7 +47,10 @@ def discover_builtin_app_tests(root: Path = BUILTIN_APPS_ROOT) -> list[BuiltinAp
     return targets
 
 
-def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
+def build_pytest_command(
+    pytest_args: Sequence[str] = (), *, coverage_data_file: Path | None = None,
+    junit_path: Path | None = None,
+) -> list[str]:
     """Build the app-local pytest command used for each built-in app."""
 
     forwarded = list(pytest_args)
@@ -55,6 +58,17 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
         forwarded = forwarded[1:]
     if not forwarded:
         forwarded = list(DEFAULT_PYTEST_ARGS)
+    dependencies = ["--with", "coverage"] if coverage_data_file is not None else []
+    instrumentation = []
+    if coverage_data_file is not None:
+        instrumentation = [
+            "-m", "coverage", "run",
+            f"--rcfile={REPO_ROOT / '.coveragerc.agi-gui'}",
+            f"--source={REPO_ROOT / 'src/agilab'}",
+            f"--data-file={coverage_data_file.resolve()}", "--parallel-mode",
+        ]
+    if junit_path is not None:
+        forwarded.append(f"--junitxml={junit_path.resolve()}")
     return [
         "uv",
         "--no-cache",
@@ -67,7 +81,9 @@ def build_pytest_command(pytest_args: Sequence[str] = ()) -> list[str]:
         "pytest",
         "--with",
         "pytest-asyncio",
+        *dependencies,
         "python",
+        *instrumentation,
         "-m",
         "pytest",
         *forwarded,
@@ -138,6 +154,8 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Continue testing remaining apps after a failure.",
     )
+    parser.add_argument("--coverage-data-file", type=Path, help="Collect parallel coverage files under this prefix.")
+    parser.add_argument("--junit-dir", type=Path, help="Write a JUnit report per app.")
     parser.add_argument(
         "pytest_args",
         nargs=argparse.REMAINDER,
@@ -158,9 +176,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     failures: list[str] = []
-    command = build_pytest_command(args.pytest_args)
+    if args.coverage_data_file is not None and not args.dry_run:
+        args.coverage_data_file.parent.mkdir(parents=True, exist_ok=True)
     with app_test_env_root() as env_root:
         for target in targets:
+            command = build_pytest_command(
+                args.pytest_args, coverage_data_file=args.coverage_data_file,
+                junit_path=(args.junit_dir / f"junit-agi-gui-builtin-{target.name}.xml") if args.junit_dir is not None else None,
+            )
             print(f"\n== {target.path.relative_to(REPO_ROOT)} ==", flush=True)
             if args.dry_run:
                 print(shlex.join(command))

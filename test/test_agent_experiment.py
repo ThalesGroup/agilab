@@ -205,3 +205,131 @@ def test_symlinked_source_input_is_rejected(tmp_path):
             outputs=["result.json"],
             checks=["doubled"],
         )
+
+
+@pytest.mark.parametrize("path,value,reason", [
+    (("plan_sha256",), "0" * 64, "not bound"),
+    (("input_binding",), {}, "not bound"),
+    (("checkpoints", "launch"), {}, "launch checkpoint changed"),
+    (("runs",), {}, "independent grading"),
+    (("outputs",), [], "outputs changed"),
+    (("missing_outputs",), ["unreported"], "outputs changed"),
+    (("checkpoints", "candidate-output"), {}, "checkpoint changed"),
+    (("checkpoints", "grader-input"), {}, "checkpoint changed"),
+    (("acceptance",), {}, "contradicts independent acceptance"),
+    (("status",), "failed", "contradicts independent acceptance"),
+])
+def test_resealing_receipt_does_not_authorize_changed_evidence(tmp_path, path, value, reason):
+    _, root, _ = prepare(tmp_path)
+    receipt = experiment.execute_experiment(root, attempt_id="first")
+    target = receipt
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    receipt.pop("sha256")
+    receipt_path = root / "attempts/first/receipt.json"
+    receipt_path.write_text(json.dumps(experiment.seal(receipt)))
+    with pytest.raises(ValueError, match=reason):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+@pytest.mark.parametrize("checkpoint", ["candidate-output", "grader-input"])
+def test_rehashed_checkpoint_must_bind_actual_outputs_to_grading(tmp_path, checkpoint):
+    _, root, _ = prepare(tmp_path)
+    receipt = experiment.execute_experiment(root, attempt_id="first")
+    relative = f"attempts/first/{checkpoint}.json"
+    (root / relative).write_text("{}")
+    receipt["checkpoints"][checkpoint] = experiment.file_record(root, relative)
+    receipt.pop("sha256")
+    (root / "attempts/first/receipt.json").write_text(json.dumps(experiment.seal(receipt)))
+    with pytest.raises(ValueError, match="do not bind"):
+        experiment.verify_experiment(root, "attempts/first/receipt.json")
+
+
+def test_experiment_cli_prepares_executes_and_verifies_real_artifacts(tmp_path, capsys):
+    source, _, _ = prepare(tmp_path)
+    root = tmp_path / "cli-evidence"
+    assert experiment.main([
+        "prepare", "--source", str(source), "--output", str(root),
+        "--file", "candidate.py", "--file", "inputs.json", "--file", "grader.py",
+        "--entrypoint", "candidate.py", "--grader", "grader.py",
+        "--artifact", "result.json", "--check", "doubled",
+    ]) == 0
+    prepared = json.loads(capsys.readouterr().out)
+    assert prepared["sha256"] == experiment.load_plan(root)["sha256"]
+    assert experiment.main(["run", str(root), "--attempt-id", "cli"]) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["status"] == "passed"
+    assert json.loads((root / "attempts/cli/workspace/result.json").read_text()) == {"value": 6}
+    assert experiment.main(["verify", str(root), "attempts/cli/receipt.json"]) == 0
+    assert json.loads(capsys.readouterr().out)["verification"] == "passed"
+
+
+def test_experiment_cli_returns_failure_for_rejected_candidate(tmp_path, capsys):
+    _, root, _ = prepare(tmp_path, answer=3)
+    assert experiment.main(["run", str(root), "--attempt-id", "rejected"]) == 1
+    assert json.loads(capsys.readouterr().out)["status"] == "failed"
+
+
+@pytest.mark.parametrize("path,value", [
+    (("files",), []), (("files",), "invalid"),
+    (("files", 0), {}), (("files", 0, "size_bytes"), True),
+    (("files", 0, "size_bytes"), -1), (("files", 0, "size_bytes"), experiment.MAX_INPUT_BYTES + 1),
+    (("files", 0, "sha256"), "invalid"),
+    (("outputs",), ["result.json", "result.json"]),
+    (("outputs",), ["candidate.py"]),
+    (("checks",), ["duplicate", "duplicate"]), (("checks",), ["invalid check"]),
+    (("arguments",), [1]), (("arguments",), ["x" * 4097]),
+    (("arguments",), ["x"] * 65),
+    (("timeout_seconds",), 0), (("timeout_seconds",), 3601),
+    (("source_root",), "relative"), (("source_root",), None),
+])
+def test_resealed_plan_bounds_are_enforced_before_execution(tmp_path, path, value):
+    _, root, plan = prepare(tmp_path)
+    target = plan
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = value
+    plan.pop("sha256")
+    (root / "plan.json").write_text(json.dumps(experiment.seal(plan)))
+    with pytest.raises(ValueError):
+        experiment.execute_experiment(root)
+    assert not (root / "attempts").exists()
+
+
+@pytest.mark.parametrize("content,reason", [
+    ('{"same": 1, "same": 2}', "Duplicate"),
+    ('{"value": NaN}', "Nonfinite"),
+    ('{"value": Infinity}', "Nonfinite"),
+    ("[]", "must be an object"),
+    (" " * (1024 * 1024 + 1), "exceeds 1 MiB"),
+])
+def test_experiment_json_rejects_ambiguous_or_unbounded_input(tmp_path, content, reason):
+    path = tmp_path / "experiment-input.json"
+    path.write_text(content)
+    with pytest.raises(ValueError, match=reason):
+        experiment.read_json(path)
+
+
+@pytest.mark.parametrize("path", [
+    "", None, "x" * 513, "/absolute", "../escape", "folder/../escape",
+    "folder//file", "./file", ".secret", "folder/.secret", "folder\\file",
+])
+def test_experiment_paths_are_normalized_visible_relative_paths(path):
+    with pytest.raises(ValueError):
+        experiment.relative_path(path)
+
+
+def test_experiment_rejects_symlinked_root_and_output_parent(tmp_path):
+    root = tmp_path / "root"
+    root.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(root, target_is_directory=True)
+    with pytest.raises(ValueError, match="directories cannot use symlinks"):
+        experiment.confined(alias, "output.json")
+    (root / "outside").symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(ValueError, match="escapes"):
+        experiment.confined(root, "outside/output.json")
+    (root / "inside").symlink_to(root, target_is_directory=True)
+    with pytest.raises(ValueError, match="files cannot use symlinks"):
+        experiment.confined(root, "inside/output.json")

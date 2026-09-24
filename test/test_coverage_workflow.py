@@ -104,6 +104,8 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
         '"test/**"',
         '"tools/coverage_badge_guard.py"',
         '"tools/coverage_shard_plan.py"',
+        '"tools/testing/root_test_runner.py"',
+        '"tools/builtin_app_tests.py"',
         '"tools/coverage_timing_report.py"',
         '"tools/generate_component_coverage_badges.py"',
         '"tools/workflow_parity.py"',
@@ -453,6 +455,7 @@ def test_repo_wide_codecov_file_list_has_no_whitespace_tokens() -> None:
         "./merged-coverage/coverage-agi-cluster.xml",
         "./merged-coverage/coverage-agi-gui.xml",
         "./merged-coverage/coverage-agi-web.xml",
+        "./merged-coverage/coverage-gui-observed-core.xml",
     ]
 
     assert files.split(",") == expected_files
@@ -531,3 +534,47 @@ def test_codecov_waits_for_all_component_and_aggregate_uploads() -> None:
     assert re.search(rf"codecov:\n  notify:\n    after_n_builds: {uploads}\n", config)
     assert re.search(rf"comment:\n  after_n_builds: {uploads}\n", config)
     assert '      - "codecov.yml"' in _workflow_text()
+
+def test_coverage_includes_isolated_general_tests_and_standalone_demo_processes():
+    workflow = _workflow_text()
+    combine = _agi_gui_combine_block()
+    for name in ("general", "demos", "builtin"):
+        assert f"          - {name}" in workflow
+        assert f'"{name}"' in combine
+        assert f"--coverage-data-file=test-results/coverage-agi-gui-{name}.db" in workflow
+    assert "tools.testing.root_test_runner --unclassified" in workflow
+    assert "tools.testing.root_test_runner --demos" in workflow
+    assert "AGILAB_FREE_THREADING_PYTHON=" in workflow
+    assert "--coverage-config=.coveragerc.demo-resources" in workflow
+    assert "patch = subprocess" in Path(".coveragerc.demo-resources").read_text()
+    assert 'src/agilab/demos/resources/*/tests.py' in CODECOV_CONFIG_PATH.read_text()
+
+
+
+def test_demo_coverage_interpreter_survives_uv_command_exit():
+    workflow = _workflow_text()
+    assert "python -m venv --copies --without-pip" in workflow
+    assert 'uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python"' in workflow
+    assert 'export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"' in workflow
+    assert "python tools/builtin_app_tests.py" in workflow
+
+
+
+def test_aggregate_retains_core_observations_from_gui_suites():
+    workflow = _workflow_text()
+    combine = _step_block("Write agi-gui coverage XML")
+    assert "--include='*/agi_node/*,*/agi_cluster/*,*/agi_env/*'" in combine
+    assert "-o coverage-gui-observed-core.xml" in combine
+    assert "            coverage-gui-observed-core.xml" in _step_block("Archive agi-gui coverage XML")
+    assert "./merged-coverage/coverage-gui-observed-core.xml" in workflow
+    # The component upload still uses its own bounded report.
+    assert "files: ./coverage-agi-gui.xml" in workflow
+
+
+
+def test_free_threaded_coverage_install_uses_locked_wheel_hashes():
+    workflow = _workflow_text()
+    assert 'tomllib.loads(Path("uv.lock").read_text())' in workflow
+    assert 'package["name"] == "coverage"' in workflow
+    assert 'wheel["hash"] for wheel in package["wheels"]' in workflow
+    assert '--require-hashes --no-build "$RUNNER_TEMP/agilab-coverage-interpreter-requirements.txt"' in workflow

@@ -37,6 +37,7 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
         "support",
         (
             "src/agilab/lib/agi-gui/test",
+            "src/agilab/core/test/test_worker_pool_support.py",
             "src/agilab/lib/agi-web/test",
             "test/test_action_execution.py",
             "test/test_agent_config_and_capabilities.py",

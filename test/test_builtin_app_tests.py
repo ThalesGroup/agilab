@@ -82,3 +82,17 @@ def test_app_test_env_root_uses_temporary_directory_by_default(monkeypatch):
         assert env_root.exists()
 
     assert not env_root.exists()
+
+def test_coverage_command_keeps_app_isolation_and_collects_parallel_data(tmp_path):
+    module = builtin_app_tests
+    data = tmp_path / "coverage.db"
+    junit = tmp_path / "junit.xml"
+    command = module.build_pytest_command(coverage_data_file=data, junit_path=junit)
+    assert command[:2] == ["uv", "--no-cache"]
+    assert command[command.index("--project") + 1] == "."
+    assert "coverage" in command
+    assert f"--source={module.REPO_ROOT / 'src/agilab'}" in command
+    assert f"--data-file={data}" in command
+    assert "--parallel-mode" in command
+    assert f"--junitxml={junit}" in command
+    assert command[command.index("python") + 1:command.index("python") + 4] == ["-m", "coverage", "run"]

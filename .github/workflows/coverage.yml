@@ -12,6 +12,8 @@ on:
       - "test/**"
       - "tools/coverage_badge_guard.py"
       - "tools/coverage_shard_plan.py"
+      - "tools/testing/root_test_runner.py"
+      - "tools/builtin_app_tests.py"
       - "tools/coverage_timing_report.py"
       - "tools/generate_component_coverage_badges.py"
       - "tools/workflow_parity.py"
@@ -246,7 +248,7 @@ jobs:
 
   agi-gui:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -258,6 +260,9 @@ jobs:
           - pages-rest
           - views
           - reports
+          - general
+          - demos
+          - builtin
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -324,6 +329,45 @@ jobs:
           }
 
           label="${{ matrix.chunk }}"
+          if [ "$label" = builtin ]; then
+            timeout 16m uv --preview-features extra-build-dependencies run python tools/builtin_app_tests.py --keep-going \
+              --coverage-data-file=test-results/coverage-agi-gui-builtin.db \
+              --junit-dir=test-results
+            exit 0
+          fi
+          if [ "$label" = demos ]; then
+            uv run --no-project --python 3.14t python -m venv --copies --without-pip "$RUNNER_TEMP/coverage-free-threaded"
+            uv run --no-project --python 3.13 python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          lock = tomllib.loads(Path("uv.lock").read_text())
+          package = next(package for package in lock["package"] if package["name"] == "coverage")
+          hashes = sorted({wheel["hash"] for wheel in package["wheels"]})
+          if not hashes or any(not digest.startswith("sha256:") for digest in hashes):
+              raise SystemExit("coverage requires SHA-256 wheel hashes in uv.lock")
+          requirement = f"coverage=={package['version']} " + " ".join(f"--hash={digest}" for digest in hashes)
+          Path(os.environ["RUNNER_TEMP"], "agilab-coverage-interpreter-requirements.txt").write_text(requirement + "\n")
+          PY
+            uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python" \
+              --require-hashes --no-build "$RUNNER_TEMP/agilab-coverage-interpreter-requirements.txt"
+            export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"
+            timeout 16m uv run --no-project --python 3.13 \
+              --with 'coverage>=7.16,<8' --with-requirements src/agilab/demos/resources/milp_energy_demo/requirements.txt \
+              python -m tools.testing.root_test_runner --demos \
+              --coverage-config=.coveragerc.demo-resources \
+              --coverage-data-file=test-results/coverage-agi-gui-demos.db \
+              --junit-dir=test-results
+            exit 0
+          fi
+          if [ "$label" = general ]; then
+            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook \
+              python -m tools.testing.root_test_runner --unclassified \
+              --coverage-data-file=test-results/coverage-agi-gui-general.db \
+              --junit-dir=test-results
+            exit 0
+          fi
           uv --preview-features extra-build-dependencies run python tools/coverage_shard_plan.py write \
             --output-dir test-results/coverage-agi-gui-shards \
             test-results/coverage-agi-gui-timing-cache/junit-agi-gui-*.xml
@@ -355,7 +399,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-gui-junit-${{ matrix.chunk }}
-          path: test-results/junit-agi-gui-${{ matrix.chunk }}.xml
+          path: test-results/junit-agi-gui-${{ matrix.chunk }}*.xml
           if-no-files-found: ignore
           retention-days: 3
 
@@ -463,7 +507,7 @@ jobs:
           import subprocess
           import sys
 
-          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports")
+          chunks = ("support", "pipeline", "robots", "pages-flow", "pages-rest", "views", "reports", "general", "demos", "builtin")
           paths: list[str] = []
           missing: list[str] = []
           for chunk in chunks:
@@ -491,6 +535,15 @@ jobs:
             --rcfile=.coveragerc.agi-gui \
             --data-file=.coverage.agi-gui \
             -o coverage-agi-gui.xml
+
+          # Root and GUI tests also exercise core APIs. Preserve those observations
+          # for the aggregate report without changing the GUI component boundary.
+          timeout 5m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
+            python -m coverage xml \
+            --rcfile=.coveragerc.agi-core \
+            --data-file=.coverage.agi-gui \
+            --include='*/agi_node/*,*/agi_cluster/*,*/agi_env/*' \
+            -o coverage-gui-observed-core.xml
 
       - name: Upload JUnit results
         if: always()
@@ -555,7 +608,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: coverage-agi-gui-xml
-          path: coverage-agi-gui.xml
+          path: |
+            coverage-agi-gui.xml
+            coverage-gui-observed-core.xml
           if-no-files-found: error
           retention-days: 3
 
@@ -599,7 +654,7 @@ jobs:
       - name: Upload repo-wide agilab coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
-          files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml
+          files: ./merged-coverage/coverage-agi-env.xml,./merged-coverage/coverage-agi-node.xml,./merged-coverage/coverage-agi-cluster.xml,./merged-coverage/coverage-agi-gui.xml,./merged-coverage/coverage-agi-web.xml,./merged-coverage/coverage-gui-observed-core.xml
           use_oidc: true
           verbose: true
           fail_ci_if_error: true
