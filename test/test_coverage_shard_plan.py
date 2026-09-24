@@ -132,7 +132,7 @@ def test_evidence_runtime_tests_are_in_coverage_plan(tmp_path, with_timings) -> 
     )
 
 
-def test_timing_balanced_plan_does_not_resurrect_removed_legacy_src_tests(tmp_path) -> None:
+def test_timing_balanced_plan_does_not_schedule_legacy_src_test_package(tmp_path) -> None:
     module = _load_module()
     junit_path = tmp_path / "junit-agi-gui-robots.xml"
     _write_junit(
@@ -148,7 +148,7 @@ def test_timing_balanced_plan_does_not_resurrect_removed_legacy_src_tests(tmp_pa
 
     assert plan.mode == "timing-balanced"
     assert "test/test_action_execution.py" in planned_args
-    assert "src/agilab/test/test_action_execution.py" not in planned_args
+    assert not any(arg.startswith("src/agilab/test") for arg in planned_args)
 
 
 def test_selector_chunks_stay_locked_when_balancing(tmp_path) -> None:
@@ -213,22 +213,3 @@ def test_agent_notebook_and_demo_tests_are_in_coverage_plan(tmp_path, with_timin
     assert not expected - scheduled, (
         f"Agent/notebook/demo tests omitted from coverage: {sorted(expected - scheduled)}"
     )
-
-
-
-@pytest.mark.parametrize("with_timings", [False, True])
-def test_distinct_source_security_tests_are_in_coverage_plan(tmp_path, with_timings):
-    module = _load_module()
-    junit_path = tmp_path / "junit-agi-gui-support.xml"
-    if with_timings:
-        _write_junit(junit_path, [("test.test_action_execution", "action", 1.0)])
-    plan = module.build_plan([str(junit_path)])
-    scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
-    expected = {
-        path.relative_to(module.REPO_ROOT).as_posix()
-        for path in (module.REPO_ROOT / "src/agilab/test").glob("test_*.py")
-        if path.relative_to(module.REPO_ROOT).as_posix() not in module.GLOBAL_IGNORES
-        and not (module.REPO_ROOT / "test" / path.name).exists()
-    }
-    assert expected and expected <= scheduled
-    assert not module.GLOBAL_IGNORES.intersection(scheduled)

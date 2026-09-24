@@ -261,3 +261,41 @@ def test_demo_runner_isolates_checkout_package_and_parent_conftest(tmp_path, mon
     groups = module.build_demo_test_groups()
     assert len(groups) == 1
     assert module.run_root_test_groups(groups) == 0
+
+
+def test_distinct_source_tests_are_isolated_and_external_model_test_is_ignored():
+    module = _load_module()
+    groups = module.build_root_test_groups()
+    source_groups = [group for group in groups if group.name.startswith("general:source-")]
+    expected = {
+        path.relative_to(REPO_ROOT).as_posix()
+        for path in (REPO_ROOT / "src/agilab/test").glob("test_*.py")
+        if path.relative_to(REPO_ROOT).as_posix() not in module.GLOBAL_IGNORES
+        and not (REPO_ROOT / "test" / path.name).exists()
+    }
+    assert expected == {path for group in source_groups for path in group.test_files}
+    assert all(len(group.test_files) == 1 for group in source_groups)
+    assert all(f"--confcutdir={REPO_ROOT / 'src/agilab/test'}" in group.pytest_args for group in source_groups)
+
+
+def test_source_test_collection_survives_same_named_outer_package(tmp_path, monkeypatch):
+    module = _load_module()
+    root = tmp_path / "agilab"
+    source_tests = root / "src/agilab/test"
+    source_tests.mkdir(parents=True)
+    for package in (root, root / "src/agilab", source_tests):
+        (package / "__init__.py").touch()
+    (root / "conftest.py").write_text("raise RuntimeError('outer package pollution')\n")
+    (source_tests / "test_hermetic.py").write_text("def test_source_contract():\n    assert 2 + 2 == 4\n")
+    (source_tests / "test_model_returns_code.py").write_text("raise RuntimeError('external model invoked')\n")
+    monkeypatch.setattr(module, "REPO_ROOT", root)
+    monkeypatch.setattr(module, "ROOT_TEST_DIR", root / "test")
+    monkeypatch.setattr(module, "static_chunk_args", lambda: {})
+    groups = module.build_root_test_groups()
+    assert len(groups) == 1
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts=", *groups[0].pytest_args],
+        cwd=root, capture_output=True, text=True, check=False,
+        env=module._pytest_environment(),
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

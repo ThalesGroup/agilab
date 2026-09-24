@@ -971,3 +971,68 @@ def test_import_cleanup_does_not_inspect_module_proxy_class(
 
     assert calls == []
     assert sys.modules[name] is proxy
+
+
+@pytest.mark.parametrize("failure", ["none", "lookup", "terminate", "kill", "reused"])
+def test_termination_only_signals_verified_children_before_parent(monkeypatch, failure):
+    events = []
+    identities = {101: 1.0, 202: 2.0}
+    checks = {101: 0, 202: 0}
+
+    class OwnedProcess:
+        def __init__(self, pid):
+            self.pid = pid
+
+        def terminate(self):
+            events.append(("terminate", self.pid))
+            if failure == "terminate":
+                raise psutil.AccessDenied(self.pid)
+
+        def kill(self):
+            events.append(("kill", self.pid))
+            if failure == "kill":
+                raise psutil.NoSuchProcess(self.pid)
+
+    def process(pid):
+        if failure == "lookup" and pid == 202:
+            raise psutil.NoSuchProcess(pid)
+        return OwnedProcess(pid)
+
+    def matches(pid, started):
+        checks[pid] += 1
+        assert identities[pid] == started
+        return not (failure == "reused" and pid == 202 and checks[pid] > 1)
+
+    def wait(owned, timeout):
+        events.append(("wait", timeout))
+        return [], owned
+
+    monkeypatch.setattr(ProcessSidecarRegistry, "_process_tree_identities", staticmethod(lambda *_: identities))
+    monkeypatch.setattr(ProcessSidecarRegistry, "_process_matches", staticmethod(matches))
+    monkeypatch.setattr(sidecar_registry_module, "psutil", SimpleNamespace(
+        **{**vars(psutil), "Process": process, "wait_procs": wait}
+    ))
+    ProcessSidecarRegistry._terminate_process(
+        SimpleNamespace(terminate=lambda: pytest.fail("unverified fallback")),
+        root_pid=101, root_started_at=1.0,
+    )
+    terminations = [pid for action, pid in events if action == "terminate"]
+    assert terminations == ([101] if failure == "lookup" else [202, 101])
+    kills = [pid for action, pid in events if action == "kill"]
+    assert kills == ([101] if failure in {"lookup", "reused"} else [202, 101])
+    assert [value for action, value in events if action == "wait"] == [2.0, 1.0]
+
+
+@pytest.mark.parametrize("raises", [False, True])
+def test_launcher_handle_cleanup_tolerates_an_already_exited_process(monkeypatch, raises):
+    calls = []
+
+    def terminate():
+        calls.append("terminate")
+        if raises:
+            raise ProcessLookupError("launcher already exited")
+
+    monkeypatch.setattr(ProcessSidecarRegistry, "_process_tree_identities", staticmethod(lambda *_: {}))
+    ProcessSidecarRegistry._terminate_process(SimpleNamespace(terminate=terminate))
+    assert calls == ["terminate"]
+    ProcessSidecarRegistry._terminate_process(object())

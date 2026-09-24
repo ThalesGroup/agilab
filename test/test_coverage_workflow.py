@@ -609,3 +609,11 @@ def test_general_coverage_checkout_materializes_lfs_for_fresh_clone_proof():
     root_suite = yaml.safe_load(Path('.github/workflows/root-test-suite.yml').read_text())
     root_checkout = next(step for step in root_suite['jobs']['root-tests']['steps'] if step.get('name') == 'Checkout')
     assert root_checkout['with']['lfs'] is True
+
+
+
+def test_demo_environment_uses_every_tested_bundles_requirements():
+    chunk = _step_block("Run agi-gui coverage chunk")
+    assert "for test_file in src/agilab/demos/resources/*/tests.py" in chunk
+    assert 'demo_requirements+=(--with-requirements "$requirements")' in chunk
+    assert '"${demo_requirements[@]}"' in chunk

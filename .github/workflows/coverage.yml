@@ -343,8 +343,14 @@ jobs:
             uv pip sync --python "$RUNNER_TEMP/coverage-free-threaded/bin/python" \
               --require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt
             export AGILAB_FREE_THREADING_PYTHON="$RUNNER_TEMP/coverage-free-threaded/bin/python"
+            demo_requirements=()
+            for test_file in src/agilab/demos/resources/*/tests.py; do
+              requirements="${test_file%/tests.py}/requirements.txt"
+              test -f "$requirements"
+              demo_requirements+=(--with-requirements "$requirements")
+            done
             timeout 16m uv run --no-project --python 3.13 \
-              --with 'coverage>=7.16,<8' --with-requirements src/agilab/demos/resources/milp_energy_demo/requirements.txt \
+              --with 'coverage>=7.16,<8' "${demo_requirements[@]}" \
               python -m tools.testing.root_test_runner --demos \
               --coverage-config=.coveragerc.demo-resources \
               --coverage-data-file=test-results/coverage-agi-gui-demos.db \

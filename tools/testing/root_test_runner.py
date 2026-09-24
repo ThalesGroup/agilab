@@ -16,7 +16,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.coverage_shard_plan import static_chunk_args
+from tools.coverage_shard_plan import GLOBAL_IGNORES, static_chunk_args
 from tools.testing.pytest_entrypoint import cleaned_test_environment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -102,6 +102,18 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
         RootTestGroup(f"general:{Path(path).stem}", (path,), (path,))
         for path in general
     ]
+    # Source-only regressions must not share collection with the outer test
+    # package: a checkout named agilab otherwise shadows src/agilab.
+    source_tests = REPO_ROOT / "src/agilab/test"
+    for path in sorted(source_tests.glob("test_*.py")):
+        relative = _repo_relative(path)
+        if relative in GLOBAL_IGNORES or (ROOT_TEST_DIR / path.name).is_file():
+            continue
+        groups.append(RootTestGroup(
+            f"general:source-{path.stem}",
+            (f"--confcutdir={source_tests}", relative),
+            (relative,),
+        ))
     groups.extend(chunk_groups)
 
     planned = {path for group in groups for path in group.test_files}
