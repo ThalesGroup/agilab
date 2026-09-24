@@ -24,30 +24,29 @@ def test_directory_sync_failure_is_best_effort_and_closes_opened_descriptor(
 ):
     opened = []
     closed = []
-    real_open = cli.os.open
-    real_close = cli.os.close
+    synced = []
+    descriptor = 8721
 
-    def open_directory(path, flags, *args, **kwargs):
-        if Path(path) == tmp_path and failure == "open":
+    def open_directory(path, flags):
+        assert Path(path) == tmp_path
+        assert flags == cli.os.O_RDONLY
+        if failure == "open":
             raise PermissionError("filesystem denies directory sync")
-        fd = real_open(path, flags, *args, **kwargs)
-        opened.append(fd)
-        return fd
+        opened.append(descriptor)
+        return descriptor
 
     def sync(fd):
+        synced.append(fd)
         raise OSError("filesystem does not support directory fsync")
 
-    def close(fd):
-        closed.append(fd)
-        return real_close(fd)
-
-    with monkeypatch.context() as patch:
-        patch.setattr(cli.os, "open", open_directory)
-        patch.setattr(cli.os, "fsync", sync)
-        patch.setattr(cli.os, "close", close)
-        cli._fsync_directory(tmp_path)
-    assert closed == opened
-    assert len(opened) == (0 if failure == "open" else 1)
+    # Windows cannot open a directory with os.open. Model that boundary locally
+    # so both failure stages are exercised without mutating the shared os module.
+    monkeypatch.setattr(cli, "os", SimpleNamespace(
+        O_RDONLY=cli.os.O_RDONLY, open=open_directory, fsync=sync, close=closed.append,
+    ))
+    cli._fsync_directory(tmp_path)
+    assert closed == synced == opened
+    assert opened == ([] if failure == "open" else [descriptor])
 
 
 @pytest.mark.parametrize("running_loop", [False, True])
