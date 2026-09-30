@@ -28,7 +28,18 @@ from learning_assessment.classroom import (  # noqa: E402
     score_classroom_submissions,
     validate_classroom_payload,
 )
-from learning_assessment.diagnostic import diagnose_case, validate_case_payload  # noqa: E402
+from learning_assessment.diagnostic import (  # noqa: E402
+    catalog_metadata,
+    diagnose_case,
+    validate_case_payload,
+)
+from learning_assessment.domain.education import (  # noqa: E402
+    STAGE_LABELS,
+    TRACE_FIELDS,
+    build_education_coverage_report,
+    load_course_registry,
+    resolve_academic_assessment,
+)
 from learning_assessment.domain.learning import (  # noqa: E402
     available_learning_tracks,
     load_ml_landscape,
@@ -311,7 +322,9 @@ def classroom_submission_inbox_dir(
     if runtime_env is None or runtime_args is None:
         return None
     inbox = Path(
-        str(getattr(runtime_args, "submission_inbox", "learning_assessment/submissions"))
+        str(
+            getattr(runtime_args, "submission_inbox", "learning_assessment/submissions")
+        )
     )
     if inbox.is_absolute():
         return inbox
@@ -410,6 +423,7 @@ def catalog_rows(cases: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "case_id": str(case.get("case_id", "")),
+                **{field: catalog.get(field, "") for field in TRACE_FIELDS},
                 "title": str(catalog.get("title", "")),
                 "difficulty": str(catalog.get("difficulty", "")),
                 "learner_level": str(catalog.get("learner_level", "")),
@@ -452,6 +466,9 @@ def filter_cases(
     learner_level: str = "",
     curriculum_id: str = "",
     learning_track: str = "",
+    education_stage: str = "",
+    course_id: str = "",
+    course_kind: str = "",
 ) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for case in cases:
@@ -467,6 +484,12 @@ def filter_cases(
         if learner_level and catalog.get("learner_level") != learner_level:
             continue
         if learning_track and catalog.get("learning_track") != learning_track:
+            continue
+        if education_stage and catalog.get("education_stage") != education_stage:
+            continue
+        if course_id and catalog.get("education_course_id") != course_id:
+            continue
+        if course_kind and catalog.get("education_course_kind") != course_kind:
             continue
         if curriculum_id and curriculum_id not in curriculum_ids:
             continue
@@ -597,7 +620,9 @@ def _safe_page_config() -> None:
     try:
         from agilab.ui.page_bootstrap import configure_page_config
     except (ImportError, ModuleNotFoundError):
-        getattr(st, "set_page_config")(page_title="Learning & Assessment", layout="wide")
+        getattr(st, "set_page_config")(
+            page_title="Learning & Assessment", layout="wide"
+        )
     else:
         configure_page_config(st, page_title="Learning & Assessment", layout="wide")
 
@@ -638,6 +663,60 @@ def _render_ml_landscape() -> None:
                 f"[{index}]({url})"
                 for index, url in enumerate(module["sources"], start=1)
             )
+        )
+
+
+def _render_academic_answer(case: Mapping[str, Any]) -> dict[str, Any]:
+    import streamlit as st
+
+    _, _, questions = resolve_academic_assessment(case)
+    selected = {}
+    for number, question in enumerate(questions, start=1):
+        choices = question["choices"]
+        option = st.radio(
+            f"{number}. {question['prompt']}",
+            list(choices),
+            index=None,
+            format_func=choices.__getitem__,
+            key=f"academic_answer_{case['case_id']}_{question['id']}",
+        )
+        if option is not None:
+            selected[question["id"]] = option
+    return {"academic_answers": selected}
+
+
+def _render_education_trace(catalog: Mapping[str, Any]) -> None:
+    import streamlit as st
+
+    trace = catalog["education_trace"]
+    st.caption(
+        " › ".join(
+            str(v)
+            for v in (
+                trace["stage_label"],
+                trace["course_title"],
+                trace["section_title"],
+            )
+            if v
+        )
+    )
+    if trace["assessment_kind"] == "curriculum_audit":
+        st.info(
+            "Ce scénario évalue un audit de programme ; sa note ne mesure pas la maîtrise mathématique de l'élève."
+        )
+    if trace.get("course_kind") == "extra":
+        st.info("Extra — complément aux syllabus ENSAE.")
+    if trace.get("prerequisite_course_ids"):
+        titles = {c["id"]: c["title"] for c in load_course_registry()["courses"]}
+        st.caption(
+            "Prérequis : "
+            + " ; ".join(titles[c] for c in trace["prerequisite_course_ids"])
+        )
+    st.caption("Notions : " + " ; ".join(n["label"] for n in trace["notions"]))
+    for source in trace["sources"]:
+        st.markdown(f"[{source['title']}]({source['url']})")
+        st.caption(
+            f"Référence revue le {source['reviewed_on']}. {source.get('scope', '')}"
         )
 
 
@@ -685,6 +764,42 @@ def render(
     selected_track_id = str(selected_track or "all")
     selected_track_filter = "" if selected_track_id == "all" else selected_track_id
     selected_track_cases = filter_cases(cases, learning_track=selected_track_filter)
+    stage_labels = {"": "Tous les niveaux", **STAGE_LABELS}
+    stage_options = [""] + [
+        stage
+        for stage in STAGE_LABELS
+        if any(
+            catalog_metadata(c)["education_stage"] == stage
+            for c in selected_track_cases
+        )
+    ]
+    if st.session_state.get("learning_education_stage", "") not in stage_options:
+        st.session_state["learning_education_stage"] = ""
+    selected_stage = st.selectbox(
+        "Niveau scolaire",
+        stage_options,
+        format_func=stage_labels.__getitem__,
+        key="learning_education_stage",
+    )
+    selected_track_cases = filter_cases(
+        selected_track_cases, education_stage=selected_stage
+    )
+    course_titles = {"": "Tous les cours"}
+    for item in selected_track_cases:
+        metadata = catalog_metadata(item)
+        if metadata["education_course_id"]:
+            course_titles[metadata["education_course_id"]] = metadata[
+                "education_course_title"
+            ]
+    if st.session_state.get("learning_education_course", "") not in course_titles:
+        st.session_state["learning_education_course"] = ""
+    selected_course = st.selectbox(
+        "Cours / Extra",
+        list(course_titles),
+        format_func=course_titles.__getitem__,
+        key="learning_education_course",
+    )
+    selected_track_cases = filter_cases(selected_track_cases, course_id=selected_course)
     if selected_track_id == "all":
         st.caption("The Catalog and Self-check tabs show every learner path.")
     else:
@@ -754,47 +869,55 @@ def render(
         catalog = report["catalog"]
         st.markdown(f"**{catalog['title']}**")
         st.caption(catalog["student_prompt"])
+        _render_education_trace(catalog)
         if selected_id.startswith("ml_landscape_2026_"):
             st.info(
                 "Worked example: the fields below contain a model answer. "
                 "Explain each choice, then change an answer to compare the feedback."
             )
-        answer = build_student_answer(
-            diagnosis=st.text_area(
-                "Diagnosis",
-                value=str(case.get("student_answer", {}).get("diagnosis", "")),
-                key=f"tescia_answer_diagnosis_{selected_id}",
-            ),
-            root_cause=st.text_area(
-                "Root cause",
-                value=str(case.get("student_answer", {}).get("root_cause", "")),
-                key=f"tescia_answer_root_cause_{selected_id}",
-            ),
-            evidence_ids=st.text_input(
-                "Evidence ids",
-                value=",".join(case.get("student_answer", {}).get("evidence_ids", [])),
-                key=f"tescia_answer_evidence_{selected_id}",
-            ),
-            selected_fix_id=st.text_input(
-                "Selected fix id",
-                value=str(case.get("student_answer", {}).get("selected_fix_id", "")),
-                key=f"tescia_answer_fix_{selected_id}",
-            ),
-            regression_test_ids=st.text_input(
-                "Regression test ids",
-                value=",".join(
-                    case.get("student_answer", {}).get("regression_test_ids", [])
+        if "academic_assessment" in case:
+            answer = _render_academic_answer(case)
+        else:
+            answer = build_student_answer(
+                diagnosis=st.text_area(
+                    "Diagnosis",
+                    value=str(case.get("student_answer", {}).get("diagnosis", "")),
+                    key=f"tescia_answer_diagnosis_{selected_id}",
                 ),
-                key=f"tescia_answer_regression_{selected_id}",
-            ),
-            confidence=st.slider(
-                "Confidence",
-                0.0,
-                1.0,
-                float(case.get("student_answer", {}).get("confidence", 0.75)),
-                key=f"tescia_answer_confidence_{selected_id}",
-            ),
-        )
+                root_cause=st.text_area(
+                    "Root cause",
+                    value=str(case.get("student_answer", {}).get("root_cause", "")),
+                    key=f"tescia_answer_root_cause_{selected_id}",
+                ),
+                evidence_ids=st.text_input(
+                    "Evidence ids",
+                    value=",".join(
+                        case.get("student_answer", {}).get("evidence_ids", [])
+                    ),
+                    key=f"tescia_answer_evidence_{selected_id}",
+                ),
+                selected_fix_id=st.text_input(
+                    "Selected fix id",
+                    value=str(
+                        case.get("student_answer", {}).get("selected_fix_id", "")
+                    ),
+                    key=f"tescia_answer_fix_{selected_id}",
+                ),
+                regression_test_ids=st.text_input(
+                    "Regression test ids",
+                    value=",".join(
+                        case.get("student_answer", {}).get("regression_test_ids", [])
+                    ),
+                    key=f"tescia_answer_regression_{selected_id}",
+                ),
+                confidence=st.slider(
+                    "Confidence",
+                    0.0,
+                    1.0,
+                    float(case.get("student_answer", {}).get("confidence", 0.75)),
+                    key=f"tescia_answer_confidence_{selected_id}",
+                ),
+            )
         if st.button(
             "Evaluate answer",
             type="primary",
@@ -809,6 +932,10 @@ def render(
                 evaluation = scored["self_evaluation"]
                 st.metric("Student score", scored["student_score"])
                 st.write(evaluation["feedback"])
+                for result in evaluation.get("question_results", []):
+                    with st.expander(result["prompt"]):
+                        st.write("Réponse attendue : " + result["correct_text"])
+                        st.write(result["explanation"])
                 decision = scored.get("decision", {})
                 if (
                     isinstance(decision, Mapping)
@@ -982,6 +1109,31 @@ def render(
             st.code(json.dumps(draft, indent=2, sort_keys=True), language="json")
 
     with coverage_tab:
+        engineering_coverage = build_education_coverage_report(cases)
+        st.subheader("Cours d'ingénieur et Extra")
+        st.caption(engineering_coverage["scope"])
+        st.caption(engineering_coverage["question_origin"])
+        st.write(
+            f"{engineering_coverage['syllabus_course_count']} cours ENSAE ; "
+            f"{engineering_coverage['extra_course_count']} modules Extra ; "
+            f"{engineering_coverage['section_count']} chapitres ; "
+            f"{engineering_coverage['question_count']} questions."
+        )
+        if engineering_coverage["quality_passed"]:
+            st.success(
+                "Chaque chapitre et chaque notion déclarée disposent de questions."
+            )
+        else:
+            st.warning("Des chapitres, questions ou notions manquent dans la banque.")
+        st.dataframe(engineering_coverage["sections"], width="stretch", hide_index=True)
+        st.download_button(
+            "Télécharger la traçabilité et la couverture",
+            json.dumps(engineering_coverage, indent=2, ensure_ascii=False),
+            file_name="learning_assessment_engineering_course_coverage_fr.json",
+            mime="application/json",
+            key="learning_education_coverage_download",
+        )
+        st.subheader("Collège et lycée — audit de programme")
         st.metric("Coverage ratio", coverage["coverage_ratio"])
         st.metric("Required ids", coverage["required_count"])
         st.metric("Minimum exercises per id", coverage["required_min_cases_per_id"])

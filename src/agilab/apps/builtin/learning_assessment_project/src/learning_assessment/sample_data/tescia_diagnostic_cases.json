@@ -3272,6 +3272,2526 @@
         ],
         "confidence": 1.0
       }
+    },
+    {
+      "case_id": "ensae_algebre_01",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 01. Espaces vectoriels",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Sous-espaces, familles libres/génératrices, bases et dimension",
+        "Noyau, image et rang",
+        "Sommes directes et projecteurs"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "01",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "01_q1",
+          "01_q2",
+          "01_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_02",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 02. Matrices",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Calcul matriciel et représentation d'endomorphismes",
+        "Changement de base et similitude",
+        "Équivalence et rang"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "02",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "02_q1",
+          "02_q2",
+          "02_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_03",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 03. Déterminants",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_algebre",
+        "Déterminant et calcul",
+        "Cofacteurs et inverse"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "03",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_04",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 04. Inversion et systèmes linéaires",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_algebre",
+        "Opérations élémentaires, rang et inversion",
+        "Résolution de systèmes et compatibilité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "04",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_05",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 05. Réduction des endomorphismes",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Valeurs/vecteurs propres et polynôme caractéristique",
+        "Critères de diagonalisation",
+        "Théorème spectral"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "05",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "05_q1",
+          "05_q2",
+          "05_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_06",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 06. Applications de la réduction",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Puissances de matrices",
+        "Systèmes récurrents",
+        "Systèmes différentiels"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "06",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "06_q1",
+          "06_q2",
+          "06_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_07",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 07. Formes quadratiques",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Représentation matricielle et orthogonalité",
+        "Congruence, réduction de Gauss et bases orthogonales",
+        "Signature"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "07",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "07_q1",
+          "07_q2",
+          "07_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_08",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 08. Espaces euclidiens",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Schmidt et bases orthonormées",
+        "Matrices orthogonales et réduction",
+        "Projections orthogonales et distances"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "08",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "08_q1",
+          "08_q2",
+          "08_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_algebre_09",
+      "learning_track": "engineering_ensae",
+      "title": "Algèbre — 09. Matrices symétriques réelles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_algebre",
+        "Endomorphismes symétriques et diagonalisation orthonormée",
+        "Réductions simultanées"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_algebre",
+        "section_id": "09",
+        "source_revision": "b892e452c23e0dbfdcbf682fbdedb817ac8f91105805e18364fd96f9ebe57baf",
+        "question_ids": [
+          "09_q1",
+          "09_q2",
+          "09_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_01",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 01. Rappels probabilistes",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Théorèmes limites",
+        "Théorèmes de continuité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "01",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_02",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 02. Échantillons et répartition empirique",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Échantillon iid",
+        "Fonction de répartition empirique"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "02",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_03",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 03. Glivenko–Cantelli et substitution",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Convergence uniforme empirique",
+        "Estimation par substitution"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "03",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_04_05",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 04_05. Moyenne, variance et modèles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Moyenne empirique et variance corrigée",
+        "Identifiabilité, modèles discrets et à densité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "04_05",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "04_05_q1",
+          "04_05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_05",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 05. Consistance, risque et comparaison",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Consistance",
+        "Risque quadratique",
+        "Inadmissibilité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "05",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_06",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 06. Méthode des moments généralisée",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Conditions de moments et identification",
+        "Critère GMM"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "06",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_07_08",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 07_08. Maximum de vraisemblance",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Vraisemblance et log-vraisemblance",
+        "Calcul de l'EMV",
+        "Consistance de l'EMV"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "07_08",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "07_08_q1",
+          "07_08_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_09",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 09. Asymptotique de l'EMV",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Régularité et information de Fisher",
+        "Normalité asymptotique"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "09",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "09_q1",
+          "09_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_10",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 10. Optimalité et Cramér–Rao",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Géométrie du score et Cramér–Rao",
+        "Efficacité asymptotique"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "10",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "10_q1",
+          "10_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_11_12",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 11_12. Estimation bayésienne",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Conjugaison et loi a posteriori",
+        "Estimateur bayésien et fonction de perte"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "11_12",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "11_12_q1",
+          "11_12_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_statistique_1_13",
+      "learning_track": "engineering_ensae",
+      "title": "Statistique 1 (FR) — 13. Ensembles de confiance",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_statistique_1",
+        "Couverture fréquentiste",
+        "Construction exacte et asymptotique"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_statistique_1",
+        "section_id": "13",
+        "source_revision": "0e5bc0c3b01f5d1a6aad81db25f29c4b38da7e6c31cf0119ab2b91ca10068135",
+        "question_ids": [
+          "13_q1",
+          "13_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_optimal_transport_01",
+      "learning_track": "engineering_ensae",
+      "title": "Optimal Transport: From Theory to Tweaks — 01. Distances, noyaux et espaces de Hilbert",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 20,
+      "topic_tags": [
+        "ensae_optimal_transport",
+        "Distances, normes et espaces de Hilbert",
+        "Noyaux définis positifs",
+        "Distances de type négatif",
+        "Distances pour KNN et noyaux pour SVM"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_optimal_transport",
+        "section_id": "01",
+        "source_revision": "2d41ff2406332dfe0183e49e943ab74d25cf76ab7106a308b8ae4fd677662523",
+        "question_ids": [
+          "01_q1",
+          "01_q2",
+          "01_q3",
+          "01_q4"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_optimal_transport_02",
+      "learning_track": "engineering_ensae",
+      "title": "Optimal Transport: From Theory to Tweaks — 02. Réduction de dimension et représentations",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 20,
+      "topic_tags": [
+        "ensae_optimal_transport",
+        "Kernel PCA et MDS métrique",
+        "Isomap et LLE",
+        "t-SNE et embeddings",
+        "Autoencodeurs variationnels"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_optimal_transport",
+        "section_id": "02",
+        "source_revision": "2d41ff2406332dfe0183e49e943ab74d25cf76ab7106a308b8ae4fd677662523",
+        "question_ids": [
+          "02_q1",
+          "02_q2",
+          "02_q3",
+          "02_q4"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_optimal_transport_03",
+      "learning_track": "engineering_ensae",
+      "title": "Optimal Transport: From Theory to Tweaks — 03. Apprentissage des métriques",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_optimal_transport",
+        "LMNN et métrique de Mahalanobis",
+        "Analyse discriminante locale",
+        "Combinaison de noyaux"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_optimal_transport",
+        "section_id": "03",
+        "source_revision": "2d41ff2406332dfe0183e49e943ab74d25cf76ab7106a308b8ae4fd677662523",
+        "question_ids": [
+          "03_q1",
+          "03_q2",
+          "03_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_optimal_transport_04",
+      "learning_track": "engineering_ensae",
+      "title": "Optimal Transport: From Theory to Tweaks — 04. Distances structurées et transport optimal",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 30,
+      "topic_tags": [
+        "ensae_optimal_transport",
+        "Noyaux de Fisher",
+        "Noyaux de chaînes, séquences et textes",
+        "DTW et distance d'édition",
+        "Simplexe et distances entre probabilités",
+        "Wasserstein et Gromov–Wasserstein",
+        "Autodifférentiation du transport"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_optimal_transport",
+        "section_id": "04",
+        "source_revision": "2d41ff2406332dfe0183e49e943ab74d25cf76ab7106a308b8ae4fd677662523",
+        "question_ids": [
+          "04_q1",
+          "04_q2",
+          "04_q3",
+          "04_q4",
+          "04_q5",
+          "04_q6"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_01",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 01. Mesure de Lebesgue",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Mesure extérieure",
+        "Mesurabilité de Lebesgue"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "01",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_02",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 02. Espaces mesurés",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Tribus et mesures",
+        "Fonctions mesurables"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "02",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_03",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 03. Intégration par rapport à une mesure",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 20,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Intégrale positive et convergence monotone",
+        "Fatou et convergence dominée",
+        "Intégrales à paramètre",
+        "Changement de variables"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "03",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "03_q1",
+          "03_q2",
+          "03_q3",
+          "03_q4"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_04",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 04. Espaces Lᵖ",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Définition et classes presque partout",
+        "Hölder et Cauchy–Schwarz",
+        "Complétude"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "04",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "04_q1",
+          "04_q2",
+          "04_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_05",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 05. Mesures produits",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Construction du produit",
+        "Fubini et Tonelli"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "05",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mesure_lebesgue_06",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie de la mesure et intégrale de Lebesgue — 06. Radon–Nikodym",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mesure_lebesgue",
+        "Continuité absolue et existence de densité",
+        "Unicité et calcul de densité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mesure_lebesgue",
+        "section_id": "06",
+        "source_revision": "50d5b13aa31cfa7a79746215a2f442bf1e2179e9bbe9fd47f61d982227c5cd64",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_01",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 01. Introduction aux HMM",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Structure conditionnelle d'un HMM",
+        "Filtrage, lissage et prédiction",
+        "Forward–backward"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "01",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "01_q1",
+          "01_q2",
+          "01_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_02",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 02. HMM discrets",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Récursion sur états discrets",
+        "Algorithme de Baum–Petrie"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "02",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_03",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 03. HMM linéaires gaussiens",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Prédiction de Kalman",
+        "Mise à jour de Kalman"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "03",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_04",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 04. Monte-Carlo séquentiel pour le filtrage",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Filtre particulaire et poids",
+        "Dégénérescence et rééchantillonnage"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "04",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_05",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 05. Estimation dans les HMM",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Vraisemblance des observations",
+        "Estimation par EM et lissage"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "05",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_hmm_smc_06",
+      "learning_track": "engineering_ensae",
+      "title": "Hidden Markov Models and Sequential Monte-Carlo methods — 06. Extensions SMC non séquentielles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_hmm_smc",
+        "Suite de cibles bayésiennes tempérées",
+        "Poids, rééchantillonnage et mutation"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_hmm_smc",
+        "section_id": "06",
+        "source_revision": "7684882d9928c90c36b2becc698144c82a64b5bc3aa087a58a485ecab3c949f0",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_probabilites_2ad_01",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie des probabilités 2AD — 01. Probabilités, mesures et intégration",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_probabilites_2ad",
+        "Espace probabilisé",
+        "Espérance comme intégrale"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_probabilites_2ad",
+        "section_id": "01",
+        "source_revision": "a5ca93b7303d8f659790bd5322c0d96a4e8bb4d7d144ae0952b10315bceec2d2",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_probabilites_2ad_02",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie des probabilités 2AD — 02. Variables aléatoires et lois",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_probabilites_2ad",
+        "Moments et covariance",
+        "Caractérisation des lois",
+        "Changement de variables et lois usuelles"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_probabilites_2ad",
+        "section_id": "02",
+        "source_revision": "a5ca93b7303d8f659790bd5322c0d96a4e8bb4d7d144ae0952b10315bceec2d2",
+        "question_ids": [
+          "02_q1",
+          "02_q2",
+          "02_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_probabilites_2ad_03",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie des probabilités 2AD — 03. Indépendance et conditionnement",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_probabilites_2ad",
+        "Indépendance et probabilités conditionnelles",
+        "Espérance conditionnelle dans L¹",
+        "Projection dans L²"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_probabilites_2ad",
+        "section_id": "03",
+        "source_revision": "a5ca93b7303d8f659790bd5322c0d96a4e8bb4d7d144ae0952b10315bceec2d2",
+        "question_ids": [
+          "03_q1",
+          "03_q2",
+          "03_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_probabilites_2ad_04",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie des probabilités 2AD — 04. Variables aléatoires normales",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_probabilites_2ad",
+        "Transformations linéaires gaussiennes",
+        "Lois dérivées et transformations quadratiques",
+        "Décorrélation et indépendance gaussiennes"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_probabilites_2ad",
+        "section_id": "04",
+        "source_revision": "a5ca93b7303d8f659790bd5322c0d96a4e8bb4d7d144ae0952b10315bceec2d2",
+        "question_ids": [
+          "04_q1",
+          "04_q2",
+          "04_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_probabilites_2ad_05",
+      "learning_track": "engineering_ensae",
+      "title": "Théorie des probabilités 2AD — 05. Convergence et théorèmes limites",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_probabilites_2ad",
+        "Modes de convergence",
+        "Suites et séries indépendantes",
+        "Lois des grands nombres et TCL"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_probabilites_2ad",
+        "section_id": "05",
+        "source_revision": "a5ca93b7303d8f659790bd5322c0d96a4e8bb4d7d144ae0952b10315bceec2d2",
+        "question_ids": [
+          "05_q1",
+          "05_q2",
+          "05_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_haute_dimension_01",
+      "learning_track": "engineering_ensae",
+      "title": "Statistiques à haute dimension — 01. Parcimonie et seuillage",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_haute_dimension",
+        "Modèle de suite gaussienne",
+        "Seuillage dur et doux",
+        "Garanties non asymptotiques"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_haute_dimension",
+        "section_id": "01",
+        "source_revision": "76d986effe32abe12cd0f55d4d4ef5a6770db3239baa3a12b5cc5a14a0dc9ee1",
+        "question_ids": [
+          "01_q1",
+          "01_q2",
+          "01_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_haute_dimension_02",
+      "learning_track": "engineering_ensae",
+      "title": "Statistiques à haute dimension — 02. Régression linéaire en grande dimension",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_haute_dimension",
+        "Lasso et conditions de design",
+        "BIC, Dantzig et Square Root Lasso",
+        "Inégalités oracle et sélection"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_haute_dimension",
+        "section_id": "02",
+        "source_revision": "76d986effe32abe12cd0f55d4d4ef5a6770db3239baa3a12b5cc5a14a0dc9ee1",
+        "question_ids": [
+          "02_q1",
+          "02_q2",
+          "02_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_haute_dimension_03",
+      "learning_track": "engineering_ensae",
+      "title": "Statistiques à haute dimension — 03. Matrices de faible rang",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_haute_dimension",
+        "Structure de faible rang et norme nucléaire",
+        "Complétion matricielle et identifiabilité",
+        "Garanties à taille finie"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_haute_dimension",
+        "section_id": "03",
+        "source_revision": "76d986effe32abe12cd0f55d4d4ef5a6770db3239baa3a12b5cc5a14a0dc9ee1",
+        "question_ids": [
+          "03_q1",
+          "03_q2",
+          "03_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_haute_dimension_04",
+      "learning_track": "engineering_ensae",
+      "title": "Statistiques à haute dimension — 04. Graphes et communautés",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_haute_dimension",
+        "Graphes aléatoires inhomogènes et SBM",
+        "Estimation et détection des communautés",
+        "Seuil de détectabilité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_haute_dimension",
+        "section_id": "04",
+        "source_revision": "76d986effe32abe12cd0f55d4d4ef5a6770db3239baa3a12b5cc5a14a0dc9ee1",
+        "question_ids": [
+          "04_q1",
+          "04_q2",
+          "04_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mathematiques_financieres_01",
+      "learning_track": "engineering_ensae",
+      "title": "Mathématiques financières — 01. Introduction aux produits dérivés",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mathematiques_financieres",
+        "Payoffs et sous-jacent",
+        "Valorisation actualisée"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mathematiques_financieres",
+        "section_id": "01",
+        "source_revision": "bb14187eba2d86333f2ec62467102fadf128cfab00c17f070cc3677d92f455c6",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mathematiques_financieres_02",
+      "learning_track": "engineering_ensae",
+      "title": "Mathématiques financières — 02. Valorisation et arbitrage",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mathematiques_financieres",
+        "Portefeuille autofinancé",
+        "Absence d'arbitrage et réplication"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mathematiques_financieres",
+        "section_id": "02",
+        "source_revision": "bb14187eba2d86333f2ec62467102fadf128cfab00c17f070cc3677d92f455c6",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mathematiques_financieres_03",
+      "learning_track": "engineering_ensae",
+      "title": "Mathématiques financières — 03. Valorisation par arbres",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_mathematiques_financieres",
+        "Arbre binomial et probabilité risque-neutre",
+        "Arbre multinomial et complétude"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mathematiques_financieres",
+        "section_id": "03",
+        "source_revision": "bb14187eba2d86333f2ec62467102fadf128cfab00c17f070cc3677d92f455c6",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mathematiques_financieres_04",
+      "learning_track": "engineering_ensae",
+      "title": "Mathématiques financières — 04. Calcul stochastique",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_mathematiques_financieres",
+        "Brownien et filtration",
+        "Martingales et intégrale stochastique",
+        "Formule d'Itô"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mathematiques_financieres",
+        "section_id": "04",
+        "source_revision": "bb14187eba2d86333f2ec62467102fadf128cfab00c17f070cc3677d92f455c6",
+        "question_ids": [
+          "04_q1",
+          "04_q2",
+          "04_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_mathematiques_financieres_05",
+      "learning_track": "engineering_ensae",
+      "title": "Mathématiques financières — 05. Modèle de Black–Scholes",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_mathematiques_financieres",
+        "Formule de valorisation",
+        "EDP et Feynman–Kac",
+        "Couverture et grecques"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_mathematiques_financieres",
+        "section_id": "05",
+        "source_revision": "bb14187eba2d86333f2ec62467102fadf128cfab00c17f070cc3677d92f455c6",
+        "question_ids": [
+          "05_q1",
+          "05_q2",
+          "05_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_A01",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — A01. Tribus et ensembles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Tribu engendrée et image réciproque",
+        "Produits d'espaces mesurables"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "A01",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "A01_q1",
+          "A01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_A02",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — A02. Mesures et espaces mesurés",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Additivité et continuité des mesures",
+        "Caractérisation des mesures finies"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "A02",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "A02_q1",
+          "A02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_A03",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — A03. Prolongement des mesures",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Prolongement et mesure extérieure",
+        "Borel, Lebesgue, négligeables et complétion",
+        "Produits d'espaces mesurés"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "A03",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "A03_q1",
+          "A03_q2",
+          "A03_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_A04",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — A04. Fonctions mesurables",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Fonctions boréliennes et mesure image",
+        "Fonctions étagées et approximation"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "A04",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "A04_q1",
+          "A04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_A05",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — A05. Mesure et probabilités",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Loi d'une variable aléatoire",
+        "Indépendance et mesure produit"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "A05",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "A05_q1",
+          "A05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_B01",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — B01. Intégration des fonctions positives",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Construction, Beppo–Levi et Fatou",
+        "Mesures à densité et changement de variables",
+        "Fubini–Tonelli"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "B01",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "B01_q1",
+          "B01_q2",
+          "B01_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_fondements_probabilites_B02",
+      "learning_track": "engineering_ensae",
+      "title": "Fondements mathématiques des probabilités — B02. Intégration des fonctions générales",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_fondements_probabilites",
+        "Intégrabilité, Lᵖ et convergence dominée",
+        "Continuité et dérivation sous l'intégrale",
+        "Fubini et convolution"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_fondements_probabilites",
+        "section_id": "B02",
+        "source_revision": "ac12decda9d3c130ef49075bd01775a36ac4c80216f0c994c222e4d99166e5b9",
+        "question_ids": [
+          "B02_q1",
+          "B02_q2",
+          "B02_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_01",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 01. Espaces métriques et topologiques",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_analyse",
+        "Distances, ouverts, fermés et voisinages",
+        "Séparation, adhérence et densité",
+        "Espaces normés"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "01",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "01_q1",
+          "01_q2",
+          "01_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_02",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 02. Suites",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Convergence et sous-suites",
+        "Caractérisations séquentielles",
+        "Comparaison des topologies"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "02",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_03",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 03. Construction d'espaces",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Topologie induite",
+        "Topologie produit"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "03",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_04",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 04. Continuité : définition et caractérisations",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Continuité topologique et séquentielle",
+        "Applications linéaires continues"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "04",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_05",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 05. Opérations sur les fonctions continues",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Opérations usuelles",
+        "Suites de fonctions continues"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "05",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_06",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 06. Espaces complets",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Suites de Cauchy et complétude",
+        "Fermeture et sous-espaces complets"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "06",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_07",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 07. Exemples et applications de la complétude",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 15,
+      "topic_tags": [
+        "ensae_analyse",
+        "Espaces complets classiques",
+        "Point fixe contractant",
+        "Séries dans un Banach"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "07",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "07_q1",
+          "07_q2",
+          "07_q3"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_08",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 08. Compacité",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Compacité métrique",
+        "Fonctions continues sur un compact"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "08",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "08_q1",
+          "08_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_09",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 09. Produits scalaires",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Cas réel",
+        "Cas complexe"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "09",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "09_q1",
+          "09_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_10",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 10. Orthogonalité",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Procédé de Schmidt",
+        "Bases orthonormales"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "10",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "10_q1",
+          "10_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_11",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 11. Projection orthogonale",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Projecteurs et distance",
+        "Bessel et coefficients de Fourier"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "11",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "11_q1",
+          "11_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_12",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 12. Espaces de Hilbert",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Projection sur un convexe fermé",
+        "Orthogonalité et bases hilbertiennes"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "12",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "12_q1",
+          "12_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_13",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse — 13. Séries de fonctions et Fourier",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse",
+        "Modes de convergence des séries",
+        "Séries de Fourier"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse",
+        "section_id": "13",
+        "source_revision": "f36c1a3d61182ce19c5580ea547720d7b512ffb16e1f395349e05853f48456fe",
+        "question_ids": [
+          "13_q1",
+          "13_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_01",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 01. Fonctions usuelles et développements limités",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Fonctions usuelles",
+        "Approximations et reste"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "01",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_02",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 02. Intégrale de Riemann et parties",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Construction de Riemann",
+        "Intégration par parties"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "02",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_03",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 03. Changement de variable",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Formule de substitution",
+        "Bornes et Jacobien en dimension 1"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "03",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_04",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 04. Intégration des fonctions rationnelles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Décomposition en éléments simples",
+        "Primitives rationnelles"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "04",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_05",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 05. Intégrales impropres",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Convergence à l'infini",
+        "Singularités au bord"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "05",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_06",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 06. Dérivées partielles et gradient",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Calcul des dérivées partielles",
+        "Gradient et dérivée directionnelle"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "06",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_07",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 07. Différentielles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Application linéaire tangente",
+        "Composition et règle de chaîne"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "07",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "07_q1",
+          "07_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_08",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 08. Intégrales doubles",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Intégration itérée",
+        "Changement de variables et Jacobien"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "08",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "08_q1",
+          "08_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_09",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 09. Intégrales doubles impropres",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Convergence sur domaine non borné",
+        "Singularités bidimensionnelles"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "09",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "09_q1",
+          "09_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_10",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 10. Convexité",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Hessienne et convexité",
+        "Condition du premier ordre"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "10",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "10_q1",
+          "10_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_11",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 11. Fonctions implicites",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Hypothèses du théorème",
+        "Dérivée implicite"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "11",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "11_q1",
+          "11_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_12",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 12. Équations différentielles du premier ordre",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Équation homogène",
+        "Second membre et condition initiale"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "12",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "12_q1",
+          "12_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_13",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 13. Équations différentielles d'ordre supérieur",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Polynôme caractéristique",
+        "Second membre et résonance"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "13",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "13_q1",
+          "13_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_14",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 14. Introduction aux séries de Fourier",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Coefficients trigonométriques",
+        "Convergence et régularité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "14",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "14_q1",
+          "14_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_calcul_differentiel_integral_15",
+      "learning_track": "engineering_ensae",
+      "title": "Calcul différentiel et intégral — 15. Révisions",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_calcul_differentiel_integral",
+        "Synthèse intégrale et substitution",
+        "Synthèse différentiation et convexité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_calcul_differentiel_integral",
+        "section_id": "15",
+        "source_revision": "8fad8e8a4b7880fea18563340992ef3030ca55d92f2c16ab21643aa37a8dd2eb",
+        "question_ids": [
+          "15_q1",
+          "15_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_fonctionnelle_convexe_01",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse fonctionnelle et convexe — 01. Topologie des espaces métriques",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse_fonctionnelle_convexe",
+        "Convergence et complétude",
+        "Compacité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse_fonctionnelle_convexe",
+        "section_id": "01",
+        "source_revision": "10f87936305a781a182423ccc6c703ca9a08ab07230cfad9c684c5ab4a4bba8d",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_fonctionnelle_convexe_02",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse fonctionnelle et convexe — 02. Espaces de Banach",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse_fonctionnelle_convexe",
+        "Complétude des espaces normés",
+        "Applications aux séries et contractions"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse_fonctionnelle_convexe",
+        "section_id": "02",
+        "source_revision": "10f87936305a781a182423ccc6c703ca9a08ab07230cfad9c684c5ab4a4bba8d",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_fonctionnelle_convexe_03",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse fonctionnelle et convexe — 03. Espaces de Hilbert",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse_fonctionnelle_convexe",
+        "Norme hilbertienne",
+        "Projection orthogonale"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse_fonctionnelle_convexe",
+        "section_id": "03",
+        "source_revision": "10f87936305a781a182423ccc6c703ca9a08ab07230cfad9c684c5ab4a4bba8d",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "ensae_analyse_fonctionnelle_convexe_04",
+      "learning_track": "engineering_ensae",
+      "title": "Analyse fonctionnelle et convexe — 04. Fonctions convexes",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "ensae_analyse_fonctionnelle_convexe",
+        "Convexité et Jensen",
+        "Minimisation et unicité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "ensae_analyse_fonctionnelle_convexe",
+        "section_id": "04",
+        "source_revision": "10f87936305a781a182423ccc6c703ca9a08ab07230cfad9c684c5ab4a4bba8d",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_01",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 01. Localisation et changements d'échelle",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Localisation temps/fréquence",
+        "Translations et dilatations"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "01",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_02",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 02. Ondelette de Haar",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Fonction mère et orthogonalité",
+        "Transformée discrète et reconstruction"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "02",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_03",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 03. Analyse multirésolution",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Espaces emboîtés et détails",
+        "Décomposition orthogonale"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "03",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_04",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 04. Bancs de filtres",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Filtres passe-bas et passe-haut",
+        "Décimation, synthèse et bords"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "04",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_05",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 05. Daubechies et moments nuls",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Moments nuls et polynômes",
+        "Support, régularité et compromis"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "05",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_ondelettes_06",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Ondelettes — 06. Compression et débruitage",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_ondelettes",
+        "Seuillage des coefficients",
+        "Erreur de reconstruction et validation"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_ondelettes",
+        "section_id": "06",
+        "source_revision": "324a8feb59827d0cbf2c89a087d3b29c80c406a19a41e5b0d13b3a333a86648b",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_01",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 01. Arithmétique modulaire et anneaux",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Calcul modulo q",
+        "Anneaux de polynômes quotients"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "01",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "01_q1",
+          "01_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_02",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 02. Réseaux et problème LWE",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Réseaux euclidiens",
+        "Équations modulaires bruitées"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "02",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "02_q1",
+          "02_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_03",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 03. RLWE et données structurées",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Structure polynomiale de RLWE",
+        "Paramètres et hypothèses de sécurité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "03",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "03_q1",
+          "03_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_04",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 04. Propriété homomorphe",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Évaluation sur chiffrés",
+        "Partiel, par niveaux et pleinement homomorphe"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "04",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "04_q1",
+          "04_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_05",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 05. Bruit, profondeur et bootstrapping",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Croissance du bruit et profondeur multiplicative",
+        "Rafraîchissement du chiffré"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "05",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "05_q1",
+          "05_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_06",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 06. BFV/BGV, CKKS et TFHE",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Arithmétique exacte et approchée",
+        "Circuits et opérations autorisées"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "06",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "06_q1",
+          "06_q2"
+        ]
+      }
+    },
+    {
+      "case_id": "extra_chiffrement_homomorphe_07",
+      "learning_track": "engineering_ensae",
+      "title": "Extra — Chiffrement homomorphe — 07. Encodage, clés et validation",
+      "difficulty": "advanced",
+      "learner_level": "École d'ingénieur",
+      "estimated_minutes": 10,
+      "topic_tags": [
+        "extra_chiffrement_homomorphe",
+        "Encodage et opérations groupées",
+        "Validation de correction et confidentialité"
+      ],
+      "student_prompt": "Répondez aux questions puis justifiez vos choix à l'aide de la correction.",
+      "academic_assessment": {
+        "schema": "agilab.learning_assessment.academic_assessment.v1",
+        "course_id": "extra_chiffrement_homomorphe",
+        "section_id": "07",
+        "source_revision": "57978964aa05c66d6bc1c329881a6265d2734f4310dd01e2494834963a24158f",
+        "question_ids": [
+          "07_q1",
+          "07_q2"
+        ]
+      }
     }
   ]
 }

@@ -11,7 +11,8 @@ Existing user workspace data and settings remain in place.
 diagnostics into a runnable AGILAB app and classroom-ready self-evaluation
 workflow.
 
-This example teaches evidence-based diagnostic reasoning. It does not process
+The app also includes objective mathematics questions with chapter-level
+provenance for engineering courses and two Extra modules. It does not process
 acoustic, vibration, or telemetry signals.
 
 ## Purpose
@@ -33,11 +34,54 @@ Choose one path in ANALYSIS before opening the catalog or self-check:
 - **Mathematics 2026**: audit curriculum coverage and target a second practice round.
 - **Data science 2026**: read the ML landscape, distinguish algorithm families,
   and diagnose modern ML, RAG, agent, uncertainty, and cost failures.
+- **École d'ingénieur — cours et Extra**: answer scored mathematics questions
+  linked to their chapter, concepts and source.
 
-The bundled bank contains 2 AGILAB cases, 10 mathematics cases, and 24 data-science
-cases (12 interview cases plus 12 ML landscape exercises).
+The bundled bank contains 138 exercises: the original 2 AGILAB cases,
+10 school-program audit scenarios and 24 data-science cases, plus 102 engineering
+chapter assessments containing 239 multiple-choice questions.
 Custom or locally generated cases use the **General diagnostics** path unless
 they declare another supported path.
+
+### Collège, lycée, engineering courses and Extra
+
+Use **Niveau scolaire** and **Cours / Extra** to filter both Catalog and
+Self-check. School provenance comes from the existing curriculum ids, including
+their level, domain and official source. These original school scenarios assess
+program audits; their scores do not certify a learner's mathematical mastery.
+Unmapped diagnostic/data-science cases remain **Transversal**.
+
+The twelve ENSAE courses cover algebra; Statistics 1; Optimal Transport: From
+Theory to Tweaks; Lebesgue measure and integration; HMM/SMC; Probability 2AD;
+high-dimensional statistics; financial mathematics; mathematical foundations of
+probability; analysis; differential and integral calculus; and functional and
+convex analysis. Their 89 published parts/chapters retain their course identity
+and order, including the two distinct measure/integration programs.
+
+Two **Extra** modules add 13 chapters: wavelets (Haar, multiresolution, filter
+banks, Daubechies, compression/denoising) and homomorphic encryption (modular
+arithmetic, polynomial rings, lattices, LWE/RLWE, noise/bootstrapping,
+BFV/BGV/CKKS/TFHE, encoding and validation). Extras cite MIT OpenCourseWare and
+HomomorphicEncryption.org and state their prerequisite courses; they are
+complements to the ENSAE syllabi.
+
+Questions begin unanswered. Exact correct choices receive equal weight;
+incorrect or absent choices receive zero, including a completely unanswered
+assessment. Confidence and free text do not increase these scores. Corrections
+explain each answer and carry level, course, chapter, concepts, source URL,
+review date and a revision hash. The same metadata survives worker summaries
+and classroom progress CSV/JSON merges.
+
+The [source registry](src/learning_assessment/curriculum/engineering_course_assessments_fr_sources.json)
+is the canonical syllabus/question/answer registry. Regenerate the bundled
+chapter references with
+`python tools/generate_engineering_course_assessments_fr.py`; add `--check`
+to verify the source/output contract without writing. Existing authored cases
+are preserved. **Coverage** reports absent chapters, questions and concepts,
+and exports `learning_assessment_engineering_course_coverage_fr.json`.
+This verifies the presence of exercise material, not full course mastery.
+Questions are original adaptations, not official ENSAE exam papers. Public
+syllabi were reviewed on 2026-09-30; private Moodle adaptations are unverified.
 
 ### ML landscape: map, explanation and self-check
 
