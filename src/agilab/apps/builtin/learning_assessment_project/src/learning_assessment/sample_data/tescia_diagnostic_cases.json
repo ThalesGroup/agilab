@@ -4535,7 +4535,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_A01",
+      "case_id": "ensae_fondements_probabilites_a01",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — A01. Tribus et ensembles",
       "difficulty": "advanced",
@@ -4559,7 +4559,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_A02",
+      "case_id": "ensae_fondements_probabilites_a02",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — A02. Mesures et espaces mesurés",
       "difficulty": "advanced",
@@ -4583,7 +4583,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_A03",
+      "case_id": "ensae_fondements_probabilites_a03",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — A03. Prolongement des mesures",
       "difficulty": "advanced",
@@ -4609,7 +4609,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_A04",
+      "case_id": "ensae_fondements_probabilites_a04",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — A04. Fonctions mesurables",
       "difficulty": "advanced",
@@ -4633,7 +4633,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_A05",
+      "case_id": "ensae_fondements_probabilites_a05",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — A05. Mesure et probabilités",
       "difficulty": "advanced",
@@ -4657,7 +4657,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_B01",
+      "case_id": "ensae_fondements_probabilites_b01",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — B01. Intégration des fonctions positives",
       "difficulty": "advanced",
@@ -4683,7 +4683,7 @@
       }
     },
     {
-      "case_id": "ensae_fondements_probabilites_B02",
+      "case_id": "ensae_fondements_probabilites_b02",
       "learning_track": "engineering_ensae",
       "title": "Fondements mathématiques des probabilités — B02. Intégration des fonctions générales",
       "difficulty": "advanced",

@@ -33,7 +33,7 @@ def generate_payload(payload: dict) -> dict:
         for section in course["sections"]:
             generated.append(
                 {
-                    "case_id": f"{course['id']}_{section['id']}",
+                    "case_id": f"{course['id']}_{section['id'].lower()}",
                     "learning_track": "engineering_ensae",
                     "title": f"{course['title']} — {section['id']}. {section['title']}",
                     "difficulty": "advanced",
