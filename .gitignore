@@ -157,6 +157,9 @@ src/agilab/apps/builtin/*/.venv
 src/agilab/apps/builtin/*/.venv/
 _fcas_work
 .vscode/
+
+# Generated, checkout-specific Xcode project and personal scheme state.
+/AGILAB.xcodeproj/
 # Generated demo media: keep only lightweight upload metadata in Git.
 artifacts/demo_media/**
 !artifacts/demo_media/

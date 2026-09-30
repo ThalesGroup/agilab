@@ -15,6 +15,54 @@ If the newcomer proof fails, fix that baseline first or document why your
 change is unrelated. The adoption checklist in `ADOPTION.md` explains the
 supported first routes.
 
+### Develop with Xcode on macOS
+
+Install Xcode and `uv`, then prepare the checkout environment with the onboarding
+command above. Generate and open the local project:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/generate_agilab_xcode_project.py --open
+```
+
+`AGILAB.xcodeproj` provides a source navigator and one shared scheme for each
+supported configuration in `.idea/runConfigurations/`. Select a scheme in the
+toolbar and choose **Product > Run** (Command-R). The adapter uses the same script
+or Python module, arguments, working directory, environment and AGILAB uv SDK as
+the PyCharm configuration. Run uses `uv --no-sync` to preserve the prepared SDK.
+Core, app and worker SDKs remain separate from the working directory.
+Prepare an optional app/worker environment before using its
+scheme; generating the project does not install apps or create generated run
+scripts under `~/log/execute`.
+
+**Product > Build** (Command-B) checks the configuration catalog without running
+applications, installers or publishing commands. Pytest configurations run with
+Command-R and report results in the console; they are not XCTest bundles and do
+not populate Xcode's Test navigator or Command-U. Publishing and install schemes
+retain their original effects when explicitly run.
+
+In **Product > Scheme > Edit Scheme > Run > Arguments**, the generated
+`AGILAB_XCODE_INPUT_*` environment variables replace PyCharm prompt dialogs.
+Defaults are prefilled; fill `AGILAB_XCODE_FILE` for a file prompt. Values are
+passed as arguments, not evaluated as shell commands. To inspect a command before
+running it:
+
+```bash
+uv --preview-features extra-build-dependencies run python tools/generate_agilab_xcode_project.py --run 'agilab run (dev)' --print-command
+```
+
+For console debugging, add `--pdb` after the generated launch arguments in Edit
+Scheme. Python scripts/modules then use `pdb`; pytest uses `--pdb` on failures.
+Xcode's LLDB breakpoints, Python-aware refactoring and code intelligence do not
+replace PyCharm's Python support. Keep **Debug executable** disabled for these
+schemes. Stop behavior for application-created subprocesses is also dependent on
+the selected workflow; do not assume it terminates remote workers or every child.
+
+The generated project stores local absolute checkout and uv paths and is ignored
+by Git. Regenerate it after moving the checkout, changing run configurations or
+adding source files. Regeneration replaces generated shared schemes while
+preserving personal `xcuserdata`; keep lasting command changes in the canonical
+XML. This setup adds no Xcode-specific runtime dependency to AGILAB.
+
 ### Choose Your Contribution Lane
 
 Pick one lane before editing. This keeps pull requests focused and avoids

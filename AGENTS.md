@@ -357,6 +357,12 @@ Use this runbook whenever you:
   This writes `.vscode/tasks.json` and `.vscode/launch.json` locally. Do not commit `.vscode/`; it remains ignored.
   The generated tasks keep the exact `uv` entrypoints. The generated launches map Python/pytest configs to VS Code
   `debugpy`, so select the matching interpreter/environment in VS Code before debugging.
+- **Xcode parity**: Generate the local Xcode project from the same canonical XML with
+  `uv --preview-features extra-build-dependencies run python tools/generate_agilab_xcode_project.py --open`.
+  Keep `AGILAB.xcodeproj/` ignored. Build validates configurations; Run executes the
+  selected workflow with its uv SDK, working directory and environment. Regenerate
+  after config renames or navigator changes. See `CONTRIBUTING.md` for prompt values,
+  console debugging and the limits of Python support in Xcode.
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
