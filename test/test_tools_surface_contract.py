@@ -11,7 +11,9 @@ from pathlib import Path
 # 2026-07-16, so this guard had been failing on `main` for over a week and was
 # no longer catching anything. Grouping helpers under subdirectories is still the
 # preferred way to make room; this records the real surface in the meantime.
-TOOLS_SURFACE_BUDGET = 195
+# Raised 2026-09-30 from 195 for generate_agilab_xcode_project.py, a public
+# IDE entrypoint alongside the existing PyCharm and VS Code generators.
+TOOLS_SURFACE_BUDGET = 196
 
 
 def test_top_level_tools_surface_stays_within_budget() -> None:

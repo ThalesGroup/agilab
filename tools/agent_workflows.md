@@ -96,6 +96,14 @@ not already covered by the runbooks, add one concrete rule or tighten an
 existing one. Do not use it as a session transcript, brainstorming log, or
 replacement for tests.
 
+## Xcode developer workflows
+
+For Xcode development, use `tools/generate_agilab_xcode_project.py --open` through
+the managed `uv run python` entrypoint. The canonical run configurations remain
+in `.idea/runConfigurations/`; the local project is generated and ignored. See
+[the Xcode contributor workflow](../CONTRIBUTING.md#develop-with-xcode-on-macos)
+for SDK selection, prompt values, validation-only Build and Python debugging limits.
+
 ## Resource preflight
 
 Before heavy agent-assisted analysis, model training, large data work, or cluster
