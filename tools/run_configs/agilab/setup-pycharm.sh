@@ -8,4 +8,4 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 export PYTHONUNBUFFERED="1"
 # Let uv select the run-config project .venv instead of a stale activated shell.
 unset VIRTUAL_ENV
-uv run python $REPO_ROOT/pycharm/setup_pycharm.py
+uv run python "${REPO_ROOT}"/pycharm/setup_pycharm.py

@@ -955,3 +955,236 @@ def test_main_allows_explicit_public_bind_with_tls_indicator(
 
     assert lab_run.main([]) == 0
     assert captured[0][2:4] == ["--server.address", "0.0.0.0"]
+
+
+def _isolate_uv_detection_environment(monkeypatch, tmp_path: Path) -> Path:
+    home = tmp_path / "isolated home"
+    monkeypatch.setattr(lab_run.Path, "home", staticmethod(lambda: home))
+    monkeypatch.chdir(tmp_path)
+    for variable in ("UV_CACHE_DIR", "UV_TOOL_DIR", "UV_RUN_RECURSION_DEPTH"):
+        monkeypatch.delenv(variable, raising=False)
+    return home
+
+
+def _write_uv_detection_environment(
+    prefix: Path, *, receipt_name: str | None = None, uv_marker: bool = True
+) -> None:
+    prefix.mkdir(parents=True)
+    config = "include-system-site-packages = false\n"
+    if uv_marker:
+        config += "uv = 0.11.26\n"
+    (prefix / "pyvenv.cfg").write_text(config)
+    if receipt_name is not None:
+        (prefix / "uv-receipt.toml").write_text(
+            '[tool]\nrequirements = [{ name = "' + receipt_name + '" }]\nentrypoints = []\n'
+        )
+
+
+def _configured_uv_prefix(root: Path, variable: str) -> Path:
+    return root / "archive-v0/cache-environment" if variable == "UV_CACHE_DIR" else root / "agilab"
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+@pytest.mark.parametrize("location", ["absolute", "relative"])
+def test_running_from_uvx_detects_actual_configured_tool_environments(
+    monkeypatch, tmp_path: Path, variable: str, location: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv storage"
+    prefix = _configured_uv_prefix(root, variable)
+    _write_uv_detection_environment(
+        prefix, receipt_name="agilab" if variable == "UV_TOOL_DIR" else None
+    )
+    configured = str(root) if location == "absolute" else "custom uv storage"
+    monkeypatch.setenv(variable, configured)
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is True
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+def test_running_from_uvx_does_not_infer_tool_ownership_from_missing_roots(
+    monkeypatch, tmp_path: Path, variable: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "missing custom uv storage"
+    monkeypatch.setenv(variable, str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(_configured_uv_prefix(root, variable)))
+    assert not root.exists()
+    assert lab_run._running_from_uvx() is False
+
+
+@pytest.mark.parametrize("configured_value", [None, ""])
+@pytest.mark.parametrize("default_kind", ["cache", "tools"])
+def test_running_from_uvx_keeps_default_roots_when_configuration_is_empty(
+    monkeypatch, tmp_path: Path, configured_value: str | None, default_kind: str
+) -> None:
+    home = _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    if configured_value is not None:
+        monkeypatch.setenv("UV_CACHE_DIR", configured_value)
+        monkeypatch.setenv("UV_TOOL_DIR", configured_value)
+    root = home / ".cache/uv" if default_kind == "cache" else home / ".local/share/uv"
+    monkeypatch.setattr(lab_run.sys, "prefix", str(root / "environment"))
+    assert lab_run._running_from_uvx() is True
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+@pytest.mark.parametrize("configured_value", ["absolute", "."])
+def test_uv_source_guard_allows_ordinary_venv_under_broad_custom_root(
+    monkeypatch, tmp_path: Path, variable: str, configured_value: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    (tmp_path / "src/agilab").mkdir(parents=True)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='agilab'\n")
+    prefix = tmp_path / ".venv-dev"
+    _write_uv_detection_environment(prefix)
+    monkeypatch.setenv(variable, str(tmp_path) if configured_value == "absolute" else ".")
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+    assert lab_run._guard_against_uvx_in_source_tree() is None
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+def test_running_from_uvx_configured_root_does_not_match_neighboring_paths(
+    monkeypatch, tmp_path: Path, variable: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "uv-cache"
+    neighboring_root = tmp_path / "uv-cache-other"
+    prefix = _configured_uv_prefix(neighboring_root, variable)
+    _write_uv_detection_environment(
+        prefix, receipt_name="agilab" if variable == "UV_TOOL_DIR" else None
+    )
+    monkeypatch.setenv(variable, str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+def test_running_from_uvx_requires_uv_marker_for_custom_environments(
+    monkeypatch, tmp_path: Path, variable: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv storage"
+    prefix = _configured_uv_prefix(root, variable)
+    _write_uv_detection_environment(
+        prefix, receipt_name="agilab" if variable == "UV_TOOL_DIR" else None,
+        uv_marker=False,
+    )
+    monkeypatch.setenv(variable, str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+
+
+@pytest.mark.parametrize("receipt_kind", ["missing", "malformed", "other-tool"])
+def test_running_from_uvx_requires_receipt_owned_by_custom_tool_environment(
+    monkeypatch, tmp_path: Path, receipt_kind: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv tools"
+    prefix = root / "agilab"
+    _write_uv_detection_environment(
+        prefix, receipt_name="other-tool" if receipt_kind == "other-tool" else None
+    )
+    if receipt_kind == "malformed":
+        (prefix / "uv-receipt.toml").write_text("[not closed")
+    monkeypatch.setenv("UV_TOOL_DIR", str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+
+
+def test_running_from_uvx_requires_direct_custom_tool_layout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv tools"
+    prefix = root / "ordinary-parent/agilab"
+    _write_uv_detection_environment(prefix, receipt_name="agilab")
+    monkeypatch.setenv("UV_TOOL_DIR", str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+
+
+def test_running_from_uvx_empty_custom_roots_do_not_match_current_directory(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    monkeypatch.setenv("UV_CACHE_DIR", "")
+    monkeypatch.setenv("UV_TOOL_DIR", "")
+    monkeypatch.setattr(lab_run.sys, "prefix", str(tmp_path / "ordinary-venv"))
+    assert lab_run._running_from_uvx() is False
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+@pytest.mark.parametrize("aliased", ["root", "prefix"])
+def test_running_from_uvx_canonicalizes_configured_root_and_prefix_symlinks(
+    monkeypatch, tmp_path: Path, variable: str, aliased: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "actual uv storage"
+    prefix = _configured_uv_prefix(root, variable)
+    _write_uv_detection_environment(
+        prefix, receipt_name="agilab" if variable == "UV_TOOL_DIR" else None
+    )
+    alias = tmp_path / "uv alias"
+    try:
+        alias.symlink_to(root if aliased == "root" else prefix, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"Symlink creation is unavailable on this platform: {exc}")
+    monkeypatch.setenv(variable, str(alias if aliased == "root" else root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix if aliased == "root" else alias))
+    assert lab_run._running_from_uvx() is True
+
+
+def test_running_from_uvx_preserves_source_uv_run_exemption(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv storage"
+    prefix = _configured_uv_prefix(root, "UV_CACHE_DIR")
+    _write_uv_detection_environment(prefix)
+    monkeypatch.setenv("UV_CACHE_DIR", str(root))
+    monkeypatch.setenv("UV_RUN_RECURSION_DEPTH", "1")
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is False
+
+
+@pytest.mark.parametrize("variable", ["UV_CACHE_DIR", "UV_TOOL_DIR"])
+def test_main_refuses_custom_uv_tool_environment_before_cli_side_effects(
+    monkeypatch, tmp_path: Path, variable: str
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    checkout = tmp_path / "checkout"
+    (checkout / "src/agilab").mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text("[project]\nname='agilab'\n")
+    monkeypatch.chdir(checkout)
+    root = tmp_path / "custom uv storage"
+    prefix = _configured_uv_prefix(root, variable)
+    _write_uv_detection_environment(
+        prefix, receipt_name="agilab" if variable == "UV_TOOL_DIR" else None
+    )
+    monkeypatch.setenv(variable, str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    effects: list[str] = []
+
+    def forbidden(*_args, **_kwargs):
+        effects.append("called")
+        raise AssertionError("CLI side effect happened before the source uv guard")
+
+    for name in ("_ensure_streamlit_config_file", "_load_streamlit_cli", "_detect_cli_version"):
+        monkeypatch.setattr(lab_run, name, forbidden)
+    with pytest.raises(SystemExit, match="source checkout via .*uvx"):
+        lab_run.main(["--version"])
+    assert effects == []
+
+
+def test_uv_source_guard_allows_tool_environment_outside_a_checkout(
+    monkeypatch, tmp_path: Path
+) -> None:
+    _isolate_uv_detection_environment(monkeypatch, tmp_path)
+    root = tmp_path / "custom uv storage"
+    prefix = _configured_uv_prefix(root, "UV_CACHE_DIR")
+    _write_uv_detection_environment(prefix)
+    monkeypatch.setenv("UV_CACHE_DIR", str(root))
+    monkeypatch.setattr(lab_run.sys, "prefix", str(prefix))
+    assert lab_run._running_from_uvx() is True
+    assert lab_run._guard_against_uvx_in_source_tree() is None
