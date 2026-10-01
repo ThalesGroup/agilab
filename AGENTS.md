@@ -342,6 +342,12 @@ Use this runbook whenever you:
 - **Run config parity**: After touching `.idea/runConfigurations/*.xml`, regenerate
   the CLI wrappers with `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py` and commit
   the results (`tools/run_configs/`).
+- **Run config inputs**: Generated shell wrappers quote checkout paths. Override
+  `$Prompt:label:default$` values with `AGILAB_RUNCONFIG_INPUT_<LABEL>`, using
+  uppercase labels with punctuation replaced by underscores; unset inputs use
+  their defaults. `$FilePrompt$` requires nonempty
+  `AGILAB_RUNCONFIG_INPUT_FILE_PROMPT` before launching uv. Generation rejects
+  distinct macros that would share an override name.
 - **PyCharm source-root switching**: The global JetBrains SDK named `uv (agilab)` is bound
   to one AGILAB source checkout at a time. To intentionally switch PyCharm execution to
   another checkout, run from the target checkout:

@@ -40,7 +40,7 @@ def app_session_state(state, name: str, keys: tuple[str, ...]):
 def run_app(project: Path) -> None:
     project = project.resolve()
     names = {path.stem for path in project.glob("*.py")}
-    names.update(path.name for path in project.iterdir() if path.is_dir() and (path / "__init__.py").is_file())
+    names.update(path.name for path in project.iterdir() if path.is_dir())
     with APP_EXECUTION_LOCK:
         saved = {name: module for name, module in sys.modules.copy().items()
                  if name.split(".", 1)[0] in names}

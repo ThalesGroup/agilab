@@ -16,4 +16,4 @@ export STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR="#102334"
 export STREAMLIT_THEME_TEXT_COLOR="#F7F2E8"
 # Let uv select the run-config project .venv instead of a stale activated shell.
 unset VIRTUAL_ENV
-uv run streamlit run .venv/lib/python3.14/site-packages/agilab/main_page.py -- --openai-api-key "your-key"
+uv run streamlit run .venv/lib/python3.14/site-packages/agilab/main_page.py -- --openai-api-key your-key

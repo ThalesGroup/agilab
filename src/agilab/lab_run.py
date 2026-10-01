@@ -86,18 +86,62 @@ def _detect_repo_root(start: Path) -> Path | None:
     return None
 
 
+def _is_uv_virtualenv(prefix: Path) -> bool:
+    try:
+        config = (prefix / "pyvenv.cfg").read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+    for line in config.splitlines():
+        key, separator, value = line.partition("=")
+        if separator and key.strip() == "uv" and value.strip():
+            return True
+    return False
+
+
 def _running_from_uvx() -> bool:
     """Detect uvx or other uv tool environments that should not touch the source tree."""
-    # `uv run` sets this; honour it so developers keep their standard workflow.
+    # uv run sets this; honour it so developers keep their standard workflow.
     if os.environ.get("UV_RUN_RECURSION_DEPTH"):
         return False
 
-    prefix = Path(sys.prefix).resolve()
-    uv_roots = [
+    prefix = Path(sys.prefix).resolve(strict=False)
+    default_roots = [
         Path.home() / ".cache" / "uv",
         Path.home() / ".local" / "share" / "uv",
     ]
-    return any(root == prefix or root in prefix.parents for root in uv_roots)
+    if any(
+        root == prefix or root in prefix.parents
+        for root in (candidate.resolve(strict=False) for candidate in default_roots)
+    ):
+        return True
+
+    # uv 0.11 stores materialized ephemeral tool environments directly in its
+    # archive-v0 bucket; an arbitrary venv beneath UV_CACHE_DIR is not a tool.
+    configured_cache = os.environ.get("UV_CACHE_DIR")
+    if configured_cache:
+        archive = (Path(configured_cache) / "archive-v0").resolve(strict=False)
+        if prefix.parent == archive and _is_uv_virtualenv(prefix):
+            return True
+
+    configured_tools = os.environ.get("UV_TOOL_DIR")
+    if configured_tools:
+        tools = Path(configured_tools).resolve(strict=False)
+        if prefix.parent == tools and _is_uv_virtualenv(prefix):
+            try:
+                receipt = tomllib.loads(
+                    (prefix / "uv-receipt.toml").read_text(encoding="utf-8")
+                )
+            except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+                return False
+            tool = receipt.get("tool")
+            requirements = tool.get("requirements") if isinstance(tool, dict) else None
+            if isinstance(requirements, list):
+                return any(
+                    isinstance(requirement, dict)
+                    and requirement.get("name") == prefix.name
+                    for requirement in requirements
+                )
+    return False
 
 
 def _guard_against_uvx_in_source_tree() -> None:
