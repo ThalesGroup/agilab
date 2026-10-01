@@ -8,6 +8,12 @@ import re
 from typing import Any
 
 from .assessment_program import validate_assessment_program
+from .education import (
+    education_trace,
+    flatten_education_trace,
+    score_academic_answer,
+    validate_academic_answer,
+)
 from .learning import learning_track_metadata, normalize_learning_track
 
 
@@ -328,7 +334,13 @@ def validate_case_payload(
         if not isinstance(case, Mapping):
             raise ValueError(f"Case #{index + 1} must be an object.")
         case_id = str(case.get("case_id", f"case_{index + 1}"))
-        missing = sorted(field for field in _REQUIRED_CASE_FIELDS if field not in case)
+        academic = "academic_assessment" in case
+        required = (
+            {"case_id", "title", "student_prompt", "learning_track"}
+            if academic
+            else _REQUIRED_CASE_FIELDS
+        )
+        missing = sorted(field for field in required if field not in case)
         if missing:
             raise ValueError(
                 f"Case {case_id!r} is missing fields: {', '.join(missing)}."
@@ -339,6 +351,45 @@ def validate_case_payload(
             raise ValueError(
                 f"Case {case_id!r} has invalid learner metadata: {exc}"
             ) from exc
+
+        if academic:
+            validate_academic_answer(case)
+            for field in ("case_id", "title", "student_prompt"):
+                if not isinstance(case[field], str) or not case[field].strip():
+                    raise ValueError(f"Academic case requires a non-empty {field}.")
+            if case.get("difficulty", "advanced") not in {
+                "intro",
+                "intermediate",
+                "advanced",
+            }:
+                raise ValueError("Academic case has an invalid difficulty.")
+            minutes = case.get("estimated_minutes", 20)
+            if (
+                not isinstance(minutes, int)
+                or isinstance(minutes, bool)
+                or not 1 <= minutes <= 180
+            ):
+                raise ValueError(
+                    "Academic case estimated_minutes must be between 1 and 180."
+                )
+            for field in (
+                "class_id",
+                "session_id",
+                "student_id",
+                "student_ref",
+                "exercise_id",
+                "submitted_at",
+            ):
+                if field in case and not str(case[field]).strip():
+                    raise ValueError(f"Academic case requires a non-empty {field}.")
+            if "anonymize_student" in case and not isinstance(
+                case["anonymize_student"], bool
+            ):
+                raise ValueError("Academic case anonymize_student must be boolean.")
+            normalized_cases.append(dict(case))
+            continue
+        if case.get("learning_track") == "engineering_ensae":
+            raise ValueError("ENSAE cases require an academic_assessment reference.")
 
         evidence = case.get("evidence")
         fixes = case.get("candidate_fixes")
@@ -553,7 +604,10 @@ def catalog_metadata(case: Mapping[str, Any]) -> dict[str, Any]:
     """Return user-facing exercise metadata for catalog/self-evaluation views."""
 
     learning_track = learning_track_metadata(case)
+    trace = education_trace(case)
     return {
+        "education_trace": trace,
+        **flatten_education_trace(trace),
         "title": str(case.get("title") or case.get("case_id") or "").strip(),
         "difficulty": str(case.get("difficulty", "intermediate")).strip()
         or "intermediate",
@@ -766,6 +820,30 @@ def diagnose_case(
 ) -> dict[str, Any]:
     """Build a repeatable diagnostic recommendation for one case."""
 
+    if "academic_assessment" in case:
+        assessment = score_academic_answer(case)
+        return {
+            "schema": "agilab.tescia_diagnostic.report.v1",
+            "case_id": str(case.get("case_id", "")),
+            "catalog": catalog_metadata(case),
+            "classroom": classroom_metadata(case),
+            "status": "assessment",
+            "student_score": assessment["student_score"],
+            "case_quality_score": 0.0,
+            "evidence_quality": 0.0,
+            "regression_coverage": 0.0,
+            "symptom": "",
+            "proposed_diagnosis": "",
+            "root_cause": "",
+            "selected_fix": {},
+            "ranked_fixes": [],
+            "weak_assumptions": [],
+            "regression_plan": [],
+            "decision": {},
+            "plain_repro": "",
+            "self_evaluation": assessment,
+        }
+
     evidence_score = evidence_quality(case)
     regression_score = regression_coverage(case)
     ranked_fixes = rank_candidate_fixes(
@@ -853,6 +931,7 @@ def summarize_report(
         decision = {}
     return {
         "schema": "agilab.tescia_diagnostic.summary.v1",
+        **flatten_education_trace(catalog.get("education_trace", {})),
         "case_id": str(report.get("case_id", "")),
         "class_id": str(classroom.get("class_id", "")),
         "session_id": str(classroom.get("session_id", "")),
