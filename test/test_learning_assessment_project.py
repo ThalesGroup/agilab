@@ -23,7 +23,10 @@ SAMPLE_CASES = (
     APP_SRC / "learning_assessment" / "sample_data" / "tescia_diagnostic_cases.json"
 )
 SAMPLE_CLASSROOM = (
-    APP_SRC / "learning_assessment" / "sample_data" / "tescia_classroom_submissions.json"
+    APP_SRC
+    / "learning_assessment"
+    / "sample_data"
+    / "tescia_classroom_submissions.json"
 )
 APP_SURFACE = APP_SRC / "learning_assessment" / "app_surface.py"
 
@@ -850,7 +853,8 @@ def test_tescia_submission_inbox_stays_workflow_scoped_when_global_inbox_exists(
 
     assert app.args.data_in == global_cases
     assert (
-        app.args.submission_inbox == workflow_root / "learning_assessment" / "submissions"
+        app.args.submission_inbox
+        == workflow_root / "learning_assessment" / "submissions"
     )
     assert app.args.submission_inbox.is_dir()
     assert app.args.submission_inbox != global_inbox
@@ -881,9 +885,10 @@ def test_learning_assessment_selects_evidence_backed_fix(monkeypatch) -> None:
     assert report["evidence_quality"] >= 0.85
     assert report["regression_coverage"] == 1.0
     assert report["case_quality_score"] >= 85.0
-    assert 85.0 <= report["student_score"] <= 100.0
-    assert report["self_evaluation"]["status"] == "submitted"
-    assert report["self_evaluation"]["score_band"] == "excellent"
+    assert report["student_score"] is None
+    assert report["self_evaluation"]["objective_score"] >= 85.0
+    assert report["self_evaluation"]["status"] == "pending_review"
+    assert report["self_evaluation"]["score_band"] == "pending_review"
     assert (
         report["self_evaluation"]["expected"]["selected_fix_id"]
         == "mount_scheduler_share_with_sshfs"
@@ -893,7 +898,7 @@ def test_learning_assessment_selects_evidence_backed_fix(monkeypatch) -> None:
         == "mount_scheduler_share_with_sshfs"
     )
     assert report["self_evaluation"]["feedback"] == [
-        "Answer is aligned with the reference diagnostic contract."
+        "Open reasoning requires human review; automated feedback covers selections only."
     ]
     assert (
         "SSH login success proves the shared data path is usable."
@@ -1091,7 +1096,7 @@ def test_tescia_data_scientist_2026_cases_are_scored_and_current(monkeypatch) ->
         case_id: report["selected_fix"]["id"] for case_id, report in reports.items()
     } == expected_fixes
     assert all(
-        report["self_evaluation"]["score_band"] == "excellent"
+        report["self_evaluation"]["score_band"] == "pending_review"
         for report in reports.values()
     )
 
@@ -1238,7 +1243,9 @@ def test_tescia_case_payload_rejects_invalid_schema_edges(monkeypatch) -> None:
     ]
 
 
-def test_learning_assessment_scores_unsubmitted_and_partial_answers(monkeypatch) -> None:
+def test_learning_assessment_scores_unsubmitted_and_partial_answers(
+    monkeypatch,
+) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
     from learning_assessment import (
@@ -1285,8 +1292,9 @@ def test_learning_assessment_scores_unsubmitted_and_partial_answers(monkeypatch)
     partial = evaluate_student_answer(
         no_rows_case, ranked_fixes=[], evidence_score=0.0, regression_score=0.0
     )
-    assert partial["score_band"] == "needs_work"
-    assert "Root cause explanation" in partial["feedback"][0]
+    assert partial["score_band"] == "pending_review"
+    assert partial["student_score"] is None
+    assert "human review" in partial["feedback"][0]
 
     metadata = classroom_metadata(
         {
@@ -1319,20 +1327,23 @@ def test_learning_assessment_scores_unsubmitted_and_partial_answers(monkeypatch)
     assert summary["selected_fix_id"] == ""
     assert summary["feedback_count"] == 0
 
-    assert evaluate_student_answer(
-        {
-            **case,
-            "student_answer": {
-                "root_cause": "root",
-                "evidence_ids": [],
-                "selected_fix_id": "",
-                "regression_test_ids": [],
+    assert (
+        evaluate_student_answer(
+            {
+                **case,
+                "student_answer": {
+                    "root_cause": "root",
+                    "evidence_ids": [],
+                    "selected_fix_id": "",
+                    "regression_test_ids": [],
+                },
             },
-        },
-        ranked_fixes=report["ranked_fixes"],
-        evidence_score=report["evidence_quality"],
-        regression_score=report["regression_coverage"],
-    )["score_band"] in {"partial", "needs_work"}
+            ranked_fixes=report["ranked_fixes"],
+            evidence_score=report["evidence_quality"],
+            regression_score=report["regression_coverage"],
+        )["score_band"]
+        == "pending_review"
+    )
 
 
 def test_tescia_math_program_2026_curriculum_contract_is_complete(monkeypatch) -> None:
@@ -1538,13 +1549,16 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
         confidence=0.9,
     )
     report = module.score_student_submission(filtered[1], answer)
-    assert report["self_evaluation"]["status"] == "submitted"
-    assert report["student_score"] >= 85.0
+    assert report["self_evaluation"]["status"] == "pending_review"
+    assert report["student_score"] is None
+    assert report["self_evaluation"]["objective_score"] >= 85.0
 
     classroom_report = module.classroom_preview_report(cases)
     assert classroom_report["submission_count"] == 4
     assert classroom_report["unique_student_count"] == 4
-    assert classroom_report["needs_attention_count"] == 1
+    assert classroom_report["needs_attention_count"] == 4
+    assert classroom_report["pending_review_count"] == 4
+    assert classroom_report["average_score"] is None
     assert module.classroom_progress_rows(classroom_report)[0][
         "student_ref"
     ].startswith("student_")
@@ -1652,7 +1666,8 @@ def test_tescia_app_surface_cache_and_artifact_edge_paths(
         args_model=SimpleNamespace(data_out=Path("learning_assessment/reports")),
     )
     assert (
-        env.AGILAB_EXPORT_ABS / env.target / "learning_assessment" / "classroom" in paths
+        env.AGILAB_EXPORT_ABS / env.target / "learning_assessment" / "classroom"
+        in paths
     )
     assert (
         env.share_root_path() / "learning_assessment" / "reports" / "classroom" in paths
@@ -1893,6 +1908,11 @@ def test_tescia_app_surface_render_covers_classroom_tabs(monkeypatch, tmp_path) 
             self.buttons.append(label)
             return label in self.button_labels_to_click
 
+        def selectbox(self, label, options, *args, **kwargs):
+            if label == "Answer mode":
+                return "Worked example"
+            return super().selectbox(label, options, *args, **kwargs)
+
         def set_page_config(self, *_args, **_kwargs) -> None:
             return None
 
@@ -1904,7 +1924,10 @@ def test_tescia_app_surface_render_covers_classroom_tabs(monkeypatch, tmp_path) 
     module.render(mode="full")
 
     assert ("Submissions", 4) in fake_streamlit.metrics
-    assert any(label == "Student score" for label, _value in fake_streamlit.metrics)
+    assert any(
+        label == "Objective selections / 100"
+        for label, _value in fake_streamlit.metrics
+    )
     assert "Download correction sheet" in fake_streamlit.downloads
     assert "Download teacher summary" in fake_streamlit.downloads
     assert "Download classroom batch JSON" in fake_streamlit.downloads
@@ -2303,7 +2326,7 @@ def test_tescia_printable_correction_sheet_export(monkeypatch, tmp_path) -> None
     assert markdown.startswith("# Audit a 5e diagnostic exercise")
     assert "## Student Answer" in markdown
     assert "## Reference" in markdown
-    assert "Answer is aligned" in markdown
+    assert "human review" in markdown
     output_path = write_correction_sheet(report, tmp_path)
     assert output_path.name == "math_2026_cycle4_5e_coverage_correction.md"
     assert "Student score" in output_path.read_text(encoding="utf-8")
@@ -2383,7 +2406,9 @@ def test_tescia_classroom_batch_scores_and_exports_teacher_artifacts(
     )
     assert classroom_report["submission_count"] == 4
     assert classroom_report["unique_student_count"] == 4
-    assert classroom_report["needs_attention_count"] == 1
+    assert classroom_report["needs_attention_count"] == 4
+    assert classroom_report["pending_review_count"] == 4
+    assert classroom_report["average_score"] is None
     assert (
         classroom_report["cluster_execution"]["parallel_unit"] == "classroom submission"
     )
@@ -2624,13 +2649,17 @@ def test_tescia_reduce_contract_merges_case_summaries(monkeypatch) -> None:
     assert "cluster_share_sshfs" in artifact.payload["case_ids"]
     assert "math_2026_seconde_gt_coverage" in artifact.payload["case_ids"]
     assert "mount_scheduler_share_with_sshfs" in artifact.payload["selected_fix_ids"]
-    assert 85.0 <= artifact.payload["student_score_mean"] <= 100.0
+    assert artifact.payload["student_score_mean"] is None
+    assert artifact.payload["graded_count"] == 0
 
 
 def test_tescia_reduce_contract_counts_duplicate_case_runs(monkeypatch) -> None:
     monkeypatch.syspath_prepend(str(APP_SRC))
 
-    from learning_assessment import build_reduce_artifact, partial_from_diagnostic_summary
+    from learning_assessment import (
+        build_reduce_artifact,
+        partial_from_diagnostic_summary,
+    )
 
     first = {
         "case_id": "duplicate_case",
@@ -2687,6 +2716,7 @@ def test_tescia_reduce_contract_rejects_missing_or_empty_payloads(
                         "evidence_quality_sum": 0.0,
                         "regression_coverage_sum": 0.0,
                         "student_score_sum": 0.0,
+                        "graded_count": 0,
                         "case_ids": [],
                         "selected_fix_ids": [],
                     },
@@ -3039,7 +3069,7 @@ def test_tescia_worker_exports_json_csv_and_reduce_artifacts(
     assert "case_quality_score" in summary_payload
     assert "self_evaluation_status" in summary_payload
     assert "curriculum_ids" in summary_payload
-    assert "excellent" in summary_payload
+    assert "pending_review" in summary_payload
     coverage_path = output_root / "math_program_2026_coverage.json"
     assert coverage_path.is_file()
     coverage_payload = json.loads(coverage_path.read_text(encoding="utf-8"))
@@ -3114,8 +3144,11 @@ def test_tescia_worker_accepts_classroom_submission_batches(
         (classroom_root / "classroom_run_report.json").read_text(encoding="utf-8")
     )
     assert report["submission_count"] == 4
-    assert report["needs_attention_count"] == 1
-    export_root = env.AGILAB_EXPORT_ABS / env.target / "learning_assessment" / "classroom"
+    assert report["needs_attention_count"] == 4
+    assert report["pending_review_count"] == 4
+    export_root = (
+        env.AGILAB_EXPORT_ABS / env.target / "learning_assessment" / "classroom"
+    )
     assert (export_root / "classroom_needs_attention.csv").is_file()
     assert (export_root / "classroom_learning_tracks.csv").is_file()
     assert (export_root / "classroom_teacher_summary.md").is_file()

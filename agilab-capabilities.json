@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-09-23T16:12:12Z",
+  "generated_at_utc": "2026-10-02T11:00:54Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 291,
+    "evidence_schema_count": 294,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1864,6 +1864,26 @@
       "schema": "agilab.lab_stages_dag_preview.v1",
       "sources": [
         "src/agilab/pipeline/pipeline_lab.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.program_session.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/assessment_session.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.question.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/README.md",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/question_assessment.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.question_evaluation.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/exports.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/question_assessment.py"
       ]
     },
     {

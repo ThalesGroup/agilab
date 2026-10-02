@@ -22,7 +22,11 @@ from learning_assessment.classroom import (
     write_classroom_partial_artifacts,
 )
 from learning_assessment.curriculum import build_math_program_2026_coverage_report
-from learning_assessment.diagnostic import diagnose_case, summarize_report, validate_case_payload
+from learning_assessment.diagnostic import (
+    diagnose_case,
+    summarize_report,
+    validate_case_payload,
+)
 from learning_assessment.domain.assessment_program import build_program_coverage_report
 from learning_assessment.exports import (
     case_artifact_stem,
@@ -36,7 +40,9 @@ _runtime: dict[str, object] = {}
 
 
 def _artifact_dir(env: object, leaf: str) -> Path:
-    return path_support.resolve_artifact_dir(env, leaf, path_cls=Path, home_factory=Path.home)
+    return path_support.resolve_artifact_dir(
+        env, leaf, path_cls=Path, home_factory=Path.home
+    )
 
 
 def _sanitize_slug(value: str) -> str:
@@ -45,7 +51,9 @@ def _sanitize_slug(value: str) -> str:
 
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -107,11 +115,15 @@ class LearningAssessmentWorker(PandasWorker):
             raise ValueError(f"Diagnostic file must contain a JSON object: {source}")
         if payload.get("schema") == CLASSROOM_SCHEMA:
             if "assessment_program" in payload:
-                raise ValueError("assessment_program belongs in a diagnostic case bank, not a classroom batch")
+                raise ValueError(
+                    "assessment_program belongs in a diagnostic case bank, not a classroom batch"
+                )
             try:
                 return {"cases": expand_classroom_submissions(payload)}
             except ValueError as exc:
-                raise ValueError(f"Invalid TeSciA classroom submission file {source}: {exc}") from exc
+                raise ValueError(
+                    f"Invalid TeSciA classroom submission file {source}: {exc}"
+                ) from exc
         try:
             validated = validate_case_payload(payload)
         except ValueError as exc:
@@ -138,14 +150,43 @@ class LearningAssessmentWorker(PandasWorker):
         for case in payload["cases"]:
             report = diagnose_case(
                 case,
-                minimum_evidence_confidence=float(getattr(args, "minimum_evidence_confidence", 0.65)),
-                minimum_regression_coverage=float(getattr(args, "minimum_regression_coverage", 0.6)),
+                minimum_evidence_confidence=float(
+                    getattr(args, "minimum_evidence_confidence", 0.65)
+                ),
+                minimum_regression_coverage=float(
+                    getattr(args, "minimum_regression_coverage", 0.6)
+                ),
             )
+            if program_coverage is not None:
+                report["assessment_context"] = {
+                    "program_id": program_coverage["program_id"],
+                    "program_version": program_coverage["version"],
+                    "case_bank_sha256": program_coverage["case_bank_sha256"],
+                    "sources": program_coverage["sources"],
+                    "competency_ids": [
+                        c["competency_id"]
+                        for c in program_coverage["competencies"]
+                        if case["case_id"] in c["diagnostic_case_ids"]
+                    ],
+                    "submission": case.get("submission_context", {}),
+                }
             summary = summarize_report(
                 report,
                 worker_id=int(getattr(self, "_worker_id", 0)),
                 source_file=str(file_path),
             )
+            if program_coverage is not None:
+                summary.update(
+                    program_id=program_coverage["program_id"],
+                    program_version=program_coverage["version"],
+                    case_bank_sha256=program_coverage["case_bank_sha256"],
+                    original_bank_sha256=case.get("submission_context", {}).get(
+                        "original_bank_sha256", ""
+                    ),
+                    competency_ids=",".join(
+                        report["assessment_context"]["competency_ids"]
+                    ),
+                )
             reports.append(report)
             row = {
                 **summary,
@@ -154,9 +195,14 @@ class LearningAssessmentWorker(PandasWorker):
             if program_coverage is not None and not rows:
                 # Carry bank-level material coverage through the worker DataFrame
                 # exactly once; it is not an individual learner's assessment.
-                row["assessment_program_coverage_json"] = json.dumps(program_coverage, sort_keys=True)
+                row["assessment_program_coverage_json"] = json.dumps(
+                    program_coverage, sort_keys=True
+                )
             rows.append(row)
-        if any(str(report.get("classroom", {}).get("student_ref", "")).strip() for report in reports):
+        if any(
+            str(report.get("classroom", {}).get("student_ref", "")).strip()
+            for report in reports
+        ):
             worker_id = int(getattr(self, "_worker_id", 0))
             write_classroom_partial_artifacts(
                 reports,
@@ -173,7 +219,9 @@ class LearningAssessmentWorker(PandasWorker):
         return pd.DataFrame(rows)
 
     @staticmethod
-    def _materialize_rows(df: pd.DataFrame) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    def _materialize_rows(
+        df: pd.DataFrame,
+    ) -> list[tuple[dict[str, Any], dict[str, Any]]]:
         """Parse each DataFrame row once into a (report, summary) pair.
 
         Done once and reused across every artifact bundle so the report JSON is
@@ -188,6 +236,9 @@ class LearningAssessmentWorker(PandasWorker):
                 for key in row.index
                 if key not in {"report_json", "assessment_program_coverage_json"}
             }
+            for key in ("student_score", "objective_score"):
+                if key in summary and pd.isna(summary[key]):
+                    summary[key] = None
             materialized.append((report, summary))
         return materialized
 
@@ -219,7 +270,9 @@ class LearningAssessmentWorker(PandasWorker):
             run_root.mkdir(parents=True, exist_ok=True)
             _write_json(run_root / f"{stem}_diagnostic_report.json", report)
             _write_csv(run_root / f"{stem}_diagnostic_summary.csv", [summary])
-            correction_paths.append(write_correction_sheet(report, root / "correction_sheets"))
+            correction_paths.append(
+                write_correction_sheet(report, root / "correction_sheets")
+            )
 
         if summaries:
             _write_csv(root / "learning_assessment_summary.csv", summaries)
@@ -239,7 +292,10 @@ class LearningAssessmentWorker(PandasWorker):
                 root / "math_program_2026_coverage.json",
                 build_math_program_2026_coverage_report(coverage_cases),
             )
-            if any(str(report.get("classroom", {}).get("student_ref", "")).strip() for report in reports):
+            if any(
+                str(report.get("classroom", {}).get("student_ref", "")).strip()
+                for report in reports
+            ):
                 write_classroom_artifacts(reports, root / "classroom")
             write_reduce_artifact(
                 summaries,
@@ -267,7 +323,10 @@ class LearningAssessmentWorker(PandasWorker):
             return reports
         for value in df["assessment_program_coverage_json"].dropna():
             report = json.loads(str(value))
-            if not isinstance(report, dict) or report.get("schema") != "tescia-assessment-program-coverage.v1":
+            if (
+                not isinstance(report, dict)
+                or report.get("schema") != "tescia-assessment-program-coverage.v1"
+            ):
                 raise ValueError("Invalid assessment program coverage in worker output")
             serialized = json.dumps(report, sort_keys=True, ensure_ascii=False)
             digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()

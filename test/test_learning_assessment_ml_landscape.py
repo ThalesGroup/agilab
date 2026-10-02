@@ -51,7 +51,8 @@ def test_landscape_modules_have_scored_exercises_and_accessible_figures(surface)
         case = cases[module["case_id"]]
         assert case["learning_track"] == "data_science_2026"
         report = surface.score_student_submission(case, case["student_answer"])
-        assert report["student_score"] >= 85
+        assert report["student_score"] is None
+        assert report["self_evaluation"]["objective_score"] >= 85
         wrong = {
             **case["student_answer"],
             "root_cause": case["proposed_diagnosis"],
@@ -60,8 +61,10 @@ def test_landscape_modules_have_scored_exercises_and_accessible_figures(surface)
             "regression_test_ids": [],
         }
         assert (
-            surface.score_student_submission(case, wrong)["student_score"]
-            < report["student_score"]
+            surface.score_student_submission(case, wrong)["self_evaluation"][
+                "objective_score"
+            ]
+            < report["self_evaluation"]["objective_score"]
         )
 
     for svg in (ml_landscape_svg(), probability_density_svg()):
@@ -88,20 +91,26 @@ def test_ml_exercise_selection_and_scoring_survive_learning_path_switches(surfac
     app.button(key="tescia_ml_select_exercise").click().run()
     assert not app.exception
     assert app.selectbox(key="tescia_answer_case").value == "ml_landscape_2026_density"
+    assert not any("Worked example" in info.value for info in app.info)
+    app.selectbox(key="tescia_answer_mode").select("Worked example").run()
     assert any("Worked example" in info.value for info in app.info)
 
     app.button(key="tescia_answer_evaluate").click().run()
     assert not app.exception
     worked_score = next(
-        float(m.value) for m in app.metric if m.label == "Student score"
+        float(m.value) for m in app.metric if m.label == "Objective selections / 100"
     )
-    app.text_input(key="tescia_answer_fix_ml_landscape_2026_density").set_value(
-        "clip_density_to_one"
-    )
-    app.text_input(key="tescia_answer_evidence_ml_landscape_2026_density").set_value("")
+    app.text_input(
+        key="tescia_answer_fix_ml_landscape_2026_density_Worked example"
+    ).set_value("clip_density_to_one")
+    app.text_input(
+        key="tescia_answer_evidence_ml_landscape_2026_density_Worked example"
+    ).set_value("")
     app.button(key="tescia_answer_evaluate").click().run()
     assert not app.exception
-    wrong_score = next(float(m.value) for m in app.metric if m.label == "Student score")
+    wrong_score = next(
+        float(m.value) for m in app.metric if m.label == "Objective selections / 100"
+    )
     assert wrong_score < worked_score
 
     app.segmented_control(key="tescia_learning_track").set_value(

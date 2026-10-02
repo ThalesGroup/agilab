@@ -257,23 +257,35 @@ def classroom_progress_row(report: Mapping[str, Any]) -> dict[str, Any]:
         "curriculum_ids": ",".join(
             str(item) for item in _as_list(catalog.get("curriculum_ids"))
         ),
-        "student_score": float(report.get("student_score", 0.0)),
+        "student_score": report.get("student_score"),
+        "objective_score": self_eval.get("objective_score"),
+        "review_status": self_eval.get("status", "not_submitted"),
         "score_band": _as_string(self_eval.get("score_band")),
         "feedback_count": len(feedback),
         "needs_attention": bool(
-            float(report.get("student_score", 0.0)) < 70.0 or len(feedback) > 1
+            report.get("student_score") is None
+            or float(report["student_score"]) < 70.0
+            or len(feedback) > 1
         ),
-        "root_cause_score": float(scores.get("root_cause", 0.0) or 0.0),
-        "evidence_selection_score": float(scores.get("evidence_selection", 0.0) or 0.0),
-        "fix_selection_score": float(scores.get("fix_selection", 0.0) or 0.0),
-        "regression_selection_score": float(
-            scores.get("regression_selection", 0.0) or 0.0
+        "root_cause_score": _optional_score(scores.get("root_cause")),
+        "evidence_selection_score": _optional_score(scores.get("evidence_selection")),
+        "fix_selection_score": _optional_score(scores.get("fix_selection")),
+        "regression_selection_score": _optional_score(
+            scores.get("regression_selection")
         ),
     }
 
 
-def _average(values: Sequence[float]) -> float:
-    return round(sum(values) / len(values), 1) if values else 0.0
+def _optional_score(value: Any) -> float | None:
+    return None if value in (None, "") else float(value)
+
+
+def _average(values: Sequence[float]) -> float | None:
+    return round(sum(values) / len(values), 1) if values else None
+
+
+def _sort_score(value: Any) -> float:
+    return -1.0 if value is None else float(value)
 
 
 def _aggregate_rows(
@@ -287,11 +299,19 @@ def _aggregate_rows(
                 grouped[item_key].append(row)
     result = []
     for item_key, item_rows in sorted(grouped.items()):
-        scores = [float(row["student_score"]) for row in item_rows]
+        scores = [
+            float(row["student_score"])
+            for row in item_rows
+            if row["student_score"] is not None
+        ]
         result.append(
             {
                 key: item_key,
                 "submission_count": len(item_rows),
+                "graded_count": len(scores),
+                "pending_review_count": sum(
+                    row.get("review_status") == "pending_review" for row in item_rows
+                ),
                 "average_score": _average(scores),
                 "needs_attention_count": sum(
                     1 for row in item_rows if bool(row["needs_attention"])
@@ -317,13 +337,18 @@ def _aggregate_student_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, An
 
     result: list[dict[str, Any]] = []
     for (class_id, session_id, student_ref), item_rows in sorted(grouped.items()):
-        scores = [float(row["student_score"]) for row in item_rows]
+        scores = [
+            float(row["student_score"])
+            for row in item_rows
+            if row["student_score"] is not None
+        ]
         result.append(
             {
                 "class_id": class_id,
                 "session_id": session_id,
                 "student_ref": student_ref,
                 "submission_count": len(item_rows),
+                "graded_count": len(scores),
                 "average_score": _average(scores),
                 "needs_attention_count": sum(
                     1 for row in item_rows if bool(row["needs_attention"])
@@ -331,18 +356,22 @@ def _aggregate_student_rows(rows: Sequence[dict[str, Any]]) -> list[dict[str, An
                 "weakest_exercise_id": min(
                     item_rows,
                     key=lambda row: (
-                        float(row["student_score"]),
+                        _sort_score(row["student_score"]),
                         str(row.get("exercise_id", "")),
                     ),
                 )["exercise_id"],
             }
         )
     return sorted(
-        result, key=lambda row: (float(row["average_score"]), row["student_ref"])
+        result, key=lambda row: (_sort_score(row["average_score"]), row["student_ref"])
     )
 
 
-def _intervention_priority(*, average_score: float, needs_attention_count: int) -> str:
+def _intervention_priority(
+    *, average_score: float | None, needs_attention_count: int
+) -> str:
+    if average_score is None:
+        return "medium"
     if average_score < 50.0 or needs_attention_count >= 2:
         return "high"
     if average_score < 70.0 or needs_attention_count:
@@ -381,9 +410,13 @@ def _intervention_actions_from_aggregates(
 
     actions: list[dict[str, Any]] = []
     for row in student_rows:
-        average_score = float(row["average_score"])
+        average_score = row["average_score"]
         needs_attention_count = int(row["needs_attention_count"])
-        if average_score >= 70.0 and not needs_attention_count:
+        if (
+            average_score is not None
+            and average_score >= 70.0
+            and not needs_attention_count
+        ):
             continue
         actions.append(
             {
@@ -391,9 +424,15 @@ def _intervention_actions_from_aggregates(
                     average_score=average_score,
                     needs_attention_count=needs_attention_count,
                 ),
-                "action_type": "student_follow_up",
+                "action_type": "review_pending"
+                if average_score is None
+                else "student_follow_up",
                 "target": row["student_ref"],
-                "reason": f"Average {average_score} with {needs_attention_count} flagged submission(s).",
+                "reason": (
+                    "Ungraded reasoning awaits review."
+                    if average_score is None
+                    else f"Average {average_score} with {needs_attention_count} flagged submission(s)."
+                ),
                 "suggested_action": f"Review `{row['weakest_exercise_id']}` feedback with this student.",
                 "average_score": average_score,
                 "needs_attention_count": needs_attention_count,
@@ -401,9 +440,13 @@ def _intervention_actions_from_aggregates(
         )
 
     for row in curriculum_rows:
-        average_score = float(row["average_score"])
+        average_score = row["average_score"]
         needs_attention_count = int(row["needs_attention_count"])
-        if average_score >= 70.0 and not needs_attention_count:
+        if (
+            average_score is not None
+            and average_score >= 70.0
+            and not needs_attention_count
+        ):
             continue
         actions.append(
             {
@@ -411,9 +454,15 @@ def _intervention_actions_from_aggregates(
                     average_score=average_score,
                     needs_attention_count=needs_attention_count,
                 ),
-                "action_type": "curriculum_reteach",
+                "action_type": "review_pending"
+                if average_score is None
+                else "curriculum_reteach",
                 "target": row["curriculum_ids"],
-                "reason": f"Average {average_score} across {row['submission_count']} submission(s).",
+                "reason": (
+                    "Ungraded reasoning awaits review."
+                    if average_score is None
+                    else f"Average {average_score} across {row['submission_count']} submission(s)."
+                ),
                 "suggested_action": "Run a short board correction before the next exercise.",
                 "average_score": average_score,
                 "needs_attention_count": needs_attention_count,
@@ -421,9 +470,13 @@ def _intervention_actions_from_aggregates(
         )
 
     for row in exercise_rows:
-        average_score = float(row["average_score"])
+        average_score = row["average_score"]
         needs_attention_count = int(row["needs_attention_count"])
-        if average_score >= 70.0 and not needs_attention_count:
+        if (
+            average_score is not None
+            and average_score >= 70.0
+            and not needs_attention_count
+        ):
             continue
         actions.append(
             {
@@ -445,7 +498,7 @@ def _intervention_actions_from_aggregates(
         actions,
         key=lambda row: (
             priority_rank.get(str(row["priority"]), 99),
-            float(row["average_score"]),
+            _sort_score(row["average_score"]),
             str(row["action_type"]),
             str(row["target"]),
         ),
@@ -465,17 +518,21 @@ def _normalize_progress_row(row: Mapping[str, Any]) -> dict[str, Any]:
         "learning_track": _as_string(row.get("learning_track")),
         "learning_track_label": _as_string(row.get("learning_track_label")),
         "curriculum_ids": _as_string(row.get("curriculum_ids")),
-        "student_score": float(row.get("student_score", 0.0) or 0.0),
+        "student_score": None
+        if row.get("student_score") in (None, "")
+        else float(row["student_score"]),
+        "objective_score": row.get("objective_score"),
+        "review_status": _as_string(row.get("review_status")),
         "score_band": _as_string(row.get("score_band")),
         "feedback_count": int(row.get("feedback_count", 0) or 0),
         "needs_attention": _as_bool(row.get("needs_attention")),
-        "root_cause_score": float(row.get("root_cause_score", 0.0) or 0.0),
-        "evidence_selection_score": float(
-            row.get("evidence_selection_score", 0.0) or 0.0
+        "root_cause_score": _optional_score(row.get("root_cause_score")),
+        "evidence_selection_score": _optional_score(
+            row.get("evidence_selection_score")
         ),
-        "fix_selection_score": float(row.get("fix_selection_score", 0.0) or 0.0),
-        "regression_selection_score": float(
-            row.get("regression_selection_score", 0.0) or 0.0
+        "fix_selection_score": _optional_score(row.get("fix_selection_score")),
+        "regression_selection_score": _optional_score(
+            row.get("regression_selection_score")
         ),
     }
 
@@ -498,7 +555,9 @@ def build_classroom_run_report_from_rows(
             row["exercise_id"],
         ),
     )
-    score_values = [float(row["student_score"]) for row in rows]
+    score_values = [
+        float(row["student_score"]) for row in rows if row["student_score"] is not None
+    ]
     band_counts = Counter(str(row["score_band"]) for row in rows)
     heatmap_rows = [
         {
@@ -541,6 +600,10 @@ def build_classroom_run_report_from_rows(
         "class_ids": class_ids,
         "session_ids": session_ids,
         "submission_count": len(rows),
+        "graded_count": len(score_values),
+        "pending_review_count": sum(
+            row["review_status"] == "pending_review" for row in rows
+        ),
         "unique_student_count": len(unique_students),
         "average_score": _average(score_values),
         "score_band_counts": dict(sorted(band_counts.items())),
