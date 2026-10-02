@@ -85,7 +85,9 @@ def test_regression_flags_preserve_boolean_scoring_and_optional_defaults(
     assert diagnostic.regression_coverage(case) == expected_coverage
     report = diagnostic.diagnose_case(case)
     assert report["regression_coverage"] == expected_coverage
-    expected_status = "actionable" if expected_coverage >= 0.6 else "needs_more_evidence"
+    expected_status = (
+        "actionable" if expected_coverage >= 0.6 else "needs_more_evidence"
+    )
     assert report["status"] == expected_status
 
 
@@ -114,7 +116,9 @@ def test_generator_rejects_string_false_regression_flags(
         )
 
 
-def test_valid_bundled_case_keeps_its_diagnostic_scores(diagnostic_modules, case_payload):
+def test_valid_bundled_case_keeps_its_diagnostic_scores(
+    diagnostic_modules, case_payload
+):
     diagnostic, _ = diagnostic_modules
     case = diagnostic.validate_case_payload(case_payload)["cases"][0]
 
@@ -123,5 +127,6 @@ def test_valid_bundled_case_keeps_its_diagnostic_scores(diagnostic_modules, case
     assert report["status"] == "actionable"
     assert report["regression_coverage"] == 1.0
     assert report["case_quality_score"] == 94.0
-    assert report["student_score"] == 99.7
+    assert report["student_score"] is None
+    assert report["self_evaluation"]["objective_score"] == 100.0
     assert report["selected_fix"]["id"] == "mount_scheduler_share_with_sshfs"

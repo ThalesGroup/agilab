@@ -55,8 +55,8 @@ models, ensembles, clustering, projection, probabilistic models, representations
 neural architectures, optimization, evaluation and limited-label strategies.
 The probability-density module includes an [area plot](src/learning_assessment/resources/ml_probability_density.svg):
 a density of 2 s⁻¹ over a 0.1-second interval gives probability 0.2.
-Self-check identifies these as worked examples with model answers; explain the
-choices and change them to compare feedback.
+Self-check starts with blank answers. Select **Worked example** explicitly to
+inspect a reference answer; select **Practice** or **Positioning** to respond.
 
 The map uses French terminology; the guided explanations and diagnostic cases
 use English like the existing app. All resources ship inside the package and
@@ -68,7 +68,8 @@ regression checks, not executed model benchmarks or proof of operational perform
 - How diagnostic cases are scored deterministically instead of by hidden chat
   state.
 - How optional local AI generation is separated from validated scoring.
-- How student answers produce `student_score`, feedback, and correction sheets.
+- How objectively checkable answers produce scores, while open reasoning stays
+  pending human review, with feedback and correction sheets.
 - How classroom batches can be split into worker-friendly independent rows.
 - How curriculum coverage is audited from explicit metadata.
 - How progress is aggregated by explicit learning path for teacher review.
@@ -130,8 +131,10 @@ Use the existing `data_in` and `files` arguments to select that bank. With
 `case_source = "bundled"`, existing matching input files are used as supplied;
 the demo bank is seeded only when none exist. Use a dedicated input directory
 and an exact filename so unrelated JSON manifests are not scored as case banks.
-The interactive teaching demo still displays the bundled cases; external banks
-are processed through the worker and inspected in its exported artifacts.
+The analysis page reads those same configured banks. Open **Programme / banque
+d'exercices** to select one or import a local JSON bank. Its French catalogue,
+learning activities, practical reviews and coverage view all use the selected
+bank. An invalid selected bank is reported instead of silently showing the demo.
 
 An assessment program declares schema `tescia-assessment-program.v1`, an ID,
 title, version, and sources with revision and SHA256 fingerprints. Competencies
@@ -140,8 +143,8 @@ IDs, and links to existing diagnostic case IDs. Each can also include a
 `practical_assessment`: instructions, expected deliverables, criterion-based
 rubric, and optional local artifact references. References are descriptive:
 the app neither opens nor executes them. The schema and a complete synthetic
-example are exercised in `test/test_tescia_assessment_program.py` and
-`test/test_tescia_program_integration.py` in the source checkout.
+example are exercised in `test/test_learning_assessment_program.py` and
+`test/test_learning_assessment_program_integration.py` in the source checkout.
 
 Do not put external competency IDs in `curriculum_ids`: that field remains
 reserved for the existing Mathematics 2026 contract. Program competencies link
@@ -161,6 +164,52 @@ audit the source-to-competency map and recheck it when source fingerprints
 change. Practical mastery remains `not_assessed` until actual learner work is
 reviewed against the rubric. A worked answer or a high diagnostic score is not
 proof that a lab was executed or a competency was mastered.
+
+### Answers, reviews and portable progression
+
+A case may use `question_assessment` with schema
+`agilab.learning_assessment.question.v1`: `open_response` declares a reference
+answer and review criteria; `numeric` declares an expected value, unit and
+absolute/relative tolerances; `multiple_choice` declares choices and the exact
+correct set. Every question includes an explanation and remediation. Numeric
+answers require the declared unit; extra choices make a multiple-choice answer
+incorrect. The tests contain a complete synthetic bank.
+
+Open responses and diagnostic reasoning receive no automatic comprehension
+grade. Diagnostic selections have a separate `objective_score`; selecting
+distractors lowers it. Unknown grades and subscores remain null in classroom
+exports and are excluded from averages. Reducer v2 requires an explicit
+`graded_count` and rejects v1 partials to prevent mixing old lexical grades with
+the new semantics. Regenerate worker partials when upgrading.
+
+External programmes start with blank answers in **Entraînement** and
+**Positionnement**. **Exemple commenté** displays a reference without recording
+an assessed attempt. **Évaluation de transfert** requires a separate case with
+`transfer_variant` naming its baseline, changes and at least two dimensions
+(topology, seed, load, tool, fault, version or constraint). A local app exposes
+reference material and is not a supervised examination.
+
+Use a learner pseudonym and **Sauvegarder progression, revues et preuves** before
+closing the browser or restarting the server. **Reprendre un dossier sauvegardé**
+restores the same bank version and learner. Attempts retain answers, timestamps,
+predecessors, programme version, competency links and source fingerprints. A
+human reviewer records criteria from 0 to 4 plus a rationale; later reviews do
+not overwrite earlier evidence. Drafts belong to the active learner session.
+
+Practical reviews require actual file bytes, not just artifact names. The
+five-criterion Academy grid uses weights 15/25/20/25/15 when its criterion IDs
+are present. Safety/authorization and evidence-integrity gates must both pass,
+regardless of the numeric result. Limits are 4 MiB per file, 12 MiB per practical
+submission and 24 MiB per saved session including base64 encoding. Writes that
+would exceed the saved-session limit are rejected without changing the history.
+Uploaded evidence is retained and hashed, never executed.
+
+Source verification compares files explicitly uploaded by the user against the
+programme fingerprints. Resume replays evaluations, review calculations and
+artifact checks. Checksums do not authenticate people or prove that a lab ran.
+**Exporter les tentatives pour les workers** exports the same cases, answers and
+attempt provenance; declared human reviews and practical files remain in the
+separate progression dossier. Keep both exports when handing over the work.
 
 ## Change One Thing
 

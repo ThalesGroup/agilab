@@ -9,6 +9,7 @@ from typing import Any
 
 from .assessment_program import validate_assessment_program
 from .learning import learning_track_metadata, normalize_learning_track
+from .question_assessment import score_question, validate_question_case
 
 
 CASE_SCHEMA = "agilab.tescia_diagnostic.cases.v1"
@@ -327,8 +328,50 @@ def validate_case_payload(
     for index, case in enumerate(cases):
         if not isinstance(case, Mapping):
             raise ValueError(f"Case #{index + 1} must be an object.")
+        submission = case.get("submission_context")
+        if submission is not None:
+            required_submission = {
+                "original_bank_sha256",
+                "attempt_id",
+                "attempt_number",
+                "mode",
+                "previous_attempt_id",
+            }
+            if (
+                not isinstance(submission, Mapping)
+                or set(submission) != required_submission
+            ):
+                raise ValueError("Invalid submission context.")
+            if (
+                not isinstance(submission["original_bank_sha256"], str)
+                or re.fullmatch(r"[0-9a-f]{64}", submission["original_bank_sha256"])
+                is None
+            ):
+                raise ValueError("Invalid original bank fingerprint.")
+            for identity in (
+                submission["attempt_id"],
+                submission["previous_attempt_id"],
+            ):
+                if identity is not None and (
+                    not isinstance(identity, str)
+                    or re.fullmatch(r"[0-9a-f]{32}", identity) is None
+                ):
+                    raise ValueError("Invalid attempt identity.")
+            if (
+                submission["attempt_id"] is None
+                or type(submission["attempt_number"]) is not int
+                or submission["attempt_number"] < 1
+                or submission["mode"] not in {"practice", "positioning", "transfer"}
+            ):
+                raise ValueError("Invalid attempt metadata.")
         case_id = str(case.get("case_id", f"case_{index + 1}"))
-        missing = sorted(field for field in _REQUIRED_CASE_FIELDS if field not in case)
+        question_case = "question_assessment" in case
+        required = (
+            {"case_id", "title", "student_prompt"}
+            if question_case
+            else _REQUIRED_CASE_FIELDS
+        )
+        missing = sorted(field for field in required if field not in case)
         if missing:
             raise ValueError(
                 f"Case {case_id!r} is missing fields: {', '.join(missing)}."
@@ -339,6 +382,11 @@ def validate_case_payload(
             raise ValueError(
                 f"Case {case_id!r} has invalid learner metadata: {exc}"
             ) from exc
+
+        if question_case:
+            validate_question_case(case)
+            normalized_cases.append(dict(case))
+            continue
 
         evidence = case.get("evidence")
         fixes = case.get("candidate_fixes")
@@ -419,6 +467,54 @@ def validate_case_payload(
 
         normalized_cases.append(dict(case))
 
+    identities = [case["case_id"] for case in normalized_cases]
+    if any(
+        not isinstance(identity, str) or not identity.strip() for identity in identities
+    ) or len(set(identities)) != len(identities):
+        raise ValueError("Cases require unique nonblank case ids.")
+    for case in normalized_cases:
+        variant = case.get("transfer_variant")
+        if variant is not None:
+            if not isinstance(variant, Mapping) or set(variant) != {
+                "of",
+                "dimensions",
+                "changes",
+            }:
+                raise ValueError(
+                    "Transfer variants require of, dimensions and changes."
+                )
+            dimensions = variant["dimensions"]
+            if not isinstance(variant["of"], str) or variant["of"] == case["case_id"]:
+                raise ValueError(
+                    "Transfer variants require a distinct source exercise."
+                )
+            if (
+                not isinstance(dimensions, list)
+                or any(
+                    not isinstance(d, str)
+                    or d
+                    not in {
+                        "topology",
+                        "seed",
+                        "load",
+                        "tool",
+                        "fault",
+                        "version",
+                        "constraint",
+                    }
+                    for d in dimensions
+                )
+                or len(set(dimensions)) < 2
+                or len(set(dimensions)) != len(dimensions)
+            ):
+                raise ValueError(
+                    "Transfer variants must change two distinct scenario dimensions."
+                )
+            if (
+                not isinstance(variant["changes"], str)
+                or not variant["changes"].strip()
+            ):
+                raise ValueError("Transfer variants must describe the changes.")
     normalized = {"schema": CASE_SCHEMA, "cases": normalized_cases}
     if "assessment_program" in payload:
         normalized["assessment_program"] = validate_assessment_program(
@@ -536,7 +632,7 @@ def _selection_score(selected_ids: Sequence[str], expected_ids: Sequence[str]) -
     if not expected:
         return 0.0
     selected = set(selected_ids)
-    return round(len(selected & expected) / len(expected), 4)
+    return round(len(selected & expected) / len(selected | expected), 4)
 
 
 def _score_band(score: float) -> str:
@@ -651,14 +747,14 @@ def evaluate_student_answer(
         return {
             "schema": "agilab.tescia_diagnostic.self_evaluation.v1",
             "status": "not_submitted",
-            "student_score": 0.0,
+            "student_score": None,
             "score_band": "not_submitted",
             "scores": {
-                "root_cause": 0.0,
-                "evidence_selection": 0.0,
-                "fix_selection": 0.0,
-                "regression_selection": 0.0,
-                "confidence_calibration": 0.0,
+                "root_cause": None,
+                "evidence_selection": None,
+                "fix_selection": None,
+                "regression_selection": None,
+                "confidence_calibration": None,
             },
             "expected": expected,
             "student": {},
@@ -681,9 +777,7 @@ def evaluate_student_answer(
         4,
     )
     scores = {
-        "root_cause": _text_overlap_score(
-            str(answer.get("root_cause", "")), str(case.get("root_cause", ""))
-        ),
+        "root_cause": None,
         "evidence_selection": _selection_score(student_evidence, expected_evidence),
         "fix_selection": 1.0
         if student_fix == expected_fix_id and expected_fix_id
@@ -693,20 +787,19 @@ def evaluate_student_answer(
             max(0.0, 1.0 - abs(confidence - reference_quality)), 4
         ),
     }
-    score = round(
+    objective_score = round(
         (
-            (scores["root_cause"] * 0.25)
-            + (scores["evidence_selection"] * 0.25)
+            (scores["evidence_selection"] * 0.25)
             + (scores["fix_selection"] * 0.25)
             + (scores["regression_selection"] * 0.20)
-            + (scores["confidence_calibration"] * 0.05)
         )
-        * 100,
+        * 100
+        / 0.70,
         1,
     )
-    feedback = []
-    if scores["root_cause"] < 0.65:
-        feedback.append("Root cause explanation misses important reference terms.")
+    feedback = [
+        "Open reasoning requires human review; automated feedback covers selections only."
+    ]
     if scores["evidence_selection"] < 1.0:
         missing = sorted(set(expected_evidence) - set(student_evidence))
         feedback.append(
@@ -719,14 +812,26 @@ def evaluate_student_answer(
         feedback.append(
             f"Regression plan is incomplete; missing: {', '.join(missing)}."
         )
+    for label, selected, expected_ids in (
+        ("Evidence", student_evidence, expected_evidence),
+        ("Regression", student_tests, expected_tests),
+    ):
+        unexpected = sorted(set(selected) - set(expected_ids))
+        if unexpected:
+            feedback.append(
+                f"{label} selection includes unsupported choices: {', '.join(unexpected)}."
+            )
     if not feedback:
         feedback.append("Answer is aligned with the reference diagnostic contract.")
 
     return {
         "schema": "agilab.tescia_diagnostic.self_evaluation.v1",
-        "status": "submitted",
-        "student_score": score,
-        "score_band": _score_band(score),
+        "status": "pending_review",
+        "student_score": None,
+        "objective_score": objective_score,
+        "score_scope": "objective_selections_only",
+        "score_band": "pending_review",
+        "learner_mastery": "not_assessed",
         "scores": scores,
         "expected": expected,
         "student": {
@@ -766,6 +871,30 @@ def diagnose_case(
 ) -> dict[str, Any]:
     """Build a repeatable diagnostic recommendation for one case."""
 
+    if "question_assessment" in case:
+        evaluation = score_question(case)
+        return {
+            "schema": "agilab.tescia_diagnostic.report.v1",
+            "case_id": str(case.get("case_id", "")),
+            "catalog": catalog_metadata(case),
+            "classroom": classroom_metadata(case),
+            "status": evaluation["status"],
+            "student_score": evaluation["student_score"],
+            "case_quality_score": 0.0,
+            "evidence_quality": 0.0,
+            "regression_coverage": 0.0,
+            "symptom": "",
+            "proposed_diagnosis": "",
+            "root_cause": "",
+            "selected_fix": {},
+            "ranked_fixes": [],
+            "weak_assumptions": [],
+            "regression_plan": [],
+            "decision": {},
+            "plain_repro": "",
+            "self_evaluation": evaluation,
+        }
+
     evidence_score = evidence_quality(case)
     regression_score = regression_coverage(case)
     ranked_fixes = rank_candidate_fixes(
@@ -798,7 +927,6 @@ def diagnose_case(
         evidence_score=evidence_score,
         regression_score=regression_score,
     )
-    has_student_answer = self_evaluation["status"] == "submitted"
     root_cause = str(case.get("root_cause", "")).strip()
     decision = evaluate_decision_policy(case)
 
@@ -814,9 +942,7 @@ def diagnose_case(
         "evidence_quality": evidence_score,
         "regression_coverage": regression_score,
         "case_quality_score": score,
-        "student_score": self_evaluation["student_score"]
-        if has_student_answer
-        else score,
+        "student_score": self_evaluation["student_score"],
         "status": status,
         "selected_fix": selected_fix,
         "ranked_fixes": ranked_fixes,
@@ -873,7 +999,8 @@ def summarize_report(
         "case_quality_score": float(
             report.get("case_quality_score", report.get("student_score", 0.0))
         ),
-        "student_score": float(report.get("student_score", 0.0)),
+        "student_score": report.get("student_score"),
+        "objective_score": self_evaluation.get("objective_score"),
         "self_evaluation_status": str(self_evaluation.get("status", "not_submitted")),
         "self_evaluation_band": str(self_evaluation.get("score_band", "not_submitted")),
         "feedback_count": len(feedback),

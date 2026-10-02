@@ -64,13 +64,38 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
         decision = {}
 
     title = str(catalog.get("title") or report.get("case_id") or "TeSciA correction")
+    if self_eval.get("schema") == "agilab.learning_assessment.question_evaluation.v1":
+        return "\n".join(
+            [
+                f"# {title}",
+                "",
+                str(catalog.get("student_prompt", "")),
+                "",
+                f"Statut : {self_eval.get('status')}",
+                f"Note automatique : {self_eval.get('student_score') if self_eval.get('student_score') is not None else 'non évaluée'}",
+                "",
+                "## Réponse",
+                "",
+                _json_block(student),
+                "",
+                "## Correction et critères",
+                "",
+                _json_block(expected),
+                "",
+                "## Travail conseillé",
+                "",
+                str(self_eval.get("remediation", "")),
+                "",
+            ]
+        )
     lines = [
         f"# {title}",
         "",
         f"- Case id: `{report.get('case_id', '')}`",
         f"- Learning path: `{catalog.get('learning_track_label', '')}`",
         f"- Difficulty: `{catalog.get('difficulty', '')}`",
-        f"- Student score: `{report.get('student_score', 0.0)}`",
+        f"- Student score: `{report.get('student_score') if report.get('student_score') is not None else 'not assessed'}`",
+        f"- Objective selections only: `{self_eval.get('objective_score', 'not assessed')}`",
         f"- Score band: `{self_eval.get('score_band', 'not_submitted')}`",
         f"- Case quality score: `{report.get('case_quality_score', 0.0)}`",
         "",

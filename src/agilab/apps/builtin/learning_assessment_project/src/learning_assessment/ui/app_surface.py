@@ -311,7 +311,9 @@ def classroom_submission_inbox_dir(
     if runtime_env is None or runtime_args is None:
         return None
     inbox = Path(
-        str(getattr(runtime_args, "submission_inbox", "learning_assessment/submissions"))
+        str(
+            getattr(runtime_args, "submission_inbox", "learning_assessment/submissions")
+        )
     )
     if inbox.is_absolute():
         return inbox
@@ -418,7 +420,7 @@ def catalog_rows(cases: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
                 "estimated_minutes": int(catalog.get("estimated_minutes", 0) or 0),
                 "curriculum_count": len(curriculum_ids),
                 "curriculum_ids": ", ".join(str(item) for item in curriculum_ids),
-                "score": float(report.get("student_score", 0.0)),
+                "score": report.get("student_score"),
             }
         )
     return rows
@@ -597,7 +599,9 @@ def _safe_page_config() -> None:
     try:
         from agilab.ui.page_bootstrap import configure_page_config
     except (ImportError, ModuleNotFoundError):
-        getattr(st, "set_page_config")(page_title="Learning & Assessment", layout="wide")
+        getattr(st, "set_page_config")(
+            page_title="Learning & Assessment", layout="wide"
+        )
     else:
         configure_page_config(st, page_title="Learning & Assessment", layout="wide")
 
@@ -663,6 +667,12 @@ def render(
 
     active_app_path = _resolve_active_app_path(active_app)
     runtime_env, runtime_args = _runtime_context(active_app_path)
+    from .program_learning import render_program, select_bank
+
+    selected_bank = select_bank(bundled_cases_path(), runtime_env, runtime_args)
+    if selected_bank is not None:
+        render_program(selected_bank)
+        return
     cases = cached_load_cases(
         str(bundled_cases_path()), _file_mtime_ns(bundled_cases_path())
     )
@@ -747,6 +757,11 @@ def render(
         st.dataframe(catalog_rows(filtered), width="stretch", hide_index=True)
 
     with answer_tab:
+        answer_mode = st.selectbox(
+            "Answer mode",
+            ["Practice", "Positioning", "Worked example"],
+            key="tescia_answer_mode",
+        )
         case_ids = [str(case["case_id"]) for case in selected_track_cases]
         selected_id = st.selectbox("Exercise", case_ids, key="tescia_answer_case")
         case = next(case for case in cases if case["case_id"] == selected_id)
@@ -754,45 +769,51 @@ def render(
         catalog = report["catalog"]
         st.markdown(f"**{catalog['title']}**")
         st.caption(catalog["student_prompt"])
-        if selected_id.startswith("ml_landscape_2026_"):
+        if answer_mode == "Worked example":
             st.info(
                 "Worked example: the fields below contain a model answer. "
                 "Explain each choice, then change an answer to compare the feedback."
             )
+        else:
+            st.caption(
+                "Answers start blank. Open reasoning requires human review; automatic feedback covers verifiable selections only."
+            )
+        initial_answer = (
+            case.get("student_answer", {}) if answer_mode == "Worked example" else {}
+        )
+        answer_key = selected_id + "_" + answer_mode
         answer = build_student_answer(
             diagnosis=st.text_area(
                 "Diagnosis",
-                value=str(case.get("student_answer", {}).get("diagnosis", "")),
-                key=f"tescia_answer_diagnosis_{selected_id}",
+                value=str(initial_answer.get("diagnosis", "")),
+                key=f"tescia_answer_diagnosis_{answer_key}",
             ),
             root_cause=st.text_area(
                 "Root cause",
-                value=str(case.get("student_answer", {}).get("root_cause", "")),
-                key=f"tescia_answer_root_cause_{selected_id}",
+                value=str(initial_answer.get("root_cause", "")),
+                key=f"tescia_answer_root_cause_{answer_key}",
             ),
             evidence_ids=st.text_input(
                 "Evidence ids",
-                value=",".join(case.get("student_answer", {}).get("evidence_ids", [])),
-                key=f"tescia_answer_evidence_{selected_id}",
+                value=",".join(initial_answer.get("evidence_ids", [])),
+                key=f"tescia_answer_evidence_{answer_key}",
             ),
             selected_fix_id=st.text_input(
                 "Selected fix id",
-                value=str(case.get("student_answer", {}).get("selected_fix_id", "")),
-                key=f"tescia_answer_fix_{selected_id}",
+                value=str(initial_answer.get("selected_fix_id", "")),
+                key=f"tescia_answer_fix_{answer_key}",
             ),
             regression_test_ids=st.text_input(
                 "Regression test ids",
-                value=",".join(
-                    case.get("student_answer", {}).get("regression_test_ids", [])
-                ),
-                key=f"tescia_answer_regression_{selected_id}",
+                value=",".join(initial_answer.get("regression_test_ids", [])),
+                key=f"tescia_answer_regression_{answer_key}",
             ),
             confidence=st.slider(
                 "Confidence",
                 0.0,
                 1.0,
-                float(case.get("student_answer", {}).get("confidence", 0.75)),
-                key=f"tescia_answer_confidence_{selected_id}",
+                float(initial_answer.get("confidence", 0.5)),
+                key=f"tescia_answer_confidence_{answer_key}",
             ),
         )
         if st.button(
@@ -807,7 +828,12 @@ def render(
                 st.error(str(exc))
             else:
                 evaluation = scored["self_evaluation"]
-                st.metric("Student score", scored["student_score"])
+                st.metric(
+                    "Objective selections / 100", evaluation.get("objective_score", 0)
+                )
+                st.info(
+                    "Reasoning is pending human review. This selection score does not assess understanding or practical mastery."
+                )
                 st.write(evaluation["feedback"])
                 decision = scored.get("decision", {})
                 if (
