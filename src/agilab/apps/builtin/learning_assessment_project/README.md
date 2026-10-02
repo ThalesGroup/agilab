@@ -278,6 +278,13 @@ serving and abstention to human review.
 
 ## Troubleshooting
 
+For source changes, run the focused Learning & Assessment tests and
+`./dev builtin-app-tests --app learning_assessment_project` from the AGILAB
+checkout. When adding or changing evidence schema declarations, regenerate
+`agilab-capabilities.json` with
+`uv run python tools/agilab_capabilities_manifest.py --apply` and run
+`uv run pytest -q -o addopts='' test/test_agilab_capabilities_manifest.py`.
+
 If generated cases fail validation, inspect the schema error and rerun with the
 bundled deterministic cases. If classroom live data is empty, confirm the latest
 classroom artifact bundle exists before relying on the fallback preview.
