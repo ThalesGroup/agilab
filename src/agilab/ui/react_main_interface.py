@@ -7,6 +7,7 @@ from agilab.ui.page_project_selector import _refresh_project_names
 
 
 SHELL_ACTIVE_KEY = "_agilab_react_shell_active"
+NAVIGATION_ROUTES_SESSION_KEY = "_agilab_navigation_page_routes"
 
 # IDs resolve to Page objects registered by main_page; never to client paths.
 _ROUTE_CONTENT = {

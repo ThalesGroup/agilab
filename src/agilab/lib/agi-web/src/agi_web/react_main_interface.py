@@ -23,13 +23,13 @@ def _mount(factory: Callable[..., Any], manager: Any) -> Any:
     )
 
 
-def render_main_interface(streamlit: Any, data: Mapping[str, Any]) -> Any:
+def render_main_interface(streamlit: Any, data: Mapping[str, Any], *, key: str = "agilab:main-interface") -> Any:
     """Render controlled navigation/project inputs; actions expire after a rerun."""
     factory = streamlit.components.v2.component
     runtime = getattr(streamlit, "runtime", None)
     manager = runtime.get_instance().bidi_component_registry if runtime and runtime.exists() else factory
     return _mount(factory, manager)(
-        key="agilab:main-interface",
+        key=key,
         data=dict(data),
         height="content",
         width="stretch",

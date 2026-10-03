@@ -443,7 +443,9 @@ FIRST_PROOF_HELPER_SCRIPT_PREFIXES = (
     "AGI_run_",
     "AGI_get_",
 )
-_NAVIGATION_PAGE_ROUTES_SESSION_KEY = "_agilab_navigation_page_routes"
+from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY
+
+_NAVIGATION_PAGE_ROUTES_SESSION_KEY = NAVIGATION_ROUTES_SESSION_KEY
 
 
 def _session_navigation_routes(*, create: bool = True) -> dict[str, Any]:

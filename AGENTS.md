@@ -33,6 +33,9 @@ Use this runbook whenever you:
   editing, specialized geographic views and administration remain Python.
   Standalone Python pages keep their native project selector. Notebook exports
   continue using the independent shared React analysis components.
+  The main PROJECT overview uses the same local React bundle and existing Python
+  environment-health diagnostics. Native project operations, metrics and detailed
+  diagnostics remain available; standalone PROJECT pages retain native cards.
 
 - **Where apps live**: `*_project` apps are maintained in the external apps
   repository, not in this checkout. `APPS_REPOSITORY` in

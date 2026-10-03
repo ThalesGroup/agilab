@@ -55,6 +55,35 @@ export function MainInterface({ data, onAction }) {
   </section>;
 }
 
+export function ProjectWorkspace({ data, onAction }) {
+  const navigate = value => onAction({ kind: "navigate", value, project: data.project,
+    project_path: data.project_path, route: data.route });
+  return <section className="agilab-main-interface agilab-project-workspace" aria-label="Project workspace"
+    onKeyDown={event => event.stopPropagation()}>
+    <div className="agilab-home-intro">
+      <p className="agilab-eyebrow">Project workspace</p>
+      <h1>{data.project || "No project selected"}</h1>
+      <p>Review your environment and data, then run the project or explore its results.</p>
+    </div>
+    <div className="agilab-project-health" aria-label="Environment health">
+      {data.cards.map(card => <article key={card.label}
+        className={`agilab-health-card agilab-health-card--${card.state}`}>
+        <h2>{card.label}</h2><p className="agilab-health-value">{card.value}</p>
+        <p className="agilab-health-caption">{card.caption}</p>
+        <small>{card.state === "incomplete" ? "Needs attention" : "Ready"}</small>
+      </article>)}
+    </div>
+    <nav className="agilab-home-cards" aria-label="Project actions">
+      {data.actions.map(action => <button type="button" key={action.id} disabled={!data.project}
+        onClick={() => navigate(action.id)}>
+        <span className="agilab-card-title">{action.label}</span><span>{action.description}</span>
+        <span className="agilab-card-link">Open workspace →</span>
+      </button>)}
+    </nav>
+    <p className="agilab-notebook-note">Export from Analysis to keep your maps and curves in Jupyter.</p>
+  </section>;
+}
+
 const roots = new WeakMap();
 export default function({ parentElement, data, setTriggerValue }) {
   let entry = roots.get(parentElement);
@@ -64,6 +93,7 @@ export default function({ parentElement, data, setTriggerValue }) {
     entry = { element, root: createRoot(element) };
     roots.set(parentElement, entry);
   }
-  entry.root.render(<MainInterface data={data} onAction={action => setTriggerValue("action", action)}/>);
+  const View = data.view === "project_workspace" ? ProjectWorkspace : MainInterface;
+  entry.root.render(<View data={data} onAction={action => setTriggerValue("action", action)}/>);
   return () => { entry.root.unmount(); entry.element.remove(); roots.delete(parentElement); };
 }

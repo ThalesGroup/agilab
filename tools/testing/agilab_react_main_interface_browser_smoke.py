@@ -26,6 +26,8 @@ import streamlit as st
 import agilab.main_page as main
 from agilab.about_page import bootstrap
 from agilab.ui.page_project_selector import render_project_selector
+from agilab.ui import react_project_workspace as workspace
+from agilab.environment.environment_health import EnvironmentHealth, EnvironmentHealthCard
 
 ROOT = Path(__file__).parent
 NAMES = ["alpha_project", "beta_project"]
@@ -48,6 +50,8 @@ def ensure(*args, **kwargs):
 def body(label):
     st.header("Python " + label)
     env = st.session_state["env"]
+    if label == "PROJECT":
+        workspace.render_project_workspace(st, env)
     render_project_selector(st, NAMES, env.app, on_change=lambda _: None)
     st.text_input("Python input", key=f"{env.app}:app_args_form:notes")
     st.session_state.setdefault("pipeline_config_snapshot", env.app)
@@ -63,6 +67,11 @@ main._render_notebook_agent_demo = lambda: body("notebook")
 main._page_file_runner = lambda path: lambda: body(path.stem)
 main._SETTINGS_PAGE_FILE = lambda: body("settings")
 main.detect_agilab_version = lambda env: "test"
+workspace.build_environment_health = lambda env: EnvironmentHealth(
+    cards=(EnvironmentHealthCard("Manager env", "missing", "Install the environment", "incomplete"),
+           EnvironmentHealthCard("Runs", env.app, "Project history", "ready"),
+           EnvironmentHealthCard("Documentation", "<script>throw Error('unsafe')</script>", "Text only", "incomplete")),
+    details=())
 bootstrap.resolve_active_app_query_target = lambda env, name: ROOT / name if Path(name).name in NAMES else None
 main.main()
 '''
@@ -130,7 +139,41 @@ def main():
                     page.get_by_role("button", name="Python rerun").click()
                     page.get_by_text("Clicks: 2", exact=True).wait_for()
                     assert picker.input_value() == "beta_project"
-                    shell.get_by_role("button", name="Edit project", exact=True).click()
+                    shell.get_by_role("button", name="PROJECT", exact=True).first.click()
+                    workspace_view = page.get_by_role("region", name="Project workspace", exact=True)
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
+                    workspace_view.get_by_text("Needs attention", exact=True).first.wait_for()
+                    expect(workspace_view.locator("script")).to_have_count(0)
+                    page.screenshot(path=str(output / "agilab_react_project_workspace_desktop_preview.png"))
+                    workspace_view.get_by_role("button", name="Run project", exact=False).click()
+                    page.get_by_role("heading", name="Python 2_ORCHESTRATE").wait_for()
+                    assert "/ORCHESTRATE" in page.url and "beta_project" in page.url
+                    shell.get_by_role("button", name="PROJECT", exact=True).first.click()
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
+                    # Diagnostics update after a native Python rerun and a cold project switch.
+                    page.get_by_role("button", name="Python rerun").click()
+                    page.get_by_text("Clicks: 3", exact=True).wait_for()
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
+                    picker.select_option("alpha_project")
+                    workspace_view.get_by_role("heading", name="alpha_project", exact=True).wait_for()
+                    expect(workspace_view.get_by_text("alpha_project", exact=True)).to_have_count(2)
+                    workspace_view.get_by_role("button", name="Analysis and notebook export", exact=False).click()
+                    page.get_by_role("heading", name="Python 4_ANALYSIS").wait_for()
+                    assert "/ANALYSIS" in page.url and "alpha_project" in page.url
+                    expect(workspace_view).to_have_count(0)
+                    shell.get_by_role("button", name="PROJECT", exact=True).first.click()
+                    workspace_view.get_by_role("heading", name="alpha_project", exact=True).wait_for()
+                    workspace_view.get_by_role("button", name="Open pipeline", exact=False).click()
+                    page.get_by_role("heading", name="Python 3_WORKFLOW").wait_for()
+                    shell.get_by_role("button", name="PROJECT", exact=True).first.click()
+                    workspace_view.get_by_role("heading", name="alpha_project", exact=True).wait_for()
+                    page.set_viewport_size({"width": 390, "height": 844})
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                    page.screenshot(path=str(output / "agilab_react_project_workspace_mobile_preview.png"))
+                    page.set_viewport_size({"width": 1440, "height": 1100})
+                    picker.select_option("beta_project")
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
+                    workspace_view.get_by_role("button", name="Edit project files", exact=False).click()
                     page.get_by_role("heading", name="Python PROJECT_EDITOR").wait_for()
                     assert "/PROJECT_EDITOR" in page.url
                     shell.get_by_text("Tools", exact=True).click()
