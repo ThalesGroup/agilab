@@ -107,7 +107,7 @@ Run the real-host browser smoke (with Chromium installed for Playwright):
 ```bash
 UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies run \
   --no-sync --with playwright --with jupyterlab --with anywidget --with ipywidgets \
-  python tools/agilab_react_analysis_browser_smoke.py
+  python tools/testing/agilab_react_analysis_browser_smoke.py
 ```
 
 The smoke checks point selections in Python, filters, range/reset controls,

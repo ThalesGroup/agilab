@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the packaged React views in real Streamlit and JupyterLab hosts.
 
-Run with the repository UI/notebook environment plus playwright and jupyterlab.
+Run from the repository root with the UI/notebook environment plus playwright and jupyterlab.
 Servers, kernels and config use task-owned temporary paths; no user server is stopped.
 """
 

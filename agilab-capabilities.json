@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-02T11:00:54Z",
+  "generated_at_utc": "2026-10-03T10:16:42Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -329,7 +329,7 @@
       "role": "ui-component",
       "status": "PyPI package",
       "version": "2026.07.17",
-      "description": "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML",
+      "description": "AGILAB portable web components with shared React analysis views for Streamlit and Jupyter",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
       "pypi_environment": "pypi-agi-web",

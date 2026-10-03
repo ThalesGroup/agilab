@@ -376,7 +376,7 @@ Use this runbook whenever you:
   `src/agilab/lib/agi-web/frontend/`; rebuild their committed wheel assets with
   `npm run build` after source changes. Their Streamlit adapter uses components v2;
   the notebook adapter uses the optional AnyWidget dependency. Validate both real
-  hosts with `tools/agilab_react_analysis_browser_smoke.py`, including Python
+  hosts with `tools/testing/agilab_react_analysis_browser_smoke.py`, including Python
   selection roundtrips and reruns. Keep native notebook tables and diagnosed
   Plotly fallback when Python widget dependencies are unavailable.
 - **Browser dev-log validation**: When validating Streamlit, React, `agi-web`,
