@@ -148,6 +148,11 @@ def render_project_selector(
     container: Any | None = None,
 ) -> str | None:
     """Render the project selector without an extra filter text field."""
+    if streamlit.session_state.get("_agilab_react_shell_active"):
+        # Main navigation owns the picker and Edit action. Standalone Python
+        # views retain their native selector through the existing path below.
+        env = streamlit.session_state.get("env")
+        return getattr(env, "app", None) or current_project
     project_names = _refresh_project_names(streamlit, projects)
     current = str(current_project or "").strip()
     if current and current not in project_names:

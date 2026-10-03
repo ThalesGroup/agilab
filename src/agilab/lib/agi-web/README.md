@@ -114,6 +114,32 @@ The smoke checks point selections in Python, filters, range/reset controls,
 instance isolation, browser console/network errors and external requests. Its
 temporary loopback servers and kernel are stopped after the run.
 
+## React main interface
+
+The main AGILAB entrypoint now uses a React workspace header, project picker,
+navigation and home cards. `st.navigation` still owns the registered routes and
+deep links; the component emits one-shot actions validated against server-side
+projects and routes. Project changes reuse the URL/bootstrap lifecycle and clear
+project-specific inputs after the new environment loads, before widgets render.
+
+Pipeline editing, specialized geographic views, project operations and settings
+continue in Python. Standalone Python pages retain their native project picker.
+Notebook exports continue to use the independent shared map/curve renderers.
+The frontend ships in the `agi-web` wheel and uses the same `npm run build` step;
+end users do not need Node or a CDN.
+
+Validate the main-page boundary in a real browser:
+
+```bash
+UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies run \
+  --no-sync --with playwright python tools/testing/agilab_react_main_interface_browser_smoke.py
+```
+
+The fixture uses the real main navigation with isolated project and Python page
+bodies; page-specific AppTests cover the retained Python tools. Browser evidence
+includes route changes, cold project changes, native widget reruns, direct URLs,
+session isolation, responsive layout, console/network results and screenshots.
+
 ## Visual Guard
 
 The repository ships a deterministic browser fixture for this adapter:

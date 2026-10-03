@@ -1244,7 +1244,10 @@ def _render_about_page_entry() -> None:
     if env is None:
         return
     render_started_at = time.perf_counter()
-    show_banner_and_intro(resources_path, env)
+    if st.session_state.get("_agilab_react_shell_active"):
+        render_newcomer_first_proof(env)
+    else:
+        show_banner_and_intro(resources_path, env)
     openai_status_banner(env)
     # Quick hint for operators: where to check install errors
     page(env)
@@ -1305,6 +1308,7 @@ def _navigation_pages() -> list[Any]:
                 _render_about_page_entry,
                 title="ABOUT",
                 url_path="",
+                route_ids=("home",),
                 default=True,
                 visibility="hidden",
             ),
@@ -1542,8 +1546,22 @@ def _resolve_page_path(page_file: Path) -> Path:
 
 
 def main() -> None:
-    """Initialise AGILAB navigation and run the selected Streamlit page."""
-    st.navigation(_navigation_pages()).run()
+    """Render the React workspace interface around the registered Python pages."""
+    from agilab.ui.react_main_interface import render_interface, select_interface_project
+
+    selected_page = st.navigation(_navigation_pages(), position="hidden")
+    resources_path = _about_resources_path()
+    _render_navigation_page_shell(resources_path)
+    env = _ensure_navigation_environment(resources_path, rerun_after_bootstrap=False)
+    if env is None:
+        return
+
+    render_interface(
+        st, env, _session_navigation_routes(), selected_page,
+        version=detect_agilab_version(env),
+        select_project=lambda project: select_interface_project(st, env, project),
+    )
+    selected_page.run()
 
 
 # ----------------- Run App -----------------
