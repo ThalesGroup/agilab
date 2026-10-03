@@ -943,8 +943,8 @@ def test_agilab_main_page_recovers_from_unmounted_cluster_share(mock_ui_env):
     }
     assert "env" in at.session_state
     assert at.session_state["first_run"] is False
-    rendered_markdown = "\n".join(str(item.value) for item in at.markdown)
-    assert "Turn experiments into evidence-backed apps" in rendered_markdown
+    assert at.session_state["_agilab_react_shell_active"] is True
+    assert at.get("bidi_component")
     assert not [
         button
         for button in at.button
@@ -1158,7 +1158,8 @@ def test_agilab_navigation_hides_about_and_settings_from_visible_page_list():
         encoding="utf-8"
     )
     pipeline_source = Path("src/agilab/pages/3_WORKFLOW.py").read_text(encoding="utf-8")
-    assert "st.navigation(_navigation_pages()).run()" in source
+    assert 'st.navigation(_navigation_pages(), position="hidden")' in source
+    assert "selected_page.run()" in source
     assert "_render_about_page_entry" in source
     assert 'title="ABOUT"' in source
     assert "default=True" in source

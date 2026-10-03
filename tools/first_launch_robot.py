@@ -182,6 +182,20 @@ def build_report(
     markdown = _widget_values(app.markdown, "value")
     captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
+    # AppTest sees the server-provided component model, not browser-rendered
+    # React DOM. The separate main-interface browser smoke validates actions.
+    interface = {}
+    for element in app.get("bidi_component"):
+        if element.proto.component_name.endswith("agilab_react_main_interface"):
+            try:
+                candidate = json.loads(element.proto.json)
+            except (TypeError, ValueError):
+                continue
+            if isinstance(candidate, dict):
+                interface = candidate
+    interface_routes = {
+        route.get("id") for route in interface.get("routes", []) if isinstance(route, dict)
+    }
     docs_menu = _docs_menu_items()
     has_readme_link, readme_details = _readme_link_details(
         markdown, buttons, active_app, apps_path
@@ -223,7 +237,7 @@ def build_report(
                     "AI/ML reproducibility workbench",
                     "Turn experiments into evidence-backed apps",
                 ],
-            ),
+            ) or (interface.get("brand") == "AGILAB" and bool(interface.get("welcome_title"))),
             "Landing page exposes the AGILAB brand and workflow proposition",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
@@ -290,7 +304,8 @@ def build_report(
             or all(
                 _contains_any([*markdown, *captions, *buttons], [token])
                 for token in ("Import", "Execute", "Prove", "Export")
-            ),
+            )
+            or {"project", "orchestrate", "analysis"} <= interface_routes,
             "Landing page shows the product journey from import to proof/export",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),

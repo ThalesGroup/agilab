@@ -157,6 +157,9 @@ def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(
             raise RuntimeError("session unavailable")
 
     class FakeApp:
+        def get(self, _element_type):
+            return []
+
         exception: list[object] = []
         markdown: list[object] = []
         caption: list[object] = []
@@ -256,6 +259,9 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
             self.label = label
 
     class FakeApp:
+        def get(self, _element_type):
+            return []
+
         exception: list[object] = []
         markdown = [
             Widget(

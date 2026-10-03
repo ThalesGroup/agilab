@@ -25,6 +25,15 @@ Use this runbook whenever you:
 
 ## General practices
 
+- **Main React interface**: `src/agilab/main_page.py` keeps `st.navigation` as the
+  registered routing authority with its native menu hidden. The React workspace
+  header, project picker and home cards ship in `agi-web`; rebuild with `npm ci
+  --ignore-scripts` then `npm run build` in `src/agilab/lib/agi-web/frontend`.
+  Project selection follows the existing URL/bootstrap lifecycle. Pipeline
+  editing, specialized geographic views and administration remain Python.
+  Standalone Python pages keep their native project selector. Notebook exports
+  continue using the independent shared React analysis components.
+
 - **Where apps live**: `*_project` apps are maintained in the external apps
   repository, not in this checkout. `APPS_REPOSITORY` in
   `~/.local/share/agilab/.env` names that checkout (conventionally the sibling
