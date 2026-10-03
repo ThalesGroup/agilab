@@ -1,5 +1,15 @@
 .agilab-main-interface { color:var(--st-text-color, #172033); font-family:var(--st-font, sans-serif); line-height:1.5; width:100%; }
 .agilab-main-interface * { box-sizing:border-box; }
+.agilab-project-workspace { padding-top:16px; }
+.agilab-project-health { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:24px 0; }
+.agilab-health-card { min-width:0; padding:18px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; background:var(--st-secondary-background-color, #f3f6fa); overflow-wrap:anywhere; }
+.agilab-health-card h2 { font-size:14px; margin:0 0 12px; }
+.agilab-health-value { font-size:22px; font-weight:650; margin:0; }
+.agilab-health-caption { font-size:13px; opacity:.8; }
+.agilab-health-card small { font-weight:600; }
+.agilab-health-card--incomplete { border-left:4px solid var(--st-orange-color, #cf8b17); }
+@media(max-width:850px) { .agilab-project-health { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:480px) { .agilab-project-health { grid-template-columns:1fr; } }
 .agilab-main-interface button, .agilab-main-interface select, .agilab-main-interface summary { font:inherit; }
 .agilab-main-interface button { cursor:pointer; color:inherit; background:var(--st-background-color, #fff); border:1px solid var(--st-border-color, #dce2eb); border-radius:9px; padding:9px 14px; }
 .agilab-main-interface button:hover { border-color:var(--st-primary-color, #2563eb); }

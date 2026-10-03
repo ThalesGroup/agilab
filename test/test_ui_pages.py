@@ -4145,6 +4145,37 @@ def test_project_status_page_owns_project_selectbox_edit_button_and_sidebar_acti
     assert "project_filter" not in [ti.key for ti in at.sidebar.text_input]
 
 
+def test_project_status_react_overview_keeps_python_operations_and_details(mock_ui_env):
+    """Exercise the actual PROJECT/editor dashboard boundary in the main host."""
+    import json
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    at = _app_test("src/agilab/pages/PROJECT.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.projects = ["flight_telemetry_project"]
+    env.get_projects = MagicMock(return_value=env.projects)
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {
+        key: object() for key in ("project", "orchestrate", "analysis", "workflow", "project_editor")}
+    at.run()
+    assert not at.exception
+    components = list(at.get("bidi_component"))
+    assert len(components) == 1
+    data = json.loads(components[0].proto.json)
+    assert data["view"] == "project_workspace"
+    assert data["project"] == env.app
+    assert len(data["cards"]) == 8
+    assert {c["label"] for c in data["cards"]} >= {"Manager env", "Worker env", "Runs"}
+    assert {a["id"] for a in data["actions"]} == {"orchestrate", "analysis", "workflow", "project_editor"}
+    assert {str(e.label) for e in at.expander} >= {"Project metrics", "Environment details"}
+    actions = next(select for select in at.sidebar.selectbox if select.key == "project_sidebar_quick_action")
+    assert set(actions.options) == {"None", "Create", "Import", "Export", "Rename", "Delete"}
+    assert at.session_state["sidebar_selection"] == "Overview"
+
+
 def test_project_status_create_action_exposes_environment_strategy(mock_ui_env):
     at = _app_test("src/agilab/pages/PROJECT.py")
     env = AgiEnv(

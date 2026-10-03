@@ -117,10 +117,15 @@ temporary loopback servers and kernel are stopped after the run.
 ## React main interface
 
 The main AGILAB entrypoint now uses a React workspace header, project picker,
-navigation and home cards. `st.navigation` still owns the registered routes and
+navigation, home cards and the PROJECT overview. `st.navigation` still owns the registered routes and
 deep links; the component emits one-shot actions validated against server-side
 projects and routes. Project changes reuse the URL/bootstrap lifecycle and clear
 project-specific inputs after the new environment loads, before widgets render.
+The PROJECT overview displays the existing Python environment-health model and
+links to execution, analysis/notebook export, pipeline and project editing.
+Workspace actions also validate the canonical project path so a stale action
+cannot cross between projects with the same name in different directories.
+Detailed diagnostics and project metrics keep their native Python renderers.
 
 Pipeline editing, specialized geographic views, project operations and settings
 continue in Python. Standalone Python pages retain their native project picker.
@@ -136,7 +141,7 @@ UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies 
 ```
 
 The fixture uses the real main navigation with isolated project and Python page
-bodies; page-specific AppTests cover the retained Python tools. Browser evidence
+bodies and health facts; page-specific AppTests cover the retained Python tools. Browser evidence
 includes route changes, cold project changes, native widget reruns, direct URLs,
 session isolation, responsive layout, console/network results and screenshots.
 

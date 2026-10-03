@@ -2695,8 +2695,12 @@ def handle_editing(path: Path, key_prefix: str, comp_props, ace_props):
 
 def render_project_dashboard(env) -> None:
     """Render PROJECT-owned dashboard panels for the active project."""
-    with st.container(border=True):
-        health = render_environment_health_panel(st, env, render_details=False)
+    from agilab.ui.react_project_workspace import render_project_workspace
+
+    health = render_project_workspace(st, env)
+    if health is None:
+        with st.container(border=True):
+            health = render_environment_health_panel(st, env, render_details=False)
     with st.expander("Project metrics", expanded=False):
         _render_project_software_metrics(env)
     render_environment_details(st, health.details)
