@@ -3728,7 +3728,7 @@ def test_build_notebook_export_context_enriches_builtin_uav_pages_from_manifest(
     assert context.related_pages[0].artifacts
     assert context.related_pages[0].launch_note
     assert context.related_pages[0].script_path.endswith(f"{expected_modules[0]}.py")
-    assert not context.related_pages[0].inline_renderer
+    assert context.related_pages[0].inline_renderer.endswith("notebook_inline.py:render_inline")
     maps_page = next(page for page in context.related_pages if page.module == "view_maps_network")
     assert maps_page.label == "Maps Network"
     assert "pipeline/topology.gml" in maps_page.artifacts

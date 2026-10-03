@@ -427,7 +427,8 @@ def test_packaged_run_analysis_submits_scenario_and_refreshes_results(packaged_f
     assert len(at.dataframe[0].value) == 14
     assert set(at.dataframe[0].value["Promotion"]) == {"Off"}
 
-    at.selectbox[0].set_value(56).run()
+    # Keep form edits pending until submit; run() would create an extra server rerun.
+    at.selectbox[0].set_value(56)
     assert not at.exception
     assert len(calls) == 1
     assert len(at.dataframe[0].value) == 14
