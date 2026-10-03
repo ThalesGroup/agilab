@@ -43,12 +43,33 @@ def _requirement_has_lower_bound_at_least(requirement: str, minimum: str) -> boo
 def _requirement_has_upper_bound_below(requirement: str, maximum: str) -> bool:
     parsed = Requirement(requirement)
     maximum_version = Version(maximum)
-    upper_bound_operators = {"<", "<="}
     return any(
-        specifier.operator in upper_bound_operators
-        and Version(specifier.version) <= maximum_version
+        (specifier.operator == "<" and Version(specifier.version) <= maximum_version)
+        or (
+            specifier.operator in {"<=", "=="}
+            and Version(specifier.version) < maximum_version
+        )
         for specifier in parsed.specifier
     )
+
+
+@pytest.mark.parametrize(
+    ("requirement", "expected"),
+    [
+        ("agi-web==2026.07.17", True),
+        ("agi-web>=2026.07.17,<2027.0", True),
+        ("agi-web<=2026.12", True),
+        ("agi-web==2027.0", False),
+        ("agi-web==2028.0", False),
+        ("agi-web<=2027.0", False),
+        ("agi-web<2028.0", False),
+        ("agi-web>=2026.07.17", False),
+    ],
+)
+def test_native_ui_dependency_upper_bound_accepts_safe_exact_pins(
+    requirement: str, expected: bool
+) -> None:
+    assert _requirement_has_upper_bound_below(requirement, "2027.0") is expected
 
 
 def _run_python(script: str) -> subprocess.CompletedProcess[str]:

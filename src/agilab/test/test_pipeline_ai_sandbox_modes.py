@@ -6,9 +6,8 @@ isolated -- both fell through to the in-process executor. The honest behavior is
 to refuse those modes (isolation not yet implemented) rather than silently
 overclaiming isolation.
 
-The module is loaded from its file path and Streamlit ``session_state`` is
-driven directly so the test stays hermetic (no Streamlit runtime, no df, no
-network).
+The module is loaded from its file path and each test uses a native view
+session for its UI state. No dataframe or network access is needed.
 """
 
 from __future__ import annotations
@@ -20,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from agi_web import python_ui as st
+from agi_web.python_view_session import ViewSession, use_session
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "pipeline" / "pipeline_ai.py"
 
@@ -75,20 +75,21 @@ def _run_autofix(module, sandbox_value, *, exec_calls):
 
 @pytest.fixture(autouse=True)
 def _enable_autofix(monkeypatch):
-    st.session_state["lab_llm_provider"] = pipeline_ai.UOAIC_PROVIDER
-    st.session_state[pipeline_ai.UOAIC_AUTOFIX_STATE_KEY] = True
-    st.session_state[pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY] = 2
-    monkeypatch.delenv("AGILAB_GENERATED_CODE_SANDBOX", raising=False)
-    yield
-    for key in (
-        "lab_llm_provider",
-        pipeline_ai.UOAIC_AUTOFIX_STATE_KEY,
-        pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY,
-    ):
-        try:
-            del st.session_state[key]
-        except KeyError:
-            pass
+    with use_session(ViewSession(_MODULE_PATH)):
+        st.session_state["lab_llm_provider"] = pipeline_ai.UOAIC_PROVIDER
+        st.session_state[pipeline_ai.UOAIC_AUTOFIX_STATE_KEY] = True
+        st.session_state[pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY] = 2
+        monkeypatch.delenv("AGILAB_GENERATED_CODE_SANDBOX", raising=False)
+        yield
+        for key in (
+            "lab_llm_provider",
+            pipeline_ai.UOAIC_AUTOFIX_STATE_KEY,
+            pipeline_ai.UOAIC_AUTOFIX_MAX_STATE_KEY,
+        ):
+            try:
+                del st.session_state[key]
+            except KeyError:
+                pass
 
 
 @pytest.mark.parametrize("mode", ["container", "vm"])

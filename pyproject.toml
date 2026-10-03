@@ -107,6 +107,15 @@ dev = [
     "pypi-cleanup",
 ]
 
+# The complete source UI suite exercises optional page bundles and demo views.
+# Keep those consumers out of the default UI installation.
+test-ui = [
+    "agi-page-geospatial-3d==2026.07.31",
+    "agi-page-network-map==2026.09.09",
+    "altair>=6,<7",
+    "toml>=0.10.2,<0.11",
+]
+
 [tool.uv.extra-build-dependencies]
 htmlmin = ["legacy-cgi"]
 ydata-profiling = ["standard-imghdr"]

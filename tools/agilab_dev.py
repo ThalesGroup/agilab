@@ -72,9 +72,11 @@ def _uv_dev(*args: str) -> list[str]:
 
 def _pytest_command(*args: str, extras: Sequence[str] = ()) -> list[str]:
     extra_args = [item for extra in extras for item in ("--extra", extra)]
+    test_group_args = ["--group", "test-ui"] if "ui" in extras else []
     return [
         *UV_RUN,
         *extra_args,
+        *test_group_args,
         "python",
         "-m",
         "tools.testing.pytest_entrypoint",
@@ -91,6 +93,8 @@ def _root_test_command() -> list[str]:
     return [
         *UV_RUN,
         *extra_args,
+        "--group",
+        "test-ui",
         "python",
         "-m",
         "tools.testing.root_test_runner",
