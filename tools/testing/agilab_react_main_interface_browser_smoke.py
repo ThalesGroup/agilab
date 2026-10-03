@@ -27,6 +27,7 @@ import agilab.main_page as main
 from agilab.about_page import bootstrap
 from agilab.ui.page_project_selector import render_project_selector
 from agilab.ui import react_project_workspace as workspace
+from agilab.ui.react_analysis_workspace import render_analysis_workspace
 from agilab.environment.environment_health import EnvironmentHealth, EnvironmentHealthCard
 
 ROOT = Path(__file__).parent
@@ -52,6 +53,25 @@ def body(label):
     env = st.session_state["env"]
     if label == "PROJECT":
         workspace.render_project_workspace(st, env)
+    if label == "4_ANALYSIS":
+        if st.query_params.get("current_page"):
+            st.subheader("Python view: " + Path(st.query_params["current_page"]).stem)
+        elif st.query_params.get("current_notebook"):
+            st.subheader("Python notebook: " + Path(st.query_params["current_notebook"]).name)
+        else:
+            selection_key = "analysis_smoke_selection__" + env.app
+            saved = st.session_state.setdefault(selection_key, {"views": ["geo"], "notebooks": ["lab.ipynb"]})
+            selection = render_analysis_workspace(st, env,
+                overview={"cards": [{"label": "Output files", "value": "3", "caption": "Local evidence"}],
+                    "evidence": "Discovered evidence: predictions.csv", "message": ""},
+                view_options={"geo": "Specialized map", "coordinates": "Coordinates", "curves": "Analysis curves"},
+                view_routes={name: {"current_page": str(ROOT / env.app / (name + ".py"))}
+                    for name in ("geo", "coordinates", "curves")},
+                notebook_routes={"lab.ipynb": {"current_notebook": str(ROOT / env.app / "lab.ipynb")}},
+                selected_views=saved["views"], selected_notebooks=saved["notebooks"])
+            if selection:
+                st.session_state[selection_key] = selection
+                st.rerun()
     render_project_selector(st, NAMES, env.app, on_change=lambda _: None)
     st.text_input("Python input", key=f"{env.app}:app_args_form:notes")
     st.session_state.setdefault("pipeline_config_snapshot", env.app)
@@ -161,12 +181,63 @@ def main():
                     page.get_by_role("heading", name="Python 4_ANALYSIS").wait_for()
                     assert "/ANALYSIS" in page.url and "alpha_project" in page.url
                     expect(workspace_view).to_have_count(0)
+                    analysis_view = page.get_by_role("region", name="Analysis workspace", exact=True)
+                    analysis_view.get_by_role("heading", name="Explore alpha_project", exact=True).wait_for()
+                    analysis_view.get_by_label("Coordinates", exact=True).check()
+                    analysis_view.get_by_role("button", name="Discard changes", exact=True).click()
+                    expect(analysis_view.get_by_label("Coordinates", exact=True)).not_to_be_checked()
+                    analysis_view.get_by_role("status").get_by_text("Selection saved", exact=True).wait_for()
+                    analysis_view.get_by_label("Coordinates", exact=True).check()
+                    analysis_view.get_by_label("Analysis curves", exact=True).check()
+                    analysis_view.get_by_role("status").get_by_text("Unsaved selection", exact=True).wait_for()
+                    expect(analysis_view.get_by_role("button", name="Open Coordinates", exact=True)).to_be_disabled()
+                    analysis_view.get_by_role("button", name="Save selection", exact=True).click()
+                    analysis_view.get_by_role("status").get_by_text("Selection saved", exact=True).wait_for()
+                    expect(analysis_view.get_by_role("button", name="Open Coordinates", exact=True)).to_be_enabled()
+                    page.get_by_role("button", name="Python rerun").click()
+                    expect(analysis_view.get_by_label("Coordinates", exact=True)).to_be_checked()
+                    expect(analysis_view.get_by_label("Analysis curves", exact=True)).to_be_checked()
+                    page.screenshot(path=str(output / "agilab_react_analysis_workspace_desktop_preview.png"))
+                    page.set_viewport_size({"width": 390, "height": 844})
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                    page.screenshot(path=str(output / "agilab_react_analysis_workspace_mobile_preview.png"))
+                    page.set_viewport_size({"width": 1440, "height": 1100})
+                    analysis_view.get_by_role("button", name="Open Specialized map", exact=True).click()
+                    page.get_by_role("heading", name="Python view: geo", exact=True).wait_for()
+                    assert "current_page=" in page.url and "alpha_project" in page.url
+                    expect(analysis_view).to_have_count(0)
+                    shell.get_by_role("button", name="ANALYSIS", exact=True).first.click()
+                    analysis_view.get_by_role("heading", name="Explore alpha_project", exact=True).wait_for()
+                    analysis_view.get_by_role("button", name="Open lab.ipynb", exact=True).click()
+                    page.get_by_role("heading", name="Python notebook: lab.ipynb", exact=True).wait_for()
+                    assert "current_notebook=" in page.url and "current_page=" not in page.url
+                    shell.get_by_role("button", name="ANALYSIS", exact=True).first.click()
+                    analysis_view.get_by_role("heading", name="Explore alpha_project", exact=True).wait_for()
+                    analysis_view.get_by_role("button", name="Export app to notebook", exact=True).click()
+                    page.get_by_role("heading", name="Python 3_WORKFLOW", exact=True).wait_for()
+                    assert "/WORKFLOW" in page.url and "alpha_project" in page.url
+                    assert "current_page=" not in page.url and "current_notebook=" not in page.url
+                    shell.get_by_role("button", name="ANALYSIS", exact=True).first.click()
+                    analysis_view.get_by_role("heading", name="Explore alpha_project", exact=True).wait_for()
+                    analysis_view.get_by_label("Coordinates", exact=True).uncheck()
+                    analysis_view.get_by_label("Analysis curves", exact=True).uncheck()
+                    analysis_view.get_by_label("Specialized map", exact=True).uncheck()
+                    analysis_view.get_by_label("lab.ipynb", exact=True).uncheck()
+                    analysis_view.get_by_role("button", name="Save selection", exact=True).click()
+                    analysis_view.get_by_role("status").get_by_text("Selection saved", exact=True).wait_for()
+                    expect(analysis_view.get_by_role("button", name="Open Specialized map", exact=True)).to_be_disabled()
+                    expect(analysis_view.get_by_role("button", name="Open lab.ipynb", exact=True)).to_be_disabled()
+                    picker.select_option("beta_project")
+                    analysis_view.get_by_role("heading", name="Explore beta_project", exact=True).wait_for()
+                    expect(analysis_view.get_by_label("Coordinates", exact=True)).not_to_be_checked()
+                    expect(analysis_view.get_by_label("Specialized map", exact=True)).to_be_checked()
+                    expect(analysis_view.get_by_label("lab.ipynb", exact=True)).to_be_checked()
                     shell.get_by_role("button", name="PROJECT", exact=True).first.click()
-                    workspace_view.get_by_role("heading", name="alpha_project", exact=True).wait_for()
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
                     workspace_view.get_by_role("button", name="Open pipeline", exact=False).click()
                     page.get_by_role("heading", name="Python 3_WORKFLOW").wait_for()
                     shell.get_by_role("button", name="PROJECT", exact=True).first.click()
-                    workspace_view.get_by_role("heading", name="alpha_project", exact=True).wait_for()
+                    workspace_view.get_by_role("heading", name="beta_project", exact=True).wait_for()
                     page.set_viewport_size({"width": 390, "height": 844})
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                     page.screenshot(path=str(output / "agilab_react_project_workspace_mobile_preview.png"))

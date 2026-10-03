@@ -168,6 +168,7 @@ import_agilab_symbols(
 import tomllib  # For reading TOML files (read as binary)
 
 from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
+from agilab.ui.react_analysis_workspace import render_analysis_workspace
 from agi_env.process_support import apply_inline_path_export
 
 logger = logging.getLogger(__name__)
@@ -3011,14 +3012,14 @@ def _render_analysis_metric(label: str, value: str, caption: str = "") -> None:
     )
 
 
-def _render_analysis_workspace_overview(
+def _analysis_workspace_overview_data(
     env: Any,
     *,
     selection_state: Any,
     available_view_count: int,
     selected_notebook_count: int,
     available_notebook_count: int,
-) -> None:
+) -> dict[str, Any]:
     artifact_summary = _scan_analysis_artifacts(_active_analysis_data_root(env))
     artifact_count = int(artifact_summary["count"])
     project_label = _short_analysis_project_label(
@@ -3044,41 +3045,48 @@ def _render_analysis_workspace_overview(
         else "no notebooks found"
     )
 
-    with st.container(border=True):
-        cols = st.columns(4)
-        with cols[0]:
-            suffix = "+" if artifact_summary["truncated"] else ""
-            _render_analysis_metric(
-                "Output files", f"{artifact_count}{suffix}", latest_label
-            )
-        with cols[1]:
-            _render_analysis_metric("Latest output", latest_value, latest_caption)
-        with cols[2]:
-            _render_analysis_metric(
-                "Views selected",
-                f"{selected_count}/{available_view_count}",
-                views_caption,
-            )
-        with cols[3]:
-            _render_analysis_metric(
-                "Notebooks selected",
-                f"{selected_notebook_count}/{available_notebook_count}",
-                notebooks_caption,
-            )
+    suffix = "+" if artifact_summary["truncated"] else ""
+    cards = [
+        {"label": "Output files", "value": f"{artifact_count}{suffix}", "caption": latest_label},
+        {"label": "Latest output", "value": latest_value, "caption": latest_caption},
+        {"label": "Views selected", "value": f"{selected_count}/{available_view_count}", "caption": views_caption},
+        {"label": "Notebooks selected", "value": f"{selected_notebook_count}/{available_notebook_count}", "caption": notebooks_caption},
+    ]
+    message = ""
+    if not artifact_summary["exists"]:
+        message = "No analysis workspace found. Run ORCHESTRATE -> RUN, then return here to review manifests, tables, figures, logs, and notebooks."
+    elif not artifact_summary["examples"]:
+        message = "No evidence files detected yet. Run ORCHESTRATE -> RUN or WORKFLOW, then use ANALYSIS to inspect the generated outputs."
+    return {
+        "cards": cards,
+        "evidence": ("Discovered evidence: " + ", ".join(str(item) for item in artifact_summary["examples"]))
+        if artifact_summary["examples"] else "",
+        "message": message,
+    }
 
-        if artifact_summary["examples"]:
-            st.caption(
-                "Discovered evidence: "
-                + ", ".join(str(item) for item in artifact_summary["examples"])
-            )
-        if not artifact_summary["exists"]:
-            st.info(
-                "No analysis workspace found. Run ORCHESTRATE -> RUN, then return here to review manifests, tables, figures, logs, and notebooks."
-            )
-        elif not artifact_summary["examples"]:
-            st.info(
-                "No evidence files detected yet. Run ORCHESTRATE -> RUN or WORKFLOW, then use ANALYSIS to inspect the generated outputs."
-            )
+
+def _render_analysis_workspace_overview(
+    env: Any,
+    *,
+    selection_state: Any,
+    available_view_count: int,
+    selected_notebook_count: int,
+    available_notebook_count: int,
+    overview: dict[str, Any] | None = None,
+) -> None:
+    overview = overview if overview is not None else _analysis_workspace_overview_data(
+        env, selection_state=selection_state, available_view_count=available_view_count,
+        selected_notebook_count=selected_notebook_count,
+        available_notebook_count=available_notebook_count,
+    )
+    with st.container(border=True):
+        for column, card in zip(st.columns(4), overview["cards"]):
+            with column:
+                _render_analysis_metric(card["label"], card["value"], card["caption"])
+        if overview["evidence"]:
+            st.caption(overview["evidence"])
+        if overview["message"]:
+            st.info(overview["message"])
 
 
 def _render_analysis_surface_guide(*, expanded: bool = False) -> None:
@@ -3752,7 +3760,7 @@ def _write_config(
     *,
     keys: Sequence[str] | None = None,
     previous: dict | None = None,
-) -> None:
+) -> bool:
     """Merge this session's owned leaf changes into the latest settings."""
 
     patch_keys = tuple(cfg) if keys is None else tuple(keys)
@@ -3794,7 +3802,7 @@ def _write_config(
                 )
             )
     if not owned_paths:
-        return
+        return True
 
     try:
         update_app_settings_owned(
@@ -3805,6 +3813,8 @@ def _write_config(
         )
     except (OSError, ValueError) as e:
         st.error(f"Error updating configuration: {e}")
+        return False
+    return True
 
 
 def _query_param_is_truthy(value: object) -> bool:
@@ -4088,13 +4098,45 @@ async def main():
 
     # ---------- Main analysis page ----------
 
-    _render_analysis_workspace_overview(
-        env,
-        selection_state=selection_state,
-        available_view_count=len(view_names),
-        selected_notebook_count=len(selected_notebooks),
-        available_notebook_count=len(notebook_names),
+    overview = _analysis_workspace_overview_data(
+        env, selection_state=selection_state, available_view_count=len(view_names),
+        selected_notebook_count=len(selected_notebooks), available_notebook_count=len(notebook_names),
     )
+    view_options = {
+        name: _view_label(
+            name, set(resolved_pages), app_surface_cfg=surface_config,
+            app_ui_page_cfg=pages_cfg.get(_APP_UI_PAGE_KEY),
+        ) for name in view_names
+    }
+    view_routes = {}
+    for name in view_names:
+        view_path = _resolve_view_path(name, resolved_pages, custom_view_lookup)
+        if view_path is not None:
+            view_routes[name] = {"current_page": _APP_UI_PAGE_KEY
+                                if name == _APP_UI_PAGE_KEY and surface_config
+                                else str(view_path.resolve())}
+    notebook_routes = {
+        name: {"current_notebook": str(path.resolve())} for name, path in notebook_lookup.items()
+    }
+    pending_selection_key = "_agilab_analysis_unsaved_selection__" + str(active_app_path.resolve())
+    react_selection = render_analysis_workspace(
+        st, env, overview=overview, view_options=view_options, view_routes=view_routes,
+        notebook_routes=notebook_routes, selected_views=selected_views,
+        selected_notebooks=selected_notebooks,
+        pending_selection=st.session_state.get(pending_selection_key),
+    )
+    if react_selection and react_selection.get("discard"):
+        st.session_state.pop(pending_selection_key, None)
+        st.rerun()
+    if react_selection is None:
+        _render_analysis_workspace_overview(
+            env,
+            selection_state=selection_state,
+            available_view_count=len(view_names),
+            selected_notebook_count=len(selected_notebooks),
+            available_notebook_count=len(notebook_names),
+            overview=overview,
+        )
     render_project_evidence_drawer(
         st,
         env=env,
@@ -4103,31 +4145,38 @@ async def main():
     )
     render_context_expander(st, page_label="ANALYSIS", env=env)
 
-    with st.expander("Choose analysis views", expanded=False):
-        st.caption(
-            "Select which views appear in the sidebar launcher for this project."
-        )
-        selected_views = st.multiselect(
-            "Analysis views",
-            view_names,
-            key=selection_key,
-            format_func=lambda option: _view_label(
-                option,
-                set(resolved_pages.keys()),
-                app_surface_cfg=app_surface_config(active_app_path, cfg),
-                app_ui_page_cfg=pages_cfg.get(_APP_UI_PAGE_KEY),
-            ),
-            help="Selected views are persisted in the active project's app settings.",
-        )
-
-    if notebook_names:
-        with st.expander("Choose notebooks", expanded=False):
-            selected_notebooks = st.multiselect(
-                "Notebooks",
-                notebook_names,
-                key=notebook_selection_key,
-                help="Selected notebooks are persisted in the active project's app settings.",
+    if react_selection is None:
+        with st.expander("Choose analysis views", expanded=False):
+            st.caption(
+                "Select which views appear in the sidebar launcher for this project."
             )
+            selected_views = st.multiselect(
+                "Analysis views",
+                view_names,
+                key=selection_key,
+                format_func=lambda option: _view_label(
+                    option,
+                    set(resolved_pages.keys()),
+                    app_surface_cfg=app_surface_config(active_app_path, cfg),
+                    app_ui_page_cfg=pages_cfg.get(_APP_UI_PAGE_KEY),
+                ),
+                help="Selected views are persisted in the active project's app settings.",
+            )
+
+        if notebook_names:
+            with st.expander("Choose notebooks", expanded=False):
+                selected_notebooks = st.multiselect(
+                    "Notebooks",
+                    notebook_names,
+                    key=notebook_selection_key,
+                    help="Selected notebooks are persisted in the active project's app settings.",
+                )
+
+    elif react_selection:
+        selected_views = react_selection["views"]
+        selected_notebooks = react_selection["notebooks"]
+        st.session_state[selection_key] = selected_views
+        st.session_state[notebook_selection_key] = selected_notebooks
 
     _render_analysis_surface_guide(
         expanded=not selected_views and not selected_notebooks,
@@ -4187,18 +4236,32 @@ async def main():
         if persisted_notebooks.get("selected") != selected_notebooks:
             persisted_notebooks["selected"] = selected_notebooks
             config_changed = True
+    selection_saved = True
     if config_changed:
-        _write_config(
+        selection_saved = _write_config(
             app_settings,
             cfg,
             keys=_ANALYSIS_APP_SETTINGS_KEYS,
             previous=config_before_selection,
         )
 
-    _render_sidebar_launchers(
-        sidebar_selected_views=selected_views,
-        sidebar_selected_notebooks=selected_notebooks,
-    )
+    if react_selection is None:
+        _render_sidebar_launchers(
+            sidebar_selected_views=selected_views,
+            sidebar_selected_notebooks=selected_notebooks,
+        )
+
+    elif react_selection:
+        if selection_saved:
+            st.session_state.pop(pending_selection_key, None)
+        else:
+            # Keep failed edits as a draft; only durable choices launch views.
+            st.session_state[selection_key] = widget_selection
+            st.session_state[notebook_selection_key] = notebook_widget_selection
+            st.session_state[pending_selection_key] = {
+                **react_selection, "error": "Could not save selection. Try again.",
+            }
+        st.rerun()
 
     _render_custom_analysis_page_authoring(
         project=project,

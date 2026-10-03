@@ -1,4 +1,4 @@
-import React, { useId } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 export function MainInterface({ data, onAction }) {
@@ -50,7 +50,7 @@ export function MainInterface({ data, onAction }) {
           <span className="agilab-card-link">Open workspace →</span>
         </button>)}
       </div>
-      <p className="agilab-notebook-note">Notebook exports keep the same analysis charts and coordinate views.</p>
+      <p className="agilab-notebook-note">Export your app from Workflow to use its supported analysis charts and coordinate views in Jupyter.</p>
     </div>}
   </section>;
 }
@@ -80,7 +80,58 @@ export function ProjectWorkspace({ data, onAction }) {
         <span className="agilab-card-link">Open workspace →</span>
       </button>)}
     </nav>
-    <p className="agilab-notebook-note">Export from Analysis to keep your maps and curves in Jupyter.</p>
+    <p className="agilab-notebook-note">Open Analysis to explore results and access the notebook export in Workflow.</p>
+  </section>;
+}
+
+export function AnalysisWorkspace({ data, onAction }) {
+  const [views, setViews] = useState(data.draft_views);
+  const [notebooks, setNotebooks] = useState(data.draft_notebooks);
+  useEffect(() => { setViews(data.draft_views); setNotebooks(data.draft_notebooks); }, [data.context]);
+  const dirty = JSON.stringify(views) !== JSON.stringify(data.selected_views)
+    || JSON.stringify(notebooks) !== JSON.stringify(data.selected_notebooks);
+  const emit = action => onAction({ ...action, project: data.project, project_path: data.project_path,
+    route: data.route, context: data.context });
+  const toggle = (values, setValues, id, checked) => setValues(checked ? [...values, id] : values.filter(value => value !== id));
+  const choices = (label, items, values, setValues, saved, kind) => <fieldset className="agilab-analysis-choices">
+    <legend>{label}</legend>
+    {!items.length && <p>No {label.toLowerCase()} found in this project.</p>}
+    {items.map(item => <div className="agilab-analysis-choice" key={item.id}>
+      <label><input type="checkbox" checked={values.includes(item.id)}
+        onChange={event => toggle(values, setValues, item.id, event.target.checked)}/><span>{item.label}</span></label>
+      <button type="button" disabled={dirty || !saved.includes(item.id) || !item.available}
+        aria-label={`Open ${item.label}`} onClick={() => emit({ kind, value: item.id })}>Open</button>
+    </div>)}
+  </fieldset>;
+  return <section className="agilab-main-interface agilab-analysis-workspace" aria-label="Analysis workspace"
+    onKeyDown={event => event.stopPropagation()}>
+    <div className="agilab-home-intro"><p className="agilab-eyebrow">Analysis workspace</p>
+      <h1>Explore {data.project || "your project"}</h1>
+      <p>Choose your result views and notebooks. Save the selection, then open a view to explore it.</p></div>
+    <div className="agilab-project-health" aria-label="Analysis summary">
+      {data.overview.cards.map(card => <article key={card.label} className="agilab-health-card">
+        <h2>{card.label}</h2><p className="agilab-health-value">{card.value}</p>
+        <p className="agilab-health-caption">{card.caption}</p></article>)}
+    </div>
+    {data.overview.evidence && <p className="agilab-analysis-evidence">{data.overview.evidence}</p>}
+    {data.overview.message && <p className="agilab-notebook-note">{data.overview.message}</p>}
+    <form onSubmit={event => { event.preventDefault(); emit({ kind: "select", views, notebooks }); }}>
+      <div className="agilab-analysis-selection">
+        {choices("Analysis views", data.views, views, setViews, data.selected_views, "open_view")}
+        {choices("Notebooks", data.notebooks, notebooks, setNotebooks, data.selected_notebooks, "open_notebook")}
+      </div>
+      <div className="agilab-analysis-save"><button type="submit" disabled={!dirty}>Save selection</button>
+        {(dirty || data.save_error) && <button type="button" onClick={() => {
+          setViews(data.selected_views); setNotebooks(data.selected_notebooks); emit({ kind: "discard" });
+        }}>Discard changes</button>}
+        <span role="status">{data.save_error || (dirty ? "Unsaved selection" : "Selection saved")}</span></div>
+    </form>
+    <aside className="agilab-analysis-export" aria-label="Notebook export">
+      <div><h2>Use your app in Jupyter</h2>
+        <p>Workflow exports your pipeline as a notebook. Supported maps and curves render directly in Jupyter.</p></div>
+      <button type="button" disabled={!data.project || !data.export_available}
+        onClick={() => emit({ kind: "export_notebook" })}>Export app to notebook</button>
+    </aside>
   </section>;
 }
 
@@ -93,7 +144,8 @@ export default function({ parentElement, data, setTriggerValue }) {
     entry = { element, root: createRoot(element) };
     roots.set(parentElement, entry);
   }
-  const View = data.view === "project_workspace" ? ProjectWorkspace : MainInterface;
+  const View = data.view === "project_workspace" ? ProjectWorkspace
+    : data.view === "analysis_workspace" ? AnalysisWorkspace : MainInterface;
   entry.root.render(<View data={data} onAction={action => setTriggerValue("action", action)}/>);
   return () => { entry.root.unmount(); entry.element.remove(); roots.delete(parentElement); };
 }

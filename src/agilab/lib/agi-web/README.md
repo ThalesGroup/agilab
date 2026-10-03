@@ -117,7 +117,8 @@ temporary loopback servers and kernel are stopped after the run.
 ## React main interface
 
 The main AGILAB entrypoint now uses a React workspace header, project picker,
-navigation, home cards and the PROJECT overview. `st.navigation` still owns the registered routes and
+navigation, home cards, the PROJECT overview and ANALYSIS selection controls.
+`st.navigation` still owns the registered routes and
 deep links; the component emits one-shot actions validated against server-side
 projects and routes. Project changes reuse the URL/bootstrap lifecycle and clear
 project-specific inputs after the new environment loads, before widgets render.
@@ -126,10 +127,21 @@ links to execution, analysis/notebook export, pipeline and project editing.
 Workspace actions also validate the canonical project path so a stale action
 cannot cross between projects with the same name in different directories.
 Detailed diagnostics and project metrics keep their native Python renderers.
+The ANALYSIS overview uses the existing artifact summary, discovered views and
+notebooks. A saved selection follows the existing Python settings persistence;
+queued actions validate the project path and current selection/discovery context.
+An unsuccessful settings write keeps a separate draft and an enabled retry;
+the interface confirms a saved selection after the write succeeds.
+Opening a saved view or notebook uses its server-resolved route. The notebook
+export button opens the existing Python WORKFLOW export controls, including their
+protection of edited exports. Child views keep their Python launchers.
 
 Pipeline editing, specialized geographic views, project operations and settings
 continue in Python. Standalone Python pages retain their native project picker.
 Notebook exports continue to use the independent shared map/curve renderers.
+Streamlit remains the application host and routing dependency. Shared React
+map/curve notebook renderers do not start Streamlit; other views can retain a
+Streamlit fallback when they have no inline renderer.
 The frontend ships in the `agi-web` wheel and uses the same `npm run build` step;
 end users do not need Node or a CDN.
 
@@ -142,7 +154,8 @@ UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies 
 
 The fixture uses the real main navigation with isolated project and Python page
 bodies and health facts; page-specific AppTests cover the retained Python tools. Browser evidence
-includes route changes, cold project changes, native widget reruns, direct URLs,
+includes saved/empty analysis selections, Python view/notebook routes, the Workflow
+export entry, cold project changes, native widget reruns, direct URLs,
 session isolation, responsive layout, console/network results and screenshots.
 
 ## Visual Guard

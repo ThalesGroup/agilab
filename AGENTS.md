@@ -36,6 +36,9 @@ Use this runbook whenever you:
   The main PROJECT overview uses the same local React bundle and existing Python
   environment-health diagnostics. Native project operations, metrics and detailed
   diagnostics remain available; standalone PROJECT pages retain native cards.
+  The main ANALYSIS overview uses React controls for discovered views and notebooks;
+  selections persist through the existing Python settings path. Child views retain
+  their Python launchers. Notebook export routes to the existing WORKFLOW controls.
 
 - **Where apps live**: `*_project` apps are maintained in the external apps
   repository, not in this checkout. `APPS_REPOSITORY` in

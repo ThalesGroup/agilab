@@ -2658,6 +2658,153 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Open" not in btns
 
 
+def test_analysis_react_overview_keeps_python_views_and_authoring(mock_ui_env):
+    """Mount the actual analysis page and keep its specialized Python routes."""
+    import json
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("import streamlit as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    at.run()
+    assert not at.exception
+    components = list(at.get("bidi_component"))
+    assert len(components) == 1
+    data = json.loads(components[0].proto.json)
+    assert data["view"] == "analysis_workspace"
+    assert data["project"] == env.app
+    assert {card["label"] for card in data["overview"]["cards"]} == {
+        "Output files", "Latest output", "Views selected", "Notebooks selected"}
+    assert "view_maps" in {item["id"] for item in data["views"]}
+    assert "lab_stages.ipynb" in data["selected_notebooks"]
+    assert data["export_available"] is True
+    assert not any(widget.key == f"view_selection__{env.app}" for widget in at.multiselect)
+    labels = {str(item.label) for item in at.expander}
+    assert "How to choose pages and notebooks" in labels
+    assert "Choose analysis views" not in labels
+    assert any("Create" in label and "view" in label.lower() for label in labels)
+
+
+def test_analysis_react_selection_persists_and_reloads_in_native_page(mock_ui_env):
+    """Apply one component action through real settings persistence, then reload."""
+    from types import SimpleNamespace
+    import tomllib
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("import streamlit as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    sent = False
+    captured = []
+
+    def emit(_streamlit, data, *, key):
+        nonlocal sent
+        captured.append(data)
+        if sent:
+            return SimpleNamespace(action=None)
+        sent = True
+        action = {field: data[field] for field in ("project", "project_path", "route", "context")}
+        action.update(kind="select", views=["view_maps"], notebooks=[])
+        return SimpleNamespace(action=action)
+
+    with patch("agi_web.react_main_interface.render_main_interface", side_effect=emit):
+        at.run()
+    assert not at.exception
+    assert len(captured) >= 2  # Hydration happens after the settings write.
+    assert captured[-1]["selected_views"] == ["view_maps"]
+    assert captured[-1]["selected_notebooks"] == []
+    settings = tomllib.loads(env.resolve_user_app_settings_file(env.app).read_text())
+    # Unavailable configured views retain their existing persistence contract.
+    assert "view_maps" in settings["pages"]["view_module"]
+    assert settings["notebooks"]["selected"] == []
+
+    reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    reloaded.session_state["env"] = env
+    reloaded.run()
+    assert not reloaded.exception
+    assert reloaded.session_state[f"view_selection__{env.app}"] == ["view_maps"]
+    assert reloaded.session_state[f"notebook_selection__{env.app}"] == []
+    assert "Choose analysis views" in {str(item.label) for item in reloaded.expander}
+
+
+@pytest.mark.parametrize("retry", [True, False])
+def test_analysis_react_failed_save_keeps_saved_state_and_allows_retry(mock_ui_env, retry):
+    """A failed real settings write must leave the draft available for retry."""
+    from types import SimpleNamespace
+    import tomllib
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("import streamlit as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    settings_file = env.resolve_user_app_settings_file(env.app)
+    original = settings_file.read_bytes()
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    captured = []
+    sent = False
+    recovering = False
+
+    def emit(_streamlit, data, *, key):
+        nonlocal sent
+        captured.append(data)
+        if sent:
+            return SimpleNamespace(action=None)
+        sent = True
+        action = {field: data[field] for field in ("project", "project_path", "route", "context")}
+        action.update(kind="discard" if recovering and not retry else "select", views=["view_maps"], notebooks=[])
+        return SimpleNamespace(action=action)
+
+    with patch("agi_web.react_main_interface.render_main_interface", side_effect=emit):
+        with patch("agi_env.app_settings_support.update_app_settings_owned", side_effect=PermissionError("read-only settings")):
+            at.run()
+        assert not at.exception
+        assert settings_file.read_bytes() == original
+        assert captured[-1]["selected_notebooks"] == ["lab_stages.ipynb"]
+        assert captured[-1]["draft_notebooks"] == []
+        assert captured[-1]["save_error"]
+        sent = False
+        recovering = True
+        at.run()
+    assert not at.exception
+    expected = [] if retry else ["lab_stages.ipynb"]
+    assert captured[-1]["selected_notebooks"] == expected
+    assert captured[-1]["draft_notebooks"] == expected
+    assert captured[-1]["save_error"] == ""
+    assert tomllib.loads(settings_file.read_text())["notebooks"]["selected"] == expected
+
+
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(
     mock_ui_env,
 ):

@@ -35,6 +35,10 @@ def interface_data(streamlit: Any, env: Any, routes: Mapping[str, Any], page: An
         "project": project,
         "projects": projects,
         "route": route,
+        "has_child_surface": bool(
+            streamlit.query_params.get("current_notebook")
+            or streamlit.query_params.get("current_page") not in (None, "", "main")
+        ),
         "version": version,
         "routes": [
             {"id": key, "label": label, "primary": primary, "description": description}
@@ -55,7 +59,7 @@ def handle_interface_action(
     if not isinstance(value, str):
         return False
     if kind == "navigate" and value in _ROUTE_CONTENT and value in routes:
-        if value == data["route"]:
+        if value == data["route"] and not data.get("has_child_surface"):
             return False
         navigate(routes[value])
         return True
