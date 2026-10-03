@@ -15,6 +15,8 @@ from .runtime import (
     artifact_root,
     configure_streamlit_page,
     discover_files,
+    load_json_object,
+    relative_label,
     ensure_app_scoped_env,
     render_streamlit_page_header,
     resolve_active_app_path,
@@ -57,6 +59,117 @@ class QueueResilienceRun:
     packet_frame: Any
     positions_frame: Any
     routing_frame: Any
+
+
+def render_queue_resilience_notebook(
+    *,
+    page: str,
+    record: dict[str, Any],
+    export_payload: dict[str, Any],
+    pandas: Any,
+    markdown: Callable[[str], Any],
+    plotly: Any = None,
+) -> list[Any]:
+    """Render shared queue/relay artifacts using notebook-provided dependencies."""
+    import math
+
+    pd, Markdown, go = pandas, markdown, plotly
+    outputs: list[Any] = [Markdown(f"### {record.get('label') or page}")]
+    value = export_payload.get("artifact_dir")
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        return outputs + [
+            Markdown("No export artifact directory is recorded in this notebook.")
+        ]
+    root = Path(value)
+    if not root.is_dir():
+        return outputs + [Markdown(f"Missing artifact directory: `{root}`.")]
+    paths = discover_files(root, "**/*_summary_metrics.json")
+    if not paths:
+        return outputs + [
+            Markdown("No resilience summaries were found in the exported artifacts.")
+        ]
+    for path in paths:
+        label = relative_label(path, root)
+        summary = load_json_object(path)
+        if not summary:
+            outputs.append(
+                Markdown(f"Unable to read a resilience summary from `{label}`.")
+            )
+            continue
+        outputs.extend([Markdown(f"**{label}**"), pd.json_normalize(summary)])
+        frames = {}
+        for suffix, peer in queue_peer_csv_paths(path).items():
+            if not peer.is_file():
+                outputs.append(
+                    Markdown(f"Missing run artifact: `{relative_label(peer, root)}`.")
+                )
+                continue
+            try:
+                frames[suffix] = pd.read_csv(peer, dtype={"relay": str, "node": str})
+            except (OSError, ValueError, TypeError) as exc:
+                outputs.append(Markdown(f"Unable to read `{peer.name}`: {exc}"))
+        queue_frame = frames.get("queue_timeseries")
+        if queue_frame is not None:
+            try:
+                if queue_frame.empty or not {
+                    "time_s",
+                    "relay",
+                    "queue_depth_pkts",
+                }.issubset(queue_frame.columns):
+                    raise ValueError(
+                        "queue_timeseries requires time_s, relay and queue_depth_pkts"
+                    )
+                for column in ("time_s", "queue_depth_pkts"):
+                    queue_frame[column] = pd.to_numeric(
+                        queue_frame[column], errors="raise"
+                    )
+                    if not queue_frame[column].map(math.isfinite).all():
+                        raise ValueError(
+                            f"queue_timeseries contains non-finite {column}"
+                        )
+                if queue_frame["relay"].isna().any():
+                    raise ValueError(
+                        "queue_timeseries contains missing relay identifiers"
+                    )
+                queues = queue_frame.pivot_table(
+                    index="time_s",
+                    columns="relay",
+                    values="queue_depth_pkts",
+                    aggfunc="last",
+                ).sort_index()
+                if go is None:
+                    outputs.append(
+                        Markdown(
+                            "Time series are shown in tables; install Plotly to display the chart."
+                        )
+                    )
+                else:
+                    figure = go.Figure()
+                    for relay in queues:
+                        figure.add_scatter(
+                            x=queues.index,
+                            y=queues[relay],
+                            name=str(relay),
+                            mode="lines",
+                        )
+                    figure.update_layout(
+                        title=f"Queue depth — {label}",
+                        xaxis_title="Time (s)",
+                        yaxis_title="Queue depth (packets)",
+                        template="plotly_white",
+                    )
+                    outputs.append(figure)
+            except (ValueError, TypeError, OverflowError) as exc:
+                outputs.append(Markdown(f"Unable to plot `{label}`: {exc}"))
+        for suffix, frame in frames.items():
+            outputs.extend(
+                [Markdown(f"**{suffix.replace('_', ' ').title()}**"), frame.head(1000)]
+            )
+            if len(frame) > 1000:
+                outputs.append(
+                    Markdown(f"Table shows the first 1000 of {len(frame)} rows.")
+                )
+    return outputs
 
 
 def prepare_queue_resilience_page(
