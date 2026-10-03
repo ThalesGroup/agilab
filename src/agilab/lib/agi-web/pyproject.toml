@@ -1,7 +1,7 @@
 [project]
 version = "2026.07.17"
 name = "agi-web"
-description = "AGILAB portable web components with shared React analysis views for Streamlit and Jupyter"
+description = "AGILAB portable web components with native React Python views and shared analysis components for Jupyter"
 requires-python = ">=3.12"
 readme = "README.md"
 authors = [
@@ -26,7 +26,6 @@ classifiers = [
 keywords = [
     "agilab",
     "web-components",
-    "streamlit",
     "react",
     "webgl",
     "canvas",
@@ -65,7 +64,12 @@ package-dir = {"" = "src"}
 packages = ["agi_web"]
 
 [tool.setuptools.package-data]
-agi_web = ["react_analysis_assets/*.js", "react_analysis_assets/*.css", "react_analysis_assets/*.LICENSE.txt", "react_main_interface_assets/*.js", "react_main_interface_assets/*.css", "react_main_interface_assets/*.LICENSE.txt"]
+agi_web = ["react_analysis_assets/*.js", "react_analysis_assets/*.css", "react_analysis_assets/*.LICENSE.txt", "react_main_interface_assets/*.js", "react_main_interface_assets/*.css", "react_main_interface_assets/*.LICENSE.txt", "react_python_host_assets/*.js", "react_python_host_assets/*.css", "react_python_host_assets/*.LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
+
+[tool.agilab.generated-sources.public-bind-guard]
+canonical = "../../security/ui_public_bind_guard.py"
+destination = "src/agi_web/public_bind_guard.py"
+generator = "../../../../tools/generate_agilab_portable_public_bind_guard.py"

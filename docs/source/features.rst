@@ -18,7 +18,7 @@ AGILab currently exposes 2 main user interfaces:
    generated snippets for review before execution.
 
 Shared components include ``agi-env`` (headless environment setup),
-``agi-gui`` (Streamlit UI dependency bundle and page helpers), ``agi-web``
+``agi-gui`` (native React UI dependency bundle and page helpers), ``agi-web``
 (portable Canvas2D/WebGL and React-ready web component contracts), ``agi-node``
 (runtime orchestration), and ``agi-cluster`` (multi-node execution support).
 
@@ -113,7 +113,7 @@ agilab
 - **agi-core API Generation:**
 
   - Renders reviewable ``agi-core`` calls and snippets from UI state so users can
-    understand the runtime path and reuse it outside the Streamlit session.
+    understand the runtime path and reuse it outside the native React UI session.
 
 - **App-owned multi-UI surfaces:**
 
@@ -121,7 +121,7 @@ agilab
     the runtime, artifacts, and evidence contract inside the app package. Use
     ``agilab app surface <project> --list`` to inspect the available backends
     and ``agilab app surface <project> --ui <backend>`` to open one. This keeps
-    Streamlit useful without making the app contract depend on Streamlit.
+    native React UI useful without making the app contract depend on native React UI.
 
 - **Multi-provider coding assistant:**
 
@@ -274,7 +274,8 @@ current public evaluation snapshot.
   legacy fallbacks, and health opt-in boundary evidence
 - the data connector live UI report validates
   ``tools/data_connector_live_ui_report.py --compact`` in
-  ``streamlit_render_contract_only`` mode; it wires connector state and
+  ``streamlit_render_contract_only`` mode (the retained evidence-schema name
+  for native Python view rendering); it wires connector state and
   connector-derived provenance into the Release Decision page while keeping
   connector network probes at zero
 - the connector-aware view surface report validates
@@ -345,7 +346,7 @@ current public evaluation snapshot.
   run provides them
 - the first-launch robot validates
   ``tools/first_launch_robot.py --json`` in
-  ``agilab.first_launch_robot.v1`` mode; it uses Streamlit ``AppTest`` to prove
+  ``agilab.first_launch_robot.v1`` mode; it uses ``agi_web.testing.AppTest`` to prove
   the first page renders without exceptions, initializes ``AgiEnv``, exposes
   the first-proof action, shows the project-to-results workflow, and keeps a
   visible documentation action

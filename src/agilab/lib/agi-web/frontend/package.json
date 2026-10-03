@@ -7,8 +7,15 @@
     "build": "node build_agilab_react_analysis.mjs"
   },
   "dependencies": {
+    "@viz-js/viz": "3.31.0",
+    "dompurify": "3.4.16",
+    "katex": "0.19.0",
+    "marked": "18.0.14",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "vega": "6.4.0",
+    "vega-embed": "7.3.0",
+    "vega-lite": "6.4.3"
   },
   "devDependencies": {
     "esbuild": "0.28.2"

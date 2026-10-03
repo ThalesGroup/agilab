@@ -38,8 +38,8 @@ os.environ.setdefault(
     str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
 )
 
-import streamlit as st
-from streamlit.errors import StreamlitAPIException
+from agi_web import python_ui as st
+from agi_web.python_view_session import UIError
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
 _import_guard_spec = importlib.util.spec_from_file_location(
@@ -3788,7 +3788,7 @@ def _switch_to_registered_navigation_page(
         return False
     try:
         switch_page(page, query_params=query_params)
-    except StreamlitAPIException as exc:
+    except UIError as exc:
         st.session_state["project_navigation_warning"] = (
             f"Project was created, but AGILAB could not open {label} automatically: {exc}"
         )

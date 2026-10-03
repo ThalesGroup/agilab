@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pandas as pd
 import altair as alt
-import streamlit as st
+from agi_web import python_ui as st
 
 import text_core
 

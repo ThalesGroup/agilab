@@ -190,10 +190,11 @@ IPython magics or downloads. Write a fresh results.json in the current directory
 {{"results": {{"meaningful_result_name": value}}}}. Include at least one nonempty
 result value from the analysis. Do not fabricate results to satisfy the checker.
 
-app.py must be a native Streamlit UI with a title, useful controls and a button
+app.py must use `from agi_web import python_ui as st` for the native AGILAB React
+interface, with a title, useful controls and a button
 labelled exactly 'Run analysis'. Clicking it must run the analysis and render a
 new or changed visible result with st.metric, st.dataframe, st.json, st.markdown
-or st.text. Preserve relevant source credit. Use Streamlit's current width API.
+or st.text. Preserve relevant source credit. Use width="stretch" for fluid views.
 
 Use {python}. Execute {verifier}, inspect failures and repair until it passes.
 The independent check executes the generated notebook in a fresh directory,
@@ -216,10 +217,10 @@ Deliver a real app, not an explanation:
 1. models.py: build_models(max_depth=3, seed=42) returns a dict of at least three
    unfitted sklearn estimators: decision tree, random forest, logistic regression.
    Models must accept all four Iris features. Avoid train/test leakage.
-2. app.py: polished native Streamlit UI, local imports from models.py, title,
+2. app.py: polished native AGILAB UI using `from agi_web import python_ui as st`, local imports from models.py, title,
    max-depth slider first, train/test comparison dataframe, metric, confusion
    matrix, feature plot, and four measurement inputs for prediction. Credit the
-   source with its URL. Use cached computation and Streamlit's current width API.
+   source with its URL. Use cached computation and width="stretch" for fluid views.
 3. solution.ipynb: an executable v4 notebook with at least two Python code cells,
    reusable import/train/evaluate stages and markdown explaining the adaptation.
    It must import models via the already available project path, run from any cwd,
@@ -227,7 +228,7 @@ Deliver a real app, not an explanation:
    in the current directory. No downloads, magics, pip installs, or absolute paths.
 4. pyproject.toml: project metadata and dependencies for this generated app.
 
-The environment already has sklearn, numpy, pandas, matplotlib and Streamlit.
+The environment already has sklearn, numpy, pandas, matplotlib and agi_web.
 Use {python} for tests. Execute {verifier} to check the actual files; inspect the
 failure and repair until it exits zero. It checks unseen split seeds, executes
 notebook cells from a fresh directory, and exercises the UI slider using AppTest.
@@ -458,9 +459,9 @@ def main(argv=None) -> int:
         GENERIC_REQUEST if args.notebook is not None or args.notebook_url is not None else DEFAULT_REQUEST)
     if args.ui:
         app = Path(__file__).parents[1] / "demos" / "notebook_demo_ui.py"
-        command = [sys.executable, "-m", "streamlit", "run", str(app),
-                                "--server.address=127.0.0.1", f"--server.port={args.port}",
-                                "--browser.gatherUsageStats=false", "--",
+        command = [sys.executable, "-m", "agi_web.react_python_host", str(app),
+                                "--address", "127.0.0.1", "--port", str(args.port),
+                                "--no-browser", "--",
                                 "--output", str(args.output), "--tokki", args.tokki,
                                 "--timeout", str(args.timeout)]
         if args.request is not None:

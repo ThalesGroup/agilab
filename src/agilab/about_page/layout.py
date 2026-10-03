@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-import streamlit as st
+from agi_web import python_ui as st
 
 
 HARDWARE_PROBE_DISABLE_ENV = "AGILAB_DISABLE_HARDWARE_PROBES"

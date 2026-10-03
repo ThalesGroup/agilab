@@ -18,7 +18,7 @@ Use to compare trainers, tags, steps, and training curves before deeper model re
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_training_analysis/src/view_training_analysis/view_training_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_training_analysis/src/view_training_analysis/view_training_analysis.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 ```
 
 ## Quality Contract

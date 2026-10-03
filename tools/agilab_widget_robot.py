@@ -179,7 +179,7 @@ THEME_STATE_COLLECTOR_JS = r"""
     rootBackground: clean(root.backgroundColor),
     rootColor: clean(root.color),
     rootColorScheme: clean(root.colorScheme),
-    app: styleFor("[data-testid='stApp']"),
+    app: styleFor("#agilab-python-root"),
     body: styleFor("body"),
   };
 }
@@ -209,7 +209,7 @@ BROWSER_ISSUE_FATAL_NEEDLES = (
     "non-zero exit status",
     "post_install failed",
     "runtimeerror",
-    "streamlitapiexception",
+    "uierror",
     "traceback",
     "typeerror",
     "uncaught",
@@ -220,8 +220,6 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "favicon",
     "failed to load resource",
     "net::err_aborted",
-    "/_stcore/health",
-    "/_stcore/host-config",
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {
@@ -254,24 +252,26 @@ WIDGET_COLLECTOR_JS = r"""
   window.__agilabWidgetRobotRunId = (window.__agilabWidgetRobotRunId || 0) + 1;
   const runId = window.__agilabWidgetRobotRunId;
   const specs = [
-    ["button", "[data-testid='stButton'] button"],
-    ["form_submit_button", "[data-testid='stFormSubmitButton'] button"],
-    ["download_button", "[data-testid='stDownloadButton'] button"],
-    ["segmented_control", "button[data-testid^='stBaseButton-segmented_control']"],
-    ["pills", "button[data-testid^='stBaseButton-pills']"],
-    ["checkbox", "[data-testid='stCheckbox'] input"],
-    ["toggle", "[data-testid='stToggle'] input, [role='switch']"],
-    ["radio", "[data-testid='stRadio'] input"],
-    ["selectbox", "[data-testid='stSelectbox']"],
-    ["multiselect", "[data-testid='stMultiSelect']"],
-    ["text_input", "[data-testid='stTextInput'] input"],
-    ["text_area", "[data-testid='stTextArea'] textarea"],
-    ["number_input", "[data-testid='stNumberInput'] input"],
-    ["slider", "[data-testid='stSlider'] [role='slider'], [role='slider']"],
-    ["file_uploader", "[data-testid='stFileUploader']"],
-    ["data_editor", "[data-testid='stDataFrame'], [data-testid='stDataEditor']"],
+    ["button", "[data-widget-kind='button'] button"],
+    ["form_submit_button", "[data-widget-kind='form_submit_button'] button"],
+    ["download_button", "[data-widget-kind='download_button']"],
+    ["segmented_control", "[data-widget-kind='segmented_control'] input"],
+    ["pills", "[data-widget-kind='pills'] input"],
+    ["checkbox", "[data-widget-kind='checkbox'] input"],
+    ["toggle", "[data-widget-kind='toggle'] input, [role='switch']"],
+    ["radio", "[data-widget-kind='radio'] input"],
+    ["selectbox", "[data-widget-kind='selectbox'] select, [data-widget-kind='select_slider'] select"],
+    ["multiselect", "[data-widget-kind='multiselect'] select"],
+    ["text_input", "[data-widget-kind='text_input'] input"],
+    ["text_area", "[data-widget-kind='text_area'] textarea"],
+    ["number_input", "[data-widget-kind='number_input'] input"],
+    ["slider", "[data-widget-kind='slider'] input[type='range'], [role='slider']"],
+    ["file_uploader", "[data-widget-kind='file_uploader'] input[type='file']"],
+    ["data_editor", "[data-widget-kind='dataframe'], [data-widget-kind='data_editor']"],
     ["tab", "[role='tab']"],
-    ["expander", "[data-testid='stExpander'] summary, details summary"],
+    ["expander", "details summary"],
+    ["date_input", "[data-widget-kind='date_input'] input"],
+    ["button", "button"],
   ];
   const visible = (el) => {
     if (el.closest("details:not([open])") && !el.closest("summary")) return false;
@@ -280,6 +280,10 @@ WIDGET_COLLECTOR_JS = r"""
     return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
   };
   const labelFor = (el) => {
+    if (["checkbox", "radio"].includes(el.type)) {
+      const label = el.closest("label");
+      if (label?.innerText.trim()) return label.innerText.trim().replace(/\s+/g, " ").slice(0, 160);
+    }
     const direct = el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder");
     if (direct && direct.trim()) return direct.trim();
     const labelledBy = el.getAttribute("aria-labelledby");
@@ -287,16 +291,16 @@ WIDGET_COLLECTOR_JS = r"""
       const label = document.getElementById(labelledBy);
       if (label && label.innerText.trim()) return label.innerText.trim().replace(/\s+/g, " ").slice(0, 160);
     }
-    const container = el.closest("[data-testid]");
+    const container = closestAcrossRoots(el, "[data-widget-kind], [data-testid]");
     const text = (container || el).innerText || el.value || el.textContent || "";
     return text.trim().replace(/\s+/g, " ").slice(0, 160);
   };
   const testIdFor = (el) => {
-    const container = el.closest("[data-testid]");
-    return container ? container.getAttribute("data-testid") : "";
+    const container = closestAcrossRoots(el, "[data-widget-kind], [data-testid]");
+    return container ? container.getAttribute("data-widget-kind") || container.getAttribute("data-widget-kind") || container.getAttribute("data-testid") : "";
   };
   const scopeFor = (el) => {
-    return el.closest("[data-testid='stSidebar']") ? "sidebar" : "main";
+    return closestAcrossRoots(el, "[data-region='sidebar']") ? "sidebar" : "main";
   };
   const pathFor = (el) => {
     const parts = [];
@@ -332,8 +336,8 @@ WIDGET_COLLECTOR_JS = r"""
         tag: el.tagName.toLowerCase(),
         type: el.getAttribute("type") || "",
         checked: Boolean(el.checked || el.getAttribute("aria-checked") === "true"),
-        name: el.getAttribute("name") || "",
-        value: el.getAttribute("value") || "",
+        name: el.getAttribute("name") || closestAcrossRoots(el, "[data-widget-key]")?.getAttribute("data-widget-key") || "",
+        value: el.value ?? el.getAttribute("value") ?? "",
         testid: testIdFor(el),
         path: pathFor(el),
         scope: scopeFor(el),
@@ -484,10 +488,10 @@ CLOSE_EXPANDERS_EXCEPT_WIDGET_JS = r"""
 
 SCROLL_METRICS_JS = r"""
 () => {
-  const main = document.querySelector("section[data-testid='stMain']");
+  const main = document.querySelector("main");
   if (main && main.scrollHeight > main.clientHeight) {
     return {
-      root: "stMain",
+      root: "main",
       y: main.scrollTop || 0,
       height: main.clientHeight || 1,
       scrollHeight: main.scrollHeight || 0,
@@ -509,11 +513,11 @@ SCROLL_TO_JS = r"""
   const request = target && typeof target === "object" ? target : {root: "auto", y: target};
   const requestedRoot = String(request.root || "auto");
   const targetY = Math.max(Number(request.y) || 0, 0);
-  const main = document.querySelector("section[data-testid='stMain']");
-  if (requestedRoot === "stMain" || (requestedRoot === "auto" && main && main.scrollHeight > main.clientHeight)) {
-    if (!main) return {root: "stMain", y: 0, found: false};
+  const main = document.querySelector("main");
+  if (requestedRoot === "main" || (requestedRoot === "auto" && main && main.scrollHeight > main.clientHeight)) {
+    if (!main) return {root: "main", y: 0, found: false};
     main.scrollTop = targetY;
-    return {root: "stMain", y: main.scrollTop || 0};
+    return {root: "main", y: main.scrollTop || 0};
   }
   window.scrollTo(0, targetY);
   const doc = document.documentElement;
@@ -559,7 +563,8 @@ KEYBOARD_FOCUSABLE_COUNT_JS = r"""
 
 ACTIVE_FOCUS_STATE_JS = r"""
 () => {
-  const el = document.activeElement;
+  let el = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
   if (!el || el === document.body || el === document.documentElement) {
     return {kind: "document", label: "", visible: true, inViewport: true};
   }
@@ -631,7 +636,7 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
         const nextRight = Math.min(rect.right, ancestor.right);
         if (hardClipX && (nextLeft > rect.left + 2 || nextRight < rect.right - 2)) {
           hardClippedX = true;
-          hardClipOwner ||= clean(current.getAttribute("data-testid") || current.tagName);
+          hardClipOwner ||= clean(current.getAttribute("data-widget-kind") || current.getAttribute("data-testid") || current.tagName);
         }
         rect.left = nextLeft;
         rect.right = nextRight;
@@ -641,7 +646,7 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
         const nextBottom = Math.min(rect.bottom, ancestor.bottom);
         if (hardClipY && (nextTop > rect.top + 2 || nextBottom < rect.bottom - 2)) {
           hardClippedY = true;
-          hardClipOwner ||= clean(current.getAttribute("data-testid") || current.tagName);
+          hardClipOwner ||= clean(current.getAttribute("data-widget-kind") || current.getAttribute("data-testid") || current.tagName);
         }
         rect.top = nextTop;
         rect.bottom = nextBottom;
@@ -675,12 +680,12 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
   const frameworkInputOwner = (el) => {
     if (el.tagName !== "INPUT") return "";
     const owner = el.closest([
-      "[data-testid='stFileUploader']",
-      "[data-testid='stFileUploaderDropzoneInput']",
-      "[data-testid='stMultiSelect']",
-      "[data-testid='stSelectbox']",
+      "[data-widget-kind='file_uploader']",
+      "[data-widget-kind='file_uploader']",
+      "[data-widget-kind='multiselect']",
+      "[data-widget-kind='selectbox']",
     ].join(", "));
-    return clean(owner?.getAttribute("data-testid"));
+    return clean(owner?.getAttribute("data-widget-kind") || owner?.getAttribute("data-testid"));
   };
   const push = (kind, el, detail) => {
     const frameworkOwner = frameworkInputOwner(el);
@@ -701,8 +706,8 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
     "[role='tab']",
     "[role='switch']",
     "[role='slider']",
-    "[data-testid='stSelectbox']",
-    "[data-testid='stMultiSelect']",
+    "[data-widget-kind='selectbox']",
+    "[data-widget-kind='multiselect']",
   ].join(", ");
   const controls = Array.from(document.querySelectorAll(controlSelector)).filter(visible);
   for (const el of controls) {
@@ -732,7 +737,7 @@ LAYOUT_INTEGRITY_COLLECTOR_JS = r"""
     "h2",
     "h3",
     "h4",
-    "[data-testid='stMarkdownContainer'] p",
+    ".py-markdown p",
   ].join(", ");
   for (const el of Array.from(document.querySelectorAll(textSelector)).filter(visible)) {
     if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 4 && clean(el.innerText || el.textContent)) {
@@ -789,19 +794,19 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     }
     const implicit = el.closest("label");
     if (implicit && textFor(implicit)) return textFor(implicit);
-    const container = el.closest("[data-testid]");
+    const container = closestAcrossRoots(el, "[data-widget-kind], [data-testid]");
     return clean(textFor(container || el)).slice(0, 160);
   };
   const issues = [];
   const frameworkDataGridCanvas = (el) => (
     el.getAttribute("data-testid") === "data-grid-canvas" &&
-    Boolean(el.closest("[data-testid='stDataFrame'], [data-testid='stDataEditor']"))
+    Boolean(el.closest("[data-widget-kind='dataframe'], [data-widget-kind='data_editor']"))
   );
   const elementContext = (el) => {
-    const container = el.closest("[data-testid]");
+    const container = closestAcrossRoots(el, "[data-widget-kind], [data-testid]");
     const baseweb = el.closest("[data-baseweb]");
     const inputType = el instanceof HTMLInputElement ? el.type : el.getAttribute("type");
-    const containerTestId = container && container !== el ? container.getAttribute("data-testid") : "";
+    const containerTestId = container && container !== el ? container.getAttribute("data-widget-kind") || container.getAttribute("data-testid") : "";
     const pairs = [
       ["tag", el.tagName],
       ["type", inputType],
@@ -842,9 +847,9 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     "[role='checkbox']",
     "[role='combobox']",
     "[tabindex]:not([tabindex='-1'])",
-    "[data-testid='stSelectbox']",
-    "[data-testid='stMultiSelect']",
-    "[data-testid='stFileUploader']",
+    "[data-widget-kind='selectbox']",
+    "[data-widget-kind='multiselect']",
+    "[data-widget-kind='file_uploader']",
   ].join(", ");
   const interactive = Array.from(document.querySelectorAll(interactiveSelector)).filter(visible);
   for (const el of interactive) {
@@ -891,9 +896,9 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
   if (h1Count > 1) {
     push("multiple_h1", headings.find((el) => el.tagName.toLowerCase() === "h1") || document.body, `${h1Count} visible h1 headings found`);
   }
-  const mainLandmark = document.querySelector("main,[role='main'],[data-testid='stMain'],[data-testid='stAppViewContainer']");
+  const mainLandmark = document.querySelector("main,[role='main'],main,#agilab-python-root");
   if (!mainLandmark || !visible(mainLandmark)) {
-    push("missing_main_landmark", document.body, "no visible main landmark or Streamlit main container was found");
+    push("missing_main_landmark", document.body, "no visible main landmark or native UI main container was found");
   }
 
   const parseColor = (value) => {
@@ -932,7 +937,7 @@ ACCESSIBILITY_COLLECTOR_JS = r"""
     "label",
     "[role='button']",
     "[role='tab']",
-    "[data-testid='stMarkdownContainer'] p",
+    ".py-markdown p",
     "h1",
     "h2",
     "h3",
@@ -988,10 +993,10 @@ ABOVE_FOLD_COLLECTOR_JS = r"""
     "[role='tab']",
     "[role='switch']",
     "[role='slider']",
-    "[data-testid='stSelectbox']",
-    "[data-testid='stMultiSelect']",
-    "[data-testid='stFileUploader']",
-    "[data-testid='stMarkdownContainer'] p",
+    "[data-widget-kind='selectbox']",
+    "[data-widget-kind='multiselect']",
+    "[data-widget-kind='file_uploader']",
+    ".py-markdown p",
   ].join(", ");
   const fold = Math.max(240, Math.min(window.innerHeight || 1000, 900));
   const targets = [];
@@ -1023,13 +1028,13 @@ ABOVE_FOLD_COLLECTOR_JS = r"""
 VISUAL_MASK_DYNAMIC_REGIONS_JS = r"""
 () => {
   const selectors = [
-    "[data-testid='stStatusWidget']",
-    "[data-testid='stSpinner']",
-    "[data-testid='stProgress']",
-    "[data-testid='stToast']",
-    "[data-testid='stNotification']",
-    "[data-testid='stCodeBlock']",
-    "[data-testid='stExpander'] pre",
+    ".py-status",
+    "[data-widget-kind='status'][data-state='running'], .py-working",
+    "progress",
+    ".py-toast",
+    ".py-alert",
+    "pre",
+    "details pre",
     "textarea",
   ];
   const styleId = "agilab-visual-baseline-mask-style";
@@ -1063,7 +1068,7 @@ VISUAL_MASK_DYNAMIC_REGIONS_JS = r"""
 }
 """
 
-VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
+VISIBLE_NATIVE_ISSUE_COLLECTOR_JS = r"""
 () => {
   const visible = (el) => {
     if (el.closest("details:not([open])") && !el.closest("summary")) return false;
@@ -1077,9 +1082,9 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     const detail = clean(el.innerText || el.textContent || fallback).slice(0, 500);
     issues.push({kind, detail: detail || fallback});
   };
-  for (const el of document.querySelectorAll("[data-testid='stException']")) {
+  for (const el of document.querySelectorAll(".py-exception")) {
     if (visible(el)) {
-      push("exception", el, "Streamlit exception rendered");
+      push("exception", el, "native UI exception rendered");
     }
   }
   const errorNeedles = [
@@ -1099,19 +1104,19 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     "non-zero exit status",
     "post_install failed",
     "runtimeerror",
-    "streamlitapi",
+    "uierror",
     "traceback",
     "typeerror",
     "uncaught",
     "valueerror",
   ];
   const selectors = [
-    "[data-testid='stAlert']",
-    "[data-testid='stAlertContainer']",
-    "[data-testid='stStatus']",
-    "[data-testid='stStatusWidget']",
-    "[data-testid='stToast']",
-    "[data-testid='stNotification']",
+    ".py-alert",
+    ".py-alert",
+    ".py-status",
+    ".py-status",
+    ".py-toast",
+    ".py-alert",
     "[role='alert']",
     "[aria-live='assertive']",
   ].join(", ");
@@ -1126,14 +1131,14 @@ VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS = r"""
     ].join(" ")).toLowerCase();
     const combined = `${metadata} ${text.toLowerCase()}`;
     if (errorNeedles.some((needle) => combined.includes(needle))) {
-      push("error", el, "Streamlit error alert rendered");
+      push("error", el, "native UI error alert rendered");
     }
   }
   return issues;
 }
 """
 
-VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
+VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS = r"""
 () => {
   const visible = (el) => {
     if (el.closest("details:not([open])") && !el.closest("summary")) return false;
@@ -1159,7 +1164,7 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "non-zero exit status",
     "post_install failed",
     "runtimeerror",
-    "streamlitapi",
+    "uierror",
     "traceback",
     "typeerror",
     "uncaught",
@@ -1182,7 +1187,7 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     "non-zero exit status",
     "post_install failed",
     "runtimeerror",
-    "streamlitapiexception",
+    "uierror",
     "traceback",
     "typeerror",
     "uncaught exception",
@@ -1193,18 +1198,18 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     const detail = clean(el.innerText || el.textContent || fallback).slice(0, 500);
     feedback.push({kind, detail: detail || fallback});
   };
-  for (const el of document.querySelectorAll("[data-testid='stException']")) {
+  for (const el of document.querySelectorAll(".py-exception")) {
     if (visible(el)) {
-      push("exception", el, "Streamlit exception rendered");
+      push("exception", el, "native UI exception rendered");
     }
   }
   const semanticSelectors = [
-    "[data-testid='stAlert']",
-    "[data-testid='stAlertContainer']",
-    "[data-testid='stStatus']",
-    "[data-testid='stStatusWidget']",
-    "[data-testid='stToast']",
-    "[data-testid='stNotification']",
+    ".py-alert",
+    ".py-alert",
+    ".py-status",
+    ".py-status",
+    ".py-toast",
+    ".py-alert",
     "[role='alert']",
     "[aria-live='assertive']",
   ].join(", ");
@@ -1219,18 +1224,18 @@ VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS = r"""
     ].join(" ")).toLowerCase();
     const combined = `${metadata} ${text.toLowerCase()}`;
     if (errorNeedles.some((needle) => combined.includes(needle))) {
-      push("error", el, "Streamlit error alert rendered");
+      push("error", el, "native UI error alert rendered");
     } else if (combined.includes("success") || combined.includes("successfully")) {
-      push("success", el, "Streamlit success alert rendered");
+      push("success", el, "native UI success alert rendered");
     } else if (combined.includes("warning")) {
-      push("warning", el, "Streamlit warning alert rendered");
+      push("warning", el, "native UI warning alert rendered");
     } else {
-      push("info", el, "Streamlit alert rendered");
+      push("info", el, "native UI alert rendered");
     }
   }
   const renderedTextSelectors = [
-    "[data-testid='stCodeBlock']",
-    "[data-testid='stMarkdownContainer']",
+    "pre",
+    ".py-markdown",
     "pre",
     "code",
   ].join(", ");
@@ -1266,7 +1271,7 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
     "non-zero exit status",
     "post_install failed",
     "runtimeerror",
-    "streamlitapi",
+    "uierror",
     "traceback",
     "typeerror",
     "uncaught",
@@ -1296,7 +1301,7 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
     const summary = details.querySelector(":scope > summary") || details.querySelector("summary");
     const title = clean(summary ? (summary.innerText || summary.textContent || "") : "").toLowerCase();
     if (!logTitleNeedles.some((needle) => title.includes(needle))) continue;
-    for (const el of details.querySelectorAll("[data-testid='stException'], [data-testid='stAlert'], [data-testid='stAlertContainer'], [data-testid='stStatus'], [data-testid='stStatusWidget'], [data-testid='stCodeBlock'], [data-testid='stMarkdownContainer'], [role='alert'], pre, code")) {
+    for (const el of details.querySelectorAll(".py-exception, .py-alert, .py-alert, .py-status, .py-status, pre, .py-markdown, [role='alert'], pre, code")) {
       if (hasFailure(el.innerText || el.textContent || "")) {
         push("error", el, "action log failure rendered");
       }
@@ -1308,6 +1313,50 @@ ACTION_LOG_FEEDBACK_COLLECTOR_JS = r"""
   return feedback;
 }
 """
+
+
+_NATIVE_DOM_QUERY_HELPERS_JS = r"""
+  const parentAcrossRoots = (element) => element?.parentElement || element?.getRootNode()?.host || null;
+  const closestAcrossRoots = (element, selector) => {
+    for (let current = element; current; current = parentAcrossRoots(current)) {
+      if (current.matches?.(selector)) return current;
+    }
+    return null;
+  };
+  const queryAll = (selector) => {
+    const results = [];
+    const visit = (root) => {
+      results.push(...root.querySelectorAll(selector));
+      for (const element of root.querySelectorAll("*")) {
+        if (element.shadowRoot) visit(element.shadowRoot);
+      }
+    };
+    visit(document);
+    return results;
+  };
+  const queryOne = (selector) => queryAll(selector)[0] || null;
+"""
+
+
+def _native_dom_script(script: str) -> str:
+    """Inspect open React component roots as well as the Python host DOM."""
+    script = script.replace("document.querySelectorAll(", "queryAll(")
+    script = script.replace("document.querySelector(", "queryOne(")
+    script = script.replace("current.parentElement", "parentAcrossRoots(current)")
+    return script.replace("=> {", "=> {\n" + _NATIVE_DOM_QUERY_HELPERS_JS, 1)
+
+
+for _script_name in (
+    "THEME_STATE_COLLECTOR_JS", "WIDGET_COLLECTOR_JS", "VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS",
+    "OPEN_EXPANDERS_JS", "CLOSE_EXPANDERS_JS", "CLOSE_EXPANDERS_EXCEPT_WIDGET_JS",
+    "SCROLL_METRICS_JS", "SCROLL_TO_JS", "SCROLL_WIDGET_TO_CENTER_JS",
+    "KEYBOARD_FOCUSABLE_COUNT_JS", "ACTIVE_FOCUS_STATE_JS", "LAYOUT_INTEGRITY_COLLECTOR_JS",
+    "ACCESSIBILITY_COLLECTOR_JS", "ABOVE_FOLD_COLLECTOR_JS", "VISUAL_MASK_DYNAMIC_REGIONS_JS",
+    "VISIBLE_NATIVE_ISSUE_COLLECTOR_JS", "VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS",
+    "ACTION_LOG_FEEDBACK_COLLECTOR_JS",
+):
+    globals()[_script_name] = _native_dom_script(globals()[_script_name])
+del _script_name
 
 
 @dataclass(frozen=True)
@@ -1462,8 +1511,8 @@ def page_result_key(app: str, page: str) -> str:
     return f"{app}::{page}"
 
 
-def _streamlit_health_failure_detail(health: Any, server: Any, *, base_url: str) -> str:
-    detail = str(getattr(health, "detail", "") or "streamlit server did not become healthy")
+def _react_health_failure_detail(health: Any, server: Any, *, base_url: str) -> str:
+    detail = str(getattr(health, "detail", "") or "React server did not become healthy")
     process = getattr(server, "process", None)
     returncode = process.poll() if process is not None else None
     output_tail_fn = getattr(server, "output_tail", None)
@@ -1747,7 +1796,7 @@ def active_app_runtime_target_name(active_app: str) -> str:
 
 
 def normalize_remote_url(url: str) -> str:
-    """Map public HF Space pages to the Streamlit runtime URL."""
+    """Map public HF Space pages to the native UI runtime URL."""
     candidate = url.strip()
     if not urllib.parse.urlsplit(candidate).scheme:
         candidate = f"https://{candidate}"
@@ -2080,10 +2129,10 @@ def _any_visible_locator(locator: Any, *, timeout_ms: float = 100.0, limit: int 
 
 
 def _initializing_environment_visible(page: Any) -> bool:
-    # The boot spinner renders inside the Streamlit stSpinner testid; scope the text match to it
+    # The native status widget exposes its running state; scope the text match to it
     # so the check stays tied to the real element rather than scanning arbitrary body copy.
     try:
-        spinner = page.locator("[data-testid='stSpinner']").get_by_text(
+        spinner = page.locator("[data-widget-kind='status'][data-state='running'], .py-working").get_by_text(
             re.compile(INITIALIZING_ENV_TEXT, re.IGNORECASE)
         )
         if _any_visible_locator(spinner):
@@ -2107,7 +2156,7 @@ def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:  # pragma: no 
     deadline = time.perf_counter() + timeout_ms / 1000.0
     while time.perf_counter() < deadline:
         try:
-            spinner_visible = _any_visible_locator(page.locator("[data-testid='stSpinner']"))
+            spinner_visible = _any_visible_locator(page.locator("[data-widget-kind='status'][data-state='running'], .py-working"))
         except Exception:
             logger.debug("wait_for_page_ready: spinner probe failed; assuming not visible", exc_info=True)
             spinner_visible = False
@@ -2334,6 +2383,22 @@ def _selectbox_option_labels(  # pragma: no cover - live browser path
     locator = _widget_locator(page, widget)
     try:
         locator.scroll_into_view_if_needed(timeout=timeout_ms)
+        if widget.get("tag") == "select":
+            options = locator.locator("option")
+            count = options.count()
+            labels = []
+            indices = []
+            for index in range(count):
+                option = options.nth(index)
+                if option.get_attribute("disabled", timeout=timeout_ms) is not None:
+                    continue
+                if len(labels) >= max_options_per_widget:
+                    widget["native_option_indices"] = indices
+                    return labels, f"selectbox has more than {max_options_per_widget} selectable options; capped at --max-options-per-widget {max_options_per_widget}"
+                labels.append(option.inner_text(timeout=timeout_ms).strip() or f"option {index + 1}")
+                indices.append(index)
+            widget["native_option_indices"] = indices
+            return labels, None if labels else "no selectable native selectbox options found"
         _click_with_force_fallback(locator, timeout_ms=timeout_ms)
         page.wait_for_timeout(150)
         options = _option_locator(page)
@@ -2386,7 +2451,7 @@ def _selectbox_widget_control(  # pragma: no cover - live browser path
             label,
             option_label,
             dict(widget),
-            option_index=index,
+            option_index=widget.get("native_option_indices", list(range(len(labels))))[index],
             default=index == 0,
         )
         for index, option_label in enumerate(labels)
@@ -2578,7 +2643,7 @@ def _write_failure_bundle(
             page_text_name = "page.txt"
             (bundle_dir / page_text_name).write_text(page_text, encoding="utf-8")
         try:
-            visible_issue = _visible_streamlit_issue_detail(page)
+            visible_issue = _visible_native_issue_detail(page)
         except Exception as exc:
             visible_issue = f"visible issue collection failed: {_short_detail(str(exc))}"
 
@@ -3717,31 +3782,31 @@ def _scroll_to(page: Any, y: int, *, root: str | None = None) -> None:  # pragma
         return
 
 
-def _visible_streamlit_issue_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
+def _visible_native_issue_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
     try:
-        issues = page.evaluate(VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS)
+        issues = page.evaluate(VISIBLE_NATIVE_ISSUE_COLLECTOR_JS)
     except Exception:
-        logger.debug("Unable to evaluate visible Streamlit issue collector", exc_info=True)
+        logger.debug("Unable to evaluate visible native UI issue collector", exc_info=True)
         return None
     if not isinstance(issues, list) or not issues:
         return None
     first = issues[0] if isinstance(issues[0], dict) else {}
     kind = str(first.get("kind") or "issue")
-    detail = str(first.get("detail") or "visible Streamlit issue rendered")
+    detail = str(first.get("detail") or "visible native UI issue rendered")
     suffix = f" (+{len(issues) - 1} more)" if len(issues) > 1 else ""
     return _short_detail(f"{kind}: {detail}{suffix}")
 
 
-def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) -> list[dict[str, str]]:  # pragma: no cover - live browser path
+def _visible_native_feedback(page: Any, *, include_action_logs: bool = True) -> list[dict[str, str]]:  # pragma: no cover - live browser path
     feedback_items: list[Any] = []
-    scripts = [VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS]
+    scripts = [VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS]
     if include_action_logs:
         scripts.append(ACTION_LOG_FEEDBACK_COLLECTOR_JS)
     for script in scripts:
         try:
             feedback = page.evaluate(script)
         except Exception:
-            logger.debug("Unable to evaluate visible Streamlit feedback collector", exc_info=True)
+            logger.debug("Unable to evaluate visible native UI feedback collector", exc_info=True)
             continue
         if isinstance(feedback, list):
             feedback_items.extend(feedback)
@@ -3751,7 +3816,7 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
         if not isinstance(item, dict):
             continue
         kind = str(item.get("kind") or "info")
-        detail = str(item.get("detail") or "visible Streamlit alert rendered")
+        detail = str(item.get("detail") or "visible native UI alert rendered")
         signature = (kind, detail)
         if signature in seen:
             continue
@@ -3760,16 +3825,16 @@ def _visible_streamlit_feedback(page: Any, *, include_action_logs: bool = True) 
     return normalized
 
 
-def _visible_streamlit_feedback_signatures(page: Any) -> set[tuple[str, str]]:  # pragma: no cover - live browser path
-    return {(item["kind"], item["detail"]) for item in _visible_streamlit_feedback(page)}
+def _visible_native_feedback_signatures(page: Any) -> set[tuple[str, str]]:  # pragma: no cover - live browser path
+    return {(item["kind"], item["detail"]) for item in _visible_native_feedback(page)}
 
 
-def _new_visible_streamlit_feedback(  # pragma: no cover - live browser path
+def _new_visible_native_feedback(  # pragma: no cover - live browser path
     page: Any,
     baseline_feedback: set[tuple[str, str]],
 ) -> dict[str, str] | None:
     candidates: list[dict[str, str]] = []
-    for item in _visible_streamlit_feedback(page):
+    for item in _visible_native_feedback(page):
         if (item["kind"], item["detail"]) not in baseline_feedback:
             candidates.append(item)
     if not candidates:
@@ -3782,7 +3847,7 @@ def _new_visible_streamlit_feedback(  # pragma: no cover - live browser path
 
 
 def _visible_action_feedback_tail(page: Any, *, limit: int = 320) -> str:  # pragma: no cover - live browser path
-    feedback = _visible_streamlit_feedback(page)
+    feedback = _visible_native_feedback(page)
     if not feedback:
         return ""
     tail = " | ".join(f"{item['kind']}: {item['detail']}" for item in feedback[-3:])
@@ -3823,25 +3888,25 @@ def _install_postcondition_status(page: Any) -> tuple[bool, str]:  # pragma: no 
 def _visible_exception_detail(page: Any) -> str | None:  # pragma: no cover - live browser path
     """Backward-compatible alias for older tests and call sites."""
     try:
-        exceptions = page.locator("[data-testid='stException']")
+        exceptions = page.locator(".py-exception")
         if exceptions.count() > 0 and exceptions.first.is_visible(timeout=LOCATOR_VISIBILITY_TIMEOUT_MS):
             return _short_detail(
                 exceptions.first.inner_text(timeout=LOCATOR_VISIBILITY_TIMEOUT_MS)
-                or "Streamlit exception rendered"
+                or "native UI exception rendered"
             )
     except Exception:
-        logger.debug("Unable to inspect rendered Streamlit exception", exc_info=True)
-    return _visible_streamlit_issue_detail(page)
+        logger.debug("Unable to inspect rendered native UI exception", exc_info=True)
+    return _visible_native_issue_detail(page)
 
 
-def _append_visible_streamlit_issue_probe(  # pragma: no cover - live browser path
+def _append_visible_native_issue_probe(  # pragma: no cover - live browser path
     probes: list[WidgetProbe],
     *,
     page: Any,
     app_name: str,
     display: str,
 ) -> bool:
-    issue = _visible_streamlit_issue_detail(page)
+    issue = _visible_native_issue_detail(page)
     if not issue:
         return False
     probes.append(
@@ -3851,7 +3916,7 @@ def _append_visible_streamlit_issue_probe(  # pragma: no cover - live browser pa
             "visible_error",
             "",
             "failed",
-            f"visible Streamlit error message: {issue}",
+            f"visible native UI error message: {issue}",
             getattr(page, "url", ""),
         )
     )
@@ -3954,7 +4019,7 @@ def _close_all_expanders(page: Any) -> None:  # pragma: no cover - live browser 
         page.evaluate(CLOSE_EXPANDERS_JS)
         _wait_for_timeout(page, 150)
     except Exception:
-        logger.debug("Unable to close Streamlit expanders", exc_info=True)
+        logger.debug("Unable to close native UI expanders", exc_info=True)
 
 
 def _open_all_expanders(page: Any) -> None:  # pragma: no cover - live browser path
@@ -3962,7 +4027,7 @@ def _open_all_expanders(page: Any) -> None:  # pragma: no cover - live browser p
         page.evaluate(OPEN_EXPANDERS_JS)
         _wait_for_timeout(page, 250)
     except Exception:
-        logger.debug("Unable to open Streamlit expanders", exc_info=True)
+        logger.debug("Unable to open native UI expanders", exc_info=True)
 
 
 def _selected_action_matches(
@@ -4235,7 +4300,7 @@ def _scroll_widget_to_center(page: Any, widget: dict[str, Any]) -> None:  # prag
 
 def _visible_spinner_count(page: Any) -> int:  # pragma: no cover - live browser path
     try:
-        return int(_any_visible_locator(page.locator("[data-testid='stSpinner']")))
+        return int(_any_visible_locator(page.locator("[data-widget-kind='status'][data-state='running'], .py-working")))
     except Exception:
         return 0
 
@@ -4263,11 +4328,11 @@ def _wait_for_action_outcome(  # pragma: no cover - live browser path
             page.evaluate(OPEN_EXPANDERS_JS)
         except Exception:
             logger.debug("Unable to keep expanders open while waiting for action outcome", exc_info=True)
-        issue = _visible_streamlit_issue_detail(page)
+        issue = _visible_native_issue_detail(page)
         if issue:
             return issue, True
         if require_feedback:
-            feedback = _new_visible_streamlit_feedback(page, baseline_feedback)
+            feedback = _new_visible_native_feedback(page, baseline_feedback)
             if feedback is not None:
                 kind = feedback["kind"]
                 detail = feedback["detail"]
@@ -4381,6 +4446,10 @@ def _apply_widget_choice(page: Any, choice: WidgetChoice, *, timeout_ms: float) 
     if choice.kind == "selectbox":
         if choice.option_index is None:
             raise RuntimeError(f"selectbox {choice.label!r} has no option index")
+        if choice.widget.get("tag") == "select":
+            locator.select_option(index=choice.option_index, timeout=timeout_ms)
+            page.wait_for_timeout(150)
+            return
         _click_with_force_fallback(locator, timeout_ms=timeout_ms)
         page.wait_for_timeout(150)
         options = _option_locator(page)
@@ -4518,7 +4587,7 @@ def _probe_widget(  # pragma: no cover - live browser path
                     role_locator = _button_locator_by_label(page, str(widget.get("label", "")))
                     if role_locator is not None and role_locator.is_visible(timeout=timeout_ms):
                         locator = role_locator
-                baseline_feedback = _visible_streamlit_feedback_signatures(page) if require_feedback else set()
+                baseline_feedback = _visible_native_feedback_signatures(page) if require_feedback else set()
                 if require_feedback:
                     click_timeout_ms = max(timeout_ms, min(action_timeout_ms, 10000.0))
                     try:
@@ -4542,7 +4611,7 @@ def _probe_widget(  # pragma: no cover - live browser path
                 )
                 settle_seconds = time.perf_counter() - settle_started
                 if error:
-                    detail = f"button click rendered Streamlit error: {error}"
+                    detail = f"button click rendered native UI error: {error}"
                     feedback_tail = _visible_action_feedback_tail(page)
                     if feedback_tail:
                         detail = f"{detail}; evidence_tail={feedback_tail}"
@@ -4634,7 +4703,7 @@ def _probe_widget(  # pragma: no cover - live browser path
             return "interacted", f"opened and closed {kind}"
         if kind == "file_uploader":
             fixture = _robot_upload_fixture_for_widget(upload_file, widget)
-            locator.locator("input[type='file']").first.set_input_files(str(fixture), timeout=timeout_ms)
+            (locator if widget.get("tag") == "input" else locator.locator("input[type='file']").first).set_input_files(str(fixture), timeout=timeout_ms)
             _wait_for_timeout(page, 250)
             return "interacted", f"uploaded temporary robot fixture ({fixture.suffix})"
         if kind == "data_editor":
@@ -4716,9 +4785,9 @@ def _collect_and_probe_current_view(  # pragma: no cover - live browser path
                     )
                 except Exception as exc:
                     status, detail = "skipped", _short_detail(f"restore retry failed: {exc}")
-            error = _visible_streamlit_issue_detail(page)
+            error = _visible_native_issue_detail(page)
             if error and status != "failed":
-                status, detail = "failed", f"interaction rendered Streamlit error: {error}"
+                status, detail = "failed", f"interaction rendered native UI error: {error}"
             probes.append(
                 WidgetProbe(
                     app_name,
@@ -4826,7 +4895,7 @@ def _exercise_widget_combinations(  # pragma: no cover - live browser path
                         kind="combination",
                         label=f"combination #{index}",
                         status="failed",
-                        detail=f"{detail} rendered Streamlit exception: {error}",
+                        detail=f"{detail} rendered native UI exception: {error}",
                         url=page.url,
                     )
                 )
@@ -5013,7 +5082,7 @@ def sweep_page(  # pragma: no cover - live browser path
     try:
         restore_view()
         _enforce_page_deadline(page_deadline, "page watchdog expired before active-app check")
-        if _append_visible_streamlit_issue_probe(probes, page=page, app_name=app_name, display=display):
+        if _append_visible_native_issue_probe(probes, page=page, app_name=app_name, display=display):
             page_status = "failed"
         elif check_active_app_route and not active_app_route_matches(page.url, active_app_query):
             detail = f"active_app routed to {routed_active_app_slug(page.url)!r}, expected {sorted(active_app_aliases(active_app_query))!r}"
@@ -5728,29 +5797,29 @@ def _ignored_layout_issue_reason(issue: Mapping[str, Any], *, display: str) -> s
         and "1.0x1.0" in detail
         and issue.get("framework_owned") is True
     ):
-        return "Streamlit hidden input"
+        return "native UI hidden input"
     if kind == "text_overflow" and label == "Install agi-app":
-        return "intentional Streamlit sidebar action label measurement"
+        return "intentional native UI sidebar action label measurement"
     if kind == "text_overflow" and display == "WORKFLOW":
-        return "workflow content label inside fixed-width Streamlit container"
+        return "workflow content label inside fixed-width native UI container"
     if kind == "control_overlap" and "close by backspace" in label:
-        return "Streamlit multiselect chip remove control"
+        return "native UI multiselect chip remove control"
     if kind == "control_overlap" and label == "Show/hide columns":
-        return "Streamlit dataframe toolbar overlay"
+        return "native UI dataframe toolbar overlay"
     if kind == "control_overlap" and label == "Download as CSV":
-        return "Streamlit dataframe toolbar overlay"
+        return "native UI dataframe toolbar overlay"
     if kind == "control_overlap" and label == "Search":
-        return "Streamlit dataframe toolbar overlay"
+        return "native UI dataframe toolbar overlay"
     if kind == "control_overlap" and label == "Fullscreen":
-        return "Streamlit dataframe toolbar overlay"
+        return "native UI dataframe toolbar overlay"
     if kind == "control_overlap" and label == "INPUT" and "overlaps upload Upload" in detail:
-        return "Streamlit file uploader hidden input"
+        return "native UI file uploader hidden input"
     if kind == "control_overlap" and (
         "overlaps Scroll tabs left" in detail or "overlaps Scroll tabs right" in detail
     ):
-        return "Streamlit tab scroll control overlay"
+        return "native UI tab scroll control overlay"
     if kind == "horizontal_overflow" and label == "keyboard_double_arrow_left":
-        return "Streamlit offscreen sidebar collapse control"
+        return "native UI offscreen sidebar collapse control"
     if kind == "horizontal_overflow" and _layout_span_is_fully_offscreen_left(detail):
         return "fully offscreen mobile sidebar control"
     return None
@@ -5769,7 +5838,7 @@ def _layout_span_is_fully_offscreen_left(detail: str) -> bool:
 
 def _layout_integrity_probe(page: Any, *, app_name: str, display: str) -> WidgetProbe:  # pragma: no cover - live browser path
     try:
-        # OPEN_EXPANDERS_JS is also called during readiness, but Streamlit animates
+        # OPEN_EXPANDERS_JS is also called during readiness, but native UI animates
         # the height of newly opened details for 500 ms.  Keep this longer settle
         # local to geometry checks so other expander callers stay fast.
         page.evaluate(OPEN_EXPANDERS_JS)
@@ -5830,25 +5899,25 @@ def _ignored_accessibility_issue_reason(issue: Mapping[str, Any]) -> str | None:
     kind = str(issue.get("kind") or "")
     label = str(issue.get("label") or "")
     if kind == "contrast_risk":
-        return "contrast heuristic is conservative with Streamlit computed backgrounds"
+        return "contrast heuristic is conservative with native UI computed backgrounds"
     if (
         kind == "missing_accessible_name"
         and label == "data-grid-canvas"
         and issue.get("framework_owned") is True
     ):
-        return "Streamlit dataframe canvas is backed by framework-owned grid semantics"
+        return "native UI dataframe canvas is backed by framework-owned grid semantics"
     if kind == "missing_accessible_name" and label in {
         "stFileUploaderDropzoneInput",
         "stNumberInputStepDown",
         "stNumberInputStepUp",
     }:
-        return "Streamlit internal control"
+        return "native UI internal control"
     if (
         kind == "missing_accessible_name"
         and issue.get("input_type") == "date"
         and issue.get("container_testid") == "hidden-dateinput-container"
     ):
-        return "Streamlit hidden native date input"
+        return "native UI hidden native date input"
     if kind == "heading_level_jump" and label == "Runtime diagnostics":
         return "settings diagnostics subheading hierarchy"
     return None
@@ -6176,7 +6245,7 @@ def _page_and_frame_sidebar_text(page: Any, *, timeout_ms: float = 1000.0) -> st
     texts: list[str] = []
     for _owner_name, owner in _page_and_child_frame_owners(page):
         try:
-            locator = owner.locator("[data-testid='stSidebar']")
+            locator = owner.locator("[data-region='sidebar']")
             count = int(locator.count())
         except Exception:
             continue
@@ -6482,27 +6551,23 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
         "run",
         "--project",
         str(_project_root_for(route.path)),
-        "streamlit",
-        "run",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
         str(route.path),
-        "--server.address",
+        "--address",
         "127.0.0.1",
-        "--server.port",
+        "--port",
         str(port),
-        "--server.headless",
-        "true",
-        "--server.runOnSave",
-        "false",
-        "--browser.gatherUsageStats",
-        "false",
+        "--no-browser",
         "--",
         "--active-app",
         str(active_app),
     ]
-    with web_robot.StreamlitServer(command, env=server_env, url=base_url) as server:
-        health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+    with web_robot.ReactPythonServer(command, env=server_env, url=base_url) as server:
+        health = web_robot.wait_for_react_health(base_url, timeout=timeout)
         if not health.success:
-            detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
+            detail = _react_health_failure_detail(health, server, base_url=base_url)
             result = PageSweep(
                 app_name,
                 display,
@@ -6514,7 +6579,7 @@ def sweep_direct_apps_page(  # pragma: no cover - live browser path
                 0,
                 1,
                 health.url or base_url,
-                [WidgetProbe(app_name, display, "streamlit", "", "failed", detail, health.url or base_url)],
+                [WidgetProbe(app_name, display, "react", "", "failed", detail, health.url or base_url)],
                 [],
                 status="failed",
             )
@@ -6654,7 +6719,7 @@ def sweep_app(  # pragma: no cover - live browser path
     port = web_robot._free_port()
     base_url = f"http://127.0.0.1:{port}"
     local_active_app = web_robot.resolve_local_active_app(str(app), str(web_robot.DEFAULT_APPS_PATH))
-    command = web_robot.build_streamlit_command(active_app=local_active_app, apps_path=web_robot.DEFAULT_APPS_PATH, port=port)
+    command = web_robot.build_react_command(active_app=local_active_app, apps_path=web_robot.DEFAULT_APPS_PATH, port=port)
     results: list[PageSweep] = []
     with tempfile.TemporaryDirectory(prefix="agilab-widget-robot-runtime-") as runtime_dir:
         seeded_runtime = build_seeded_server_env(
@@ -6664,10 +6729,10 @@ def sweep_app(  # pragma: no cover - live browser path
             seed_demo_artifacts=seed_demo_artifacts,
             runtime_isolation=runtime_isolation,
         )
-        with web_robot.StreamlitServer(command, env=seeded_runtime.env, url=base_url) as server:
-            health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+        with web_robot.ReactPythonServer(command, env=seeded_runtime.env, url=base_url) as server:
+            health = web_robot.wait_for_react_health(base_url, timeout=timeout)
             if not health.success:
-                detail = _streamlit_health_failure_detail(health, server, base_url=base_url)
+                detail = _react_health_failure_detail(health, server, base_url=base_url)
                 result = PageSweep(
                     app_name,
                     "SERVER",
@@ -6679,7 +6744,7 @@ def sweep_app(  # pragma: no cover - live browser path
                     0,
                     1,
                     health.url or base_url,
-                    [WidgetProbe(app_name, "SERVER", "streamlit", "", "failed", detail, health.url or base_url)],
+                    [WidgetProbe(app_name, "SERVER", "react", "", "failed", detail, health.url or base_url)],
                     [],
                     status="failed",
                 )
@@ -6931,7 +6996,7 @@ def sweep_remote_app(  # pragma: no cover - live browser path
     web_robot = _load_web_robot()
     app_name = active_app_slug(str(app))
     base_url = normalize_remote_url(base_url)
-    health = web_robot.wait_for_streamlit_health(base_url, timeout=timeout)
+    health = web_robot.wait_for_react_health(base_url, timeout=timeout)
     if not health.success:
         result = PageSweep(
             app_name,
@@ -6944,7 +7009,7 @@ def sweep_remote_app(  # pragma: no cover - live browser path
             0,
             1,
             health.url or base_url,
-            [WidgetProbe(app_name, "REMOTE_SERVER", "streamlit", "", "failed", health.detail, health.url or base_url)],
+            [WidgetProbe(app_name, "REMOTE_SERVER", "react", "", "failed", health.detail, health.url or base_url)],
             [],
             status="failed",
         )
@@ -7291,12 +7356,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--keyboard-focus-check", action="store_true", help="Tab through visible controls and fail on focus traps or off-screen focus targets.")
     parser.add_argument("--layout-integrity-check", action="store_true", help="Fail on obvious visible control overflow, zero-size controls, and major control overlaps.")
-    parser.add_argument("--accessibility-check", action="store_true", help="Fail on actionable accessibility issues after filtering known Streamlit internals and conservative contrast heuristics.")
+    parser.add_argument("--accessibility-check", action="store_true", help="Fail on actionable accessibility issues after filtering known native UI internals and conservative contrast heuristics.")
     parser.add_argument("--browser-error-check", action="store_true", help="Record explicit pass/fail evidence for console, pageerror, requestfailed, and HTTP error capture.")
     parser.add_argument("--above-fold-check", action="store_true", help="Fail when expected page headings or primary controls are not visible above the initial viewport fold.")
     parser.add_argument("--required-text", default="", help="Comma-separated text that must be visible in the page or a child iframe after render.")
     parser.add_argument("--forbidden-text", default="", help="Comma-separated text that must not be visible in the page or a child iframe after render.")
-    parser.add_argument("--forbidden-sidebar-text", default="", help="Comma-separated text that must not be visible in Streamlit sidebars after render.")
+    parser.add_argument("--forbidden-sidebar-text", default="", help="Comma-separated text that must not be visible in native UI sidebars after render.")
     parser.add_argument("--required-links", default="", help="Comma-separated link specs that must be visible, formatted as label=>href-fragment[;href-fragment].")
     parser.add_argument("--required-action-labels", default="", help="Comma-separated button labels that must be visible, enabled, and trial-clickable in the page or a child iframe.")
     parser.add_argument("--visual-mask-dynamic-regions", action="store_true", help="Mask volatile log/progress/code regions before success screenshots for visual baseline evidence.")
@@ -7379,7 +7444,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover - live b
     if args.action_button_policy == "click-selected" and not click_action_labels:
         parser.error("--click-action-labels is required with --action-button-policy click-selected")
     if args.url and (args.assert_orchestrate_artifacts or args.assert_workflow_artifacts or args.assert_analysis_artifacts):
-        parser.error("--assert-*artifacts options require a local robot-launched Streamlit server")
+        parser.error("--assert-*artifacts options require a local robot-launched native UI server")
     if args.discovery_passes <= 0:
         parser.error("--discovery-passes must be greater than 0")
     if args.max_action_clicks_per_page < 0:

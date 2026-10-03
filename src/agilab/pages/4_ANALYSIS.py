@@ -42,7 +42,7 @@ os.environ.setdefault(
     "STREAMLIT_CONFIG_FILE",
     str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
 )
-import streamlit as st
+from agi_web import python_ui as st
 import logging
 import psutil
 import subprocess
@@ -1608,21 +1608,13 @@ def _ensure_prepared_analysis_sidecar(
                 page_home,
                 "python",
                 "-m",
-                "streamlit",
-                "run",
+                "agi_web.react_python_host",
                 str(view_page),
-                "--server.port",
+                "--port",
                 str(allocated_port),
-                "--server.address",
+                "--address",
                 "127.0.0.1",
-                "--server.headless",
-                "true",
-                "--server.enableCORS",
-                "false",
-                "--server.enableXsrfProtection",
-                "false",
-                "--browser.gatherUsageStats",
-                "false",
+                "--no-browser",
             ]
             if active_app:
                 run_cmd.extend(["--", "--active-app", active_app])
@@ -1643,7 +1635,7 @@ def _ensure_prepared_analysis_sidecar(
 
 
 def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) -> bool:
-    """Start or reuse a process-verified Streamlit sidecar."""
+    """Start or reuse a process-verified native React sidecar."""
     _ = port  # retained for compatibility; the registry allocates the endpoint.
     env = st.session_state["env"]
     ip = "127.0.0.1"
@@ -1713,21 +1705,13 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                     [
                         str(python),
                         "-m",
-                        "streamlit",
-                        "run",
+                        "agi_web.react_python_host",
                         str(view_page),
-                        "--server.port",
+                        "--port",
                         "{port}",
-                        "--server.address",
+                        "--address",
                         "127.0.0.1",
-                        "--server.headless",
-                        "true",
-                        "--server.enableCORS",
-                        "false",
-                        "--server.enableXsrfProtection",
-                        "false",
-                        "--browser.gatherUsageStats",
-                        "false",
+                        "--no-browser",
                         *(["--", "--active-app", active_app] if active_app else []),
                     ],
                     _page_pythonpath(view_page.parent),
@@ -1739,21 +1723,13 @@ def _ensure_sidecar(view_key: str, view_page: Path, port: int, active_app: str) 
                 [
                     str(sys.executable),
                     "-m",
-                    "streamlit",
-                    "run",
+                    "agi_web.react_python_host",
                     str(view_page),
-                    "--server.port",
+                    "--port",
                     "{port}",
-                    "--server.address",
+                    "--address",
                     "127.0.0.1",
-                    "--server.headless",
-                    "true",
-                    "--server.enableCORS",
-                    "false",
-                    "--server.enableXsrfProtection",
-                    "false",
-                    "--browser.gatherUsageStats",
-                    "false",
+                    "--no-browser",
                     *(["--", "--active-app", active_app] if active_app else []),
                 ],
                 _page_pythonpath(view_page.parent, Path(env.env_pck).parent),

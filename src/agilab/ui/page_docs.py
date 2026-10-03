@@ -5,7 +5,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Mapping
 
-import streamlit as st
+from agi_web import python_ui as st
 from agi_gui.ui_support import open_docs_url, open_local_docs, with_anchor
 
 DOCS_BASE_URL = "https://thalesgroup.github.io/agilab"

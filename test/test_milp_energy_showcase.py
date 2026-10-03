@@ -12,7 +12,7 @@ from types import ModuleType
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import milp_energy_showcase as showcase
 from agilab.demos import notebook_showcase
@@ -384,7 +384,7 @@ def test_generated_milp_state_is_scoped_and_persists(monkeypatch):
     monkeypatch.setattr(showcase.st, "session_state", state)
     payload = {f"{name}.py": b"" for name in ("agilab_pool", "energy_core", "energy_runner")}
     payload["app.py"] = (
-        b"import streamlit as st\n"
+        b"from agi_web import python_ui as st\n"
         b"old = st.session_state.get('benchmark_result', {}).get('runs', 0)\n"
         b"st.session_state['analysis'] = {'owner': 'milp'}\n"
         b"st.session_state['comparisons'] = ['milp']\n"

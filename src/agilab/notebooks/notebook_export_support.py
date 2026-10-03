@@ -1779,7 +1779,7 @@ def build_notebook_export_handoff_markdown(manifest: Mapping[str, Any]) -> str:
             if page.get("inline_renderer"):
                 lines.append(f"  - Inline renderer: `{page.get('inline_renderer')}`")
             if page.get("script_path"):
-                lines.append(f"  - Streamlit script: `{page.get('script_path')}`")
+                lines.append(f"  - Python view script: `{page.get('script_path')}`")
 
     lines.extend(["", "## Re-import Contract", "", "Supervisor metadata and per-cell AGILAB stage metadata are preserved so AGILAB can import edited stage source cells back into `lab_stages.toml` without guessing manager versus worker ownership.", ""])
     return "\n".join(lines)
@@ -2320,7 +2320,7 @@ def build_notebook_document(
                         "## Related analysis pages",
                         "",
                         "These helper cells try notebook-native renderers for the pages configured under `[pages].view_module` in the app settings.",
-                        "If a page does not provide an inline notebook renderer yet, the helper falls back to launching the external Streamlit dashboard over the same exported artifacts.",
+                        "Pages without a specialized notebook renderer use the same native React host as the main interface, embedded in a Jupyter widget over the exported artifacts. Use `launch_analysis_page()` explicitly to open a separate local interface.",
                     ]
                 ),
                 cell_id="agilab-analysis-pages",

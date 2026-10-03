@@ -73,7 +73,7 @@ def _render_dependency_import_error(
     configure_page: bool = True,
     container: Any | None = None,
 ) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     root = container or st
     if configure_page:
@@ -215,7 +215,7 @@ def _manifest_path_key(path: Path) -> str:
 def _record_latest_manifest_path(
     active_app_path: Path, evidence_dirs: list[Path]
 ) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     latest_candidate = None
     for raw_path in evidence_dirs:
@@ -235,7 +235,7 @@ def _record_latest_manifest_path(
 
 
 def _consume_last_manifest_token(active_app_path: Path | None) -> tuple[int, str] | None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     if active_app_path is None:
         return None
@@ -262,7 +262,7 @@ def _has_evidence(paths: list[Path]) -> bool:
 
 
 def _render_missing_evidence(paths: list[Path], *, configure_page: bool = True) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     if configure_page:
         _configure_page(st, page_title="PyTorch Playground", layout="wide")
@@ -296,7 +296,7 @@ def _render_analysis_surface(
             runtime_env, args_model, active_app_path
         )
     except Exception as exc:
-        import streamlit as st
+        from agi_web import python_ui as st
 
         st.error(f"Unable to load ORCHESTRATE app arguments: {exc}")
         return
@@ -311,7 +311,7 @@ def _render_analysis_surface(
         _render_dependency_import_error(exc, configure_page=configure_page)
         return
     except Exception as exc:
-        import streamlit as st
+        from agi_web import python_ui as st
 
         st.error(f"Unable to build PyTorch Playground config: {exc}")
         return
@@ -358,7 +358,7 @@ def _render_run_button(
     env: Any | None = None,
     app_args_form: Any | None = None,
 ) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     if not container.button(
         "Refresh evidence",
@@ -390,7 +390,7 @@ def _render_run_button(
 
 
 def _render_surface_styles() -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     markdown = getattr(st, "markdown", None)
     if not callable(markdown):
@@ -409,7 +409,7 @@ def _render_surface_styles() -> None:
 
 
 def _query_param_is_truthy(name: str) -> bool:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     try:
         value = st.query_params.get(name)
@@ -421,7 +421,7 @@ def _query_param_is_truthy(name: str) -> bool:
 
 
 def _hide_embedded_streamlit_sidebar() -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     st.markdown(
         """
@@ -471,7 +471,7 @@ def _render_controls_surface(
 ) -> None:
     from contextlib import nullcontext
 
-    import streamlit as st
+    from agi_web import python_ui as st
 
     controls_container = container if container is not None else getattr(st, "sidebar", st)
     try:
@@ -521,7 +521,7 @@ def _render_full_surface(
         playground_ui.main()
         return
 
-    import streamlit as st
+    from agi_web import python_ui as st
 
     playground_ui = _load_playground_ui_or_report(
         configure_page=container is None, container=container

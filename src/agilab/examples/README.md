@@ -42,7 +42,7 @@ the command shape stable.
 | 16 | `resilience_failure_injection` | UAV relay scenario contract | Read-only resilience preview: inject a relay failure, compare fixed/replanned/search/policy responses. |
 | 17 | `train_then_serve` | trained policy handoff contract | Read-only service handoff preview: model artifact, IO contract, prediction sample, and health gate. |
 | 18 | `native_rust_worker` | optional native worker preview | Read-only Rust/PyO3 skeleton: keep AGILAB orchestration in Python while moving only a typed hot kernel to Rust. |
-| 19 | `pytorch_playground_project` app surface | `pytorch_playground_project` | App-owned UI surface example: one runtime/evidence contract, selectable local Streamlit or hosted Hugging Face backend. |
+| 19 | `pytorch_playground_project` app surface | `pytorch_playground_project` | App-owned UI surface example: one runtime/evidence contract, selectable local native Python UI or hosted Hugging Face backend. |
 
 ## Execution Map
 
@@ -57,7 +57,7 @@ app execution from read-only contract previews.
 | Source/package read-only previews | `notebook_to_dask`, `parallel_stage`, `excel_workbook_proof`, `sqlite_connector_proof`, `voila_notebook_proof`, `inter_project_dag`, `service_mode`, `mlflow_auto_tracking`, `resilience_failure_injection`, `train_then_serve`, `native_rust_worker` | Deterministic Python preview scripts. They write local evidence and do not launch long-lived workers or hidden multi-app runs. | Preview JSON, CSV, workbook, SQLite database, notebook, dashboard-plan, or generated skeleton artifacts under `~/log/execute/<example>/` or the configured output path. |
 | Notebook migration assets | `notebook_migrations/skforecast_meteo_fr` | Packaged notebooks, artifacts, `lab_stages.toml`, and pipeline view used as migration source material. | Files to inspect or import; no service or cluster run is started by reading them. |
 | Built-in app-owned demo templates | `multi_app_dag_project` | Select the built-in project in WORKFLOW or let `inter_project_dag` read its DAG template. | App-owned contract files under `src/agilab/apps/builtin/multi_app_dag_project/`; no `src/agilab/examples/multi_app_dag_project` directory is expected. |
-| App-owned UI surface demo | `pytorch_playground_project` | `agilab app surface pytorch_playground_project --list`, then `--ui streamlit` or `--ui hf`. | The same app runtime, artifacts, and evidence contract opened through selectable UI backends. |
+| App-owned UI surface demo | `pytorch_playground_project` | `agilab app surface pytorch_playground_project --list`, then `--ui react` or `--ui hf`. | The same app runtime, artifacts, and evidence contract opened through selectable UI backends. |
 
 Source-checkout commands use `uv --preview-features extra-build-dependencies run python ...`
 so dependencies resolve through the checkout environment. Commands under
@@ -140,7 +140,7 @@ From an installed package, locate one with
   measured CPU-bound kernel can move to Rust when the packaging cost is worth
   it.
 - `pytorch_playground_project` demonstrates the reusable app-surface contract:
-  `app_settings.toml` declares the local Streamlit surface and hosted Hugging
+  `app_settings.toml` declares the local native Python UI surface and hosted Hugging
   Face surface, while the app package still owns the runtime, artifacts, and
   evidence files.
 - `data_in` and `data_out` are share-root relative paths, so examples stay

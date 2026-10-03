@@ -5,13 +5,22 @@ AGILAB publishes a coordinated set of Python packages to PyPI so public
 installs, notebook examples, worker environments, and release evidence can
 resolve the same versioned runtime without relying on a source checkout.
 
+.. important::
+
+   Publication policy and already published versions must be distinguished
+   from the native source migration. The source ``ui`` and ``notebook``
+   profiles now use the React host and Python facade. Existing PyPI releases
+   and hosted Spaces keep their recorded behaviour until publication; the
+   local migration does not update those releases. See
+   :doc:`agilab-native-react-ui-notebook-export` for source instructions.
+
 User-facing install surfaces
 ----------------------------
 
 For public users, the supported entry points are:
 
 - ``agilab``: the top-level CLI package. Add the ``ui`` extra for the local
-  Streamlit web interface, or the ``examples`` extra for public built-in apps
+  interface supplied by that release, or the ``examples`` extra for public built-in apps
   and notebooks.
 - ``agi-core``: the compact notebook/API runtime used by the public notebook
   examples.
@@ -37,15 +46,18 @@ Published UI support packages
 
 ``agi-gui`` is also published to PyPI from ``src/agilab/lib/agi-gui``. It is
 not part of the core runtime: it depends on the headless ``agi-env`` package and
-adds the Streamlit/UI dependencies used by AGILAB pages and page bundles.
+adds UI dependencies used by AGILAB pages and page bundles. The native Python
+facade described here is the source implementation; older published versions
+retain their recorded provider and dependencies.
 Worker environments should keep using ``agi-env`` unless they explicitly need
 to render UI.
 
 ``agi-web`` is published to PyPI from ``src/agilab/lib/agi-web``. It defines
 portable, evidence-backed web component payloads for app-owned rich UI islands.
-The current package provides build-free Streamlit/static HTML rendering with
-Canvas2D/WebGL paths and a stable React-ready contract for app-owned adapters;
-it should not be treated as a bundled JavaScript framework.
+The current source package supplies the native React host, Python view
+facade, notebook widgets and static component exports. Its compiled rendering
+assets are bundled locally; application computation and scientific dependencies
+remain in the app package.
 
 Published page-bundle packages
 ------------------------------
@@ -165,7 +177,7 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``pip install "agilab[core]"`` installs the matching ``agi-core`` package for
   ``agilab dry-run`` and compact notebook/API runtime checks.
 - ``pip install "agilab[ui]"`` installs the matching ``agi-gui`` package,
-  ``agi-web`` component contract, and Streamlit page dependencies for the local
+  ``agi-web`` component contract, and native React UI page dependencies for the local
   web interface, plus ``agi-apps``, its per-app project dependencies, and
   ``agi-pages`` so the UI opens with the base ``minimal_app_project`` template,
   promoted app packages, and analysis views available.
@@ -177,7 +189,7 @@ Publishing these runtime packages keeps the release process reproducible:
 - ``agi-core`` can pin the matching ``agi-env``, ``agi-node``, and
   ``agi-cluster`` versions for a release.
 - ``agilab[ui]`` can pin the matching ``agi-gui`` version for the UI/page
-  surface without making CLI/core installs depend on Streamlit.
+  surface without making CLI/core installs depend on native React UI.
 - App worker environments can install the same runtime components in isolation
   from the manager environment.
 - CI and release evidence can validate the same dependency graph that external

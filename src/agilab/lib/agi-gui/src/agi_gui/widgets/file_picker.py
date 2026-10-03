@@ -234,7 +234,7 @@ def agi_file_picker(
     if selection_mode not in {"single", "multi"}:
         raise ValueError("selection_mode must be 'single' or 'multi'")
 
-    import streamlit as st
+    from agi_web import python_ui as st
 
     root_items = normalize_file_picker_roots(roots)
     root_by_label = {root.label: root for root in root_items}

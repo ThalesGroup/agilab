@@ -157,11 +157,11 @@ def _write_multi_surface_project(tmp_path: Path) -> Path:
                 "[app_surface]",
                 'title = "Demo Surface"',
                 'entrypoint = "demo/app_surface.py"',
-                'default = "streamlit"',
+                'default = "react"',
                 "",
-                "[app_surface.backends.streamlit]",
-                'title = "Demo Streamlit"',
-                'backend = "streamlit"',
+                "[app_surface.backends.react]",
+                'title = "Demo React"',
+                'backend = "react"',
                 'entrypoint = "demo/app_surface.py"',
                 "default = true",
                 'capabilities = ["local", "play-pause"]',
@@ -197,11 +197,11 @@ def test_app_surface_specs_support_multiple_backends(tmp_path: Path) -> None:
 
     specs = module.app_surface_specs(app)
 
-    assert sorted(specs) == ["hf", "streamlit"]
-    assert specs["streamlit"].as_dict() == {
-        "name": "streamlit",
-        "backend": "streamlit",
-        "title": "Demo Streamlit",
+    assert sorted(specs) == ["hf", "react"]
+    assert specs["react"].as_dict() == {
+        "name": "react",
+        "backend": "react",
+        "title": "Demo React",
         "default": True,
         "entrypoint": "demo/app_surface.py",
         "capabilities": ["local", "play-pause"],
@@ -214,22 +214,40 @@ def test_app_surface_specs_support_multiple_backends(tmp_path: Path) -> None:
         "url": "https://demo.hf.space/?active_app=multi_project",
         "capabilities": ["hosted-demo"],
     }
-    assert module.select_app_surface_spec(app).name == "streamlit"
+    assert module.select_app_surface_spec(app).name == "react"
     assert module.select_app_surface_spec(app, name="hf").url == (
         "https://demo.hf.space/?active_app=multi_project"
     )
-    assert module.select_app_surface_spec(app, name="streamlit").entrypoint == (
+    assert module.select_app_surface_spec(app, name="react").entrypoint == (
         "demo/app_surface.py"
     )
     assert module.select_app_surface_spec(app, name="HF").name == "hf"
 
 
-def test_render_app_surface_only_embeds_streamlit_backend(tmp_path: Path) -> None:
+def test_render_app_surface_only_embeds_react_backend(tmp_path: Path) -> None:
     module = _load_app_surface_module()
     app = _write_multi_surface_project(tmp_path)
 
     assert module.render_app_surface(app, mode="analysis", surface="hf") is False
     assert module.configured_app_surface_entrypoint(app, surface="hf") is None
+
+
+def test_legacy_saved_surface_backend_uses_native_react_host(tmp_path: Path) -> None:
+    module = _load_app_surface_module()
+    spec = module.select_app_surface_spec(
+        tmp_path,
+        name="streamlit",
+        config={"app_surface": {
+            "default": "streamlit",
+            "backends": {"streamlit": {
+                "backend": "streamlit", "entrypoint": "demo/app_surface.py",
+            }},
+        }},
+    )
+    assert spec is not None
+    assert spec.name == "streamlit"
+    assert spec.backend == "react"
+    assert spec.entrypoint == "demo/app_surface.py"
 
 
 def test_render_app_surface_calls_project_render_hook_and_restores_argv(tmp_path: Path) -> None:
@@ -503,7 +521,7 @@ def test_app_surface_config_and_selection_edge_cases(tmp_path: Path) -> None:
         "empty",
         {},
         root={},
-        root_default_name="streamlit",
+        root_default_name="react",
     ) is None
 
     config = {

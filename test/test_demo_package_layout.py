@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import notebook_showcase
 
@@ -25,6 +25,9 @@ import importlib
 from pathlib import Path
 import sys
 sys.path.insert(0, {str(ROOT / "src")!r})
+from agi_web.python_view_session import ViewSession, use_session
+ui_context = use_session(ViewSession(lambda: None))
+ui_context.__enter__()
 prefixes = ["agilab.agent_runtime", "agilab.demos"]
 if not {legacy_first!r}:
     prefixes.reverse()

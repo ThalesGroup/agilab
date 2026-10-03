@@ -64,7 +64,7 @@ def ensure_dependencies() -> None:
             "gpt-oss is not installed. Install optional extra with "
             "'uv add \"agilab[local-llm]\"' (or the legacy alias "
             "'agilab[offline]') or run "
-            "'uv pip install gpt-oss universal-offline-ai-chatbot'."
+            "'uv pip install gpt-oss'."
         ) from exc
 
 

@@ -3,7 +3,11 @@ name = "free-threading-lab"
 version = "0.2.0"
 description = "Local Qwen-built AGILAB free-threading lab"
 requires-python = ">=3.13"
-dependencies = ["streamlit>=1.64,<1.65", "altair>=6,<7", "numpy>=2.3,<3", "pandas>=2.3,<3", "Pillow>=12,<13"]
+dependencies = ["agi-web>=2026.07.17,<2027.0", "altair>=6,<7", "numpy>=2.3,<3", "pandas>=2.3,<3", "Pillow>=12,<13"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+
+[tool.uv.sources.agi-web]
+path = "../../../lib/agi-web"
+editable = true

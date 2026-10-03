@@ -2,7 +2,7 @@
 
 import json
 
-import streamlit as st
+from agi_web import python_ui as st
 
 st.title("Promotion forecast lab")
 st.caption("Chronos-2 Small · Synthetic daily sales · Known future promotion covariates")

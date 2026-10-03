@@ -8,10 +8,10 @@ import subprocess
 import sys
 
 
-ENTRYPOINT_FILES = {"__init__.py", "bridge_cli.py", "lab_run.py", "main_page.py"}
+ENTRYPOINT_FILES = {"__init__.py", "__main__.py", "bridge_cli.py", "lab_run.py", "main_page.py"}
 CORE_PACKAGE_ENTRYPOINT_FILES = {"__init__.py"}
 TOP_LEVEL_COMPAT_IMPORT_EXEMPTIONS = {
-    "agilab.agi_codex",  # Streamlit page module with session-state side effects on plain import.
+    "agilab.agi_codex",  # Python UI page with session-state side effects on plain import.
 }
 
 

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import importlib.util
 import shutil
 import subprocess
 import tempfile
@@ -49,10 +50,10 @@ def _site_packages_root(agi_space: Path) -> Path:
     raise FileNotFoundError(f"Could not locate site-packages under {agi_space / '.venv'}")
 
 
-def _has_streamlit(python_bin: Path, *, env: dict[str, str]) -> bool:
+def _has_native_ui(python_bin: Path, *, env: dict[str, str]) -> bool:
     return (
         subprocess.run(
-            [str(python_bin), "-c", "import streamlit"],
+            [str(python_bin), "-c", "import agi_web.python_ui, agi_web.react_python_host"],
             cwd=REPO_ROOT,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -64,36 +65,52 @@ def _has_streamlit(python_bin: Path, *, env: dict[str, str]) -> bool:
 
 
 def _ensure_ui_extra(python_bin: Path, *, env: dict[str, str]) -> None:
-    """Install the UI extra before running Streamlit-specific smoke checks."""
+    """Install the UI extra before running native React smoke checks."""
 
-    if _has_streamlit(python_bin, env=env):
+    if _has_native_ui(python_bin, env=env):
         print("fresh-install-ui-extra: already present")
         return
 
-    result = _run(
-        [
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "pip",
-            "install",
-            "--python",
-            str(python_bin),
-            ".[ui]",
-        ],
-        env=env,
-        cwd=REPO_ROOT,
-    )
+    # pip-style installs do not apply [tool.uv.sources]. Bind every own
+    # dependency to this source checkout for the local-install regression.
+    contract_path = REPO_ROOT / "tools/package_split_contract.py"
+    contract_spec = importlib.util.spec_from_file_location("agilab_fresh_install_package_contract", contract_path)
+    assert contract_spec and contract_spec.loader
+    contract = importlib.util.module_from_spec(contract_spec)
+    import sys
+    sys.modules[contract_spec.name] = contract
+    contract_spec.loader.exec_module(contract)
+    with tempfile.TemporaryDirectory(prefix="agilab-fresh-install-native-ui-") as directory:
+        overrides = Path(directory) / "agilab-native-ui-source-overrides.txt"
+        overrides.write_text("\n".join(
+            f"{package.name} @ {(REPO_ROOT / package.project).resolve().as_uri()}"
+            for package in contract.PACKAGE_CONTRACTS if package.project != "."
+        ) + "\n", encoding="utf-8")
+        result = _run(
+            [
+                "uv", "--preview-features", "extra-build-dependencies", "pip", "install",
+                "--python", str(python_bin), "--overrides", str(overrides), ".[ui]",
+            ],
+            env=env,
+            cwd=REPO_ROOT,
+        )
     print(result.stdout)
 
 
-def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, str]) -> None:
+def _native_ui_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, str]) -> None:
     smoke_code = textwrap.dedent(
         f"""
         import os
+        import importlib.metadata
+        import importlib.util
         from pathlib import Path
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
         from agi_env import AgiEnv
+
+        forbidden = [distribution.metadata["Name"] for distribution in importlib.metadata.distributions()
+                     if "streamlit" in distribution.metadata["Name"].lower()]
+        if forbidden or importlib.util.find_spec("streamlit") is not None:
+            raise AssertionError(f"Retired UI host remains installed: {{forbidden}}")
 
         site_packages = Path({str(site_packages)!r})
         about_page = site_packages / "agilab" / "main_page.py"
@@ -122,7 +139,7 @@ def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, st
         orchestrate.run(timeout=45)
         assert_clean("ORCHESTRATE", orchestrate)
 
-        print("fresh-install-streamlit-smoke: OK")
+        print("fresh-install-native-ui-smoke: OK")
         """
     )
     result = subprocess.run(
@@ -138,7 +155,7 @@ def _streamlit_smoke(python_bin: Path, site_packages: Path, *, env: dict[str, st
     print(result.stdout)
     if result.returncode != 0:
         raise RuntimeError(
-            "Fresh-install Streamlit smoke failed "
+            "Fresh-install native React smoke failed "
             f"(exit={result.returncode}). See output above."
         )
 
@@ -185,7 +202,7 @@ def main() -> int:
         print(import_check.stdout)
 
         _ensure_ui_extra(python_bin, env=env)
-        _streamlit_smoke(python_bin, site_packages, env=env)
+        _native_ui_smoke(python_bin, site_packages, env=env)
         print(f"Fresh install regression passed. Scratch home: {home_dir}")
         return 0
     finally:

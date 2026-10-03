@@ -121,7 +121,7 @@
     <rect class="box" width="828" height="96" fill="#d8efff" />
     <text class="box-title" x="414" y="40" text-anchor="middle">User surfaces</text>
     <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">Streamlit pages, CLI mirrors, and PyCharm run configurations</tspan>
+      <tspan x="36" dy="0">Native React UI pages, CLI mirrors, and PyCharm run configurations</tspan>
     </text>
   </g>
 

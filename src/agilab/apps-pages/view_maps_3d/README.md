@@ -18,7 +18,7 @@ Use when altitude, density, or height-encoded metrics need a spatial 3D view.
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_maps_3d/src/view_maps_3d/view_maps_3d.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 ```
 
 ## Quality Contract

@@ -32,6 +32,8 @@ EXCLUDED_PATH_PARTS = {
     "htmlcov",
     "node_modules",
     "site-packages",
+    "test",
+    "tests",
 }
 
 
@@ -516,7 +518,7 @@ def evaluate_contract(source_roots: Sequence[Path] = DEFAULT_SOURCE_ROOTS) -> di
                 ActionIssue(
                     kind="unclassified_high_risk_action",
                     label=label,
-                    detail="high-risk Streamlit action needs selected-click coverage or an explicit trial-only/ignored reason",
+                    detail="high-risk UI action needs selected-click coverage or an explicit trial-only/ignored reason",
                     path=first.path,
                     line=first.line,
                 )

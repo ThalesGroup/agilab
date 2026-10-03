@@ -1,5 +1,15 @@
 # Text atlas
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 A polished, CPU-friendly 2D "atlas" of the 1,250-article historical Wikinews
 corpus. It adapts INRIA's scikit-learn MOOC dimensionality-reduction lesson on
 text: TF-IDF with English stop-word removal, centered PCA, and KMeans in the
@@ -55,7 +65,7 @@ out-of-range values are rejected cleanly.
 ```bash
 uv venv
 uv pip install -r requirements.txt
-uv run streamlit run app.py
+uv run python -m agi_web.react_python_host app.py
 ```
 
 Or run the notebook (it writes a fresh `results.json` to the current
@@ -67,7 +77,7 @@ uv run jupyter notebook solution.ipynb
 
 ## App
 
-`app.py` is a native Streamlit page: a bordered form with sliders for cluster
+`app.py` is a native Python UI page: a bordered form with sliders for cluster
 count and vocabulary filtering, a **Run analysis** button, an Altair scatter
 map (color by cluster or original category), a terms table with document
 counts, an article selector showing plain text, and metrics for articles,

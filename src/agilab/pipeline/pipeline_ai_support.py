@@ -3,8 +3,6 @@ from __future__ import annotations
 import ast
 import importlib
 import importlib.util
-import importlib.metadata as importlib_metadata
-import sys
 import os
 import json
 import re
@@ -808,107 +806,11 @@ def _resolve_uoaic_path(raw_path: str, base_dir: Optional[Path] = None) -> Path:
 
 def _load_uoaic_modules(
     *,
-    distribution_fn: Callable[[str], Any] | None = None,
     import_module_fn: Callable[[str], Any] | None = None,
-    spec_from_file_location_fn: Callable[[str, str], Any] | None = None,
-    module_from_spec_fn: Callable[[Any], Any] | None = None,
 ) -> Tuple[Any, ...]:
-    """Import Universal Offline AI Chatbot modules with detailed diagnostics."""
-    if distribution_fn is None:
-        distribution_fn = importlib_metadata.distribution
-    if import_module_fn is None:
-        import_module_fn = importlib.import_module
-    if spec_from_file_location_fn is None:
-        spec_from_file_location_fn = importlib.util.spec_from_file_location
-    if module_from_spec_fn is None:
-        module_from_spec_fn = importlib.util.module_from_spec
-
-    try:
-        dist = distribution_fn("universal-offline-ai-chatbot")
-    except importlib_metadata.PackageNotFoundError as exc:
-        raise RuntimeError(
-            "Install `universal-offline-ai-chatbot` (e.g. `uv pip install \"agilab[offline]\"`) "
-            "to enable the local (Ollama) assistant."
-        ) from exc
-
-    site_root = Path(dist.locate_file(""))
-    if site_root.is_file():
-        site_root = site_root.parent
-    candidate_dirs = {
-        site_root,
-        site_root.parent if site_root.name.endswith(".dist-info") else site_root,
-        (site_root.parent if site_root.name.endswith(".dist-info") else site_root) / "src",
-    }
-    for path in candidate_dirs:
-        if path and path.exists():
-            str_path = str(path.resolve())
-            if str_path not in sys.path:
-                sys.path.append(str_path)
-
-    module_names = (
-        "src.chunker",
-        "src.embedding",
-        "src.loader",
-        "src.model_loader",
-        "src.prompts",
-        "src.qa_chain",
-        "src.vectorstore",
-    )
-
-    imported_modules: List[Any] = []
-    for name in module_names:
-        try:
-            imported_modules.append(import_module_fn(name))
-            continue
-        except ImportError as exc:
-            # Fallback: load the module directly from files inside the wheel
-            short = name.split(".")[-1]
-            file_path: Optional[Path] = None
-            files = getattr(dist, "files", None)
-            if files:
-                for entry in files:
-                    if str(entry).replace("\\", "/").endswith(f"src/{short}.py"):
-                        file_path = Path(dist.locate_file(entry))
-                        break
-            if not file_path:
-                try:
-                    rec = dist.read_text("RECORD") or ""
-                except (OSError, RuntimeError):
-                    rec = ""
-                for line in rec.splitlines():
-                    if line.startswith("src/") and line.endswith(".py") and line.split(",", 1)[0].endswith(f"src/{short}.py"):
-                        rel = line.split(",", 1)[0]
-                        file_path = Path(dist.locate_file(rel))
-                        break
-
-            if file_path and file_path.exists():
-                alias = f"uoaic_{short}"
-                try:
-                    spec = spec_from_file_location_fn(alias, str(file_path))
-                    if spec and spec.loader:
-                        module = module_from_spec_fn(spec)
-                        spec.loader.exec_module(module)
-                        imported_modules.append(module)
-                        continue
-                except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError):
-                    # Fall through to messaging below.
-                    pass
-
-            missing = getattr(exc, "name", "") or ""
-            if missing and missing != name:
-                raise RuntimeError(
-                    f"Missing dependency `{missing}` required by universal-offline-ai-chatbot. "
-                    "Install the offline extras with `uv pip install \"agilab[offline]\"` or "
-                    "`uv pip install universal-offline-ai-chatbot`."
-                ) from exc
-
-            raise RuntimeError(
-                "Failed to load Universal Offline AI Chatbot module files. Ensure the package is installed in "
-                "the same environment running Streamlit. You can force a reinstall with "
-                "`uv pip install --force-reinstall universal-offline-ai-chatbot`."
-            ) from exc
-
-    return tuple(imported_modules)
+    """Load AGILAB's PDF/Ollama retrieval adapters without a UI dependency."""
+    from agilab.pipeline.local_assistant_backend import load_adapters
+    return load_adapters(import_module=import_module_fn or importlib.import_module)
 
 
 def _ensure_uoaic_runtime(
@@ -961,12 +863,20 @@ def _ensure_uoaic_runtime(
     session_state[db_state_key] = normalized_db
     envars[db_env_key] = normalized_db
 
+    rebuild_requested = bool(session_state.pop(rebuild_state_key, False))
+    model_configuration = {key: str(envars.get(key) or os.getenv(key, "")) for key in (
+        model_env_key, "UOAIC_OLLAMA_ENDPOINT", "UOAIC_TEMPERATURE",
+    )}
     runtime = session_state.get(runtime_state_key)
-    if runtime and runtime.get("data_path") == normalized_data and runtime.get("db_path") == normalized_db:
+    if (runtime and not rebuild_requested and runtime.get("data_path") == normalized_data
+            and runtime.get("db_path") == normalized_db
+            and runtime.get("model_configuration") == model_configuration):
         return runtime
 
-    rebuild_requested = bool(session_state.pop(rebuild_state_key, False))
     chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore = load_uoaic_modules()
+    configure_model = getattr(model_loader, "configure_model", None)
+    if callable(configure_model):
+        configure_model(model_configuration)
 
     try:
         embedding_model = embedding.get_embedding_model()
@@ -1024,6 +934,7 @@ def _ensure_uoaic_runtime(
         "llm": llm,
         "prompt": prompt_template,
         "model_label": model_label,
+        "model_configuration": model_configuration,
     }
     session_state[runtime_state_key] = runtime
     return runtime

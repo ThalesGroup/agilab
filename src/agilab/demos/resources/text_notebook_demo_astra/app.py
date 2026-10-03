@@ -3,7 +3,7 @@
 import altair as alt
 import numpy as np
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 from text_core import analyze, load_corpus
 

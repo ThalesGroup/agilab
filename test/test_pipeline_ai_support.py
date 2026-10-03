@@ -455,124 +455,68 @@ def test_resolve_uoaic_path_uses_base_dir_and_rejects_empty_input(tmp_path):
         pipeline_ai_support._resolve_uoaic_path("", base_dir=tmp_path)
 
 
-def test_load_uoaic_modules_reports_missing_package():
-    def _missing_distribution(_name: str):
-        raise pipeline_ai_support.importlib_metadata.PackageNotFoundError()
-
-    with pytest.raises(RuntimeError, match="universal-offline-ai-chatbot"):
-        pipeline_ai_support._load_uoaic_modules(distribution_fn=_missing_distribution)
-
-
-def test_load_uoaic_modules_loads_modules_from_wheel_files(tmp_path):
-    wheel_root = tmp_path / "wheel"
-    src_dir = wheel_root / "src"
-    src_dir.mkdir(parents=True)
-    (wheel_root / "site.dist-info").write_text("dist-info marker", encoding="utf-8")
-
-    module_files = {}
-    for short in ("chunker", "embedding", "loader", "model_loader", "prompts", "qa_chain", "vectorstore"):
-        file_path = src_dir / f"{short}.py"
-        file_path.write_text(f"IDENT = '{short}'\n", encoding="utf-8")
-        module_files[f"src/{short}.py"] = file_path
-
-    class FakeDist:
-        files = list(module_files)
-
-        @staticmethod
-        def locate_file(path):
-            if path == "":
-                return wheel_root / "site.dist-info"
-            return module_files[str(path)]
-
-        @staticmethod
-        def read_text(_name):
-            return ""
-
-    def _failing_import(name: str):
-        raise ImportError("fallback", name=name)
-
-    modules = pipeline_ai_support._load_uoaic_modules(
-        distribution_fn=lambda _name: FakeDist(),
-        import_module_fn=_failing_import,
-    )
-
-    assert [module.IDENT for module in modules] == [
-        "chunker",
-        "embedding",
-        "loader",
-        "model_loader",
-        "prompts",
-        "qa_chain",
-        "vectorstore",
-    ]
+def test_load_uoaic_modules_reports_missing_retrieval_dependency():
+    def missing_import(name):
+        raise ModuleNotFoundError(name, name=name)
+    with pytest.raises(RuntimeError, match=r"agilab\[local-llm\]"):
+        pipeline_ai_support._load_uoaic_modules(import_module_fn=missing_import)
 
 
-def test_ensure_uoaic_runtime_builds_and_reuses_cached_runtime(tmp_path):
+def test_load_uoaic_modules_uses_owned_backend(monkeypatch):
+    from agilab.pipeline import local_assistant_backend
+    captured = {}
+    def adapters(**kwargs):
+        captured.update(kwargs)
+        return ("owned-backend",)
+    monkeypatch.setattr(local_assistant_backend, "load_adapters", adapters)
+    importer = lambda name: name
+    assert pipeline_ai_support._load_uoaic_modules(import_module_fn=importer) == ("owned-backend",)
+    assert captured == {"import_module": importer}
+
+
+@pytest.mark.parametrize("change", ["unchanged", "rebuild", "model"])
+def test_ensure_uoaic_runtime_builds_and_reuses_cached_runtime(tmp_path, change):
     data_dir = tmp_path / "docs"
     data_dir.mkdir()
-    session_state = {}
-    envars = {
-        "UOAIC_DATA_DIR": str(data_dir),
-        "UOAIC_MODEL": "offline-model",
-    }
-    build_calls = []
-
-    chunker = SimpleNamespace(create_chunks=lambda docs: ["chunk"] if docs == ["doc"] else [])
-    embedding = SimpleNamespace(get_embedding_model=lambda: "embedding-model")
-    loader = SimpleNamespace(load_pdf_files=lambda path: ["doc"] if path == str(data_dir) else [])
-    model_loader = SimpleNamespace(load_llm=lambda: SimpleNamespace(model_name="local-model"))
-    prompts = SimpleNamespace(
-        CUSTOM_PROMPT_TEMPLATE="prompt-template",
-        set_custom_prompt=lambda template: f"custom:{template}",
+    state = {}
+    envars = {"UOAIC_DATA_DIR": str(data_dir), "UOAIC_MODEL": "offline-model"}
+    builds, configurations = [], []
+    chunker = SimpleNamespace(create_chunks=lambda docs: ["chunk"])
+    embedding = SimpleNamespace(get_embedding_model=lambda: "embedding")
+    loader = SimpleNamespace(load_pdf_files=lambda path: ["doc"])
+    model_loader = SimpleNamespace(
+        load_llm=lambda: SimpleNamespace(model_name=envars["UOAIC_MODEL"]),
+        configure_model=lambda configuration: configurations.append(dict(configuration)),
     )
-    qa_chain = SimpleNamespace(setup_qa_chain=lambda llm, db, prompt: ("chain", llm, db, prompt))
-    vectorstore = SimpleNamespace(
-        build_vector_db=lambda chunks, emb, path: build_calls.append((chunks, emb, path)),
-        load_vector_db=lambda path, emb: {"path": path, "embedding": emb},
-    )
-
-    runtime = pipeline_ai_support._ensure_uoaic_runtime(
-        envars,
-        session_state=session_state,
-        resolve_uoaic_path=lambda raw_path, base_dir=None: pipeline_ai_support._resolve_uoaic_path(
-            raw_path, base_dir=base_dir
-        ),
+    prompts = SimpleNamespace(CUSTOM_PROMPT_TEMPLATE="prompt", set_custom_prompt=lambda text: text)
+    qa_chain = SimpleNamespace(setup_qa_chain=lambda llm, db, prompt: (llm, db, prompt))
+    def build(chunks, embeddings, path):
+        Path(path).mkdir(parents=True, exist_ok=True)
+        builds.append(chunks)
+    vectorstore = SimpleNamespace(build_vector_db=build, load_vector_db=lambda path, embedding: path)
+    kwargs = dict(
+        session_state=state,
+        resolve_uoaic_path=lambda raw, base_dir=None: pipeline_ai_support._resolve_uoaic_path(raw, base_dir=base_dir),
         load_uoaic_modules=lambda: (chunker, embedding, loader, model_loader, prompts, qa_chain, vectorstore),
-        runtime_state_key="runtime",
-        data_state_key="data_dir",
-        db_state_key="db_dir",
-        rebuild_state_key="rebuild",
-        data_env_key="UOAIC_DATA_DIR",
-        db_env_key="UOAIC_DB_DIR",
-        model_env_key="UOAIC_MODEL",
-        default_db_dirname="vectorstore",
-        base_dir=tmp_path,
+        runtime_state_key="runtime", data_state_key="data", db_state_key="db", rebuild_state_key="rebuild",
+        data_env_key="UOAIC_DATA_DIR", db_env_key="UOAIC_DB_DIR", model_env_key="UOAIC_MODEL",
+        default_db_dirname="vectorstore", base_dir=tmp_path,
     )
-
-    assert runtime["model_label"] == "local-model"
-    assert runtime["prompt"] == "custom:prompt-template"
-    assert build_calls == [(["chunk"], "embedding-model", str(data_dir / "vectorstore"))]
-    assert session_state["runtime"] is runtime
-
-    cached = pipeline_ai_support._ensure_uoaic_runtime(
-        envars,
-        session_state=session_state,
-        resolve_uoaic_path=lambda raw_path, base_dir=None: pipeline_ai_support._resolve_uoaic_path(
-            raw_path, base_dir=base_dir
-        ),
-        load_uoaic_modules=lambda: pytest.fail("cached runtime should be reused"),
-        runtime_state_key="runtime",
-        data_state_key="data_dir",
-        db_state_key="db_dir",
-        rebuild_state_key="rebuild",
-        data_env_key="UOAIC_DATA_DIR",
-        db_env_key="UOAIC_DB_DIR",
-        model_env_key="UOAIC_MODEL",
-        default_db_dirname="vectorstore",
-        base_dir=tmp_path,
-    )
-
-    assert cached is runtime
+    first = pipeline_ai_support._ensure_uoaic_runtime(envars, **kwargs)
+    assert first["model_label"] == "offline-model" and state["runtime"] is first
+    assert builds == [["chunk"]]
+    if change == "rebuild":
+        state["rebuild"] = True
+    elif change == "model":
+        envars["UOAIC_MODEL"] = "selected-model"
+    second = pipeline_ai_support._ensure_uoaic_runtime(envars, **kwargs)
+    if change == "unchanged":
+        assert second is first and len(configurations) == 1 and len(builds) == 1
+    else:
+        assert second is not first and len(configurations) == 2
+        assert len(builds) == (2 if change == "rebuild" else 1)
+        assert configurations[-1]["UOAIC_MODEL"] == envars["UOAIC_MODEL"]
+    assert not state.get("rebuild")
 
 
 def test_validate_code_safety_rejects_import_statements():

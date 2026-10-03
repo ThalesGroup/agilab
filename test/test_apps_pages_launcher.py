@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
 from tools import apps_pages_launcher as launcher
 
 
-def test_run_streamlit_builds_expected_command(monkeypatch, tmp_path: Path):
+def test_run_react_builds_expected_command(monkeypatch, tmp_path: Path):
     page_script = tmp_path / "page.py"
     page_script.touch()
     active_app = tmp_path / "flight_telemetry_project"
@@ -27,17 +27,22 @@ def test_run_streamlit_builds_expected_command(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(launcher.subprocess, "call", fake_call)
 
-    rc = launcher.run_streamlit("view_maps", page_script, active_app, port=8501)
+    rc = launcher.run_react("view_maps", page_script, active_app, port=8501)
 
     assert rc == 0
     assert captured == [
         [
             "uv",
             "run",
-            "streamlit",
-            "run",
+            "--extra",
+            "ui",
+            "python",
+            "-m",
+            "agi_web.react_python_host",
             str(page_script),
-            "--server.port",
+            "--address",
+            "127.0.0.1",
+            "--port",
             "8501",
             "--",
             "--active-app",
@@ -54,13 +59,13 @@ def test_pick_from_menu_reading_choice(monkeypatch, tmp_path: Path):
 
     called = {}
 
-    def fake_run_streamlit(page, script, active_app, *, port=None):
+    def fake_run_react(page, script, active_app, *, port=None):
         called["page"] = page
         called["script"] = script
         called["active_app"] = active_app
         return 0
 
-    monkeypatch.setattr(launcher, "run_streamlit", fake_run_streamlit)
+    monkeypatch.setattr(launcher, "run_react", fake_run_react)
     monkeypatch.setattr(launcher.sys, "stdin", io.StringIO("1\n"))
 
     rc = launcher.pick_from_menu(tmp_path)

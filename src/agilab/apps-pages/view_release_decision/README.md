@@ -5,7 +5,7 @@
 Package: `agi-page-promotion-gate`
 
 
-Reusable Streamlit evidence cockpit for baseline-vs-candidate run review and
+Reusable native Python UI evidence cockpit for baseline-vs-candidate run review and
 promotion decisions.
 
 Primary use:

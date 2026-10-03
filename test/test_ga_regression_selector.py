@@ -133,16 +133,20 @@ def test_generic_app_path_tokens_do_not_select_unrelated_package_tests() -> None
 @pytest.mark.parametrize(
     ("source", "expected_optional_args"),
     (
-        ("from streamlit.testing.v1 import AppTest\n", ("--extra", "ui")),
+        ("from agi_web.testing import AppTest\n", ("--extra", "ui")),
+        ("from agi_web import python_ui as st\n", ("--extra", "ui")),
+        ("import agi_web.testing\n", ("--extra", "ui")),
+        ("from agi_web.react_python_host import ReactPythonServer\n", ("--extra", "ui")),
         ("from agi_env import streamlit_args\n", ("--extra", "ui")),
         (
             "from agi_env.ui.streamlit_args import render_form\n",
             ("--extra", "ui"),
         ),
         ("import pytest\n", ()),
+        ("import agi_web_helpers\n", ()),
     ),
 )
-def test_pytest_command_adds_ui_extra_only_for_streamlit_tests(
+def test_pytest_command_adds_ui_extra_only_for_native_ui_tests(
     monkeypatch, tmp_path: Path, source: str, expected_optional_args: tuple[str, ...]
 ) -> None:
     module = _load_module()

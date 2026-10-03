@@ -732,7 +732,14 @@ def export_hf_space(
             shutil.copy2(evidence, copied_evidence, follow_symlinks=False)
             _require_no_linked_inputs(copied_evidence, label="staged evidence")
 
-    (output / "requirements.txt").write_text("agilab[ui]\n", encoding="utf-8")
+    from agi_web.portable_python_host import export_python_host
+
+    native_host_dest = output / "agi_web"
+    if native_host_dest.exists():
+        _require_no_linked_inputs(native_host_dest, label="native host")
+        shutil.rmtree(native_host_dest)
+    native_host_hashes = export_python_host(native_host_dest)
+    (output / "requirements.txt").write_text("# The native AGILAB React host is bundled in agi_web/.\n", encoding="utf-8")
     (output / "Dockerfile").write_text(
         textwrap.dedent(
             """\
@@ -745,7 +752,7 @@ def export_hf_space(
             ENV AGILAB_PUBLIC_BIND_OK=1
             ENV AGILAB_TLS_TERMINATED=1
             EXPOSE 7860
-            CMD ["streamlit", "run", "app.py", "--server.address", "0.0.0.0", "--server.port", "7860"]
+            CMD ["python", "-m", "agi_web.react_python_host", "app.py", "--address", "0.0.0.0", "--port", "7860", "--no-browser"]
             """
         ),
         encoding="utf-8",
@@ -754,7 +761,7 @@ def export_hf_space(
         textwrap.dedent(
             f"""\
             from pathlib import Path
-            import streamlit as st
+            from agi_web import python_ui as st
 
             st.set_page_config(page_title="AGILAB Space", layout="wide")
             st.title("AGILAB evidence demo")
@@ -779,6 +786,7 @@ def export_hf_space(
         "output_dir": str(output),
         "project_copy": str(project_dest),
         "evidence_copy": str(evidence_dest) if evidence_dest else "",
+        "native_host_sha256": native_host_hashes,
     }
     _write_json(output / "hf_space_manifest.json", manifest)
     return manifest

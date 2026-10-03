@@ -393,7 +393,7 @@ def test_newcomer_first_proof_contract_reports_guided_wizard() -> None:
     assert check["status"] == "pass"
     assert check["details"]["labels"] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
     ]
     wizard = check["details"]["wizard"]
@@ -1189,7 +1189,7 @@ def test_optional_hf_smoke_run_is_explicit(monkeypatch) -> None:
             return [
                 _FakeRoute(label)
                 for label in (
-                    "streamlit health",
+                    "react health",
                     "base app",
                     "flight telemetry project",
                     "flight telemetry view_maps",

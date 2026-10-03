@@ -11,13 +11,13 @@ active app's exported evidence while a run is still producing files.
 It does not execute the app or interpret domain-specific outputs. It scans a
 selected artifact root, shows manifest candidates, computes a stable signature
 from file metadata, and previews safe file types such as JSON, logs, CSV text,
-and images. The page uses Streamlit's native fragment refresh so the artifact
+and images. The page uses native Python UI's native fragment refresh so the artifact
 panel can update automatically without rerunning the whole app.
 
 ## Run
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_live_artifacts/src/view_live_artifacts/view_live_artifacts.py -- --active-app src/agilab/apps/builtin/flight_telemetry_project
 ```
 
 ## Artifact conventions

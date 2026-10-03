@@ -96,12 +96,24 @@ def test_ui_robot_action_contract_load_module_rejects_missing_spec(monkeypatch) 
         module._load_module("missing", Path("missing.py"))
 
 
+def test_action_inventory_excludes_split_package_test_fixtures(tmp_path: Path) -> None:
+    module = _load_module()
+    source = tmp_path / "src/agilab/lib/agi-web"
+    _write_page(source / "src/agi_web", 'button("Reset project")')
+    _write_page(source / "test", 'button("Save fixture")')
+    _write_page(source / "tests", 'button("Delete fixture")')
+
+    occurrences = module.scan_action_occurrences([source], widget_robot=_FakeWidgetRobot())
+
+    assert [item.label for item in occurrences] == ["Reset project"]
+
+
 def test_ui_robot_action_contract_scanner_handles_ast_edge_cases(tmp_path: Path) -> None:
     module = _load_module()
     _write_page(
         tmp_path,
         """
-from streamlit import button
+from agi_web.python_ui import button
 
 ANNOTATED_LABEL: str = "Reset project"
 CONCAT_LABEL = "Delete " + "cache"
@@ -154,7 +166,7 @@ def test_ui_robot_action_contract_rejects_unclassified_high_risk_action(tmp_path
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Reset project")
 """,
@@ -167,7 +179,7 @@ st.button("Reset project")
         {
             "kind": "unclassified_high_risk_action",
             "label": "Reset project",
-            "detail": "high-risk Streamlit action needs selected-click coverage or an explicit trial-only/ignored reason",
+            "detail": "high-risk UI action needs selected-click coverage or an explicit trial-only/ignored reason",
             "path": str(tmp_path / "page.py"),
             "line": 4,
         }
@@ -185,7 +197,7 @@ def test_ui_robot_action_contract_rejects_empty_explicit_reason(tmp_path: Path, 
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Delete")
 """,
@@ -216,7 +228,7 @@ def test_ui_robot_action_contract_rejects_missing_focused_test(tmp_path: Path, m
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Delete")
 """,
@@ -254,7 +266,7 @@ def test_ui_robot_action_contract_accepts_absolute_focused_test(
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Delete")
 """,
@@ -278,7 +290,7 @@ def test_ui_robot_action_contract_rejects_disposition_without_focused_test(
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Delete")
 """,
@@ -303,7 +315,7 @@ def test_ui_robot_action_contract_ignores_safe_prefix_and_download_actions(tmp_p
     _write_page(
         tmp_path,
         """
-import streamlit as st
+from agi_web import python_ui as st
 
 st.button("Cancel import")
 st.download_button("Export report", data="x")

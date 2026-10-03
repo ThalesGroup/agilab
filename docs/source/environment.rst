@@ -219,16 +219,21 @@ rather than shown as one of the workflow pages.
        install.
    * - ``AGILAB_UI_HOST``
      - ``127.0.0.1``
-     - Host passed by the ``agilab`` CLI to Streamlit. Keep the default for
-       local use. Binding to ``0.0.0.0`` or ``::`` is refused unless
+     - Host used by the native UI launcher. Keep the default for local use.
+       Non-loopback addresses, including LAN addresses and wildcard binds,
+       are refused unless
        ``AGILAB_PUBLIC_BIND_OK=1`` and an auth/TLS indicator such as
        ``AGILAB_TLS_TERMINATED=1`` are both set.
+   * - ``AGILAB_UI_ADDRESS``
+     - unset
+     - Compatibility host alias. A non-empty ``AGILAB_UI_HOST`` takes
+       precedence; the actual runtime bind address remains authoritative.
    * - ``AGILAB_PUBLIC_BIND_OK``
      - unset
-     - Explicit acknowledgement that the Streamlit UI may bind publicly. This
+     - Explicit acknowledgement that the native React UI may bind publicly. This
        flag is not sufficient alone; AGILAB also requires one of
        ``AGILAB_AUTH_REQUIRED``, ``AGILAB_PUBLIC_AUTH``,
-       ``AGILAB_TLS_TERMINATED``, or ``STREAMLIT_AUTH_REQUIRED`` so accidental
+       ``AGILAB_TLS_TERMINATED`` so accidental
        public exposure fails closed.
    * - ``AGILAB_PUBLIC_BIND_EVIDENCE``
      - unset

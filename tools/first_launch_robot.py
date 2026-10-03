@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from html import unescape
 import importlib.util
 import json
-import logging
 from pathlib import Path
 import platform
 import sys
@@ -25,18 +24,6 @@ DEFAULT_ACTIVE_APP = (
 DEFAULT_APPS_PATH = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 SCHEMA = "agilab.first_launch_robot.v1"
 DEFAULT_TARGET_SECONDS = 45.0
-STREAMLIT_BARE_MODE_LOGGER = (
-    "streamlit.runtime.scriptrunner_utils.script_run_context"
-)
-
-
-def _suppress_streamlit_bare_mode_log_warning() -> None:
-    """Keep AppTest bare-mode context warnings out of validation logs."""
-
-    logger = logging.getLogger(STREAMLIT_BARE_MODE_LOGGER)
-    logger.setLevel(logging.ERROR)
-    logger.disabled = True
-
 
 def _check_result(
     check_id: str,
@@ -155,9 +142,7 @@ def build_report(
     timeout: float = DEFAULT_TARGET_SECONDS,
     target_seconds: float = DEFAULT_TARGET_SECONDS,
 ) -> dict[str, Any]:
-    _suppress_streamlit_bare_mode_log_warning()
-    from streamlit.testing.v1 import AppTest
-    from streamlit.testing.v1.util import patch_config_options
+    from agi_web.testing import AppTest
 
     start = time.perf_counter()
     previous_argv = list(sys.argv)
@@ -169,11 +154,9 @@ def build_report(
         str(apps_path),
     ]
     try:
-        # AppTest opens no server. Model the documented local launch without
-        # inheriting a wildcard bind or changing the caller's configuration.
-        with patch_config_options({"server.address": "127.0.0.1"}):
-            app = AppTest.from_file(str(about_page), default_timeout=timeout)
-            app.run(timeout=timeout)
+        # Native AppTest models a loopback session without opening a server.
+        app = AppTest.from_file(str(about_page), default_timeout=timeout)
+        app.run(timeout=timeout)
     finally:
         sys.argv = previous_argv
 
@@ -185,12 +168,10 @@ def build_report(
     # AppTest sees the server-provided component model, not browser-rendered
     # React DOM. The separate main-interface browser smoke validates actions.
     interface = {}
-    for element in app.get("bidi_component"):
-        if element.proto.component_name.endswith("agilab_react_main_interface"):
-            try:
-                candidate = json.loads(element.proto.json)
-            except (TypeError, ValueError):
-                continue
+    for element in app.get("component"):
+        props = element.node.get("props", {})
+        if props.get("name", "").endswith("agilab_react_main_interface"):
+            candidate = props.get("data")
             if isinstance(candidate, dict):
                 interface = candidate
     interface_routes = {
@@ -212,9 +193,9 @@ def build_report(
             "first_launch_no_exceptions",
             "First launch renders without exceptions",
             not exceptions,
-            "Main page rendered without Streamlit AppTest exceptions"
+            "Main page rendered without native AppTest exceptions"
             if not exceptions
-            else "Main page raised Streamlit AppTest exceptions",
+            else "Main page raised native AppTest exceptions",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
             details={"exceptions": exceptions},
         ),
@@ -222,9 +203,9 @@ def build_report(
             "first_launch_env_initialized",
             "First launch initializes AgiEnv",
             has_env,
-            "AgiEnv is present in Streamlit session state"
+            "AgiEnv is present in the Python view session state"
             if has_env
-            else "AgiEnv is missing from Streamlit session state",
+            else "AgiEnv is missing from the Python view session state",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
@@ -315,7 +296,7 @@ def build_report(
             docs_menu.get("Get help", "").startswith(
                 "https://thalesgroup.github.io/agilab/"
             ),
-            "Landing page exposes documentation through the Streamlit page menu",
+            "Landing page exposes documentation through the React page menu",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
             details={"buttons": buttons, "menu_items": docs_menu},
         ),
@@ -376,7 +357,7 @@ def build_report(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run a lightweight Streamlit AppTest robot against AGILAB first launch."
+        description="Run a lightweight native React UI robot against AGILAB first launch."
     )
     parser.add_argument("--about-page", type=Path, default=ABOUT_PAGE)
     parser.add_argument("--active-app", type=Path, default=DEFAULT_ACTIVE_APP)

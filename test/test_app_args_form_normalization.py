@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import tomllib
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agi_env.shares.share_runtime_support import (
     resolve_share_input_path,

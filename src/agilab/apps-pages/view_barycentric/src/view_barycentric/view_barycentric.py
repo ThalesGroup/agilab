@@ -30,7 +30,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from barviz import Simplex, Collection, Scrawler, Attributes
 from math import sqrt, cos, sin
-import streamlit as st
+from agi_web import python_ui as st
 from sklearn.preprocessing import StandardScaler
 from scipy.signal import savgol_filter
 from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path

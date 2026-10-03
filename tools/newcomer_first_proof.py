@@ -190,16 +190,15 @@ def _preinit_smoke_command() -> ProofCommand:
     )
 
 
-def _streamlit_integrity_code() -> str:
+def _python_ui_integrity_code() -> str:
     return textwrap.dedent(
         """
         import importlib.metadata
 
-        import streamlit as st
-        from streamlit.testing.v1 import AppTest
+        from agi_web import python_ui as st
+        from agi_web.testing import AppTest
 
         required_attrs = (
-            "__version__",
             "secrets",
             "session_state",
             "set_page_config",
@@ -207,26 +206,26 @@ def _streamlit_integrity_code() -> str:
         )
         missing = [name for name in required_attrs if not hasattr(st, name)]
         if missing:
-            version = importlib.metadata.version("streamlit")
+            version = importlib.metadata.version("agi-web")
             module_path = getattr(st, "__file__", "<unknown>")
             raise SystemExit(
-                "streamlit-integrity: FAIL "
-                f"streamlit {version} at {module_path} is missing public API "
+                "python-ui-integrity: FAIL "
+                f"agi-web {version} at {module_path} is missing public API "
                 f"attributes required by AppTest: {', '.join(missing)}. "
                 "Recreate the source-clone virtual environment or refresh the package cache."
             )
         if AppTest is None:
-            raise SystemExit("streamlit-integrity: FAIL AppTest import returned None")
-        print("streamlit-integrity: OK")
+            raise SystemExit("python-ui-integrity: FAIL AppTest import returned None")
+        print("python-ui-integrity: OK")
         """
     ).strip()
 
 
-def _streamlit_integrity_command() -> ProofCommand:
+def _python_ui_integrity_command() -> ProofCommand:
     return ProofCommand(
-        label="streamlit integrity check",
-        description="Verify the Streamlit/AppTest public API before running page smoke tests.",
-        argv=(*UV_RUN_PYTHON, "-c", _streamlit_integrity_code()),
+        label="python ui integrity check",
+        description="Verify the AGILAB Python UI/AppTest public API before running page smoke tests.",
+        argv=(*UV_RUN_PYTHON, "-c", _python_ui_integrity_code()),
     )
 
 
@@ -238,11 +237,7 @@ def _ui_smoke_code(active_app: Path) -> str:
         f"""
         import sys
         from pathlib import Path
-        from streamlit import config as streamlit_config
-        from streamlit.testing.v1 import AppTest
-
-        # AppTest does not run the CLI configuration bootstrap.
-        streamlit_config.set_option("server.address", "127.0.0.1")
+        from agi_web.testing import AppTest
 
         about_page = Path({str(about_page)!r})
         orchestrate_page = Path({str(orchestrate_page)!r})
@@ -449,7 +444,7 @@ def _execute_script_command(active_app: Path) -> ProofCommand:
 def build_proof_commands(active_app: Path, *, with_install: bool, with_run: bool = False) -> list[ProofCommand]:
     commands = [
         _preinit_smoke_command(),
-        _streamlit_integrity_command(),
+        _python_ui_integrity_command(),
         _ui_smoke_command(active_app),
     ]
     if with_install or with_run:
@@ -749,7 +744,7 @@ def render_human(
     if success:
         lines.append("next:")
         lines.append(
-            "  uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py"
+            "  uv --preview-features extra-build-dependencies run --extra ui python -m agilab"
         )
         lines.append("  then follow PROJECT -> ORCHESTRATE -> WORKFLOW -> ANALYSIS with flight_telemetry_project")
     else:

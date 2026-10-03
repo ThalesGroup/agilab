@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-import importlib.metadata as importlib_metadata
 import importlib.util
 import logging
 import os
@@ -12,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 from agi_env import AgiEnv, normalize_path
 from agi_env.defaults import get_default_openai_model
@@ -495,26 +494,10 @@ def _resolve_uoaic_path(raw_path: str, env: Optional[AgiEnv]) -> Path:
 
 def _load_uoaic_modules(
     *,
-    distribution_fn: Callable[[str], Any] | None = None,
     import_module_fn: Callable[[str], Any] | None = None,
-    spec_from_file_location_fn: Callable[[str, str], Any] | None = None,
-    module_from_spec_fn: Callable[[Any], Any] | None = None,
 ) -> Tuple[Any, ...]:
-    if distribution_fn is None:
-        distribution_fn = importlib_metadata.distribution
-    if import_module_fn is None:
-        import_module_fn = importlib.import_module
-    if spec_from_file_location_fn is None:
-        spec_from_file_location_fn = importlib.util.spec_from_file_location
-    if module_from_spec_fn is None:
-        module_from_spec_fn = importlib.util.module_from_spec
     try:
-        return _load_uoaic_modules_impl(
-            distribution_fn=distribution_fn,
-            import_module_fn=import_module_fn,
-            spec_from_file_location_fn=spec_from_file_location_fn,
-            module_from_spec_fn=module_from_spec_fn,
-        )
+        return _load_uoaic_modules_impl(import_module_fn=import_module_fn or importlib.import_module)
     except RuntimeError as exc:
         st.error(str(exc))
         raise JumpToMain(exc)

@@ -8,7 +8,7 @@ import importlib.util
 from pathlib import Path
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from agi_pages.queue_resilience import (
     load_queue_resilience_run,
     prepare_queue_resilience_page,

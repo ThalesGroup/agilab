@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from agi_web.portable_python_host import PYTHON_HOST_FILES
+
 ROOT = Path(__file__).resolve().parents[2]
 RESOURCE_PATH = "src/agilab/demos/resources/notebook_agent_demo"
 RESOURCE_PATHS = (
@@ -13,6 +15,8 @@ RESOURCE_PATHS = (
     "src/agilab/demos/resources/notebook_agent_local_demo",
 )
 VERIFIED_FILES = {"app.py", "models.py", "solution.ipynb", "lab_stages.toml"}
+WEB_SOURCE = "src/agilab/lib/agi-web/src/agi_web"
+WEB_FILES = PYTHON_HOST_FILES
 SOURCE_FILES = (
     "LICENSE",
     "src/agilab/demos/notebook_demo_evidence.py",
@@ -21,14 +25,20 @@ SOURCE_FILES = (
     "src/agilab/agent_runtime/notebook_verifier.py",
     *(f"{resource}/{name}" for resource in RESOURCE_PATHS
       for name in sorted(VERIFIED_FILES | {"LICENSE", "result.json"})),
+    *(f"{WEB_SOURCE}/{name}" for name in WEB_FILES),
 )
+SOURCE_DESTINATIONS = {
+    name: "src/agi_web/" + name[len(WEB_SOURCE) + 1:] if name.startswith(WEB_SOURCE + "/") else name
+    for name in SOURCE_FILES
+}
+PUBLIC_SOURCE_FILES = tuple(SOURCE_DESTINATIONS.values())
 
 GENERATED_FILES = {
     "src/agilab/__init__.py": '"""Standalone public demo package."""\n',
     "src/agilab/demos/__init__.py": '"""Public demo gallery."""\n',
     "src/agilab/agent_runtime/__init__.py": '"""Fixed public showcase; no agent provider runtime."""\n',
     "hf_app.py": (
-        "import streamlit as st\n"
+        "from agi_web import python_ui as st\n"
         "from agilab.demos.notebook_showcase import render\n"
         "render()\n"
         'st.set_page_config(page_title="Tokki · Notebook to working app", layout="wide")\n'
@@ -63,17 +73,20 @@ Their Apache-2.0 license and pinned source provenance are retained in
 `src/agilab/demos/resources/notebook_agent_demo/` and
 `src/agilab/demos/resources/notebook_agent_local_demo/`.
 """,
-    "requirements.txt": "streamlit==1.64.0\nscikit-learn==1.9.1\nmatplotlib==3.10.8\n",
+    "requirements.txt": "scikit-learn==1.9.1\nmatplotlib==3.10.8\npandas>=2.3,<4\n",
     "Dockerfile": """FROM python:3.13-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 ENV PYTHONPATH=/app/src
+ENV AGILAB_UI_HOST=0.0.0.0
+ENV AGILAB_PUBLIC_BIND_OK=1
+ENV AGILAB_TLS_TERMINATED=1
 RUN cd /app/src/agilab/demos/resources/notebook_agent_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
 RUN cd /app/src/agilab/demos/resources/notebook_agent_local_demo && python /app/src/agilab/agent_runtime/notebook_verifier.py
 EXPOSE 7860
-CMD ["streamlit", "run", "hf_app.py", "--server.address=0.0.0.0", "--server.port=7860", "--server.headless=true", "--browser.gatherUsageStats=false"]
+CMD ["python", "-m", "agi_web.react_python_host", "hf_app.py", "--address", "0.0.0.0", "--port", "7860", "--no-browser"]
 """,
 }
 
@@ -90,7 +103,7 @@ def export(destination: Path, *, source_root: Path = ROOT) -> dict:
         source = source_root / name
         if source.is_symlink() or not source.is_file() or not source.resolve().is_relative_to(source_root):
             raise ValueError(f"Invalid public source file: {name}")
-        payload[name] = source.read_bytes()
+        payload[SOURCE_DESTINATIONS[name]] = source.read_bytes()
     for resource in RESOURCE_PATHS:
         report = json.loads(payload[f"{resource}/result.json"])
         if report.get("status") != "passed" or set(report.get("files", {})) != VERIFIED_FILES:

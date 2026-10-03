@@ -8,7 +8,7 @@ License: Apache-2.0  Source: https://github.com/ageron/handson-ml3
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import streamlit as st
+from agi_web import python_ui as st
 
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split

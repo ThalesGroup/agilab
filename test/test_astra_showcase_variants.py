@@ -11,7 +11,7 @@ from types import ModuleType
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import milp_energy_showcase as showcase
 
@@ -68,7 +68,7 @@ def test_switching_flavours_preserves_independent_results_even_on_failure(module
     def run(astra, expected, fail=False):
         root = module.ASTRA_DEMO_ROOT if astra else module.DEMO_ROOT
         code = (
-            "import streamlit as st\n"
+            "from agi_web import python_ui as st\n"
             f"assert __file__ == {str(root / 'app.py')!r}\n"
             f"assert st.session_state.get({state_key!r}, 0) == {expected}\n"
             f"st.session_state[{state_key!r}] = {expected + 1}\n"

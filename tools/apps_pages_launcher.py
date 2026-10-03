@@ -2,7 +2,7 @@
 """
 Apps-Pages Launcher (user‑friendly)
 
-Pick an apps-page to launch and we’ll start Streamlit for you.
+Pick an apps-page to launch and we’ll start the native React host for you.
 
 Usage examples:
   uv run python tools/apps_pages_launcher.py \
@@ -36,19 +36,24 @@ PAGES: Dict[str, str] = {
 }
 
 
-def run_streamlit(page: str, page_script: Path, active_app: Path, *, port: int | None = None) -> int:
+def run_react(page: str, page_script: Path, active_app: Path, *, port: int | None = None) -> int:
     cmd = [
         "uv",
         "run",
-        "streamlit",
-        "run",
+        "--extra",
+        "ui",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
         str(page_script),
+        "--address",
+        "127.0.0.1",
         "--",
         "--active-app",
         str(active_app),
     ]
     if port is not None:
-        cmd[5:5] = ["--server.port", str(port)]
+        cmd[cmd.index("--"):cmd.index("--")] = ["--port", str(port)]
 
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
@@ -75,7 +80,7 @@ def pick_from_menu(active_app: Path) -> int:
     if not page_script.exists():
         print(f"Missing page script: {page_script}", file=sys.stderr)
         return 2
-    return run_streamlit(name, page_script, active_app)
+    return run_react(name, page_script, active_app)
 
 
 def main() -> int:
@@ -101,7 +106,7 @@ def main() -> int:
         "--port",
         type=int,
         default=None,
-        help="Optional server port (let Streamlit choose if omitted)",
+        help="Optional server port (default: 8501)",
     )
     args = parser.parse_args()
 
@@ -115,7 +120,7 @@ def main() -> int:
         if not page_script.exists():
             print(f"Missing page script: {page_script}", file=sys.stderr)
             return 2
-        return run_streamlit(args.page, page_script, active_app, port=args.port)
+        return run_react(args.page, page_script, active_app, port=args.port)
     else:
         return pick_from_menu(active_app)
 

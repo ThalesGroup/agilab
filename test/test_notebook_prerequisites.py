@@ -40,14 +40,14 @@ def test_required_and_optional_dependencies_are_distinguished():
     report = inspect(
         "import missing_required\ntry:\n import missing_optional\nexcept ImportError:\n pass\n"
         "def plot():\n import missing_plot\n",
-        available=lambda name: name == "streamlit",
+        available=lambda name: name == "agi_web",
     )
     assert report["status"] == "blocked"
     errors = [i for i in report["issues"] if i["severity"] == "error"]
     assert len(errors) == 1 and "missing_required" in errors[0]["message"]
     optional = inspect(
         "try:\n import missing_optional\nexcept ImportError:\n pass\n",
-        available=lambda name: name == "streamlit",
+        available=lambda name: name == "agi_web",
     )
     assert optional["safe_to_build"] and optional["status"] == "review"
 
@@ -336,7 +336,7 @@ def test_supplied_data_survives_notebook_app_and_persisted_workflow_checks(
             )
         )
         (config.cwd / "app.py").write_text(
-            "from pathlib import Path\nimport streamlit as st\nst.title('Input analysis')\n"
+            "from pathlib import Path\nfrom agi_web import python_ui as st\nst.title('Input analysis')\n"
             "if st.button('Run analysis'):\n"
             "    st.metric('Value', int(Path(__file__).with_name('input.txt').read_text()))\n"
         )
@@ -359,7 +359,7 @@ def test_supplied_data_survives_notebook_app_and_persisted_workflow_checks(
 def test_explicit_local_module_is_discoverable_without_importing_it():
     report = inspect(
         "from project_helper import analyze\n",
-        available=lambda name: name == "streamlit",
+        available=lambda name: name == "agi_web",
         inputs=[{"path": "project_helper.py"}],
     )
     assert report["safe_to_build"]

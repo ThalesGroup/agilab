@@ -7,7 +7,7 @@ import shutil
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import notebook_showcase
 
@@ -30,8 +30,11 @@ def test_rtx_bundle_has_distinct_execution_and_exact_download(module_name, route
     metrics = report['code_metrics']
     assert metrics['loc'] == metrics['application_loc'] + metrics['notebook_loc']
     assert metrics['kloc'] == metrics['loc'] / 1000
+    # Cluster generation metrics describe the historical autonomous build.
+    # The native migration records the original seal separately from current files.
+    build_files = report.get('native_ui_migration', {}).get('original_files', report['files'])
     for measured in metrics['files']:
-        assert report['files'][measured['file']] == measured['sha256']
+        assert build_files[measured['file']] == measured['sha256']
     with zipfile.ZipFile(io.BytesIO(module.download_bundle(rtx=True))) as archive:
         assert json.loads(archive.read('result.json')) == report
         for name, digest in report['files'].items():
@@ -69,7 +72,7 @@ def test_three_flavours_keep_results_separate_after_interrupted_rtx_app(module_n
     def run(flavour, expected, fail=False):
         root = {'astra':module.ASTRA_DEMO_ROOT, 'rtx':module.RTX_DEMO_ROOT, 'qwen':module.DEMO_ROOT}[flavour]
         payload['app.py'] = (
-            'import streamlit as st\n'
+            'from agi_web import python_ui as st\n'
             f'assert __file__ == {str(root / "app.py")!r}\n'
             f'assert st.session_state.get({state_key!r}, 0) == {expected}\n'
             f'st.session_state[{state_key!r}] = {expected + 1}\n'
@@ -160,7 +163,7 @@ def test_rtx_analysis_keeps_downloaded_source_immutable(tmp_path):
     for name in names:
         (project / name).write_bytes(payload[name])
     code = (
-        "from streamlit.testing.v1 import AppTest; "
+        "from agi_web.testing import AppTest; "
         "a=AppTest.from_file('app.py', default_timeout=90); a.run(); "
         "assert not a.exception and not a.error; "
         "next(b for b in a.button if b.label=='Run analysis').click().run(); "

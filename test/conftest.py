@@ -25,7 +25,7 @@ warnings.filterwarnings(
 from agi_env import AgiEnv
 
 if TYPE_CHECKING:
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
 
 _ORIGINAL_PATH_HOME = Path.home
@@ -216,13 +216,22 @@ def create_temp_app_project(tmp_path):
 @pytest.fixture
 def streamlit_loopback_config(monkeypatch):
     """Give in-memory AppTests an explicit bind config without opening a server."""
-    from copy import copy
-    from streamlit import config
-
-    options = config.get_config_options()
-    monkeypatch.setitem(options, "server.address", copy(options["server.address"]))
-    config.set_option("server.address", "127.0.0.1")
+    from agi_web.python_ui import config
+    monkeypatch.setenv("AGILAB_UI_ADDRESS", "127.0.0.1")
     return config
+
+
+@pytest.fixture(autouse=True)
+def isolated_python_view_context():
+    """Direct page-helper imports use an isolated native UI context per test."""
+    try:
+        from agi_web.python_view_session import ViewSession, use_session
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"agi_web", "agi_web.python_view_session"}: raise
+        yield
+        return
+    with use_session(ViewSession(lambda: None)):
+        yield
 
 
 @pytest.fixture
@@ -230,7 +239,7 @@ def run_page_app_test(monkeypatch, tmp_path, streamlit_loopback_config):
     """Run a Streamlit page AppTest with a temporary active app and isolated shares."""
 
     def _run(page_path: str, project_dir: Path, export_root: Path | None = None, timeout: int = 20) -> AppTest:
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
 
         resolved_export_root = export_root or (tmp_path / "export")
         argv = [Path(page_path).name, "--active-app", str(project_dir)]

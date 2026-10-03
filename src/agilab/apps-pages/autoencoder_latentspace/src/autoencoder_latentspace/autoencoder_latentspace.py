@@ -17,7 +17,7 @@ import logging
 from math import sqrt, cos, sin, ceil, pi
 import numpy as np
 from pathlib import Path
-import streamlit as st
+from agi_web import python_ui as st
 import pandas as pd
 from barviz import Simplex, Collection, Scrawler, Attributes # CAUTION: Place it at the first line to avoid other pagelib import instabilities
 from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path

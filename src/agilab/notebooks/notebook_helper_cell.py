@@ -1226,27 +1226,28 @@ def _helper_cell(payload: dict[str, Any]) -> str:
             if not script_path or not _path_exists(script_path):
                 return f"# Missing page script for analysis page {{page}}"
             cmd = [
-                "uv",
-                "--preview-features",
-                "extra-build-dependencies",
-                "run",
-                "streamlit",
-                "run",
+                sys.executable,
+                "-m",
+                "agi_web.react_python_host",
+                script_path,
+                "--address",
+                "127.0.0.1",
+                "--no-browser",
             ]
             if port is not None:
-                cmd.extend(["--server.port", str(port)])
-            cmd.extend([script_path, "--", "--active-app", active_app])
+                cmd.extend(["--port", str(port)])
+            cmd.extend(["--", "--active-app", active_app])
             return cmd
 
 
-        def _find_free_streamlit_port():
+        def _find_free_analysis_port():
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.bind(("127.0.0.1", 0))
                 return sock.getsockname()[1]
 
 
         def launch_analysis_page(page, *, port=None, wait=False):
-            resolved_port = port if port is not None else _find_free_streamlit_port()
+            resolved_port = port if port is not None else _find_free_analysis_port()
             argv = analysis_launch_argv(page, port=resolved_port)
             print(analysis_launch_command(page, port=resolved_port))
             if isinstance(argv, str) and argv.startswith("#"):
@@ -1274,7 +1275,13 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     if not fallback_launch:
                         raise
             if fallback_launch:
-                return launch_analysis_page(page, port=port)
+                script_path = record.get("script_path") or ""
+                if not script_path or not _path_exists(script_path):
+                    raise FileNotFoundError(f"Missing page script for analysis page {{page}}")
+                from agi_web.notebook_python_view import render_python_view
+
+                result = render_python_view(script_path, active_app=resolve_active_app_root())
+                return _display_inline_result(result)
             return None
 
 

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="746" height="462" viewBox="0 0 746 462" role="img" aria-labelledby="title desc">
   <title id="title">flight_telemetry package layout</title>
-  <desc id="desc">Manager, typed arguments, reduction contract, and the Streamlit argument form.</desc>
+  <desc id="desc">Manager, typed arguments, reduction contract, and the Python UI argument form.</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #0e223f; }
@@ -19,7 +19,7 @@
   </defs>
   <rect width="746" height="462" fill="url(#bg)" rx="28" ry="28" />
   <text class="title" x="46" y="52">flight_telemetry package layout</text>
-  <text class="subtitle" x="46" y="80">Manager, typed arguments, reduction contract, and the Streamlit argument form.</text>
+  <text class="subtitle" x="46" y="80">Manager, typed arguments, reduction contract, and the Python UI argument form.</text>
   <rect x="46" y="104" width="316" height="119" rx="18" ry="18" fill="#d9f0ff" stroke="#0e223f" stroke-width="2" />
   <text class="card-title" x="66" y="134">Manager</text>
   <text class="count" x="342" y="134" text-anchor="end">1 module</text>
@@ -39,7 +39,7 @@
   <rect x="384" y="245" width="316" height="119" rx="18" ry="18" fill="#d6f6d8" stroke="#0e223f" stroke-width="2" />
   <text class="card-title" x="404" y="275">Argument form</text>
   <text class="count" x="680" y="275" text-anchor="end">1 module</text>
-  <text class="card-note" x="404" y="297">Streamlit form for the PROJECT page.</text>
+  <text class="card-note" x="404" y="297">Python UI form for the PROJECT page.</text>
   <text class="member" x="404" y="321">app_args_form</text>
   <text class="footer" x="46" y="396">4 logical modules · compatibility shims collapsed · groups: tools/render_package_maps.py</text>
 </svg>

@@ -8,7 +8,7 @@ from pathlib import Path
 import altair as alt
 import numpy as np
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 from free_threading_core import reference_image, image_digest
 from benchmark import effective_cpus, run_benchmark

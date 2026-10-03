@@ -42,6 +42,8 @@ order package resolution. It is framework plumbing, not an entry point.
 
    Earlier revisions of this page described ``agi_core.apps``,
    ``agi_core.streamlit``, ``agi_core.telemetry``, and ``agi_core.services``.
+   The legacy ``agi_core.streamlit`` name now delegates to the native Python
+   UI facade and does not import the former provider.
    Those subpackages were never released. Import the shared helpers from
    ``agi_env``, ``agi_node``, or ``agi_cluster`` instead.
 

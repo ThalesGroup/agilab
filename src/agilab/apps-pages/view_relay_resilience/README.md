@@ -5,7 +5,7 @@
 Package: `agi-page-relay-health`
 
 
-Streamlit analysis page for relay queue telemetry exported by any app that
+native Python UI analysis page for relay queue telemetry exported by any app that
 writes the AGILAB relay-resilience artifact contract.
 
 ## What It Shows
@@ -31,5 +31,5 @@ Run a compatible app once from `ORCHESTRATE` before opening this page from
 ## Development Run
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_relay_resilience/src/view_relay_resilience/view_relay_resilience.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_relay_resilience/src/view_relay_resilience/view_relay_resilience.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
 ```

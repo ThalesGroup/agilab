@@ -8,7 +8,7 @@ import textwrap
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 
-import streamlit as st
+from agi_web import python_ui as st
 import tomli_w
 import tomllib
 

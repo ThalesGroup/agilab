@@ -397,7 +397,8 @@ def test_app_templates_keep_runtime_contracts_explicit() -> None:
             for operator in ("==", ">=", "<=", "~=", "!=", ">", "<"):
                 name = name.split(operator, 1)[0].strip()
             dependencies.add(name)
-        assert {"agi-env", "pydantic", "streamlit"} <= dependencies
+        assert {"agi-env", "pydantic", "agi-web"} <= dependencies
+        assert "streamlit" not in dependencies
         if template.name in workerless_templates:
             assert {"agi-cluster", "agi-node"}.isdisjoint(dependencies), template.name
             assert not any(template.glob("src/*_worker")), template.name

@@ -8,12 +8,12 @@ from typing import Any, Callable, Literal, get_args, get_origin
 from pydantic import BaseModel, ValidationError
 from annotated_types import Ge, Le, MultipleOf
 
-from agi_env.ui._optional_ui import require_streamlit
+from agi_env.ui._optional_ui import require_python_ui
 from agi_env.project.app_args import prefer_persisted_value as prefer_persisted_value
 from agi_env.project.app_settings_support import read_app_settings
 from agi_env.shares.share_runtime_support import resolve_share_path
 
-st = require_streamlit()
+st = require_python_ui()
 
 
 def load_args_state(

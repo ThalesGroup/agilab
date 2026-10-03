@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from agi_pages.queue_resilience import (
     load_queue_resilience_run,
     load_queue_summary as _load_json,

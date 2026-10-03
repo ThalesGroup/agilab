@@ -8,7 +8,7 @@ the evidence and boundary before expanding to advanced features.
 For agent and tooling discovery, the repository root also ships
 ``agilab-capabilities.json``. Regenerate it with
 ``python3 tools/agilab_capabilities_manifest.py --apply``. The manifest lists
-checked-in CLI commands, Streamlit pages, public apps, packages, schemas, docs,
+checked-in CLI commands, native React UI pages, public apps, packages, schemas, docs,
 and catalog files; it is a discovery index, not runtime validation or external
 certification evidence. The paired ``agilab-capabilities.schema.json`` file
 defines the JSON contract, while

@@ -5,7 +5,7 @@
 Package: `agi-page-scenario-cockpit`
 
 
-Streamlit evidence cockpit for comparing exported scenario runs and packaging the
+native Python UI evidence cockpit for comparing exported scenario runs and packaging the
 selected baseline/candidate decision as JSON.
 
 ## What It Shows
@@ -33,5 +33,5 @@ Run a compatible app once from `ORCHESTRATE`, then open this page from
 ## Development Run
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_scenario_cockpit/src/view_scenario_cockpit/view_scenario_cockpit.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_scenario_cockpit/src/view_scenario_cockpit/view_scenario_cockpit.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
 ```

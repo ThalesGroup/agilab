@@ -49,7 +49,7 @@ Before editing, pick the closest lane:
      - Built-in app, example README, app args, analysis view
      - Targeted app/page ``pytest`` or the app smoke test
    * - UI helper
-     - Streamlit page state, sidebar/header, workflow/orchestrate helper
+     - native React UI page state, sidebar/header, workflow/orchestrate helper
      - Targeted root ``pytest`` for the touched helper
    * - Workflow or release tooling
      - GitHub workflows, badges, release proof, package policy

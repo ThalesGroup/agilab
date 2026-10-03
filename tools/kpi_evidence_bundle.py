@@ -188,7 +188,7 @@ def _check_newcomer_first_proof_contract(repo_root: Path) -> dict[str, Any]:
         ok = (
             labels == [
                 "preinit smoke",
-                "streamlit integrity check",
+                "python ui integrity check",
                 "source ui smoke",
             ]
             and float(newcomer_first_proof.DEFAULT_MAX_SECONDS) == 600.0
@@ -2217,7 +2217,7 @@ def _check_hf_space_smoke_contract(repo_root: Path) -> dict[str, Any]:
         specs = hf_space_smoke.route_specs()
         labels = [spec.label for spec in specs]
         required_labels = {
-            "streamlit health",
+            "react health",
             "base app",
             "flight telemetry project",
             "flight telemetry view_maps",

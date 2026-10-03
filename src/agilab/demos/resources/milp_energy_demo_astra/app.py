@@ -7,7 +7,7 @@ import json
 
 import altair as alt
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 from energy_core import (
     SOURCE_URL,
@@ -575,7 +575,7 @@ with reproduce:
             key=P + "download_benchmark",
         )
     st.code(
-        "python energy_core.py single --input milp-settings.json --output replay.json\npython tests.py\nstreamlit run app.py --server.address=127.0.0.1",
+        "python energy_core.py single --input milp-settings.json --output replay.json\npython tests.py\npython -m agi_web.react_python_host app.py --address 127.0.0.1",
         language="bash",
     )
     st.caption(

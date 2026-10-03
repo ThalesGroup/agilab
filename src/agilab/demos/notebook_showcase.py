@@ -12,7 +12,7 @@ import sys
 from types import ModuleType
 import zipfile
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK

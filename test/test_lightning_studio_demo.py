@@ -47,23 +47,26 @@ def test_build_demo_env_forces_local_only_runtime(tmp_path: Path) -> None:
     assert env["APPS_PATH"] == str((repo_root / "src" / "agilab" / "apps").resolve())
 
 
-def test_build_streamlit_command_targets_about_page_and_default_app(tmp_path: Path) -> None:
+def test_build_react_command_targets_about_page_and_default_app(tmp_path: Path) -> None:
     repo_root = tmp_path / "agilab"
 
-    cmd = lightning_demo.build_streamlit_command(repo_root, active_app="flight_telemetry_project", port=8601)
+    cmd = lightning_demo.build_react_command(repo_root, active_app="flight_telemetry_project", port=8601)
 
-    assert cmd[:6] == [
+    assert cmd[:9] == [
         "uv",
         "--preview-features",
         "extra-build-dependencies",
         "run",
-        "streamlit",
-        "run",
+        "--extra",
+        "ui",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
     ]
-    assert cmd[6] == str((repo_root / "src" / "agilab" / "main_page.py").resolve())
-    assert "--server.address" in cmd
+    assert cmd[9] == str((repo_root / "src" / "agilab" / "main_page.py").resolve())
+    assert "--address" in cmd
     assert "0.0.0.0" in cmd
-    assert "--server.port" in cmd
+    assert "--port" in cmd
     assert "8601" in cmd
     assert cmd[-4:] == [
         "--apps-path",

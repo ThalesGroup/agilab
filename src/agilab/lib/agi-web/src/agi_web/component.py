@@ -258,19 +258,19 @@ def component_to_static_html(
     )
 
 
-def render_streamlit(
+def render_python(
     component: AgiWebComponent,
-    streamlit: Any | None = None,
+    ui: Any | None = None,
     *,
     height: int = 520,
     width: str = "100%",
     host_origin: str = "",
 ) -> Any:
-    """Render a component through ``st.components.v1.html``."""
+    """Mount a component in an active native AGILAB Python view."""
 
-    st = streamlit
+    st = ui
     if st is None:
-        import streamlit as st  # type: ignore[no-redef]
+        from agi_web import python_ui as st  # type: ignore[no-redef]
 
     from .react_analysis import REACT_ANALYSIS_RENDERERS, render_react_streamlit
     if component.renderer.technology == "react" and component.renderer.renderer_id in REACT_ANALYSIS_RENDERERS:
@@ -278,6 +278,11 @@ def render_streamlit(
 
     fragment = component_to_static_html(component, height=height, width=width, host_origin=host_origin)
     return st.components.v1.html(fragment, height=height, scrolling=False)
+
+
+def render_streamlit(component: AgiWebComponent, streamlit: Any | None = None, **kwargs) -> Any:
+    """Legacy API spelling for :func:`render_python`; uses the native host."""
+    return render_python(component, ui=streamlit, **kwargs)
 
 
 def render_notebook(

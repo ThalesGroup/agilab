@@ -119,7 +119,7 @@ def test_page_package_pyprojects_declare_pypi_discoverability_metadata() -> None
     required_keywords = {
         "agilab",
         "thalesgroup",
-        "streamlit",
+        "react",
         "page-bundle",
         "reproducibility",
     }

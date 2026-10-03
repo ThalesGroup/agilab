@@ -5,11 +5,10 @@ import json
 import runpy
 import sys
 from pathlib import Path
-import types
+import os
 
 import pytest
-from streamlit import config
-from streamlit.testing.v1.util import patch_config_options
+from agi_web.python_ui import config
 
 
 MODULE_PATH = Path("tools/first_launch_robot.py").resolve()
@@ -68,14 +67,17 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("address", [None, "0.0.0.0", "::"])
-def test_first_launch_robot_isolates_and_restores_bind_config(address) -> None:
+def test_first_launch_robot_isolates_and_restores_bind_config(address, monkeypatch) -> None:
     module = _load_module()
     original_argv = list(sys.argv)
-
-    with patch_config_options({"server.address": address}):
-        report = module.build_report(target_seconds=90.0, timeout=90.0)
-        assert config.get_option("server.address") == address
-
+    if address is None:
+        monkeypatch.delenv("AGILAB_UI_ADDRESS", raising=False)
+    else:
+        monkeypatch.setenv("AGILAB_UI_ADDRESS", address)
+    original_address = config.get_option("server.address")
+    report = module.build_report(target_seconds=90.0, timeout=90.0)
+    assert config.get_option("server.address") == original_address
+    assert os.environ.get("AGILAB_UI_ADDRESS") == address
     assert sys.argv == original_argv
     assert report["status"] == "pass", json.dumps(report, indent=2, sort_keys=True)
 
@@ -130,20 +132,15 @@ def test_first_launch_robot_helpers_cover_empty_values_and_docs_import_failure(
     assert module.sys.path[0] == src_root
 
 
-def test_first_launch_robot_suppresses_streamlit_bare_mode_context_logger() -> None:
-    module = _load_module()
-    logger = module.logging.getLogger(module.STREAMLIT_BARE_MODE_LOGGER)
+def test_first_launch_robot_preserves_ambient_logger_levels() -> None:
+    import logging
+    logger = logging.getLogger("agilab.native-first-launch-test")
     previous_level = logger.level
     try:
-        logger.disabled = False
-        logger.setLevel(module.logging.NOTSET)
-
-        module._suppress_streamlit_bare_mode_log_warning()
-
-        assert logger.level == module.logging.ERROR
-        assert logger.disabled is True
+        logger.setLevel(logging.WARNING)
+        _load_module().build_report(target_seconds=90.0, timeout=90.0)
+        assert logger.level == logging.WARNING
     finally:
-        logger.disabled = False
         logger.setLevel(previous_level)
 
 
@@ -174,13 +171,8 @@ def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(
         def from_file(_path, *, default_timeout):
             return FakeApp()
 
-    streamlit = types.ModuleType("streamlit")
-    testing = types.ModuleType("streamlit.testing")
-    v1 = types.ModuleType("streamlit.testing.v1")
-    v1.AppTest = FakeAppTest
-    monkeypatch.setitem(sys.modules, "streamlit", streamlit)
-    monkeypatch.setitem(sys.modules, "streamlit.testing", testing)
-    monkeypatch.setitem(sys.modules, "streamlit.testing.v1", v1)
+    import agi_web.testing
+    monkeypatch.setattr(agi_web.testing, "AppTest", FakeAppTest)
     monkeypatch.setattr(module, "_docs_menu_items", lambda: {})
 
     report = module.build_report(timeout=1.0, target_seconds=999.0)
@@ -287,13 +279,8 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
             assert default_timeout == 1.0
             return FakeApp()
 
-    streamlit = types.ModuleType("streamlit")
-    testing = types.ModuleType("streamlit.testing")
-    v1 = types.ModuleType("streamlit.testing.v1")
-    v1.AppTest = FakeAppTest
-    monkeypatch.setitem(sys.modules, "streamlit", streamlit)
-    monkeypatch.setitem(sys.modules, "streamlit.testing", testing)
-    monkeypatch.setitem(sys.modules, "streamlit.testing.v1", v1)
+    import agi_web.testing
+    monkeypatch.setattr(agi_web.testing, "AppTest", FakeAppTest)
     monkeypatch.setattr(
         sys,
         "argv",

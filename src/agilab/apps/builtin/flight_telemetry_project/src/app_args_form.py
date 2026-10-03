@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import streamlit as st
+from agi_web import python_ui as st
 from pydantic import ValidationError
 from agi_env.app_settings_support import read_app_settings
 from agi_env.streamlit_args import resolve_app_args_share_paths

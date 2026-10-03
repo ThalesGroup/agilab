@@ -154,7 +154,7 @@ Some names are close but not interchangeable:
 
 - ``agi_core`` is the shared app/page framework helper layer. It is not the
   worker runtime.
-- ``agi_gui`` contains Streamlit-facing helpers and must stay out of headless
+- ``agi_gui`` contains native React UI-facing helpers and must stay out of headless
   worker manifests.
 - ``agi_env`` resolves the selected app, settings, logs, workspace paths, and
   environment variables.
@@ -179,7 +179,7 @@ Practical rule:
 
 - put UI and orchestration dependencies in the app project manifest
 - put compute-stage dependencies in ``src/<app>_worker/pyproject.toml``
-- do not put Streamlit or page-only dependencies in worker manifests
+- do not put native React UI or page-only dependencies in worker manifests
 - when a worker install fails, compare the source worker manifest with the
   deployed copy under ``~/wenv/<app>_worker`` before changing app code
 

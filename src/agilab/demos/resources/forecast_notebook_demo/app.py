@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import pandas as pd
 import altair as alt
-import streamlit as st
+from agi_web import python_ui as st
 
 # Import forecast_core (ordinary import; bootstrap path if needed)
 _HERE = os.path.dirname(os.path.abspath(__file__))

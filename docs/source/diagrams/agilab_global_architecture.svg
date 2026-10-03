@@ -156,7 +156,7 @@
       <rect class="card" width="250" height="210" fill="url(#entry)" />
       <text class="card-title" x="125" y="38" text-anchor="middle">Entry surfaces</text>
       <text class="card-body" x="28" y="74">
-        <tspan x="28" dy="0">Streamlit pages</tspan>
+        <tspan x="28" dy="0">Native UI views</tspan>
         <tspan x="28" dy="24">CLI and API examples</tspan>
         <tspan x="28" dy="24">PyCharm run configs</tspan>
         <tspan x="28" dy="24">Notebook import</tspan>

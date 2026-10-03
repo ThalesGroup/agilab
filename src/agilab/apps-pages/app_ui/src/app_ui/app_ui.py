@@ -11,7 +11,7 @@ import tomllib
 from types import ModuleType
 from typing import Any
 
-import streamlit as st
+from agi_web import python_ui as st
 from agi_env.ui.sidecar_registry import isolated_import_process_state
 from agi_pages.runtime import (
     configure_streamlit_page,

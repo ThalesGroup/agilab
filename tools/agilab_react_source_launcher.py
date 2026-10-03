@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch the source-checkout AGILAB Streamlit UI with the required UI extra."""
+"""Launch the source-checkout AGILAB React UI with the required UI extra."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def resolve_uv_binary() -> str | None:
     return None
 
 
-def build_streamlit_command(
+def build_react_command(
     root: Path,
     app_args: list[str],
     uv_bin: str,
@@ -39,13 +39,13 @@ def build_streamlit_command(
         "--preview-features",
         "extra-build-dependencies",
         "run",
+        "--project",
+        str(root),
         "--extra",
         "ui",
         "python",
-        str(root / "tools" / "streamlit_cli_compat.py"),
-        "run",
-        str(root / "src" / "agilab" / "main_page.py"),
-        "--",
+        "-m",
+        "agilab",
         *app_args,
     ]
     if no_sync:
@@ -66,7 +66,7 @@ def uv_no_sync_enabled(environ: Mapping[str, str]) -> bool:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Launch AGILAB's source Streamlit UI through uv with the ui extra enabled."
+        description="Launch AGILAB's source React UI through uv with the ui extra enabled."
     )
     parser.add_argument(
         "--print-command",
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Unable to locate uv. Install uv or add it to PATH before launching AGILAB.", file=sys.stderr)
         return 127
 
-    command = build_streamlit_command(
+    command = build_react_command(
         repo_root(),
         args.app_args,
         uv_bin,

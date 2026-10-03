@@ -14,12 +14,14 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from agi_env.ui import sidecar_registry as sidecar_registry_module
+from agi_web.python_view_session import ViewSession, use_session
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "agilab" / "main_page.py"
 SPEC = importlib.util.spec_from_file_location("agilab_about_helpers", MODULE_PATH)
 assert SPEC and SPEC.loader
 about_agilab = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(about_agilab)
+with use_session(ViewSession(lambda: None)):
+    SPEC.loader.exec_module(about_agilab)
 
 PAGE_BOOTSTRAP_PATH = (
     Path(__file__).resolve().parents[1] / "src" / "agilab" / "page_bootstrap.py"
@@ -4803,7 +4805,7 @@ def test_newcomer_first_proof_content_exposes_single_recommended_path():
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
     ]
     assert content["run_manifest_filename"] == "run_manifest.json"
@@ -5807,7 +5809,7 @@ def test_main_page_sidebar_links_active_app_readme(tmp_path, monkeypatch):
         lambda _html_file: "https://docs.example/agilab-help.html",
     )
     project_route = PageRoute()
-    monkeypatch.setitem(about_agilab._NAVIGATION_PAGE_ROUTES, "project", project_route)
+    monkeypatch.setitem(about_agilab._session_navigation_routes(), "project", project_route)
     env = SimpleNamespace(
         app="flight_telemetry_project",
         apps_path=tmp_path / "apps",
@@ -5878,7 +5880,7 @@ def test_main_page_sidebar_readme_button_fallback_switches_project(
     readme.write_text("# Flight telemetry\n", encoding="utf-8")
     monkeypatch.setattr(about_agilab, "st", fake_st)
     project_route = PageRoute()
-    monkeypatch.setitem(about_agilab._NAVIGATION_PAGE_ROUTES, "project", project_route)
+    monkeypatch.setitem(about_agilab._session_navigation_routes(), "project", project_route)
     env = SimpleNamespace(app="flight_telemetry_project", active_app=app_root)
 
     assert about_agilab._render_sidebar_readme_link(env, readme)

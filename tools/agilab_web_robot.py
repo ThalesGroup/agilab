@@ -31,19 +31,6 @@ SRC_ROOT = REPO_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
     sys.path.insert(0, str(SRC_ROOT))
 
-try:
-    from agilab.streamlit_theme_env import apply_streamlit_theme_environment  # noqa: E402
-except ModuleNotFoundError:
-    _streamlit_theme_env_path = SRC_ROOT / "agilab" / "streamlit_theme_env.py"
-    _streamlit_theme_env_spec = importlib.util.spec_from_file_location(
-        "agilab_streamlit_theme_env_local",
-        _streamlit_theme_env_path,
-    )
-    if _streamlit_theme_env_spec is None or _streamlit_theme_env_spec.loader is None:
-        raise ModuleNotFoundError(f"Unable to load streamlit_theme_env.py from {_streamlit_theme_env_path}")
-    _streamlit_theme_env_module = importlib.util.module_from_spec(_streamlit_theme_env_spec)
-    _streamlit_theme_env_spec.loader.exec_module(_streamlit_theme_env_module)
-    apply_streamlit_theme_environment = _streamlit_theme_env_module.apply_streamlit_theme_environment
 
 def _load_screenshot_manifest_helpers():
     try:
@@ -110,14 +97,16 @@ ANALYSIS_VIEW_PATHS = {
     name: REPO_ROOT / relative_path
     for name, relative_path in ANALYSIS_VIEW_RELATIVE_PATHS.items()
 }
-UV_RUN_STREAMLIT = (
+UV_RUN_REACT = (
     "uv",
     "--preview-features",
     "extra-build-dependencies",
     "run",
     "--extra",
     "ui",
-    "streamlit",
+    "python",
+    "-m",
+    "agi_web.react_python_host",
 )
 DEV_SCOPE_COMMAND = ("./dev", "scope")
 
@@ -184,7 +173,7 @@ class _FrontendAssetParser(HTMLParser):
             )
 
 
-class StreamlitServer:
+class ReactPythonServer:
     def __init__(self, argv: Sequence[str], *, env: dict[str, str], url: str) -> None:
         self.argv = list(argv)
         self.env = dict(env)
@@ -193,11 +182,11 @@ class StreamlitServer:
         self._output_file: Any | None = None
         self._output_path: Path | None = None
 
-    def __enter__(self) -> "StreamlitServer":
+    def __enter__(self) -> "ReactPythonServer":
         self._output_file = tempfile.NamedTemporaryFile(
             mode="w+",
             encoding="utf-8",
-            prefix="agilab-streamlit-server-",
+            prefix="agilab-react-server-",
             suffix=".log",
             delete=False,
         )
@@ -309,7 +298,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--url",
-        help="Existing AGILAB base URL to test. If omitted, a local Streamlit server is launched.",
+        help="Existing AGILAB base URL to test. If omitted, a local React server is launched.",
     )
     parser.add_argument(
         "--active-app",
@@ -322,9 +311,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--apps-path",
         default=str(DEFAULT_APPS_PATH),
-        help="Apps root passed to the local Streamlit launch.",
+        help="Apps root passed to the local React launch.",
     )
-    parser.add_argument("--port", type=int, help="Local Streamlit port. Defaults to a free port.")
+    parser.add_argument("--port", type=int, help="Local React port. Defaults to a free port.")
     parser.add_argument(
         "--browser",
         choices=("chromium", "firefox", "webkit"),
@@ -363,7 +352,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--frontend-smoke-only",
         action="store_true",
         help=(
-            "Only validate Streamlit frontend asset MIME types and landing-page "
+            "Only validate React frontend asset MIME types and landing-page "
             "browser hydration. This catches blank-page frontend regressions without "
             "running the full upload/navigation robot."
         ),
@@ -372,7 +361,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--page-load-smoke-only",
         action="store_true",
         help=(
-            "Open selected core Streamlit pages in a real browser and record first "
+            "Open selected core React pages in a real browser and record first "
             "visible render timings without running the full workflow robot."
         ),
     )
@@ -390,7 +379,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "For local frontend smoke runs, execute './dev scope' after the "
-            "Streamlit server is healthy and before checking frontend assets. "
+            "React server is healthy and before checking frontend assets. "
             "This catches live UI breakage caused by validation commands "
             "resyncing the same virtual environment."
         ),
@@ -414,7 +403,7 @@ def _free_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def build_streamlit_command(
+def build_react_command(
     *,
     active_app: Path | str,
     apps_path: Path | str,
@@ -422,19 +411,13 @@ def build_streamlit_command(
 ) -> list[str]:
     about_page = REPO_ROOT / "src/agilab/main_page.py"
     return [
-        *UV_RUN_STREAMLIT,
-        "run",
+        *UV_RUN_REACT,
         str(about_page),
-        "--server.address",
+        "--address",
         "127.0.0.1",
-        "--server.port",
+        "--port",
         str(port),
-        "--server.headless",
-        "true",
-        "--server.runOnSave",
-        "false",
-        "--browser.gatherUsageStats",
-        "false",
+        "--no-browser",
         "--",
         "--active-app",
         str(active_app),
@@ -446,14 +429,13 @@ def build_streamlit_command(
 def build_server_env() -> dict[str, str]:
     env = os.environ.copy()
     # The robot itself can run in a temporary `uv --with playwright` env.
-    # The Streamlit child must resolve AGILAB from the repo project instead.
+    # The React child must resolve AGILAB from the repo project instead.
     env.pop("UV_RUN_RECURSION_DEPTH", None)
     env.pop("UV_PROJECT_ENVIRONMENT", None)
     env.pop("VIRTUAL_ENV", None)
     env.setdefault("AGILAB_DISABLE_BACKGROUND_SERVICES", "1")
     env.setdefault("OPENAI_API_KEY", "sk-test-agilab-web-robot-000000000000")
     env.setdefault("PYTHONUNBUFFERED", "1")
-    apply_streamlit_theme_environment(REPO_ROOT / "src/agilab/resources/config.toml", environ=env)
     return env
 
 
@@ -529,7 +511,7 @@ def build_page_url(
     )
 
 
-def wait_for_streamlit_health(
+def wait_for_react_health(
     base_url: str,
     *,
     timeout: float,
@@ -538,7 +520,7 @@ def wait_for_streamlit_health(
     sleeper: Callable[[float], None] = time.sleep,
 ) -> RobotStep:
     start = clock()
-    health_url = base_url.rstrip("/") + "/_stcore/health"
+    health_url = base_url.rstrip("/") + "/api/health"
     last_error = ""
     deadline = start + timeout
     while True:
@@ -546,14 +528,14 @@ def wait_for_streamlit_health(
             with opener(health_url) as response:
                 status = int(getattr(response, "status", response.getcode()))
                 if status < 400:
-                    return RobotStep("streamlit health", True, clock() - start, f"HTTP {status}", health_url)
+                    return RobotStep("react health", True, clock() - start, f"HTTP {status}", health_url)
                 last_error = f"HTTP {status}"
         except Exception as exc:
             last_error = str(exc)
         if clock() >= deadline:
             break
         sleeper(0.5)
-    return RobotStep("streamlit health", False, clock() - start, f"not ready: {last_error}", health_url)
+    return RobotStep("react health", False, clock() - start, f"not ready: {last_error}", health_url)
 
 
 def _response_content_type(response: Any) -> str:
@@ -614,7 +596,7 @@ def assert_frontend_static_assets(
                 "frontend static assets",
                 False,
                 time.perf_counter() - start,
-                "no JavaScript frontend assets discovered in Streamlit landing HTML",
+                "no JavaScript frontend assets discovered in React landing HTML",
                 landing_url,
             )
         for asset in assets:
@@ -636,7 +618,7 @@ def assert_frontend_static_assets(
             "frontend static assets",
             True,
             time.perf_counter() - start,
-            f"{len(assets)} Streamlit JS/CSS asset(s) returned expected MIME types",
+            f"{len(assets)} React JS/CSS asset(s) returned expected MIME types",
             landing_url,
         )
     except Exception as exc:
@@ -753,15 +735,15 @@ def assert_page_healthy(
 ) -> RobotStep:
     start = time.perf_counter()
     try:
-        page.wait_for_selector("[data-testid='stApp']", timeout=timeout_ms)
+        page.wait_for_selector(".py-app", timeout=timeout_ms)
         deadline = start + (timeout_ms / 1000.0)
         while True:
-            exception_count = page.locator("[data-testid='stException']").count()
+            exception_count = page.locator(".py-exception").count()
             text = _body_text(page)
             rejected = _find_rejected_pattern(text)
             if exception_count:
                 screenshot = _screenshot(page, screenshot_dir, label)
-                detail = f"Streamlit exception block found ({exception_count})"
+                detail = f"React exception block found ({exception_count})"
                 if screenshot:
                     detail += f"; screenshot={screenshot}"
                 return RobotStep(label, False, time.perf_counter() - start, detail, page.url)
@@ -1283,7 +1265,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     local_url = f"http://127.0.0.1:{port}"
     base_url = args.url or local_url
     local_active_app = resolve_local_active_app(args.active_app, args.apps_path)
-    launch_command = None if args.url else build_streamlit_command(
+    launch_command = None if args.url else build_react_command(
         active_app=local_active_app,
         apps_path=args.apps_path,
         port=port,
@@ -1352,8 +1334,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     steps: list[RobotStep] = []
     try:
         if launch_command:
-            with StreamlitServer(launch_command, env=build_server_env(), url=base_url) as server:
-                health = wait_for_streamlit_health(base_url, timeout=args.timeout)
+            with ReactPythonServer(launch_command, env=build_server_env(), url=base_url) as server:
+                health = wait_for_react_health(base_url, timeout=args.timeout)
                 steps.append(health)
                 if health.success:
                     if args.frontend_smoke_only:
@@ -1400,7 +1382,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 elif server.process and server.process.poll() is not None:
                     steps.append(
                         RobotStep(
-                            "streamlit process",
+                            "react process",
                             False,
                             0.0,
                             f"process exited with {server.process.returncode}; output={server.output_tail()}",

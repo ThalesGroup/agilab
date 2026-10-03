@@ -1,4 +1,4 @@
-"""Shared React coordinate maps and analysis curves for Streamlit and Jupyter.
+"""Shared React coordinate maps and analysis curves for native Python views and Jupyter.
 
 The component payload stays framework-neutral. React and both host adapters are
 bundled in the wheel; Node is needed only to rebuild the frontend.
@@ -198,7 +198,7 @@ def render_react_streamlit(
     width: str = "100%",
     key: str | None = None,
 ) -> Any:
-    """Mount through Streamlit v2 and return the synchronized selection state."""
+    """Mount through the Python view component protocol and synchronize selection."""
     runtime = getattr(streamlit, "runtime", None)
     factory = streamlit.components.v2.component
     manager_key = (
@@ -209,7 +209,7 @@ def render_react_streamlit(
     mount = _streamlit_mount(factory, manager_key)
     data = component.as_dict(include_evidence=True)
     if width != "100%":
-        # The public API accepts CSS widths; v2 accepts only pixels or stretch.
+        # Keep CSS sizing inside the mounted element.
         # Keep CSS sizing inside the mounted element, as in the static adapter.
         data["render_width"] = width
     return mount(

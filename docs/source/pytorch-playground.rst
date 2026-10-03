@@ -56,7 +56,7 @@ What It Adds Over A Classic Playground
      - Manifest, CSV artifacts, boundary snapshots, model diagnostics, and ZIP
    * - Engineering route
      - Browser-only lesson
-     - Local Streamlit, hosted Hugging Face surface, and AGILAB app execution
+     - Local native React UI, hosted Hugging Face surface, and AGILAB app execution
 
 One-Minute Demo Route
 ---------------------
@@ -64,7 +64,7 @@ One-Minute Demo Route
 .. code-block:: bash
 
    agilab app surface pytorch_playground_project --list
-   agilab app surface pytorch_playground_project --ui streamlit
+   agilab app surface pytorch_playground_project --ui react
 
 Then:
 

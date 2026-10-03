@@ -1,99 +1,56 @@
-agi-web API
-===========
+agi-web native runtime
+======================
 
-``agi-web`` is the portable AGILAB web component contract. It is not a second
-application framework and it does not make AGILAB depend on a JavaScript build
-pipeline. It gives apps a stable, JSON-normalized payload and evidence hash so
-the same UI island can render in Streamlit/static HTML today through bundled
-Canvas2D/WebGL adapters while keeping a React-ready component boundary without
-changing the app-side contract.
+``agi_web`` supplies AGILAB's native React host, Python UI facade and portable
+component contracts. It is used by the main interface, retained Python views
+and notebook widgets. The current source package does not require Streamlit.
+For installation, callback examples and export boundaries, see
+:doc:`agilab-native-react-ui-notebook-export`.
 
-Use ``agi-web`` when a view needs browser-level fluidity, for example a
-training playground, a simulation cockpit, or an interactive digital twin view.
-Keep normal forms, tables, and operator controls in ``agi-gui`` / Streamlit.
-The default static renderer can use WebGL for the decision-surface heatmap and
-Canvas2D for the overlay/fallback. It supports local frame replay, scrubbing,
-clickable timelines, keyboard controls, confidence badges, uncertainty-contour
-glow, and hover readouts for payloads that expose ``samples``, ``grid``,
-``snapshots``, and ``history`` records.
+This page describes source APIs. Published package versions and hosted demos
+remain tied to their release evidence until a new release is published.
 
-Contract
---------
+Python view runtime
+-------------------
 
-The public Python surface is intentionally small:
+Use ``from agi_web import python_ui as ui`` for Python controls, state, forms,
+tables, charts and navigation. Run a Python file with::
 
-- ``AgiWebComponent``: component id, title, renderer spec, payload, actions,
-  fallback HTML, and deterministic evidence.
-- ``AgiWebRendererSpec``: renderer id, technology label, entrypoint, assets, and
-  declared capabilities.
-- ``AgiWebAction`` and ``AgiWebAsset``: optional action/asset metadata for
-  adapters that support richer browser interaction.
-- ``component_to_static_html`` and ``render_streamlit``: build-free renderers
-  for current AGILAB pages.
-- ``records_from_data`` and ``normalize_json_value``: deterministic conversion
-  helpers for dataframe-like payloads.
+   python -m agi_web.react_python_host VIEW.py --address 127.0.0.1 --no-browser
 
-Example
--------
+``agi_web.notebook_python_view.render_python_view`` renders the same file in
+Jupyter through an AnyWidget. Each view has its Python session; callback events
+rerender that session. Notebook styles remain local to the widget.
 
-.. code-block:: python
+``agi_web.portable_python_host.export_python_host`` copies the standard-library
+host and bundled assets into a portable directory. It does not export the
+app's scientific dependencies, models or datasets automatically.
 
-   from agi_web import AgiWebComponent, AgiWebRendererSpec, render_streamlit
+Portable component contract
+---------------------------
 
-   component = AgiWebComponent(
-       component_id="decision-boundary",
-       title="Decision boundary",
-       renderer=AgiWebRendererSpec(
-           renderer_id="pytorch-boundary-webgl",
-           technology="webgl",
-           capabilities=("decision-boundary", "learning-replay", "gpu-heatmap"),
-       ),
-       payload={
-           "samples": [{"x1": -0.4, "x2": 0.2, "target": 1}],
-           "grid": [{"x1": -0.5, "x2": 0.0, "probability": 0.72}],
-           "snapshots": [
-               {"epoch": 0, "x1": -0.5, "x2": 0.0, "probability": 0.51},
-               {"epoch": 8, "x1": -0.5, "x2": 0.0, "probability": 0.72},
-           ],
-       },
-   )
+- ``AgiWebComponent`` describes an evidence-backed visual island with an ID,
+  title, payload, renderer and optional actions/assets.
+- ``AgiWebRendererSpec`` identifies the renderer and bundled resources.
+- ``AgiWebAction`` and ``AgiWebAsset`` describe the component's actions and
+  assets without moving app computations into the frontend.
+- ``component_to_static_html`` exports an already computed visualisation.
+- ``render_python`` renders a component through the native Python UI facade.
+- ``render_notebook`` provides the component notebook adapter.
+- ``coordinate_map_component`` and ``analysis_curves_component`` build the
+  common React map and curves payloads; ``render_react_notebook`` in
+  ``agi_web.react_analysis`` supplies their interactive notebook renderer.
 
-   render_streamlit(component)
+React, Graphviz, Vega and mathematical rendering resources are bundled
+locally, including their licence notices. Rendering does not require a CDN.
+Specialised app renderers may have additional dependencies and external data
+requirements; declare those in the app rather than in worker-only packages.
 
-Current boundary
-----------------
+Compatibility names
+-------------------
 
-The shipped renderer is a build-free static/Streamlit adapter with Canvas2D
-and WebGL paths: timeline chips, play/pause, arrow-key scrubbing, confidence
-HUD, uncertainty contour, and pointer inspection. React is supported as a
-first-class renderer technology in the payload contract and adapter boundary,
-but AGILAB does not yet ship a shared React application shell. That distinction
-is deliberate: AGILAB apps should first own a stable payload/evidence contract,
-then add heavier frontend adapters only where the UX requires them.
-
-Visual guard
-------------
-
-``tools/agi_web_visual_regression.py`` renders a deterministic WebGL fixture in
-Chromium, asserts that the WebGL renderer activates when available, captures a
-screenshot, and writes a screenshot manifest. The matching workflow parity
-profile is ``agi-web-visual``. That profile compares the Chromium screenshot
-against ``docs/source/_static/agi-web-visual-baseline`` and enforces a render
-budget so a polished canvas does not regress into a slow one.
-
-Use explicit browsers when validating adapter portability:
-
-.. code-block:: bash
-
-   uv --preview-features extra-build-dependencies run --with playwright --with pillow \
-     python tools/agi_web_visual_regression.py \
-       --browser chromium --browser firefox --browser webkit \
-       --allow-canvas-fallback \
-       --max-render-ms 2500 \
-       --json
-
-The same check is also exposed as the opt-in ``agi-web-cross-browser`` profile.
-That profile installs Chromium/Firefox/WebKit Playwright browsers and runs the
-fixture with Canvas fallback allowed. It is intentionally separate from the
-default profile because browser downloads and headless WebGL behavior are
-environment-dependent. Chromium remains the strict WebGL visual baseline.
+``render_streamlit(..., streamlit=...)`` remains a compatibility spelling for
+``render_python`` with an explicit Python UI provider. Some page helpers and
+older app configuration retain similar names. They use the native facade and
+do not restore the former dependency or launch path. Prefer the native names
+when writing new views.

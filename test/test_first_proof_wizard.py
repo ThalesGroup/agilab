@@ -38,7 +38,7 @@ def test_first_proof_content_exposes_one_actionable_validated_route() -> None:
     assert content["compatibility_report_status"] == "pass"
     assert content["proof_command_labels"] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
     ]
     assert content["run_manifest_filename"] == "run_manifest.json"
@@ -56,7 +56,7 @@ def test_first_proof_tool_contract_uses_newcomer_smoke_defaults() -> None:
     assert contract.active_app.name == "flight_telemetry_project"
     assert contract.command_labels == (
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
     )
     assert contract.target_seconds == 600.0

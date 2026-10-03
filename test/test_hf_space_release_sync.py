@@ -67,7 +67,7 @@ def test_notebook_demo_export_is_allowlisted_and_hash_verified(tmp_path: Path) -
     exporter = _load_notebook_exporter()
     destination = tmp_path / "space"
     report = exporter.export(destination)
-    expected = set(exporter.SOURCE_FILES) | set(exporter.GENERATED_FILES) | {"PUBLIC_HASHES.json"}
+    expected = set(exporter.PUBLIC_SOURCE_FILES) | set(exporter.GENERATED_FILES) | {"PUBLIC_HASHES.json"}
     assert set(report["files"]) == expected == set(report["sha256"])
     assert {p.relative_to(destination).as_posix() for p in destination.rglob("*") if p.is_file()} == expected
     for name, digest in report["sha256"].items():
@@ -89,7 +89,7 @@ def test_notebook_demo_export_smoke_verifies_and_runs_staged_app(tmp_path: Path)
     assert json.loads(result.stdout.strip().splitlines()[-1])["status"] == "passed"
     code = """
 from pathlib import Path
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 from agilab.demos import notebook_showcase
 assert Path(notebook_showcase.__file__).resolve().is_relative_to(Path.cwd())
 app = AppTest.from_file('hf_app.py', default_timeout=30).run()
@@ -296,15 +296,17 @@ def test_generated_dockerfile_refreshes_first_proof_helpers_on_boot() -> None:
 
     assert "src/agilab/apps/install.py" in module.DOCKERFILE_TEMPLATE
     assert "flight_telemetry_project --verbose 0" in module.DOCKERFILE_TEMPLATE
-    assert "streamlit run /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
+    assert "python -m agi_web.react_python_host /app/hf_app.py" in module.DOCKERFILE_TEMPLATE
 
 
-def test_public_space_does_not_introspect_lazy_ml_modules_for_file_watching() -> None:
-    """The watcher can invoke transformers.__getattr__ and import absent vision extras."""
+def test_public_space_uses_native_host_without_module_file_watching() -> None:
     dockerfile = _load_module().DOCKERFILE_TEMPLATE
     command = dockerfile[dockerfile.index('CMD ['):]
-    assert "--server.fileWatcherType none" in command
-    assert command.index("--server.fileWatcherType none") < command.index("-- --apps-path")
+    assert "python -m agi_web.react_python_host /app/hf_app.py" in command
+    assert "--address 0.0.0.0" in command
+    assert "AGILAB_PUBLIC_BIND_OK=1 AGILAB_TLS_TERMINATED=1" in command
+    assert "streamlit" not in command.lower()
+    assert "--server.fileWatcherType" not in command
 
 
 def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
@@ -336,21 +338,14 @@ def test_milp_lab_is_verified_before_serving() -> None:
     assert dockerfile.index("--extra notebook-agent") < start < check < dockerfile.index('CMD [')
 
 
-def test_space_entrypoint_avoids_legacy_pages_router(tmp_path) -> None:
-    from streamlit.runtime.pages_manager import PagesManager
-
+def test_space_entrypoint_explicitly_runs_agilab_main(tmp_path) -> None:
     module = _load_module()
     apps, pages = module.profile_entries("first-proof")
     module.write_profile_assets(tmp_path, "first-proof", apps, pages)
     entrypoint = tmp_path / "hf_app.py"
-    assert 'runpy.run_module("agilab.main_page", run_name="__main__")' in entrypoint.read_text()
-    previous = PagesManager.uses_pages_directory
-    try:
-        PagesManager.uses_pages_directory = None
-        manager = PagesManager(str(entrypoint))
-        assert manager.uses_pages_directory is False
-    finally:
-        PagesManager.uses_pages_directory = previous
+    source = entrypoint.read_text()
+    assert 'runpy.run_module("agilab.main_page", run_name="__main__")' in source
+    assert "streamlit" not in source.lower()
 
 
 def test_first_proof_profile_uses_public_weather_demo() -> None:

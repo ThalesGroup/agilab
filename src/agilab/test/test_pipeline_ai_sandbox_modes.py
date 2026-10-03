@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-import streamlit as st
+from agi_web import python_ui as st
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "pipeline" / "pipeline_ai.py"
 

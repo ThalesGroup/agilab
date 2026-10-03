@@ -22,6 +22,7 @@ def lab_ui(monkeypatch, tmp_path):
         "get_info_bar": lambda: {},
         "get_css_text": lambda: {},
         "code_editor": lambda *a, **k: None,
+        "_render_workflow_cockpit": lambda **kwargs: None,
     }.items():
         monkeypatch.setattr(pipeline_lab, name, value)
     entries = [{"D":"", "Q":"question", "M":"model", "C":"print('stage')", "E":""}]

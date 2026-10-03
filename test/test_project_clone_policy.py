@@ -1222,7 +1222,8 @@ def test_packaged_notebook_samples_create_projects_that_preserve_base_app_contra
     for sample in sample_module.list_sample_notebooks():
         source_root = BUILTIN_APPS_ROOT / sample.recommended_template
         assert source_root.is_dir()
-        shutil.copytree(source_root, builtin_root / sample.recommended_template)
+        shutil.copytree(source_root, builtin_root / sample.recommended_template,
+                        ignore=shutil.ignore_patterns(".venv"))
 
     def _clone_project(source: Path, target: Path) -> None:
         clone_calls.append((source, target))

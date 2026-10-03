@@ -72,7 +72,7 @@
     "status": "passed"
   },
   "files": {
-    "app.py": "f4efa61f216c758602372a288296f95d424c76bbd9fece982cbfac0f58ebf933",
+    "app.py": "0f4d560e86bd7e07620f4f66ba83f228843bef377f60e42035f9a4730f08c87f",
     "models.py": "5390e6c9bcf19cef6c9951993cd4f016678501c23680188c635decd46c71dd35",
     "solution.ipynb": "192bd3b9aa284d7a018b5e61a2dfb9f79284d8503ce4106469d0975b883c6ab2",
     "lab_stages.toml": "7c9aa314c8bd7a2df0ad52d5ff8d9cb74795015a004074714255e68d97282005"
@@ -131,5 +131,136 @@
     "agent": "OpenCode",
     "supervisor": "Codex",
     "workflow_mode": "hybrid_supervision_local_codegen"
+  },
+  "native_ui_migration": {
+    "schema": "agilab.native_notebook_demo_migration.v1",
+    "verified_at_utc": "2026-10-03T17:54:13.631105+00:00",
+    "interface_runtime": "agi_web.python_ui",
+    "original_files": {
+      "app.py": "f4efa61f216c758602372a288296f95d424c76bbd9fece982cbfac0f58ebf933",
+      "models.py": "5390e6c9bcf19cef6c9951993cd4f016678501c23680188c635decd46c71dd35",
+      "solution.ipynb": "192bd3b9aa284d7a018b5e61a2dfb9f79284d8503ce4106469d0975b883c6ab2",
+      "lab_stages.toml": "7c9aa314c8bd7a2df0ad52d5ff8d9cb74795015a004074714255e68d97282005"
+    },
+    "original_verification": {
+      "checks": [
+        "held_out_models",
+        "fresh_notebook_execution",
+        "app_startup",
+        "app_slider_interaction"
+      ],
+      "result_file": "metrics.json",
+      "result_sha256": "0e521d2a56d4eee9835016cc2ac51ec8dadfafb445d3058e4133dd7998c33896",
+      "scores": [
+        {
+          "accuracy": 0.9777777777777777,
+          "model": "decision_tree",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "random_forest",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "logistic_regression",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "decision_tree",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "random_forest",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "logistic_regression",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.8888888888888888,
+          "model": "decision_tree",
+          "seed": 83
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "random_forest",
+          "seed": 83
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "logistic_regression",
+          "seed": 83
+        }
+      ],
+      "status": "passed"
+    },
+    "verifier_sha256": "fea17908738b958631bbd6c4ca3321255f1f03146eff2b8afaa8aa82ca784e52",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": false,
+    "native_verification": {
+      "checks": [
+        "held_out_models",
+        "fresh_notebook_execution",
+        "app_startup",
+        "app_slider_interaction"
+      ],
+      "result_file": "metrics.json",
+      "result_sha256": "0e521d2a56d4eee9835016cc2ac51ec8dadfafb445d3058e4133dd7998c33896",
+      "scores": [
+        {
+          "accuracy": 0.9777777777777777,
+          "model": "decision_tree",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "random_forest",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "logistic_regression",
+          "seed": 7
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "decision_tree",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "random_forest",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.9555555555555556,
+          "model": "logistic_regression",
+          "seed": 29
+        },
+        {
+          "accuracy": 0.8888888888888888,
+          "model": "decision_tree",
+          "seed": 83
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "random_forest",
+          "seed": 83
+        },
+        {
+          "accuracy": 0.9333333333333333,
+          "model": "logistic_regression",
+          "seed": 83
+        }
+      ],
+      "status": "passed"
+    },
+    "scientific_proof_retention": {}
   }
 }

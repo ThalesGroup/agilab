@@ -64,7 +64,7 @@ App-owned multi-UI surfaces
 
 Page bundles stay app-agnostic. When an app needs an interactive UI that owns
 training, controls, live loops, or evidence refresh, declare an app-owned
-surface instead. The default Streamlit surface remains compatible with the
+surface instead. The default native React UI surface remains compatible with the
 ANALYSIS and ORCHESTRATE pages, while additional named backends can point to a
 hosted demo or future UI adapters.
 
@@ -73,10 +73,10 @@ hosted demo or future UI adapters.
    [app_surface]
    title = "PyTorch Playground"
    entrypoint = "pytorch_playground/app_surface.py"
-   default = "streamlit"
+   default = "react"
 
-   [app_surface.backends.streamlit]
-   backend = "streamlit"
+   [app_surface.backends.react]
+   backend = "react"
    entrypoint = "pytorch_playground/app_surface.py"
    capabilities = ["local", "live-training", "play-pause"]
 
@@ -93,12 +93,17 @@ release-proof links, and documentation entry points.
 
 The generic launcher is::
 
-   agilab app surface pytorch_playground_project --ui streamlit
+   agilab app surface pytorch_playground_project --ui react
    agilab app surface pytorch_playground_project --ui hf
+
+Legacy ``backend = "streamlit"`` declarations are accepted as a configuration
+alias for ``react``. Their Python entrypoint is retained and executes through
+the native host. The ``hf`` route opens the existing hosted release and does
+not imply that its deployment has been updated to the source migration.
 
 The rule is strict: the app runtime, artifacts, and evidence contracts stay in
 the app package. UI surfaces are thin adapters, so a project can move from
-Streamlit to another frontend without losing its work.
+native React UI to another frontend without losing its work.
 
 What is a page bundle?
 ----------------------
@@ -173,12 +178,12 @@ Every page bundle interacts with AGILAB through a small, stable interface.
 Keeping to this contract is what lets one bundle serve many projects without
 app-specific wiring. The shared helpers live in ``agi_pages.runtime``.
 
-**Launch arguments.** ANALYSIS launches a bundle as a Streamlit script and
+**Launch arguments.** ANALYSIS launches a bundle as a native React UI script and
 passes the active project explicitly:
 
 .. code-block:: bash
 
-   streamlit run src/<page>/<page>.py -- --active-app /path/to/<project>
+   python -m agi_web.react_python_host src/<page>/<page>.py -- --active-app /path/to/<project>
 
 Pages resolve this with ``agi_pages.runtime.resolve_active_app_path``, which
 falls back to the ``AGILAB_ACTIVE_APP`` environment variable. A page must not
@@ -200,7 +205,7 @@ absent:
 
 Other bundles and tools must not repurpose a table owned by another page.
 
-**Session-state scoping.** Streamlit session state persists across the pages a
+**Session-state scoping.** native React UI session state persists across the pages a
 user visits. Bundles namespace their widget keys with a stable prefix and
 reset page-owned state when the active app changes, using
 ``agi_pages.runtime.reset_scoped_session_state`` together with
@@ -215,7 +220,8 @@ conventional per-page export root
 empty list for invalid roots.
 
 **Page chrome.** ``agi_pages.runtime.configure_streamlit_page`` and
-``agi_pages.runtime.render_streamlit_page_header`` apply the shared page
+``agi_pages.runtime.render_streamlit_page_header`` retain compatibility
+names and apply the shared native Python UI page
 configuration, logo, and title so bundles stay visually consistent.
 
 **App-surface handoff.** App-owned surfaces (cockpits) deep-link back to the
@@ -277,7 +283,7 @@ pulled by the umbrella dependency graph.
      - Included in ``agi-pages``.
    * - ``app_ui``
      - ``agi-page-app-ui``
-     - Bridge that displays an app-owned Streamlit UI from ANALYSIS.
+     - Bridge that displays an app-owned native React UI from ANALYSIS.
      - Included in ``agi-pages``.
    * - ``view_maps``
      - ``agi-page-geospatial-map``
@@ -445,7 +451,7 @@ Live evidence monitor for app-agnostic exported artifacts.
 app_ui
 ^^^^^^
 
-Generic bridge for the default app-owned Streamlit UI.
+Generic bridge for the default app-owned native React UI.
 
 - Input: an active app with ``[app_surface]`` or ``[pages.app_ui].entrypoint``
   configured in ``app_settings.toml``.

@@ -134,7 +134,7 @@ def test_append_route_query_preserves_active_app_and_adds_deep_link() -> None:
     assert url == "http://127.0.0.1:8501/PROJECT?active_app=flight_telemetry_project&start=notebook-import"
 
 
-def test_streamlit_health_failure_detail_includes_process_output() -> None:
+def test_react_health_failure_detail_includes_process_output() -> None:
     module = _load_module()
 
     class _Health:
@@ -152,7 +152,7 @@ def test_streamlit_health_failure_detail_includes_process_output() -> None:
         def output_tail() -> str:
             return "Traceback: missing dependency"
 
-    detail = module._streamlit_health_failure_detail(
+    detail = module._react_health_failure_detail(
         _Health(),
         _Server(),
         base_url="http://127.0.0.1:8501",
@@ -554,7 +554,7 @@ def test_write_failure_bundle_records_progress_tail_and_page_diagnostics(tmp_pat
 
     monkeypatch.setattr(module, "_capture_failure_bundle_screenshot", lambda *_args, **_kwargs: ("failure.png", None))
     monkeypatch.setattr(module, "_page_text_snapshot", lambda _page: ("visible page text", None))
-    monkeypatch.setattr(module, "_visible_streamlit_issue_detail", lambda _page: "streamlit exploded")
+    monkeypatch.setattr(module, "_visible_native_issue_detail", lambda _page: "streamlit exploded")
 
     bundle = module._write_failure_bundle(
         root=tmp_path,
@@ -591,7 +591,7 @@ def test_write_failure_bundle_records_page_diagnostic_collection_errors(tmp_path
     def _raise_visible_issue(_page):
         raise RuntimeError("collector failed")
 
-    monkeypatch.setattr(module, "_visible_streamlit_issue_detail", _raise_visible_issue)
+    monkeypatch.setattr(module, "_visible_native_issue_detail", _raise_visible_issue)
 
     bundle = module._write_failure_bundle(
         root=tmp_path,
@@ -879,7 +879,7 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                     </div>
                     <button class="actual-tiny">Tiny control</button>
                     <input class="actual-tiny custom-tiny-input">
-                    <div data-testid="stSelectbox">
+                    <div data-widget-kind="selectbox">
                       <input class="actual-tiny framework-tiny-input">
                     </div>
                     <div data-testid="hidden-dateinput-container">
@@ -887,7 +887,7 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
                     </div>
                     <input type="date" class="unnamed-date-input">
                     <button class="off-left">Off left</button>
-                    <div data-testid="stDataFrame">
+                    <div data-widget-kind="dataframe">
                       <canvas
                         class="grid-canvas framework-grid-canvas"
                         data-testid="data-grid-canvas"
@@ -949,7 +949,7 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
     assert any(
         issue.get("label") == "INPUT"
         and issue.get("framework_owned") is True
-        and issue.get("framework_owner") == "stSelectbox"
+        and issue.get("framework_owner") == "selectbox"
         for issue in zero_size_issues
     )
 
@@ -1020,7 +1020,7 @@ def test_layout_integrity_collector_uses_painted_geometry_for_expander_content(
         and issue.get("label") == "INPUT"
     ]
     assert any("tag=INPUT type=text" in detail for detail in unnamed_input_details)
-    assert any("container-testid=stSelectbox" in detail for detail in unnamed_input_details)
+    assert any("container-testid=selectbox" in detail for detail in unnamed_input_details)
     assert all("value=" not in detail for detail in unnamed_input_details)
     hidden_date_issue = next(
         issue
@@ -1593,7 +1593,7 @@ def test_required_text_probe_scrolls_to_materialize_combobox_semantics() -> None
                     return ["Pool executor", "Auto (ORCHESTRATE setting)"]
                 return []
             if script == module.SCROLL_METRICS_JS:
-                return {"root": "stMain", "y": self.scroll_y, "height": 1000, "scrollHeight": 1800}
+                return {"root": "main", "y": self.scroll_y, "height": 1000, "scrollHeight": 1800}
             if script == module.SCROLL_TO_JS:
                 target = args[0]
                 if isinstance(target, dict):
@@ -1621,7 +1621,7 @@ def test_required_text_probe_scrolls_to_materialize_combobox_semantics() -> None
     assert page.semantic_collections >= 2
     assert page.scrolls == [0, 800, 125]
     assert page.scroll_y == 125
-    assert page.restore_roots == ["stMain"]
+    assert page.restore_roots == ["main"]
 
 
 def test_required_text_probe_retries_scroll_metrics_until_dom_materializes() -> None:
@@ -1657,7 +1657,7 @@ def test_required_text_probe_retries_scroll_metrics_until_dom_materializes() -> 
             if script == module.SCROLL_METRICS_JS:
                 self.metrics_collections += 1
                 return {
-                    "root": "stMain",
+                    "root": "main",
                     "y": self.scroll_y,
                     "height": 1000,
                     "scrollHeight": 1800 if self.metrics_collections >= 4 else 1000,
@@ -1689,7 +1689,7 @@ def test_required_text_probe_retries_scroll_metrics_until_dom_materializes() -> 
     assert page.metrics_collections == 4
     assert page.semantic_collections == 5
     assert page.scrolls == [0, 0, 0, 800, 125]
-    assert page.restore_targets == [{"root": "stMain", "y": 125}]
+    assert page.restore_targets == [{"root": "main", "y": 125}]
 
 
 def test_required_text_probe_bounds_scroll_positions_and_deadline(monkeypatch) -> None:
@@ -1726,7 +1726,7 @@ def test_required_text_probe_bounds_scroll_positions_and_deadline(monkeypatch) -
                 self.semantic_collections += 1
                 return []
             if script == module.SCROLL_METRICS_JS:
-                return {"root": "stMain", "y": 17, "height": 1000, "scrollHeight": 100_000}
+                return {"root": "main", "y": 17, "height": 1000, "scrollHeight": 100_000}
             if script == module.SCROLL_TO_JS:
                 target = args[0]
                 if isinstance(target, dict):
@@ -1754,7 +1754,7 @@ def test_required_text_probe_bounds_scroll_positions_and_deadline(monkeypatch) -
     assert page.scrolls[-1] == 17
     assert len(page.scrolls) - 1 < module.REQUIRED_TEXT_MAX_SCROLL_POSITIONS
     assert page.semantic_collections == 3
-    assert page.restore_roots == ["stMain"]
+    assert page.restore_roots == ["main"]
 
 
 def test_required_text_probe_caps_repeated_scroll_attempts(monkeypatch) -> None:
@@ -1884,7 +1884,7 @@ def test_visible_combobox_semantics_collector_filters_hidden_controls(monkeypatc
                         height: 340px;
                         overflow: hidden;
                       }
-                      section[data-testid="stMain"] {
+                      main {
                         width: 280px;
                         height: 300px;
                         overflow: auto;
@@ -1944,11 +1944,11 @@ def test_visible_combobox_semantics_collector_filters_hidden_controls(monkeypatc
                       <input role="combobox" aria-label="Ancestor clipped" value="Hidden">
                     </div>
                     <div class="outer-viewport">
-                      <section data-testid="stMain">
+                      <main>
                         <div class="scrollable-content">
                           <input class="scrollable-choice" role="combobox" aria-label="Scrollable choice" value="Reachable">
                         </div>
-                      </section>
+                      </main>
                     </div>
                     <input class="zero-size" role="combobox" aria-label="Zero size" value="Hidden">
                     <input class="sr-only" role="combobox" aria-label="Screen reader only" value="Hidden">
@@ -1981,7 +1981,7 @@ def test_visible_combobox_semantics_collector_filters_hidden_controls(monkeypatc
     assert sr_only_box is not None
     assert sr_only_box["width"] == 1
     assert sr_only_box["height"] == 1
-    assert initial_metrics == {"root": "stMain", "y": 125, "height": 300, "scrollHeight": 2800}
+    assert initial_metrics == {"root": "main", "y": 125, "height": 300, "scrollHeight": 2800}
     assert initial_semantics == ["Offscreen choice", "Available"]
     assert probe.status == "interacted"
     assert final_metrics == initial_metrics
@@ -2104,7 +2104,7 @@ def test_forbidden_sidebar_text_probe_reports_visible_sidebar_text() -> None:
 
         @staticmethod
         def locator(selector: str) -> _SidebarLocator:
-            assert selector == "[data-testid='stSidebar']"
+            assert selector == "[data-region='sidebar']"
             return _SidebarLocator()
 
     probe = module._forbidden_sidebar_text_probe(
@@ -3894,7 +3894,7 @@ def test_progress_reporter_stderr_and_resume_edge_cases(tmp_path, capsys) -> Non
     assert emitted == [{"event": "page_resume", "app": "flight", "page": "PROJECT", "status": "passed"}]
 
 
-def test_streamlit_health_failure_detail_handles_running_process() -> None:
+def test_react_health_failure_detail_handles_running_process() -> None:
     module = _load_module()
 
     class _Process:
@@ -3908,7 +3908,7 @@ def test_streamlit_health_failure_detail_handles_running_process() -> None:
         def output_tail():
             return "tail"
 
-    detail = module._streamlit_health_failure_detail(
+    detail = module._react_health_failure_detail(
         type("Health", (), {"detail": ""})(),
         _Server(),
         base_url="http://localhost:8501",
@@ -4024,7 +4024,7 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
             "kind": "checkbox",
             "label": "Show advanced",
             "checked": False,
-            "testid": "stCheckbox",
+            "testid": "checkbox",
             "path": "input:nth-of-type(1)",
             "scope": "main",
         },
@@ -4033,7 +4033,7 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
             "kind": "toggle",
             "label": "Cluster mode",
             "checked": True,
-            "testid": "stToggle",
+            "testid": "toggle",
             "path": "input:nth-of-type(2)",
             "scope": "sidebar",
         },
@@ -4052,7 +4052,7 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
             "name": "backend",
             "value": "local",
             "checked": True,
-            "testid": "stRadio",
+            "testid": "radio",
             "path": "input:nth-of-type(3)",
             "scope": "main",
         },
@@ -4063,7 +4063,7 @@ def test_static_widget_combination_controls_cover_binary_and_radio_groups() -> N
             "name": "backend",
             "value": "cluster",
             "checked": False,
-            "testid": "stRadio",
+            "testid": "radio",
             "path": "input:nth-of-type(4)",
             "scope": "main",
         },
@@ -4430,7 +4430,7 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
         "id": "main",
         "kind": "button",
         "label": "Run",
-        "testid": "stButton",
+        "testid": "button",
         "path": "button:nth-of-type(1)",
         "scope": "main",
     }
@@ -4442,7 +4442,7 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert module._same_widget(main_widget, sidebar_widget) is False
     assert module._same_widget(main_widget, {**main_widget, "label": "Run now"}) is True
     assert module._same_widget({**main_widget, "label": ""}, {**main_widget, "label": ""}) is True
-    assert "[data-testid='stSidebar']" in module.WIDGET_COLLECTOR_JS
+    assert "[data-region='sidebar']" in module.WIDGET_COLLECTOR_JS
     assert "scope: scopeFor(el)" in module.WIDGET_COLLECTOR_JS
     assert 'removeAttribute("data-agilab-widget-id")' in module.WIDGET_COLLECTOR_JS
     assert "window.__agilabWidgetRobotRunId" in module.WIDGET_COLLECTOR_JS
@@ -4450,16 +4450,16 @@ def test_widget_scope_distinguishes_sidebar_from_main_widgets() -> None:
     assert "details.contains(target)" in module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS
     assert "details.open = true" in module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS
     assert "orchestration log" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
-    assert "stCodeBlock" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
-    assert "stStatus" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
-    assert "stToast" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
-    assert "fatalTextNeedles" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "pre" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
+    assert ".py-status" in module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS
+    assert ".py-toast" in module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS
+    assert "fatalTextNeedles" in module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS
     assert "diagnostic" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS.lower()
-    assert "install finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
-    assert "install finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "install finished with errors" in module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS
+    assert "install finished with errors" in module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS
     assert "install finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
-    assert "worker deployment finished with errors" in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
-    assert "worker deployment finished with errors" in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
+    assert "worker deployment finished with errors" in module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS
+    assert "worker deployment finished with errors" in module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS
     assert "worker deployment finished with errors" in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
 
 
@@ -4467,8 +4467,8 @@ def test_action_log_error_collectors_ignore_generic_failure_words() -> None:
     module = _load_module()
     broad_needles = {"error", "exception", "failed", "failure", "worker failed"}
     scripts = [
-        module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-        module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+        module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+        module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
         module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
     ]
 
@@ -4488,19 +4488,19 @@ def test_action_log_feedback_collector_catches_install_finished_with_errors() ->
 
     assert '"install finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
     assert '"worker deployment finished with errors"' in module.ACTION_LOG_FEEDBACK_COLLECTOR_JS
-    assert '"finished with errors"' in module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS
-    assert '"installation failed"' in module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+    assert '"finished with errors"' in module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS
+    assert '"installation failed"' in module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS
 
 
-def test_visible_streamlit_issue_detail_detects_error_alert_payload() -> None:
+def test_visible_native_issue_detail_detects_error_alert_payload() -> None:
     module = _load_module()
 
     class _Page:
         def evaluate(self, script):
-            assert script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS
+            assert script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS
             return [{"kind": "error", "detail": "AGI execution failed."}]
 
-    assert module._visible_streamlit_issue_detail(_Page()) == "error: AGI execution failed."
+    assert module._visible_native_issue_detail(_Page()) == "error: AGI execution failed."
 
 
 def test_selected_action_matching_can_require_enabled_button() -> None:
@@ -4535,6 +4535,7 @@ def test_callable_or_value_handles_success_and_exceptions() -> None:
 def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None:
     module = _load_module()
     issues: list[dict[str, str]] = []
+    assert module._browser_issue_is_relevant("console.error", "UIError: invalid callback payload")
 
     module._record_browser_issue(
         issues,
@@ -4568,13 +4569,8 @@ def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None
     )
     module._record_browser_issue(
         issues,
-        kind="http.404",
-        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/health",
-    )
-    module._record_browser_issue(
-        issues,
-        kind="http.404",
-        detail="HTTP 404 http://demo/ORCHESTRATE/_stcore/host-config",
+        kind="http.502",
+        detail="HTTP 502 http://demo/api/health",
     )
 
     assert issues == [
@@ -4582,6 +4578,7 @@ def test_browser_issue_capture_filters_noise_and_records_fatal_console() -> None
         {"kind": "pageerror", "detail": "TypeError: broken widget callback"},
         {"kind": "requestfailed", "detail": "https://demo/agilab.js net::ERR_FAILED"},
         {"kind": "http.500", "detail": "HTTP 500 https://demo/api/run"},
+        {"kind": "http.502", "detail": "HTTP 502 http://demo/api/health"},
     ]
 
 
@@ -4767,12 +4764,12 @@ def test_probe_selected_actions_first_preselects_before_run_action(tmp_path) -> 
             if script == module.WIDGET_COLLECTOR_JS:
                 evaluate_events.append("collect")
                 return [dict(widget) for widget in current_widgets]
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return []
             raise AssertionError(script)
 
         def locator(self, selector):
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator("spinner", count=0)
             widget_id = selector.split("'")[1]
             return _Locator(widget_id)
@@ -4854,8 +4851,8 @@ def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_pa
             if script in {
                 module.CLOSE_EXPANDERS_JS,
                 module.OPEN_EXPANDERS_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -4864,7 +4861,7 @@ def test_probe_selected_actions_first_recollects_between_stateful_actions(tmp_pa
             raise AssertionError(script)
 
         def locator(self, selector):
-            if selector in {"body", "[data-testid='stSpinner']"}:
+            if selector in {"body", "[data-widget-kind='status'][data-state='running'], .py-working"}:
                 return _Locator(selector, count=0 if selector != "body" else 1)
             widget_id = selector.split("'")[1]
             return _Locator(widget_id)
@@ -4977,7 +4974,7 @@ def test_probe_selected_actions_first_stops_after_selected_action_failure(tmp_pa
 
     def fake_probe_widget(page, widget, **_kwargs):
         called.append(widget["label"])
-        return "failed", "button click rendered Streamlit error: error: AGI execution failed."
+        return "failed", "button click rendered native UI error: error: AGI execution failed."
 
     try:
         module._probe_widget = fake_probe_widget
@@ -5145,12 +5142,12 @@ def test_probe_selected_actions_first_fails_disabled_selected_action(tmp_path) -
                 return 0
             if script == module.WIDGET_COLLECTOR_JS:
                 return [{"id": "delete", "kind": "button", "label": "Delete output", "scope": "main"}]
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return []
             return []
 
         def locator(self, selector):
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator()
             return _Locator()
 
@@ -5215,12 +5212,12 @@ def test_collect_and_probe_current_view_fails_on_visible_error_after_interaction
                         "id": "w1",
                         "kind": "checkbox",
                         "label": "Cluster",
-                        "testid": "stCheckbox",
+                        "testid": "checkbox",
                         "path": "input:nth-of-type(1)",
                         "scope": "main",
                     }
                 ]
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return [{"kind": "error", "detail": "AGI execution failed."}]
             return []
 
@@ -5369,7 +5366,7 @@ def test_sweep_page_blocks_current_home_selected_actions_before_clicking(tmp_pat
             return _Locator(0)
 
         def evaluate(self, script):
-            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.WIDGET_COLLECTOR_JS}:
+            if script in {module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS, module.WIDGET_COLLECTOR_JS}:
                 return []
             if script == module.OPEN_EXPANDERS_JS:
                 return 0
@@ -5461,7 +5458,7 @@ def test_sweep_page_marks_visible_error_message_as_failed() -> None:
             return _Locator(0)
 
         def evaluate(self, script):
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return [{"kind": "error", "detail": "AGI execution failed."}]
             if script == module.OPEN_EXPANDERS_JS:
                 return 0
@@ -5798,7 +5795,7 @@ def test_sweep_remote_app_returns_failed_result_on_health_timeout() -> None:
 
     class _FakeWebRobot:
         @staticmethod
-        def wait_for_streamlit_health(base_url: str, timeout: float):
+        def wait_for_react_health(base_url: str, timeout: float):
             return _FakeHealthStep()
 
         @staticmethod
@@ -5869,10 +5866,10 @@ def test_sweep_direct_apps_page_returns_failed_result_on_health_timeout() -> Non
             return 8551
 
         @staticmethod
-        def wait_for_streamlit_health(base_url: str, timeout: float):
+        def wait_for_react_health(base_url: str, timeout: float):
             return _HealthStep()
 
-        StreamlitServer = _FakeServer
+        ReactPythonServer = _FakeServer
 
     class _Progress:
         def emit(self, event: str, **payload: object) -> None:
@@ -6035,7 +6032,7 @@ def test_safe_click_policy_clicks_guarded_buttons_and_trials_risky_buttons(tmp_p
         url = "http://demo"
 
         def locator(self, selector):
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator(0)
             return _Locator()
 
@@ -6123,8 +6120,8 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
             if script == module.OPEN_EXPANDERS_JS:
                 return 0
             if script in {
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -6134,7 +6131,7 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
                     "id": "view",
                     "kind": "button",
                     "label": "View details",
-                    "testid": "stButton",
+                    "testid": "button",
                     "path": "button:nth-of-type(1)",
                     "scope": "main",
                 },
@@ -6145,7 +6142,7 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
                         "id": "name",
                         "kind": "text_input",
                         "label": "Name",
-                        "testid": "stTextInput",
+                        "testid": "text_input",
                         "path": "input:nth-of-type(1)",
                         "scope": "main",
                     }
@@ -6153,9 +6150,9 @@ def test_collect_current_view_repeats_discovery_after_safe_callback(tmp_path) ->
             return widgets
 
         def locator(self, selector):
-            if selector == "[data-testid='stException']":
+            if selector == ".py-exception":
                 return _Locator("exception")
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator("spinner")
             if "name" in selector:
                 return _Locator("name")
@@ -6251,7 +6248,7 @@ def test_selected_action_button_clicks_and_detects_visible_error(tmp_path) -> No
             return _Locator()
 
         def evaluate(self, script):
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return [{"kind": "error", "detail": "AGI execution failed."}]
             return []
 
@@ -6308,7 +6305,7 @@ def test_selected_action_button_reopens_expanders_to_detect_action_error(tmp_pat
             if script == module.OPEN_EXPANDERS_JS:
                 expanded["value"] = True
                 return 1
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS and expanded["value"]:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS and expanded["value"]:
                 return [{"kind": "error", "detail": "Distribution build failed."}]
             return []
 
@@ -6364,16 +6361,16 @@ def test_selected_action_button_waits_for_delayed_feedback_error(tmp_path) -> No
 
     class _Page:
         def locator(self, selector):
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator(count=0)
             return _Locator()
 
         def evaluate(self, script):
             if script == module.OPEN_EXPANDERS_JS:
                 return 0
-            if script == module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS:
                 return []
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 if not clicked["value"]:
                     return []
                 feedback_calls["value"] += 1
@@ -6416,9 +6413,9 @@ def test_action_outcome_does_not_settle_on_soft_feedback_before_late_error() -> 
             return _Locator()
 
         def evaluate(self, script):
-            if script in {module.OPEN_EXPANDERS_JS, module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS}:
+            if script in {module.OPEN_EXPANDERS_JS, module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS}:
                 return []
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 feedback_calls["value"] += 1
                 if feedback_calls["value"] == 1:
                     return [{"kind": "info", "detail": "Logs saved"}]
@@ -6454,8 +6451,8 @@ def test_action_outcome_can_settle_when_next_selected_action_appears() -> None:
         def evaluate(self, script):
             if script in {
                 module.OPEN_EXPANDERS_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -6493,11 +6490,11 @@ def test_action_outcome_can_settle_on_soft_feedback_when_target_was_already_read
         def evaluate(self, script):
             if script in {
                 module.OPEN_EXPANDERS_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 return [{"kind": "info", "detail": "Run mode 0: python"}]
             if script == module.WIDGET_COLLECTOR_JS:
                 return []
@@ -6533,8 +6530,8 @@ def test_action_outcome_can_idle_settle_for_already_ready_idempotent_action() ->
         def evaluate(self, script):
             if script in {
                 module.OPEN_EXPANDERS_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
                 module.WIDGET_COLLECTOR_JS,
             }:
@@ -6582,7 +6579,7 @@ def test_visible_spinner_count_ignores_hidden_streamlit_spinners() -> None:
             self.visible_values = visible_values
 
         def locator(self, selector):
-            assert selector == "[data-testid='stSpinner']"
+            assert selector == "[data-widget-kind='status'][data-state='running'], .py-working"
             return _Locator(self.visible_values)
 
     assert module._visible_spinner_count(_Page([False, False])) == 0
@@ -6624,14 +6621,14 @@ def test_selected_action_button_detects_failure_in_orchestration_log_expander(tm
 
     class _Page:
         def locator(self, selector):
-            if selector == "[data-testid='stSpinner']":
+            if selector == "[data-widget-kind='status'][data-state='running'], .py-working":
                 return _Locator(count=0)
             return _Locator()
 
         def evaluate(self, script):
             if script == module.OPEN_EXPANDERS_JS:
                 return 1
-            if script in {module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS, module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS}:
+            if script in {module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS, module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS}:
                 return []
             if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
                 if not clicked["value"]:
@@ -6700,8 +6697,8 @@ def test_install_selected_action_requires_enabled_followup_button(tmp_path) -> N
             if script in {
                 module.OPEN_EXPANDERS_JS,
                 module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -6766,8 +6763,8 @@ def test_install_selected_action_passes_when_followup_is_enabled(tmp_path) -> No
             if script in {
                 module.OPEN_EXPANDERS_JS,
                 module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -6829,8 +6826,8 @@ def test_selected_action_fails_when_settle_budget_is_exceeded(tmp_path) -> None:
             if script in {
                 module.OPEN_EXPANDERS_JS,
                 module.CLOSE_EXPANDERS_EXCEPT_WIDGET_JS,
-                module.VISIBLE_STREAMLIT_ISSUE_COLLECTOR_JS,
-                module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_ISSUE_COLLECTOR_JS,
+                module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS,
                 module.ACTION_LOG_FEEDBACK_COLLECTOR_JS,
             }:
                 return []
@@ -6869,14 +6866,14 @@ def test_selected_action_baseline_includes_stale_action_log_feedback() -> None:
 
     class _Page:
         def evaluate(self, script):
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 return [{"kind": "info", "detail": "Ready"}]
             if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
                 return [{"kind": "success", "detail": "Distribution built successfully."}]
             return []
 
-    signatures = module._visible_streamlit_feedback_signatures(_Page())
-    feedback = module._new_visible_streamlit_feedback(_Page(), signatures)
+    signatures = module._visible_native_feedback_signatures(_Page())
+    feedback = module._new_visible_native_feedback(_Page(), signatures)
 
     assert signatures == {
         ("info", "Ready"),
@@ -6891,7 +6888,7 @@ def test_new_visible_feedback_detects_action_log_failure_after_baseline() -> Non
 
     class _Page:
         def evaluate(self, script):
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 return [{"kind": "info", "detail": "Ready"}]
             if script == module.ACTION_LOG_FEEDBACK_COLLECTOR_JS:
                 if clicked["value"]:
@@ -6900,9 +6897,9 @@ def test_new_visible_feedback_detects_action_log_failure_after_baseline() -> Non
             return []
 
     page = _Page()
-    signatures = module._visible_streamlit_feedback_signatures(page)
+    signatures = module._visible_native_feedback_signatures(page)
     clicked["value"] = True
-    feedback = module._new_visible_streamlit_feedback(page, signatures)
+    feedback = module._new_visible_native_feedback(page, signatures)
 
     assert signatures == {("info", "Ready")}
     assert feedback == {"kind": "error", "detail": "Distribution build failed."}
@@ -6913,7 +6910,7 @@ def test_new_visible_feedback_prioritizes_success_over_incidental_info() -> None
 
     class _Page:
         def evaluate(self, script):
-            if script == module.VISIBLE_STREAMLIT_FEEDBACK_COLLECTOR_JS:
+            if script == module.VISIBLE_NATIVE_FEEDBACK_COLLECTOR_JS:
                 return [
                     {"kind": "info", "detail": "Run mode 0: python"},
                     {"kind": "success", "detail": "Distribution built successfully."},
@@ -6922,7 +6919,7 @@ def test_new_visible_feedback_prioritizes_success_over_incidental_info() -> None
                 return []
             return []
 
-    feedback = module._new_visible_streamlit_feedback(_Page(), set())
+    feedback = module._new_visible_native_feedback(_Page(), set())
 
     assert feedback == {"kind": "success", "detail": "Distribution built successfully."}
 

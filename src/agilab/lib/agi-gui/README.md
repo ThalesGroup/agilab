@@ -5,8 +5,14 @@
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-gui)](https://opensource.org/licenses/BSD-3-Clause)
 [![API docs](https://img.shields.io/badge/docs-agi--gui-brightgreen.svg)](https://thalesgroup.github.io/agilab/agi-gui.html)
 
-`agi-gui` provides the UI dependency bundle for Streamlit pages. It depends on the headless `agi-env` runtime
+`agi-gui` provides the UI dependency bundle for native Python UI pages. It depends on the headless `agi-env` runtime
 and adds reusable page helpers and UI packages.
+
+> The native UI described here is the current source implementation. Previously
+> published PyPI packages may still use the former provider; the commands below
+> install their published release, not this source migration. From an AGILAB
+> source checkout, use `uv sync --extra ui --extra notebook` to install the native
+> interface and notebook widget. Local validation does not publish those changes.
 
 ## Quick Install
 
@@ -14,14 +20,15 @@ and adds reusable page helpers and UI packages.
 pip install agi-gui
 ```
 
-Use `agi-env` for worker/headless runtimes. Use `agi-gui` for Streamlit pages and local UI sessions.
+Use `agi-env` for worker/headless runtimes. Use `agi-gui` for native Python UI pages and local UI sessions.
 
 ## File Picker
 
-`agi_gui.file_picker` provides a reusable Streamlit popover picker for pages that need server-side path selection
+`agi_gui.file_picker` provides a reusable native Python UI popover picker for pages that need server-side path selection
 without exposing arbitrary filesystem access.
 
 ```python
+from agi_web import python_ui as st
 from agi_gui.file_picker import agi_file_picker
 
 selected_path = agi_file_picker(
@@ -37,7 +44,7 @@ The picker validates manual paths and dataframe selections against the configure
 
 ## UX Widgets
 
-`agi_gui.ux_widgets` provides small compatibility wrappers for newer Streamlit primitives. Pages can adopt modern controls while still running on older UI runtimes.
+`agi_gui.ux_widgets` provides small compatibility wrappers for the native Python UI primitives. Pages can adopt modern controls while still running on older UI runtimes.
 
 ```python
 from agi_gui.ux_widgets import compact_choice, status_container, toast
@@ -56,7 +63,7 @@ with status_container(st, "Running pipeline...", state="running") as status:
     toast(st, "Pipeline completed", state="success")
 ```
 
-`compact_choice` uses `st.segmented_control` or `st.pills` when available and falls back to `selectbox` for long lists or older Streamlit versions.
+`compact_choice` uses `st.segmented_control` or `st.pills` when available and falls back to `selectbox` for long lists or earlier UI providers.
 
 ## Widget Registry
 

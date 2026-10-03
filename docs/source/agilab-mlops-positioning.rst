@@ -116,7 +116,7 @@ interactive exploration into a replayable, inspectable workflow:
 - the data connector UI preview report renders connector state and
   connector-derived provenance as static JSON+HTML evidence
 - the data connector live UI report wires connector state and
-  connector-derived provenance into the Release Decision Streamlit page without
+  connector-derived provenance into the Release Decision native React UI page without
   running connector probes
 - the data connector app catalogs report validates app-local connector catalogs
   for every non-template built-in app while preserving legacy path fallbacks
@@ -340,7 +340,7 @@ between research experiments and engineering validation:
 - a data connector UI preview report that turns connector provenance into a
   static review artifact
 - a data connector live UI report that proves Release Decision renders that
-  connector provenance through reusable Streamlit components
+  connector provenance through reusable native React UI components
 - a data connector app catalogs report that proves connector definitions can
   live with built-in apps instead of only in global samples
 - a run-diff/counterfactual evidence report that turns baseline/candidate

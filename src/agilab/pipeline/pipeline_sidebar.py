@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, List, Optional
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agi_env import AgiEnv
 from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases

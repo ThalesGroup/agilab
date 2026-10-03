@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import streamlit as st
+from agi_web import python_ui as st
 import tomllib
 from agi_pages.runtime import (
     active_app_scope_value,

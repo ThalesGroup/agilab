@@ -14,7 +14,7 @@ from typing import Any, Callable, Optional
 
 import pandas as pd
 from agilab.components.code_editor_component import code_editor
-import streamlit as st
+from agi_web import python_ui as st
 
 try:
     import networkx as nx

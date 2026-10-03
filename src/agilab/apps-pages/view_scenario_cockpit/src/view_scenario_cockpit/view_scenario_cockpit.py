@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from agi_pages.runtime import (
     artifact_root as _page_artifact_root,
     configure_streamlit_page,

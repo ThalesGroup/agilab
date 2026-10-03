@@ -247,7 +247,7 @@ def render_streamlit(
 
     st = streamlit
     if st is None:
-        import streamlit as st  # type: ignore[no-redef]
+        from agi_web import python_ui as st  # type: ignore[no-redef]
 
     fragment = chart_spec_to_static_html(spec, height=height, width=width)
     return st.components.v1.html(fragment, height=height, scrolling=False)

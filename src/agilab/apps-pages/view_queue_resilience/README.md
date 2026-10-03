@@ -5,7 +5,7 @@
 Package: `agi-page-queue-health`
 
 
-Streamlit analysis page for queue telemetry exported by any app that writes the
+native Python UI analysis page for queue telemetry exported by any app that writes the
 AGILAB queue-analysis artifact contract.
 
 ## What It Reads
@@ -26,5 +26,5 @@ Run a compatible app once from `ORCHESTRATE` before opening this page from
 ## Development Run
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py -- --active-app src/agilab/apps/builtin/uav_queue_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_queue_resilience/src/view_queue_resilience/view_queue_resilience.py -- --active-app src/agilab/apps/builtin/uav_queue_project
 ```

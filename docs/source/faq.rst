@@ -27,7 +27,7 @@ When should I not use AGILAB?
 
 Do not use AGILAB as-is for these cases:
 
-- a public Streamlit service without external authentication, TLS, and network
+- a public native React UI service without external authentication, TLS, and network
   controls
 - a sole production MLOps control plane for regulated serving, drift monitoring,
   model governance, or audit ownership
@@ -163,7 +163,7 @@ Choose the smallest public surface that matches the task:
      - ``agilab``
    * - CLI proof and compact runtime
      - ``agilab[core]``
-   * - Local Streamlit UI with public app and page catalogs
+   * - Local native React UI with public app and page catalogs
      - ``agilab[ui]``
    * - Packaged examples and notebooks without the full UI profile
      - ``agilab[examples]``
@@ -546,7 +546,7 @@ What does ``tools/newcomer_first_proof.py`` actually prove?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 It proves the recommended newcomer startup path is healthy. Specifically, it
-checks that the lightweight ``agi_env`` preinit smoke works, the Streamlit
+checks that the lightweight ``agi_env`` preinit smoke works, the native React UI
 ``AppTest`` dependency exposes the public API AGILAB needs, the main page boots,
 and the ``ORCHESTRATE`` page boots against the built-in
 ``flight_telemetry_project``.

@@ -7,7 +7,7 @@ contract but is expected to run with FireDucks acceleration.
 
 - A minimal app manager package under `src/fireducks_app/`.
 - Pydantic-backed runtime arguments in `fireducks_app_args.py`.
-- A Streamlit argument form in `src/app_args_form.py`.
+- A native Python UI argument form in `src/app_args_form.py`.
 - Local worker defaults and service-health thresholds in `src/app_settings.toml`.
 - Dataset bootstrap wiring for an optional `data.7z` archive.
 - Empty `work_pool()`, `work_done()`, and `build_distribution()` hooks for app logic.
@@ -28,7 +28,7 @@ then select it from the `PROJECT` page:
 
 ```bash
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 ```
 
 Keep the first check local before enabling cluster execution.

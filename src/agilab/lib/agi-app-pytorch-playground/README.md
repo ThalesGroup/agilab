@@ -1,5 +1,15 @@
 # agi-app-pytorch-playground
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 [![PyPI version](https://img.shields.io/pypi/v/agi-app-pytorch-playground.svg?cacheSeconds=300)](https://pypi.org/project/agi-app-pytorch-playground/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agi-app-pytorch-playground.svg)](https://pypi.org/project/agi-app-pytorch-playground/)
 [![License: BSD 3-Clause](https://img.shields.io/pypi/l/agi-app-pytorch-playground)](https://opensource.org/licenses/BSD-3-Clause)
@@ -41,7 +51,7 @@ root.
 
 ## Direct Launch
 
-When AGILAB is installed, launch the app-managed Streamlit surface directly:
+When AGILAB is installed, launch the app-managed native Python UI surface directly:
 
 ```bash
 agilab pytorch-playground

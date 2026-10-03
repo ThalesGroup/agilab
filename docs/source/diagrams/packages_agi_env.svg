@@ -49,7 +49,7 @@
   <rect x="46" y="302" width="316" height="176" rx="18" ry="18" fill="#d6f6d8" stroke="#0e223f" stroke-width="2" />
   <text class="card-title" x="66" y="332">UI helpers</text>
   <text class="count" x="342" y="332" text-anchor="end">16 modules</text>
-  <text class="card-note" x="66" y="354">Streamlit page and widget support.</text>
+  <text class="card-note" x="66" y="354">Python view and widget support.</text>
   <text class="member" x="66" y="378">pagelib, pagelib_data_support</text>
   <text class="member" x="66" y="397">pagelib_execution_support</text>
   <text class="member" x="66" y="416">pagelib_navigation_support</text>

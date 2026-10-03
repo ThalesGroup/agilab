@@ -98,7 +98,7 @@ The WORKFLOW execution controls expose:
   if it does not, AGILAB runs the saved stage exactly as written.
 * ``Parallel stage workers``: caps how many independent ``agi.*`` stages can
   run at the same time. In-process ``runpy`` stages remain serialized because
-  they share the Streamlit session state.
+  they share the Python view session state.
 * ``Save automation settings``: persists the selected profile and worker cap in
   the ``lab_stages.toml`` metadata. Opening WORKFLOW or changing the controls
   does not rewrite the file until you press this button.

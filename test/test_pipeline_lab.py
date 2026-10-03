@@ -56,6 +56,15 @@ def _load_module(module_name: str, relative_path: str):
 pipeline_lab = _load_module("agilab.pipeline_lab", "src/agilab/pipeline_lab.py")
 
 
+@pytest.fixture(autouse=True)
+def isolate_workflow_cockpit(monkeypatch, request):
+    # These stage-editor tests use a deliberately small UI fake. The cockpit's
+    # tables and tabs are exercised by its model tests and native page tests.
+    # The previous provider skipped this fragment outside its script runtime.
+    if request.node.name.startswith("test_display_lab_tab"):
+        monkeypatch.setattr(pipeline_lab, "_render_workflow_cockpit", lambda **kwargs: None)
+
+
 class _State(dict):
     def __getattr__(self, name):
         try:

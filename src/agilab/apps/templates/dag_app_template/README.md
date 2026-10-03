@@ -7,7 +7,7 @@ wiring before it needs a dataframe-specific implementation.
 
 - A minimal app manager package under `src/dag_app/`.
 - Pydantic-backed runtime arguments in `dag_app_args.py`.
-- A Streamlit argument form in `src/app_args_form.py`.
+- A native Python UI argument form in `src/app_args_form.py`.
 - Local worker defaults and service-health thresholds in `src/app_settings.toml`.
 - A `build_distribution()` hook where the app-specific task graph belongs.
 
@@ -27,7 +27,7 @@ then select it from the `PROJECT` page:
 
 ```bash
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 ```
 
 Keep the first check local before enabling cluster execution.

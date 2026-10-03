@@ -154,6 +154,94 @@ def test_hf_space_export_and_secret_rejection(tmp_path: Path) -> None:
         bridge_cli.export_hf_space(project, tmp_path / "hf-secret", force=True)
 
 
+@pytest.mark.parametrize("address", ["127.0.0.1", "0.0.0.0"])
+def test_hf_export_serves_bundled_native_host_without_site_packages(tmp_path: Path, address: str) -> None:
+    """The exported Docker app must run using its bundled host and the standard library."""
+    import json
+    import socket
+    import subprocess
+    import sys
+    import time
+    import urllib.request
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Portable evidence\n", encoding="utf-8")
+    output = tmp_path / "space"
+    report = bridge_cli.export_hf_space(project, output)
+    assert "agilab_react_graphviz.js" in " ".join(report["native_host_sha256"])
+    assert any(name.endswith(".LICENSE.txt") for name in report["native_host_sha256"])
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    driver = """
+import builtins, pathlib, sys
+original_import = builtins.__import__
+def blocked(name, *args, **kwargs):
+    if name.split('.')[0] == 'streamlit':
+        raise AssertionError('The portable host cannot import Streamlit')
+    return original_import(name, *args, **kwargs)
+builtins.__import__ = blocked
+sys.path.insert(0, str(pathlib.Path.cwd()))
+from agi_web import react_python_host
+assert pathlib.Path(react_python_host.__file__).resolve().is_relative_to(pathlib.Path.cwd())
+react_python_host.main(['app.py', '--address', sys.argv[2], '--port', sys.argv[1], '--no-browser'])
+"""
+    import os
+    environment = dict(os.environ, AGILAB_PUBLIC_BIND_OK="1", AGILAB_TLS_TERMINATED="1")
+    process = subprocess.Popen([sys.executable, "-I", "-S", "-c", driver, str(port), address], cwd=output, env=environment,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+    try:
+        deadline = time.monotonic() + 10
+        while True:
+            if process.poll() is not None:
+                pytest.fail(process.stderr.read())
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/view", timeout=1) as response:
+                    payload = json.load(response)
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+        assert not payload["error"]
+        assert "AGILAB evidence demo" in json.dumps(payload)
+        assert "Portable evidence" in json.dumps(payload)
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/assets/agilab_react_python_host.js", timeout=2) as response:
+            assert response.read() == (output / "agi_web/react_python_host_assets/agilab_react_python_host.js").read_bytes()
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        process.stderr.close()
+
+
+def test_hf_portable_host_rejects_public_bind_without_explicit_consent(tmp_path: Path) -> None:
+    import os
+    import subprocess
+    import sys
+
+    project = tmp_path / "project"
+    project.mkdir()
+    output = tmp_path / "space"
+    bridge_cli.export_hf_space(project, output)
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in {"AGILAB_PUBLIC_BIND_OK", "AGILAB_TLS_TERMINATED"}}
+    driver = """
+import pathlib, sys
+sys.path.insert(0, str(pathlib.Path.cwd()))
+from agi_web import react_python_host
+react_python_host.main(['app.py', '--address', '0.0.0.0', '--port', '0', '--no-browser'])
+"""
+    rejected = subprocess.run([sys.executable, "-I", "-S", "-c", driver], cwd=output, env=environment,
+                              capture_output=True, text=True, timeout=10)
+    assert rejected.returncode != 0
+    assert "AGILAB_PUBLIC_BIND_OK" in rejected.stderr
+
+
 def test_hf_space_export_edges_and_secret_scan(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         bridge_cli.export_hf_space(tmp_path / "missing-project", tmp_path / "hf")

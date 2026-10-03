@@ -59,7 +59,7 @@ COMMON_TOKENS = {
 }
 UI_TEST_DEPENDENCY_PATTERNS = (
     re.compile(
-        r"^\s*(?:from\s+streamlit(?:\.|\s)|import\s+streamlit(?:\.|\s|$))",
+        r"^\s*(?:from\s+agi_web(?:\.|\s)|import\s+agi_web(?:\.|\s|$))",
         re.MULTILINE,
     ),
     re.compile(

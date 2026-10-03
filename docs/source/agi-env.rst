@@ -2,7 +2,7 @@ agi-env API
 ===========
 
 ``agi_env`` provides the shared headless environment and path-resolution layer
-used by both AGILab and the core runtime packages. Streamlit/page dependencies
+used by both AGILab and the core runtime packages. native React UI/page dependencies
 live in the separate ``agi-gui`` package under ``src/agilab/lib/agi-gui``.
 
 Usage Example

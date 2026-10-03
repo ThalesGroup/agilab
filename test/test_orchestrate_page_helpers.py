@@ -15,8 +15,8 @@ from types import SimpleNamespace
 import types
 
 import pytest
-from streamlit.errors import StreamlitAPIException
-from streamlit.testing.v1 import AppTest
+from agi_web.python_view_session import UIError
+from agi_web.testing import AppTest
 
 pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
 
@@ -355,9 +355,9 @@ def test_page_helpers_rerun_fragment_or_app_falls_back_on_streamlit_api_error():
     def _rerun(*, scope=None):
         calls.append(("rerun", scope))
         if scope == "fragment":
-            raise StreamlitAPIException("bad scope")
+            raise UIError("bad scope")
 
-    module.rerun_fragment_or_app(_rerun, StreamlitAPIException)
+    module.rerun_fragment_or_app(_rerun, UIError)
 
     assert calls == [("rerun", "fragment"), ("rerun", None)]
 
@@ -565,7 +565,7 @@ def test_page_helpers_delegate_state_log_and_install_wrappers(monkeypatch, tmp_p
 
     query_params: dict[str, object] = {}
     module.set_active_app_query_param(
-        query_params, "demo_project", streamlit_api_exception=StreamlitAPIException
+        query_params, "demo_project", streamlit_api_exception=UIError
     )
     assert query_params["active_app"] == "demo_project"
 
@@ -1742,7 +1742,7 @@ def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
 
     class _BrokenQueryParams(dict):
         def __setitem__(self, key, value):
-            raise StreamlitAPIException("no runtime")
+            raise UIError("no runtime")
 
     monkeypatch.setattr(
         module, "st", SimpleNamespace(query_params=_BrokenQueryParams())

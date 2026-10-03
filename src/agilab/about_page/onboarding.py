@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 from urllib.parse import urlencode
 
-import streamlit as st
+from agi_web import python_ui as st
 
 
 _IMPORT_GUARD_PATH = Path(__file__).resolve().parents[1] / "import_guard.py"

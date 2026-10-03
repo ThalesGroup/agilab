@@ -1,5 +1,11 @@
 # AGILab future work
 
+
+> Current source UI: React with the native `agi_web` Python view host and embedded
+> Jupyter widgets. See [Native React UI and notebook export](../agilab-native-react-ui-notebook-export.rst).
+> The implementation chronology and former provider references below remain
+> historical; they do not prescribe a current dependency or publication status.
+
 This page tracks planned work only.
 
 - For current shipped capabilities, see {doc}`../features`.

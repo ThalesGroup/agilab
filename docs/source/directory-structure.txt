@@ -462,9 +462,9 @@ resources/
 test/
     __pycache__/ [excluded]
     __init__.py
+    agilab_native_ui_smoke.sh
     test_model_returns_code.py
     test_python_versions.py
-    test_streamlit.sh
 .gitignore
 __init__.py
 main_page.py

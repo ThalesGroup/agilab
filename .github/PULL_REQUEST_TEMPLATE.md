@@ -42,6 +42,6 @@ Commands / checks run:
 - [ ] Release/tag/PyPI impact considered
 - [ ] Repository-scope changes stay within the stated stability boundary or explain why multiple boundaries are needed
 - [ ] DCO/CLA status is acceptable for this contribution
-- [ ] Security checklist considered: secrets, filesystem writes, SSH/cluster behavior, Streamlit exposure, logs, and artifacts
+- [ ] Security checklist considered: secrets, filesystem writes, SSH/cluster behavior, native Python UI exposure, logs, and artifacts
 - [ ] New dependency or optional-profile impact includes SBOM / `pip-audit` evidence or a clear non-release-impact explanation
 - [ ] External app/example changes meet the public acceptance criteria in `CONTRIBUTING.md`

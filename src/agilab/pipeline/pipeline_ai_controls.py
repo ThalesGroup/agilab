@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable
 
-import streamlit as st  # noqa: F401 - imported for parity with the broader UI modules
+from agi_web import python_ui as st  # noqa: F401 - imported for parity with the broader UI modules
 
 from agi_env import AgiEnv
 from agi_env.defaults import get_default_openai_model

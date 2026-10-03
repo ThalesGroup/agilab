@@ -1,5 +1,15 @@
 # PyTorch Playground Project
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 `pytorch_playground_project` is the built-in AGILAB app for reproducible
 neural-network playground experiments.
 
@@ -16,7 +26,7 @@ artifact.
 
 ## What You Learn
 
-- How Streamlit controls map to persisted ORCHESTRATE arguments.
+- How native Python UI controls map to persisted ORCHESTRATE arguments.
 - How an app-owned ANALYSIS surface can show training curves, learning snapshots,
   neuron views, regularization effects, and loss landscape evidence.
 - How the boundary-first panel uses a WebGL-first `agi-web` island with
@@ -34,7 +44,7 @@ artifact.
   a deterministic evidence ZIP.
 - How to reuse the trained experiment outside AGILAB through generated plain
   PyTorch and PyTorch Lightning scripts.
-- How the UI isolates heavy PyTorch work from Streamlit while keeping typed JSON
+- How the UI isolates heavy PyTorch work from native Python UI while keeping typed JSON
   IPC at the subprocess boundary.
 - How the teaching route differs from a classic visual playground: each preset
   opens a replayable configuration, and each full run exports the config,
@@ -42,12 +52,12 @@ artifact.
 
 ## Direct Launch
 
-Use the app-managed environment so PyTorch, `agi-web`, Plotly, and Streamlit
+Use the app-managed environment so PyTorch, `agi-web`, Plotly, and native Python UI
 are installed in the right place:
 
 ```bash
 agilab app surface pytorch_playground_project --list
-agilab app surface pytorch_playground_project --ui streamlit
+agilab app surface pytorch_playground_project --ui react
 ```
 
 To open the hosted backend instead of a local app venv:

@@ -234,7 +234,7 @@ def test_runner_row_tampering_rejected():
 # ─── Streamlit AppTest ───────────────────────────────────────────────────────
 
 def test_app_opens_cleanly():
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
     at = AppTest.from_file("app.py").run()
     assert not at.exception
     # Run analysis button exists

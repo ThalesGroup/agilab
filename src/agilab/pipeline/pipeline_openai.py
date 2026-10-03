@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Dict, Optional
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agi_env.defaults import get_default_openai_model
 from agi_env.runtime.env_config_support import update_env_file_text

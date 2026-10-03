@@ -12,13 +12,13 @@ Core and UI packages
 - ``agi_env`` maps the current project into an ``AgiEnv`` object and provides the
   headless environment utilities used by apps, workers, and installers.
 - ``agi_gui`` is the UI/page helper package under ``src/agilab/lib/agi-gui``. It
-  depends on ``agi_env`` and adds the Streamlit-facing imports used by AGILAB
+  depends on ``agi_env`` and adds the native React UI-facing imports used by AGILAB
   pages and page bundles.
 - ``agi_web`` is the portable web component contract under
   ``src/agilab/lib/agi-web``. Use it when an app needs one evidence-backed
-  payload that can render through Streamlit/static HTML now through bundled
-  Canvas2D/WebGL adapters while keeping a React-ready component contract for
-  app-owned adapters.
+  payload rendered by the native React host, embedded notebook widget or
+  static HTML export. It also provides ``python_ui`` for retained Python
+  views; see :doc:`agilab-native-react-ui-notebook-export`.
 - ``agi_core`` keeps the shared framework contracts intentionally thin; for now,
   the architecture page is more useful than autodoc because the top-level Python
   package exports only a minimal public surface.
@@ -44,7 +44,7 @@ Working with the API
 
 - Use ``agi_env.AgiEnv`` inside web pages or utility scripts to access the
   active project structure and configuration.
-- Use ``agi_gui`` imports for Streamlit page helpers so UI dependencies stay
+- Use ``agi_gui`` imports for native React UI page helpers so UI dependencies stay
   outside worker-only runtimes.
 - Use ``agi_web`` for app-owned rich visual islands so the Python/PyTorch
   evidence payload is not tied to one web frontend.

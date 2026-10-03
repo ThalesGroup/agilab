@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from agi_gui.ux_widgets import action_button
 
 from agilab.evidence import run_markdown_evidence

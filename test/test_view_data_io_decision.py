@@ -192,7 +192,9 @@ def test_view_data_io_decision_full_page_renders_artifact_evidence(monkeypatch, 
     fake_pagelib = ModuleType("agi_gui.pagelib")
     fake_pagelib.render_logo = lambda label: events.append(("logo", label))
 
-    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_st)
+
+    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
     monkeypatch.setitem(sys.modules, "agi_pages.runtime", fake_runtime)
     monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env)
     monkeypatch.setitem(sys.modules, "agi_gui.pagelib", fake_pagelib)

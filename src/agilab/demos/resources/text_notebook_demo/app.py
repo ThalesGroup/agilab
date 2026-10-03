@@ -1,6 +1,6 @@
 """Text Atlas \u2013 Streamlit application."""
 
-import streamlit as st
+from agi_web import python_ui as st
 import altair as alt
 import numpy as np
 import pandas as pd

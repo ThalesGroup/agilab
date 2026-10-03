@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 
 APP_SRC = Path("src/agilab/apps/builtin/multi_app_dag_project/src").resolve()

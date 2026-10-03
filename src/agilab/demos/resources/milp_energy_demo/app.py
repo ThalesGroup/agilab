@@ -1,4 +1,4 @@
-import streamlit as st
+from agi_web import python_ui as st
 import pandas as pd
 import altair as alt
 import json

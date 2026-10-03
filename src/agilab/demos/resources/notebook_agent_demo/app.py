@@ -2,7 +2,7 @@
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from sklearn.metrics import ConfusionMatrixDisplay
 
 from models import evaluate_models, load_split, train_models

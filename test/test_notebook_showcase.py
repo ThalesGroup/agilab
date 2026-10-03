@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import notebook_showcase as showcase
 
@@ -84,7 +84,7 @@ def test_export_rejects_tampered_verified_code(tmp_path):
 
 def test_forecast_query_selects_second_demo_and_can_return_to_iris(monkeypatch):
     from agilab.demos import forecast_showcase
-    import streamlit as st
+    from agi_web import python_ui as st
 
     monkeypatch.setattr(forecast_showcase, "render", lambda: st.title("Forecast fixture"))
     at = AppTest.from_file(showcase.__file__, default_timeout=30)

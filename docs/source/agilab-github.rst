@@ -48,7 +48,7 @@ while maintainers can prove the matching payload and evidence contracts.
      - Local, Dask, SSH, and install/run APIs.
      - Pulled by ``agi-core``.
    * - `agi-gui on PyPI <https://pypi.org/project/agi-gui/>`_
-     - Streamlit page and widget helpers.
+     - native React UI page and widget helpers.
      - Pulled by ``agilab[ui]``.
    * - `agi-web on PyPI <https://pypi.org/project/agi-web/>`_
      - Portable web component contracts for rich UI islands.

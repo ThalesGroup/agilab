@@ -1,6 +1,16 @@
 # Free-threading lab
 
-A reusable native Streamlit app and three-stage analysis notebook for **local CPU
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
+A reusable native Python UI app and three-stage analysis notebook for **local CPU
 scaling**. The original AGILAB notebook was created September 19, 2026. Its exact
 complex-number Mandelbrot escape-count algorithm uses the rectangle
 [-2, 1] × [-1.2, 1.2], with endpoint-inclusive coordinates and no artificial work.
@@ -18,7 +28,7 @@ Python build, or an incorrect GIL state causes an actionable error. There is no
 fallback, simulation, download, installation or network operation.
 
 ```bash
-python -B -m streamlit run app.py --server.address=127.0.0.1
+python -B -m agi_web.react_python_host app.py --address=127.0.0.1
 python -B tests.py
 ```
 
@@ -84,7 +94,7 @@ is cached. Session state retains evidence and marks it old when controls change.
 The runner requires POSIX process groups and file locking (Linux/macOS).
 A nonblocking thread/file lock serializes benchmark requests across sessions and
 server processes for the same host user. Busy requests are visibly rejected.
-The lock is held only during measurement, never through a full Streamlit render.
+The lock is held only during measurement, never through a full native Python UI render.
 Other host workloads are outside this lock's control. Each case has a 15-second
 timeout and the run has a 50-second total budget, plus bounded cleanup grace.
 Timeouts terminate the owned process group, including spawned descendants, and

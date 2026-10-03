@@ -1,4 +1,4 @@
-"""Focused physical, boundary, isolation, engine and Streamlit regressions."""
+"""Focused physical, boundary, isolation, engine and native UI regressions."""
 
 from __future__ import annotations
 
@@ -369,7 +369,7 @@ class PhysicalModel(unittest.TestCase):
 
 class Interface(unittest.TestCase):
     def test_real_run_and_saved_input_identity(self):
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
 
         app = AppTest.from_file(str(ROOT / "app.py"), default_timeout=60).run()
         self.assertFalse(app.exception)
@@ -409,20 +409,19 @@ def browser_check():
         http_errors=[],
     )
     env = os.environ.copy()
-    env.update(STREAMLIT_BROWSER_GATHER_USAGE_STATS="false")
     with tempfile.TemporaryDirectory(prefix="milp-browser-") as scratch:
         with open(Path(scratch) / "server.log", "w+") as log:
             server = subprocess.Popen(
                 [
                     sys.executable,
                     "-m",
-                    "streamlit",
-                    "run",
+                    "agi_web.react_python_host",
                     str(ROOT / "app.py"),
-                    "--server.address=127.0.0.1",
-                    f"--server.port={port}",
-                    "--server.headless=true",
-                    "--browser.gatherUsageStats=false",
+                    "--address",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                    "--no-browser",
                 ],
                 cwd=ROOT,
                 env=env,
@@ -435,7 +434,7 @@ def browser_check():
                 while time.monotonic() < deadline:
                     try:
                         with urllib.request.urlopen(
-                            f"http://127.0.0.1:{port}/_stcore/health", timeout=1
+                            f"http://127.0.0.1:{port}/api/health", timeout=1
                         ) as response:
                             if response.status == 200:
                                 break
@@ -480,6 +479,11 @@ def browser_check():
                     page.get_by_text("21,879.00", exact=True).first.wait_for(
                         timeout=60000
                     )
+                    page.wait_for_function("document.querySelectorAll('.py-vega svg').length >= 3")
+                    for chart in page.locator(".py-vega svg").all():
+                        bounds = chart.bounding_box()
+                        assert bounds and bounds["width"] > 0 and bounds["height"] > 0
+                        assert chart.locator("path, rect").count() > 0
                     page.screenshot(
                         path=str(ROOT / "browser-experiment.png"), full_page=True
                     )
@@ -506,7 +510,7 @@ def browser_check():
                     page.get_by_role("tab", name="Reproduce", exact=True).click()
                     with page.expect_download() as download:
                         page.get_by_role(
-                            "button", name="Results JSON", exact=True
+                            "link", name="Results JSON", exact=True
                         ).click()
                     result_path = Path(scratch) / "download.json"
                     download.value.save_as(result_path)

@@ -245,11 +245,10 @@ EXPOSE 7860
 CMD ["bash", "-c", \\
     "uv run --project /app --no-sync python /app/src/agilab/apps/install.py /app/src/agilab/apps/builtin/flight_telemetry_project --verbose 0 && \\
      AGILAB_PUBLIC_BIND_OK=1 AGILAB_TLS_TERMINATED=1 \\
-     uv run --project /app --extra ui --extra notebook-agent --no-sync streamlit run /app/hf_app.py \\
-     --server.port 7860 \\
-     --server.address 0.0.0.0 \\
-     --server.headless true \\
-     --server.fileWatcherType none \\
+     uv run --project /app --extra ui --extra notebook-agent --no-sync python -m agi_web.react_python_host /app/hf_app.py \\
+     --port 7860 \\
+     --address 0.0.0.0 \\
+     --no-browser \\
      -- --apps-path /app/src/agilab/apps/builtin"]
 """
 
@@ -486,9 +485,7 @@ def write_profile_assets(stage_dir: Path, profile: str, apps: Sequence[str], pag
     )
     (stage_dir / ".dockerignore").write_text(DOCKERIGNORE, encoding="utf-8")
     (stage_dir / "seed_hf_app_settings.py").write_text(SEED_HF_APP_SETTINGS, encoding="utf-8")
-    # Keep the entry point away from src/agilab/pages: Streamlit otherwise
-    # resolves a cold deep link through its legacy pages-directory router
-    # before main_page can register AGILAB's st.navigation routes.
+    # The staged host script explicitly delegates routing to AGILAB's main interface.
     (stage_dir / "hf_app.py").write_text(
         'import runpy\n\nrunpy.run_module("agilab.main_page", run_name="__main__")\n',
         encoding="utf-8",

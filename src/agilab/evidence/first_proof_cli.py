@@ -294,7 +294,7 @@ def _ui_smoke_code(active_app: Path) -> str:
         f"""
         import sys
         from pathlib import Path
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
 
         about_page = Path({str(about_page)!r})
         orchestrate_page = Path({str(orchestrate_page)!r})

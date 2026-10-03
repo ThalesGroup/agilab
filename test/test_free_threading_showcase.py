@@ -10,7 +10,7 @@ from types import ModuleType
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import free_threading_showcase as showcase
 from agilab.demos import notebook_showcase
@@ -224,7 +224,7 @@ def test_generated_benchmark_state_is_scoped_and_persists(monkeypatch):
     monkeypatch.setattr(showcase.st, "session_state", state)
     payload = {f"{name}.py": b"" for name in ("agilab_pool", "free_threading_core", "benchmark")}
     payload["app.py"] = (
-        b"import streamlit as st\n"
+        b"from agi_web import python_ui as st\n"
         b"old = st.session_state.get('benchmark_result', {}).get('runs', 0)\n"
         b"st.session_state['benchmark_result'] = {'runs': old + 1}\n"
         b"st.session_state['benchmark_signature'] = 'threading'\n"

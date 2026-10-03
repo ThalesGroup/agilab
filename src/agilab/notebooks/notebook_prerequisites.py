@@ -401,7 +401,7 @@ def inspect_prerequisites(
     """Inspect imported sources in cell order, without executing cells or imports."""
     preflight = build_notebook_import_preflight(notebook_import)
     inventory = _Inventory(inputs or [], module_available)
-    inventory.module("streamlit")  # The builder's independent interface verifier.
+    inventory.module("agi_web")  # The builder's independent Python view verifier.
     for stage in notebook_import.get("pipeline_stages", []):
         inventory.cell = stage["id"]
         source = "".join(stage["source_lines"])

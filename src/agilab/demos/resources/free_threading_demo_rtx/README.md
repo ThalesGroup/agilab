@@ -1,5 +1,15 @@
 # Free-threading lab
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 An AGILAB CPU-scaling lab that measures how one Mandelbrot escape-count workload
 scales on **this machine** across three execution strategies:
 
@@ -26,7 +36,7 @@ Background: [Free-threaded CPython](https://docs.python.org/3.14/howto/free-thre
 | `free_threading_core.py` | Stdlib Mandelbrot kernel + AGILAB engine adapter + per-case CLI |
 | `agilab_pool.py` | Included, **unmodified** AGILAB pool engine (dispatch + reduction) |
 | `benchmark.py` | Subprocess orchestrator: 6 cases, timeouts (process-group kill), `results.json` |
-| `app.py` | Streamlit UI: deterministic preview, one **Run analysis** button, live progress, metrics, timelines, evidence download |
+| `app.py` | native Python UI UI: deterministic preview, one **Run analysis** button, live progress, metrics, timelines, evidence download |
 | `solution.ipynb` | Notebook walkthrough: probe → run → verify → `results.json` |
 | `tests.py` | Unit tests (pytest or `python tests.py`) |
 
@@ -34,15 +44,15 @@ Background: [Free-threaded CPython](https://docs.python.org/3.14/howto/free-thre
 
 1. A free-threaded CPython (e.g. `python3.14t`), discoverable via
    `AGILAB_FREE_THREADING_PYTHON` (recommended) or on `PATH`.
-2. The app/UI runtime: `pip install -r requirements.txt` (Streamlit ≥ 1.36).
+2. The app/UI runtime: `pip install -r requirements.txt` (the local `agi-web` host and Python UI facade).
 3. Optional: `SPACE_CPU_CORES` and the standard cgroup/affinity limits are
    honored when capping the worker count (max 8).
 
 ## Run
 
 ```bash
-# Streamlit app (first load shows an untimed preview; "Run analysis" measures)
-streamlit run app.py
+# native Python UI app (first load shows an untimed preview; "Run analysis" measures)
+python -m agi_web.react_python_host app.py
 
 # Benchmark CLI (writes results.json next to the app)
 python benchmark.py --width 192 --height 128 --iterations 160 --workers 4 --repeats 2

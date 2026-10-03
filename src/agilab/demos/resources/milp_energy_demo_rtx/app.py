@@ -10,7 +10,7 @@ bundle.
 from datetime import datetime, timezone
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 import energy_core as core
 

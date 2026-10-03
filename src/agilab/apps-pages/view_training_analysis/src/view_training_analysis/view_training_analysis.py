@@ -14,7 +14,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.colors import qualitative as plotly_qualitative
 from plotly.subplots import make_subplots
-import streamlit as st
+from agi_web import python_ui as st
 from agi_env.app_settings_support import update_app_settings_owned
 from agi_pages.runtime import (
     configure_streamlit_page,

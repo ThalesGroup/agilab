@@ -17,7 +17,7 @@ revision, build model and recorded build duration are unchanged.
 
 ```sh
 uv run --python 3.13 --with-requirements requirements.txt python -c 'from huggingface_hub import snapshot_download; snapshot_download("autogluon/chronos-2-small", revision="ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a", allow_patterns=["config.json", "model.safetensors"])'
-uv run --python 3.13 --with-requirements requirements.txt streamlit run app.py
+uv run --python 3.13 --with-requirements requirements.txt python -m agi_web.react_python_host app.py
 ```
 
 The public, ungated checkpoint is about 112 MB. It is downloaded once to the

@@ -30,7 +30,7 @@ Global architecture map
    :alt: Global AGILAB architecture from entry surfaces through the app project contract, control plane, runtime back-planes, evidence, portability, and guardrails.
    :class: diagram-panel diagram-hero
 
-   The same app project contract connects Streamlit pages, notebooks, CLI/API
+   The same app project contract connects native React UI pages, notebooks, CLI/API
    entry points, local execution, distributed execution, evidence, and the
    notebook export exit path.
 
@@ -42,7 +42,7 @@ One control path
    User
      |
      v
-   Streamlit UI, CLI wrappers, or notebook entry points
+   native React UI, CLI wrappers, or notebook entry points
      |
      v
    AgiEnv: settings, project selection, app paths, logs, local workspace
@@ -107,7 +107,7 @@ This split also explains dependencies:
 
 - manager dependencies belong in the app project ``pyproject.toml``
 - worker dependencies belong in ``src/<app>_worker/pyproject.toml``
-- UI-only dependencies such as Streamlit should stay out of worker manifests
+- UI-only dependencies such as native React UI should stay out of worker manifests
 
 If a run fails only after worker deployment, inspect the worker manifest and
 ``~/wenv/<app>_worker`` copy before changing the manager code.

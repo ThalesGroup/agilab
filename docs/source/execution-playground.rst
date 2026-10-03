@@ -380,7 +380,7 @@ How to run it
 
    .. code-block:: bash
 
-      uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+      uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 
 2. In **PROJECT**, select ``src/agilab/apps/builtin/execution_pandas_project``.
 3. In **ORCHESTRATE**, run **Deploy scheduler & workers** once, then **RUN**.

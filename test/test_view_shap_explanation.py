@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

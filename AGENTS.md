@@ -13,24 +13,25 @@ consistent launch, validation, and troubleshooting steps.
 > termination evidence exists; stale mutation requests must not affect retries.
 
 Use this runbook whenever you:
-- Launch Streamlit or CLI flows from PyCharm run configurations.
+- Launch the native React interface or CLI flows from PyCharm run configurations.
 - Regenerate agent/CLI wrappers after editing `.idea/runConfigurations`.
 - Diagnose install or cluster issues reported by AGI agents or end users.
 
 > **Keep this file current.** Update it alongside any run configuration,
-> environment variable, or Streamlit change. CI, support, reviewers, and downstream
+> environment variable, or UI change. CI, support, reviewers, and downstream
 > agents rely on it for reproducible workflows.
 
 ---
 
 ## General practices
 
-- **Main React interface**: `src/agilab/main_page.py` keeps `st.navigation` as the
-  registered routing authority with its native menu hidden. The React workspace
+- **Main React interface**: `src/agilab/main_page.py` uses `agi_web.python_ui`
+  page/navigation registration as its routing authority. The React workspace
   header, project picker and home cards ship in `agi-web`; rebuild with `npm ci
   --ignore-scripts` then `npm run build` in `src/agilab/lib/agi-web/frontend`.
   Project selection follows the existing URL/bootstrap lifecycle. Pipeline
-  editing, specialized geographic views and administration remain Python.
+  editing, specialized geographic views and administration remain Python and
+  render through the native `agi_web.react_python_host`, without Streamlit.
   Standalone Python pages keep their native project selector. Notebook exports
   continue using the independent shared React analysis components.
   The main PROJECT overview uses the same local React bundle and existing Python
@@ -50,12 +51,14 @@ Use this runbook whenever you:
   from Tokki repo maps; check it before trusting a Tokki-first search to have
   covered them (the checked-in scope currently declares no exclusions).
 - **uv everywhere**: Invoke Python entry points through `uv` (`uv --preview-features extra-build-dependencies run python …`,
-  `uv --preview-features extra-build-dependencies run --extra ui streamlit …` for source UI launches) so dependencies resolve inside the managed environments that
+  `uv --preview-features extra-build-dependencies run --extra ui python -m agilab` for source UI launches) so dependencies resolve inside the managed environments that
   ship with AGILab.
-- **Direct Streamlit binds**: Pass `--server.address=127.0.0.1` for local source
-  launches. An unset Streamlit address binds all interfaces; runtime guards must
-  inspect the effective Streamlit configuration, including CLI overrides, rather
-  than treating `AGILAB_UI_HOST` or environment preferences as the actual bind.
+- **Native UI binds**: Local launches default to loopback. Pass
+  `--address 127.0.0.1` to make the bind explicit. Direct Python views use
+  `python -m agi_web.react_python_host VIEW.py --address 127.0.0.1`.
+  Runtime guards inspect the actual configured address before opening a socket;
+  public binds require the existing operator acknowledgement and TLS/auth policy.
+  Forward view arguments after `--`, and use `--no-browser` for robots.
 - **Command speed policy**: Use raw `rg`, `sed`, and small file reads for cheap local inspection where wrapper startup would dominate. Use `tokki run -- ...` for Git writes, pushes, merges, tests, builds, installs, network operations, long logs, slow/noisy commands, and any state-changing or policy-sensitive command.
 - **High-frequency command shortcuts**: Use `./dev <shortcut>` for repeated
   local validation loops and `./dev --print-only <shortcut>` when you need the
@@ -66,7 +69,7 @@ Use this runbook whenever you:
   Keep shortcut behavior in `./dev` and workflow references, not duplicated in
   this runbook. By default, `./dev` captures full logs under ignored
   `reports/dev-logs/`, prints compact signal summaries, and isolates `uv`
-  subprocesses in `.venv-dev` so validation does not mutate a live Streamlit
+  subprocesses in `.venv-dev` so validation does not mutate a live UI
   source environment. Use `--raw-output`, `AGILAB_DEV_OUTPUT=raw`, or
   `AGILAB_DEV_SUMMARY_LINES` only when a human or downstream tool needs more
   output.
@@ -113,7 +116,7 @@ Use this runbook whenever you:
   `AGENTS.md`, a repo skill, or tooling. If automation is not practical, document
   why and name the closest manual or robot validation. Close out with a clear
   status: fixed, validated, awaiting approval, or blocked.
-- **Streamlit duplicate-widget triage**: For duplicate element ID errors, first
+- **Python UI duplicate-widget triage**: For duplicate element ID errors, first
   check whether the page, app surface, or entrypoint is being executed twice.
   Add stable widget keys for repeated controls, but do not mask duplicate
   rendering by adding keys when the real bug is a double `main()` call or a
@@ -384,17 +387,19 @@ Use this runbook whenever you:
   selected workflow with its uv SDK, working directory and environment. Regenerate
   after config renames or navigator changes. See `CONTRIBUTING.md` for prompt values,
   console debugging and the limits of Python support in Xcode.
-- **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
-  calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
-  `st.rerun` before merging.
+- **Python view API**: Retained Python views import `agi_web.python_ui`, typically
+  as `st`, and use its public methods such as `st.rerun`. Do not introduce imports
+  from Streamlit or its internal modules. Legacy app-surface `backend="streamlit"`
+  declarations normalize to React; the legacy hook keyword `streamlit=` receives
+  the native Python UI module and does not load a Streamlit dependency.
 - **Shared React analysis views**: Coordinate maps and analysis curves live in
   `src/agilab/lib/agi-web/frontend/`; rebuild their committed wheel assets with
-  `npm run build` after source changes. Their Streamlit adapter uses components v2;
+  `npm run build` after source changes. Their web adapter uses the native host;
   the notebook adapter uses the optional AnyWidget dependency. Validate both real
   hosts with `tools/testing/agilab_react_analysis_browser_smoke.py`, including Python
   selection roundtrips and reruns. Keep native notebook tables and diagnosed
   Plotly fallback when Python widget dependencies are unavailable.
-- **Browser dev-log validation**: When validating Streamlit, React, `agi-web`,
+- **Browser dev-log validation**: When validating Python views, React, `agi-web`,
   custom component, canvas/WebGL, or iframe pages in a real browser, inspect
   browser dev-log evidence as part of the validation. For robot runs, use
   scenarios/options that capture console warnings/errors, `pageerror`, failed
@@ -421,7 +426,7 @@ Use this runbook whenever you:
   operating rule that is not already covered, add one concrete rule to
   `AGENT_LEARNINGS.md` or tighten an existing rule. Do not use it as a session
   transcript, generic caution list, or replacement for code/tests.
-- **Streamlit form state**: In custom `app_args_form.py` pages, initialize editable widgets
+- **Python UI form state**: In custom `app_args_form.py` pages, initialize editable widgets
   from persisted values (`defaults_model` / stored args). Only derive companion paths such as
   `data_out` from `data_in` when the stored value is actually missing. Do not silently replace
   an explicit saved value with a recomputed default on render; if a field is intentionally derived,
@@ -554,7 +559,7 @@ Use this runbook whenever you:
   aliases to paper over stale local copies. When a repository app/page already exists locally as a
   real directory, the installer moves it aside and links the repository copy so future app updates
   are picked up.
-- **Flight dependencies**: Follow the project’s own metadata for Streamlit/matplotlib/OpenAI—no extra
+- **Flight dependencies**: Follow the project’s own metadata for `agi-web`, matplotlib and OpenAI—no extra
   trimming beyond the flight worker manifest.
 - **Runtime isolation**: Anything launched from `~/agi-space` must assume the upstream
   source checkout is absent. Agents can only reference packaged assets inside the
@@ -667,7 +672,7 @@ hard operating rules and route to focused skills for details:
 | Installer, app install, and cluster troubleshooting | `agilab-installer`, `agilab-runbook`, `agilab-security-review-patterns` |
 | Release, PyPI, badges, and public proof | `agilab-release-verification`, `./dev release`, `./dev badge` |
 | Local LLM / GPT-OSS helpers | `agilab-local-llm` |
-| Streamlit UI and browser robots | `agilab-streamlit-pages`, `agilab-ui-robot-validation` |
+| Native React/Python UI and browser robots | [`agi-web` API](src/agilab/lib/agi-web/README.md), `agilab-ui-robot-validation` |
 
 For cluster recovery, rediscover worker candidates instead of pinning a remembered
 LAN address:

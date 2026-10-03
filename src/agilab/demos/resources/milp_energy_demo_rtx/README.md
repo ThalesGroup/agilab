@@ -1,5 +1,15 @@
 # MILP Energy Lab
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 An interactive, self-contained laboratory for **modular expansion with unit
 commitment** — a mixed-integer linear program (MILP) solved with PyPSA and the
 HiGHS solver. The lab turns a static notebook into a repeatable, parameterized
@@ -29,7 +39,7 @@ and the BSD 3-Clause terms for the unchanged AGILAB worker-pool engine, is in
 The original notebook demonstrates the model as a one-shot example. This lab
 makes it an instrumented, reproducible experiment. Concretely it adds:
 
-- An **interactive experiment lab** (Streamlit `app.py`) with bounded,
+- An **interactive experiment lab** (native Python UI `app.py`) with bounded,
   validated parameters and a single "Run analysis" action.
 - **Explicit HiGHS solving** with a single worker thread for deterministic,
   comparable results.
@@ -51,7 +61,7 @@ makes it an instrumented, reproducible experiment. Concretely it adds:
 
 | File | Purpose |
 | --- | --- |
-| `app.py` | Streamlit interactive lab UI. |
+| `app.py` | native Python UI interactive lab UI. |
 | `energy_core.py` | Model construction and scenario solving (PyPSA + HiGHS). |
 | `energy_runner.py` | Sequential and parallel batch execution and benchmarking. |
 | `agilab_pool.py` | Unchanged AGILAB worker-pool engine (BSD 3-Clause). |
@@ -75,7 +85,7 @@ exactly in `requirements.txt`.
 ## Running the lab
 
 ```bash
-streamlit run app.py
+python -m agi_web.react_python_host app.py
 ```
 
 Then click **Run analysis** to solve the current parameter set and view the

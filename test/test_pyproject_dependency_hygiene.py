@@ -401,7 +401,7 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
         "pandas",
         "plotly",
         "sqlalchemy",
-        "streamlit",
+        "agi-web",
         "tomli_w",
     } <= _optional_dependency_names(pyproject, "ui")
     assert {"mlflow-skinny"} <= _optional_dependency_names(pyproject, "mlflow") <= {
@@ -597,37 +597,33 @@ def test_worker_manifests_do_not_depend_on_streamlit() -> None:
     assert violations == []
 
 
-def test_streamlit_runtime_allows_validated_latest_1x() -> None:
-    """Streamlit runtime accepts the latest validated Streamlit 1.x releases."""
-    pyprojects = [
-        REPO_ROOT / "pyproject.toml",
-        *(REPO_ROOT / "src/agilab/apps-pages").glob("*/pyproject.toml"),
-        *(REPO_ROOT / "src/agilab/apps-pages/templates").glob("*/pyproject.toml"),
-        *(REPO_ROOT / "src/agilab/apps/builtin").glob("*_project/pyproject.toml"),
-        *(template.pyproject_path for template in discover_app_templates(REPO_ROOT / "src/agilab/apps/templates")),
-        REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml",
-        REPO_ROOT / "src/agilab/lib/agi-pages/pyproject.toml",
-        *(
-            REPO_ROOT / "src/agilab/lib"
-        ).glob("agi-app-*/src/*/project/*_project/pyproject.toml"),
-    ]
+def test_all_manifest_and_lock_profiles_exclude_streamlit() -> None:
+    """Native UI and notebook profiles must not regain the retired host transitively."""
+    pyprojects = [REPO_ROOT / "pyproject.toml", *(REPO_ROOT / "src").rglob("pyproject.toml")]
     violations: list[str] = []
-
     for pyproject in sorted(set(pyprojects)):
+        if "build" in pyproject.parts:
+            continue
         data = _load_pyproject(pyproject)
-        dependency_groups = [
+        groups = [
             data.get("project", {}).get("dependencies", []),
             *data.get("project", {}).get("optional-dependencies", {}).values(),
+            *data.get("dependency-groups", {}).values(),
         ]
-        for dependency_group in dependency_groups:
-            for dependency in dependency_group:
-                requirement = Requirement(dependency)
-                if requirement.name.lower() != "streamlit":
+        for group in groups:
+            for dependency in group:
+                if not isinstance(dependency, str):
                     continue
-                specifier_text = str(requirement.specifier)
-                if ">=1.58" not in specifier_text or "<2" not in specifier_text:
-                    violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {requirement}")
-
+                name = Requirement(dependency).name.lower().replace("_", "-")
+                if name.startswith("streamlit") or name == "universal-offline-ai-chatbot":
+                    violations.append(f"{pyproject.relative_to(REPO_ROOT)}: {dependency}")
+    lock = _load_pyproject(REPO_ROOT / "uv.lock")
+    for package in lock["package"]:
+        if package["name"].startswith("streamlit"):
+            violations.append(f"uv.lock: {package['name']}")
+        for dependency in package.get("dependencies", []):
+            if dependency["name"].startswith("streamlit"):
+                violations.append(f"uv.lock: {package['name']} -> {dependency['name']}")
     assert violations == []
 
 
@@ -748,11 +744,11 @@ def test_agi_env_does_not_hardcode_upper_core_package_names() -> None:
     assert violations == []
 
 
-def test_agi_gui_uses_native_streamlit_dialogs_and_declares_only_used_ui_runtime() -> None:
+def test_agi_gui_declares_the_native_react_python_view_runtime() -> None:
     deps = _dependency_names(REPO_ROOT / "src/agilab/lib/agi-gui/pyproject.toml")
 
-    assert {"agi-env", "streamlit", "streamlit_code_editor", "watchdog"} <= deps
-    assert deps.isdisjoint({"gitpython", "streamlit-modal", "streamlit_extras"})
+    assert {"agi-env", "agi-web", "watchdog"} <= deps
+    assert deps.isdisjoint({"gitpython", "streamlit", "streamlit_code_editor", "streamlit-modal", "streamlit_extras"})
 
 
 def test_app_pages_importing_agi_env_declare_runtime_pair() -> None:
@@ -805,7 +801,7 @@ def test_app_templates_keep_dependency_lists_app_local() -> None:
     for template in templates:
         deps = _dependency_names(template.pyproject_path)
         assert deps.isdisjoint(stale_template_deps), template.name
-        assert {"pydantic", "streamlit"} <= deps, template.name
+        assert {"pydantic", "agi-web"} <= deps, template.name
 
 
 def test_non_core_app_manifests_avoid_exact_pins_except_known_runtime_caps() -> None:
@@ -889,7 +885,9 @@ def test_shared_core_third_party_dependencies_have_bounded_runtime_windows() -> 
 
 def test_stale_or_component_ui_dependencies_are_bounded() -> None:
     checked = {
-        "src/agilab/lib/agi-gui/pyproject.toml": {"streamlit_code_editor", "watchdog"},
+        # Internal agi-web follows the exact bundle-version policy checked by
+        # test_package_split_contract; third-party components use a range.
+        "src/agilab/lib/agi-gui/pyproject.toml": {"watchdog"},
         "src/agilab/apps-pages/view_barycentric/pyproject.toml": {"barviz", "scikit-learn", "sqlalchemy"},
         "src/agilab/apps-pages/autoencoder_latentspace/pyproject.toml": {
             "barviz",

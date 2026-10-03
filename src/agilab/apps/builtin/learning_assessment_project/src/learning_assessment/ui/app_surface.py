@@ -41,7 +41,7 @@ from learning_assessment.ui.guided_lesson import render_guided_lesson  # noqa: E
 
 def _cache_data(func):
     try:
-        import streamlit as st
+        from agi_web import python_ui as st
     except Exception:
         return func
     try:
@@ -594,7 +594,7 @@ def _select_options(values: Sequence[str]) -> list[str]:
 
 
 def _safe_page_config() -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     try:
         from agilab.ui.page_bootstrap import configure_page_config
@@ -611,7 +611,7 @@ def _render_configure_surface() -> None:
 
 
 def _render_ml_landscape() -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     guide = load_ml_landscape()
     with st.expander("ML landscape — map and practice", expanded=True):
@@ -655,7 +655,7 @@ def render(
     if surface_mode not in {"analysis", "full"}:
         raise ValueError(f"Unsupported TeSciA app surface mode: {mode}")
 
-    import streamlit as st
+    from agi_web import python_ui as st
 
     if surface_mode == "full":
         _safe_page_config()

@@ -12,7 +12,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import streamlit as st
+from agi_web import python_ui as st
 import tomli_w
 import tomllib
 from agilab.components.code_editor_component import code_editor

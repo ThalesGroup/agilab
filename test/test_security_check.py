@@ -110,7 +110,7 @@ def test_git_state_supports_gitdir_files_detached_heads_and_unknown_heads(tmp_pa
     assert unknown_state["head"] == "not-a-known-head-state"
 
 
-def test_defensive_parsers_handle_malformed_git_secret_and_streamlit_config(tmp_path: Path):
+def test_defensive_parsers_handle_malformed_git_secret_and_native_config(tmp_path: Path):
     worktree = tmp_path / "worktree"
     worktree.mkdir()
     (worktree / ".git").write_text("not-a-gitdir-file\n", encoding="utf-8")
@@ -127,13 +127,13 @@ def test_defensive_parsers_handle_malformed_git_secret_and_streamlit_config(tmp_
     }
     assert security_check._looks_like_secret_value("") is False
 
-    streamlit_config = tmp_path / ".streamlit" / "config.toml"
-    streamlit_config.parent.mkdir()
-    streamlit_config.write_text("[server\n", encoding="utf-8")
-    assert security_check._streamlit_config_address(tmp_path) is None
+    native_config = tmp_path / ".agilab" / "config.toml"
+    native_config.parent.mkdir()
+    native_config.write_text("[server\n", encoding="utf-8")
+    assert security_check._native_config_address(tmp_path) is None
 
-    streamlit_config.write_text("server = 'not-a-table'\n", encoding="utf-8")
-    assert security_check._streamlit_config_address(tmp_path) is None
+    native_config.write_text("server = 'not-a-table'\n", encoding="utf-8")
+    assert security_check._native_config_address(tmp_path) is None
 
 
 def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(tmp_path: Path):
@@ -421,6 +421,48 @@ def test_shared_profile_requires_origin_url_for_pinned_apps_repository(tmp_path:
     assert security_check._git_config_value(tmp_path / "missing", 'remote "origin"', "url") is None
 
 
+@pytest.mark.parametrize(
+    ("settings", "host", "status"),
+    [
+        ({"AGILAB_UI_ADDRESS": "0.0.0.0"}, "0.0.0.0", "fail"),
+        ({"AGILAB_UI_ADDRESS": "192.0.2.12"}, "192.0.2.12", "fail"),
+        ({"AGILAB_UI_HOST": "ui.example"}, "ui.example", "fail"),
+        ({"AGILAB_UI_HOST": "::1"}, "::1", "pass"),
+        ({"AGILAB_UI_HOST": "localhost"}, "localhost", "pass"),
+        ({"AGILAB_UI_HOST": "127.0.0.1", "AGILAB_UI_ADDRESS": "0.0.0.0"}, "127.0.0.1", "pass"),
+        ({"AGILAB_UI_HOST": "  ", "AGILAB_UI_ADDRESS": "0.0.0.0"}, "0.0.0.0", "fail"),
+    ],
+)
+def test_native_ui_address_report_matches_launch_guard(tmp_path: Path, settings, host, status):
+    from agilab.security.ui_public_bind_guard import configured_ui_host
+
+    check = security_check._check_ui_exposure(settings, home=tmp_path, profile="shared")
+
+    assert configured_ui_host(settings) == host
+    assert check.details["host"] == host
+    assert check.status == status
+
+
+def test_native_ui_report_reads_agilab_config_and_ignores_retired_streamlit_config(tmp_path: Path):
+    legacy = tmp_path / ".streamlit/config.toml"
+    legacy.parent.mkdir()
+    legacy.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile="shared")
+    assert check.status == "pass"
+    assert check.details["host"] == "127.0.0.1"
+
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    native.write_text("[server]\naddress = '192.0.2.12'\n", encoding="utf-8")
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile="shared")
+    assert check.status == "fail"
+    assert check.details["host"] == "192.0.2.12"
+
+    check = security_check._check_ui_exposure({"AGILAB_UI_HOST": "127.0.0.1"}, home=tmp_path, profile="shared")
+    assert check.status == "pass"
+    assert check.details["host"] == "127.0.0.1"
+
+
 def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     cluster_share = tmp_path / "clustershare"
     local_share = tmp_path / "localshare"
@@ -439,9 +481,9 @@ def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
     assert cluster_check.status == "pass"
     assert cluster_check.details["cluster_share"] == str(cluster_share)
 
-    streamlit_config = tmp_path / ".streamlit" / "config.toml"
-    streamlit_config.parent.mkdir()
-    streamlit_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
+    native_config = tmp_path / ".agilab" / "config.toml"
+    native_config.parent.mkdir()
+    native_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
 
     exposure_check = security_check._check_ui_exposure(
         {"AGILAB_PUBLIC_BIND_OK": "1", "AGILAB_AUTH_REQUIRED": "yes"},
@@ -454,9 +496,9 @@ def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
 
 
 def test_shared_public_bind_requires_reviewed_evidence_artifact(tmp_path: Path):
-    streamlit_config = tmp_path / ".streamlit" / "config.toml"
-    streamlit_config.parent.mkdir()
-    streamlit_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
+    native_config = tmp_path / ".agilab" / "config.toml"
+    native_config.parent.mkdir()
+    native_config.write_text("[server]\naddress = '0.0.0.0'\n", encoding="utf-8")
 
     missing_evidence = security_check._check_ui_exposure(
         {"AGILAB_PUBLIC_BIND_OK": "1", "AGILAB_AUTH_REQUIRED": "yes"},
@@ -596,7 +638,7 @@ def test_build_report_warns_on_adoption_risks_without_leaking_secret_values(tmp_
                 f"AGI_CLUSTER_SHARE={cluster_share}",
                 f"AGI_LOCAL_SHARE={cluster_share}",
                 "AGI_SCHEDULER_IP=192.0.2.10",
-                "STREAMLIT_SERVER_ADDRESS=0.0.0.0",
+                "AGILAB_UI_HOST=0.0.0.0",
                 "INSTALL_LOCAL_MODELS=gpt-oss",
             ]
         ),
@@ -671,7 +713,7 @@ def test_build_report_respects_explicit_empty_environ(tmp_path: Path, monkeypatc
 def test_cli_json_strict_returns_nonzero_on_warnings(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     env_file = tmp_path / ".env"
-    env_file.write_text("STREAMLIT_SERVER_ADDRESS=0.0.0.0\n", encoding="utf-8")
+    env_file.write_text("AGILAB_UI_HOST=0.0.0.0\n", encoding="utf-8")
 
     rc = security_check.main(["--json", "--strict", "--env-file", str(env_file)])
 
@@ -685,7 +727,7 @@ def test_cli_json_strict_returns_nonzero_on_warnings(tmp_path: Path, monkeypatch
 def test_cli_default_is_advisory_even_when_warnings_exist(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     env_file = tmp_path / ".env"
-    env_file.write_text("STREAMLIT_SERVER_ADDRESS=0.0.0.0\n", encoding="utf-8")
+    env_file.write_text("AGILAB_UI_HOST=0.0.0.0\n", encoding="utf-8")
 
     rc = security_check.main(["--env-file", str(env_file)])
 

@@ -26,7 +26,7 @@ import runpy
 from typing import Dict, Optional
 import sys
 import logging
-from ._optional_ui import require_streamlit
+from ._optional_ui import require_python_ui
 from agi_env import mlflow_store
 from .sidecar_registry import DEFAULT_SIDECAR_REGISTRY
 from .pagelib_execution_support import (
@@ -116,7 +116,7 @@ from .pagelib_session_support import (
     reset_project_sections,
 )
 logger = logging.getLogger(__name__)
-st = require_streamlit()
+st = require_python_ui()
 
 DEFAULT_DF_PREVIEW_MAX_ROWS = 1000
 DEFAULT_DF_PREVIEW_MAX_COLS = 40

@@ -78,6 +78,6 @@ What remains no-go
 ------------------
 
 This gate does not turn AGILAB into a multi-tenant production MLOps control
-plane. Public Streamlit without a hardened front end, regulated production
+plane. Public native React UI without a hardened front end, regulated production
 serving, enterprise governance, online monitoring, drift detection, and
 audit-trail ownership remain outside the safe-as-is boundary.

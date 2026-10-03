@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.agent_runtime import notebook_adoption, notebook_agent
 from agilab.demos import notebook_app_runtime
@@ -542,7 +542,7 @@ def test_forecast_ui_failure_retry_uses_committed_controls_and_reports_scope(
 def test_text_ui_visual_changes_keep_committed_analysis(monkeypatch, bundle):
     import numpy as np
     import pandas as pd
-    import streamlit as st
+    from agi_web import python_ui as st
     from types import SimpleNamespace
 
     st.cache_data.clear()
@@ -611,7 +611,7 @@ def test_text_ui_failure_obeys_variant_result_retention(
 ):
     import numpy as np
     import pandas as pd
-    import streamlit as st
+    from agi_web import python_ui as st
     from types import SimpleNamespace
 
     st.cache_data.clear()
@@ -822,7 +822,7 @@ def test_milp_rtx_scaling_error_retry_reports_observed_workers(monkeypatch):
 
 def threading_sibling_core(monkeypatch, bundle):
     import importlib
-    import streamlit as st
+    from agi_web import python_ui as st
 
     st.cache_data.clear()
     monkeypatch.syspath_prepend(str(UI.parent / "resources" / bundle))
