@@ -12,7 +12,7 @@ keywords = [
     "page-bundle",
     "reproducibility",
 ]
-dependencies = ["agi-pages>=2026.09.09,<2027.0", "agi-env>=2026.09.09,<2027.0", "agi-gui>=2026.09.09,<2027.0", "agi-node>=2026.09.09,<2027.0", "plotly>=6.8,<7", "sqlalchemy>=2.0.43,<3"]
+dependencies = ["agi-pages>=2026.09.09,<2027.0", "agi-env>=2026.09.09,<2027.0", "agi-gui>=2026.09.09,<2027.0", "agi-node>=2026.09.09,<2027.0", "plotly>=6.8,<7", "sqlalchemy>=2.0.43,<3", "agi-web>=2026.07.17,<2027.0"]
 
 [project.entry-points."agilab.pages"]
 view_maps = "view_maps:bundle_root"
@@ -42,6 +42,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 
 [tool.uv.sources]
+agi-web = { path = "../../lib/agi-web", editable = true }
 agi-pages = { path = "../../lib/agi-pages", editable = true }
 agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }

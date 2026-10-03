@@ -12,7 +12,7 @@ keywords = [
     "page-bundle",
     "reproducibility",
 ]
-dependencies = ["agi-pages>=2026.09.09,<2027.0", "agi-env>=2026.09.09,<2027.0", "agi-gui>=2026.09.09,<2027.0", "agi-node>=2026.09.09,<2027.0", "pandas>=2.3.0,<4"]
+dependencies = ["agi-pages>=2026.09.09,<2027.0", "agi-env>=2026.09.09,<2027.0", "agi-gui>=2026.09.09,<2027.0", "agi-node>=2026.09.09,<2027.0", "pandas>=2.3.0,<4", "agi-web>=2026.07.17,<2027.0"]
 
 [project.entry-points."agilab.pages"]
 view_forecast_analysis = "view_forecast_analysis:bundle_root"
@@ -39,6 +39,7 @@ Changelog = "https://github.com/ThalesGroup/agilab/releases"
 
 
 [tool.uv.sources]
+agi-web = { path = "../../lib/agi-web", editable = true }
 agi-pages = { path = "../../lib/agi-pages", editable = true }
 agi-gui = { path = "../../lib/agi-gui", editable = true }
 agi-env = { path = "../../core/agi-env", editable = true }

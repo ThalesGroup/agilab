@@ -219,10 +219,11 @@ def test_forecast_keeps_run_pairing_and_validates_predictions(tmp_path):
         for item in outputs
         if hasattr(item, "data")
     )
-    figures = [item for item in outputs if hasattr(item, "to_plotly_json")]
-    assert len(figures) == 1
-    assert list(figures[0].data[0].y) == [10, 12]
-    assert list(figures[0].data[1].y) == [11, 13]
+    widgets = [item for item in outputs if hasattr(item, "component")]
+    assert len(widgets) == 1
+    rows = widgets[0].component["payload"]["rows"]
+    assert [row["values"]["y_true"] for row in rows] == [10, 12]
+    assert [row["values"]["y_pred"] for row in rows] == [11, 13]
     predictions = root / "run_a" / "forecast_predictions.csv"
     frame = pd.read_csv(predictions)
     frame["run_id"] = "wrong"
@@ -233,6 +234,7 @@ def test_forecast_keeps_run_pairing_and_validates_predictions(tmp_path):
         export_payload={"artifact_dir": str(root)},
     )
     assert not any(hasattr(item, "to_plotly_json") for item in outputs)
+    assert not any(hasattr(item, "component") for item in outputs)
     assert any("run_id" in item.data for item in outputs if hasattr(item, "data"))
 
 
@@ -246,9 +248,10 @@ def test_map_coordinates_and_invalid_rows_are_explicit(tmp_path):
     outputs = module.render_inline(
         page="view_maps", record={}, export_payload={"artifact_dir": str(root)}
     )
-    figure = next(item for item in outputs if hasattr(item, "to_plotly_json"))
-    assert list(figure.data[0].x) == [2.0, 3.0]
-    assert list(figure.data[0].y) == [48.0, 49.0]
+    widget = next(item for item in outputs if hasattr(item, "component"))
+    points = widget.component["payload"]["points"]
+    assert [point["longitude"] for point in points] == [2.0, 3.0]
+    assert [point["latitude"] for point in points] == [48.0, 49.0]
     assert any("1 invalid" in item.data for item in outputs if hasattr(item, "data"))
 
 
@@ -362,9 +365,12 @@ def test_missing_plotly_keeps_native_tables(page, tmp_path, monkeypatch):
         page=page, record={}, export_payload={"artifact_dir": str(root)}
     )
     assert any(isinstance(item, pd.DataFrame) for item in outputs)
-    assert any(
-        "install Plotly" in item.data for item in outputs if isinstance(item, Markdown)
-    )
+    if page in ("view_maps", "view_forecast_analysis"):
+        assert any(hasattr(item, "component") for item in outputs)
+    else:
+        assert any(
+            "install Plotly" in item.data for item in outputs if isinstance(item, Markdown)
+        )
 
 
 def test_map_json_export_renders_without_csv_or_parquet(tmp_path):
@@ -376,6 +382,42 @@ def test_map_json_export_renders_without_csv_or_parquet(tmp_path):
     outputs = _module("view_maps").render_inline(
         page="view_maps", record={}, export_payload={"artifact_dir": str(root)}
     )
-    figure = next(item for item in outputs if hasattr(item, "to_plotly_json"))
-    assert list(figure.data[0].x) == [2.0, 3.0]
-    assert list(figure.data[0].y) == [48.0, 49.0]
+    widget = next(item for item in outputs if hasattr(item, "component"))
+    points = widget.component["payload"]["points"]
+    assert [point["longitude"] for point in points] == [2.0, 3.0]
+    assert [point["latitude"] for point in points] == [48.0, 49.0]
+    assert [point["label"] for point in points] == ["001", "002"]
+
+
+@pytest.mark.parametrize("page", ["view_maps", "view_forecast_analysis"])
+@pytest.mark.parametrize("without_plotly", [False, True])
+def test_missing_widget_dependencies_keeps_export_in_the_notebook(
+    page, without_plotly, tmp_path, monkeypatch
+):
+    from agi_web.react_analysis import _notebook_widget_class
+
+    root = tmp_path / "export"
+    _seed(page, root)
+    original_import = builtins.__import__
+
+    def without_widgets(name, *args, **kwargs):
+        if name == "anywidget" or name.startswith("anywidget."):
+            raise ModuleNotFoundError("anywidget is not installed")
+        if without_plotly and (name == "plotly" or name.startswith("plotly.")):
+            raise ModuleNotFoundError("Plotly is not installed")
+        return original_import(name, *args, **kwargs)
+
+    _notebook_widget_class.cache_clear()
+    monkeypatch.setattr(builtins, "__import__", without_widgets)
+    try:
+        outputs = _module(page).render_inline(
+            page=page, record={}, export_payload={"artifact_dir": str(root)}
+        )
+        assert any(isinstance(item, pd.DataFrame) for item in outputs)
+        assert any(
+            "React widget unavailable" in item.data
+            for item in outputs if isinstance(item, Markdown)
+        )
+        assert any(hasattr(item, "to_plotly_json") for item in outputs) is not without_plotly
+    finally:
+        _notebook_widget_class.cache_clear()

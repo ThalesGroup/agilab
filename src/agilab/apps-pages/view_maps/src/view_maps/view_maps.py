@@ -661,7 +661,8 @@ def page(env):
             selected_files = [item for item in st.session_state.get(selection_key, []) if item in dataset_files_rel]
 
         st.sidebar.caption(f"{len(selected_files)} selected")
-        if selected_files:
+        # The single-file selectbox already owns this key for the current run.
+        if selected_files and df_mode != "Single file":
             st.session_state[single_file_key] = selected_files[0]
         st.session_state["df_files_selected"] = selected_files
         st.session_state["df_file"] = selected_files[0] if selected_files else ""
@@ -1116,7 +1117,24 @@ def page(env):
             fig.update_layout(map_style="open-street-map")
             fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
 
-            st.plotly_chart(fig, width="stretch", theme="streamlit")
+            map_display = st.sidebar.selectbox(
+                "Map display", options=("Geographic map", "Coordinates"),
+                key=_vm_key("map_display"),
+            )
+            if map_display == "Coordinates":
+                from agi_web import coordinate_map_component, render_streamlit
+                st.caption("Coordinate view: flight groups and point inspection. Geographic overlays use Geographic map.")
+                render_streamlit(
+                    coordinate_map_component(
+                        plot_df, latitude=st.session_state.lat, longitude=st.session_state.long,
+                        label="plane_id" if "plane_id" in plot_df else None,
+                        group="plane_id" if "plane_id" in plot_df else None,
+                        title="Positions", component_id=_vm_key("coordinate_map"),
+                    ),
+                    streamlit=st,
+                )
+            else:
+                st.plotly_chart(fig, width="stretch", theme="streamlit")
         else:
             st.warning("Please select a valid column for coloring.")
     else:

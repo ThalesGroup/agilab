@@ -84,6 +84,18 @@ def render_inline(
                     )
                 )
             try:
+                from agi_web import coordinate_map_component, render_notebook
+                component = coordinate_map_component(
+                    points, latitude=lat, longitude=lon,
+                    label="plane_id" if "plane_id" in points else None,
+                    group="plane_id" if "plane_id" in points else None,
+                    title=f"Positions — {label}", component_id=f"{page}-{label}",
+                )
+                outputs.append(render_notebook(component))
+                continue
+            except (ImportError, OSError) as exc:
+                outputs.append(Markdown(f"React widget unavailable: {exc}. Showing the standalone chart when possible."))
+            try:
                 import plotly.graph_objects as go
             except ImportError:
                 outputs.append(

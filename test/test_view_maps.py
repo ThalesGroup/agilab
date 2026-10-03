@@ -344,6 +344,35 @@ def test_view_maps_renders_minimal_export_dataset(tmp_path, monkeypatch) -> None
     assert [path.name for path in at.session_state["dataset_files"]] == ["export.csv"]
     assert at.session_state["view_maps:df_files_selected"] == ["export.csv"]
 
+    # Exercise the real page's alternate renderer and preserve the recorded coordinates.
+    import agi_web
+
+    rendered = []
+    original_render = agi_web.render_streamlit
+
+    def observe_render(component, **kwargs):
+        rendered.append(component)
+        return original_render(component, **kwargs)
+
+    monkeypatch.setattr(agi_web, "render_streamlit", observe_render)
+    with patch.object(sys, "argv", argv):
+        assert not at.error, "\n".join(item.value for item in at.error)
+        at.number_input(key="view_maps:sampling_ratio").set_value(1).run()
+        at.slider(key="view_maps:table_max_rows").set_value(3).run()
+        at.selectbox(key="discrete").set_value("alt_m").run()
+        assert not at.exception
+        display_choice = next(widget for widget in at.selectbox if widget.label == "Map display")
+        display_choice.set_value("Coordinates").run()
+    assert not at.exception
+    assert len(rendered) == 1
+    points = rendered[0].payload["points"]
+    assert [point["latitude"] for point in points] == [48.8566, 43.6045, 45.7640]
+    assert [point["longitude"] for point in points] == [2.3522, 1.4440, 4.8357]
+    with patch.object(sys, "argv", argv):
+        next(widget for widget in at.selectbox if widget.label == "Map display").set_value("Geographic map").run()
+    assert not at.exception
+    assert len(rendered) == 1
+
 
 def test_view_maps_filters_hidden_dataset_files() -> None:
     module = _load_view_maps_module()

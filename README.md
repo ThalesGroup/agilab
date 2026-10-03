@@ -299,8 +299,13 @@ maps, forecasts, the scenario cockpit, release decisions, IO decisions, and queu
 and relay resilience. The page bundles supply these renderers automatically:
 they read the notebook's recorded artifact directory and show tables, charts,
 or an explicit diagnostic for missing or invalid files without opening Streamlit.
-Map charts plot longitude/latitude without a basemap; charts use Plotly when
-available, and tables remain usable without it. Release and scenario views show
+Maps and forecast curves share the `agi-web` React components with Streamlit.
+Install the notebook profile and enable Jupyter widgets for these interactive
+views: point selection, group/series filters, range controls and reset. Map
+charts plot longitude/latitude without a basemap; Streamlit also offers the
+geographic map. When Python widget dependencies are absent, the notebook shows
+a diagnostic and a Plotly chart when available. Tables remain usable without
+either dependency. Release and scenario views show
 recorded evidence; the full decision controls remain available in the app.
 
 ## Demo Routes

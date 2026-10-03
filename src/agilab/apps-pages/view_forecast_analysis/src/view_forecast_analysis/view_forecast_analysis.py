@@ -208,7 +208,16 @@ for col, (label, raw_value) in zip(metric_columns, metric_specs):
 if "date" in predictions.columns and {"y_true", "y_pred"}.issubset(predictions.columns):
     chart_df = predictions.copy().sort_values("date").set_index("date")[["y_true", "y_pred"]]
     st.subheader("Observed vs predicted")
-    st.line_chart(chart_df)
+    from agi_web import analysis_curves_component, render_streamlit
+    render_streamlit(
+        analysis_curves_component(
+            chart_df.reset_index(), x="date", series=("y_true", "y_pred"),
+            labels={"y_true": "Observed", "y_pred": "Predicted"},
+            title="Observed vs predicted", y_label=str(metrics.get("target") or "Value"),
+            component_id="forecast-observed-predicted",
+        ),
+        streamlit=st,
+    )
 
 st.subheader("Predictions table")
 st.dataframe(predictions, width="stretch", hide_index=True)
