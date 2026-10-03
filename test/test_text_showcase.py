@@ -106,7 +106,8 @@ def test_real_app_submits_changes_and_keeps_submitted_parameters():
     assert not at.exception and not at.error
     assert {item.label: item.value for item in at.metric}["Articles"] == "1250"
     assert at.dataframe[0].value["Cluster"].nunique() == 5
-    at.slider(key="qwen_text_atlas_n_clusters").set_value(3).run()
+    # Form edits are submitted together with the button, without an interim rerun.
+    at.slider(key="qwen_text_atlas_n_clusters").set_value(3)
     assert at.dataframe[0].value["Cluster"].nunique() == 5
     assert any("n_clusters=5" in item.value for item in at.caption)
     next(item for item in at.button if item.label == "Run analysis").click().run()

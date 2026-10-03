@@ -4218,7 +4218,7 @@ def test_project_status_notebook_import_query_opens_file_selector(mock_ui_env):
         "create_notebook_upload",
     )
     assert uploader is not None
-    assert at.query_params.get("start") == ["notebook-import"]
+    assert at.query_params.get("start") == "notebook-import"
     create_button = next(
         (button for button in at.sidebar.button if button.label == "Create"), None
     )

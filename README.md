@@ -294,6 +294,15 @@ stage order, runtime hints, and review context remain usable through the stable,
 release-gated core runtime handoff technology if the AGILAB UI or distributed
 runtime is no longer the right interface for that work.
 
+Exported notebooks also display analysis results directly in their cells for
+maps, forecasts, the scenario cockpit, release decisions, IO decisions, and queue
+and relay resilience. The page bundles supply these renderers automatically:
+they read the notebook's recorded artifact directory and show tables, charts,
+or an explicit diagnostic for missing or invalid files without opening Streamlit.
+Map charts plot longitude/latitude without a basemap; charts use Plotly when
+available, and tables remain usable without it. Release and scenario views show
+recorded evidence; the full decision controls remain available in the app.
+
 ## Demo Routes
 
 Start with the route that matches the proof you want to show:
