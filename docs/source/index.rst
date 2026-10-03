@@ -42,7 +42,7 @@ heavier tracker, registry, cluster, or production platform.
 
 AGILAB is not locked to one web frontend. App projects can declare app-owned
 UI surfaces so the same runtime, artifacts, and evidence contract can be opened
-through the local Streamlit UI, a hosted Hugging Face backend, or browser-native
+through the local native React UI, a hosted Hugging Face backend, or browser-native
 ``agi-web`` UI islands with React-ready component contracts. See
 :doc:`apps-pages` for the ``[app_surface]`` contract and the generic
 ``agilab app surface`` launcher.
@@ -65,6 +65,7 @@ references, and example projects.
 
    Newcomer guide <newcomer-guide>
    Local first proof <quick-start>
+   Native React UI and notebook export <agilab-native-react-ui-notebook-export>
    Release proof <release-proof>
    Beta readiness <beta-readiness>
    Evidence claims policy <evidence-claims-policy>

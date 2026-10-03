@@ -2,3 +2,9 @@
 *.7z filter=lfs diff=lfs merge=lfs -text
 # Preserve the exact upstream Apache license bytes, including its final blank line.
 src/agilab/resources/notebook_agent_demo/LICENSE whitespace=-blank-at-eof
+# The generated JavaScript carries encoded WebAssembly bytes; spaces inside its
+# string payload are significant and must survive checkout unchanged.
+src/agilab/lib/agi-web/src/agi_web/react_python_host_assets/agilab_react_graphviz.js binary whitespace=-trailing-space
+# Preserve the upstream Graphviz and Expat notices copied into these artifacts.
+src/agilab/lib/agi-web/frontend/agilab_react_graphviz_third_party.LICENSE.txt whitespace=-trailing-space
+src/agilab/lib/agi-web/src/agi_web/react_python_host_assets/agilab_react_graphviz.LICENSE.txt whitespace=-trailing-space

@@ -244,15 +244,15 @@ def _check_public_bind_and_secret_boundary(repo_root: Path) -> dict[str, Any]:
         ],
         "test/test_ui_public_bind_guard.py": [
             "test_public_bind_requires_explicit_ok_and_auth_or_tls_indicator",
-            "test_direct_streamlit_public_bind_is_refused_without_controls",
-            "test_direct_streamlit_public_bind_is_allowed_with_controls",
+            "test_direct_react_public_bind_is_refused_without_controls",
+            "test_direct_react_public_bind_is_allowed_with_controls",
         ],
         "test/test_ui_pages.py": [
             "test_env_editor_redacts_sensitive_values_in_widgets_and_preview",
             "test_agilab_main_page_env_editor_does_not_render_secret_values",
         ],
         "SECURITY.md": [
-            "Keep the Streamlit UI on loopback by default",
+            "Keep the native React UI on loopback by default",
             "AGILAB_PUBLIC_BIND_OK=1",
             "AGILAB_TLS_TERMINATED=1",
             "redact secret-like keys",

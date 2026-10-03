@@ -83,6 +83,7 @@ BAD_BODY_PATTERNS = (
     "127.0.0.1",
     "refused to connect",
     "streamlitapiexception",
+    "agi_web.python_view_session.uierror",
     "multiple pages specified",
     "this site can't be reached",
     "this site cannot be reached",
@@ -136,26 +137,30 @@ def profile_page_entries(profile: str) -> set[str]:
 def route_specs(profile: str = "first-proof") -> list[RouteSpec]:
     profile_builtin_app_entries(profile)
     return [
-        RouteSpec("streamlit health", path="/_stcore/health"),
-        RouteSpec("base app"),
-        RouteSpec("flight telemetry project", query={"active_app": "flight_telemetry_project"}),
+        RouteSpec("react health", path="/api/health"),
+        RouteSpec("base app", path="/api/view", query={"path": "/"}),
+        RouteSpec("flight telemetry project", path="/api/view", query={"path": "/PROJECT", "active_app": "flight_telemetry_project"}),
         RouteSpec(
             "flight telemetry view_maps",
+            path="/api/view",
             query={
+                "path": "/ANALYSIS",
                 "active_app": "flight_telemetry_project",
                 "current_page": "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py",
             },
         ),
-        RouteSpec("weather forecast project", query={"active_app": "weather_forecast_project"}),
+        RouteSpec("weather forecast project", path="/api/view", query={"path": "/PROJECT", "active_app": "weather_forecast_project"}),
         RouteSpec(
             "weather forecast view",
+            path="/api/view",
             query={
+                "path": "/ANALYSIS",
                 "active_app": "weather_forecast_project",
                 "current_page": "/app/src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py",
             },
         ),
-        RouteSpec("pytorch playground project", query={"active_app": "pytorch_playground_project"}),
-        RouteSpec("autonomous notebook app", path="/AGENT_DEMO"),
+        RouteSpec("pytorch playground project", path="/api/view", query={"path": "/PROJECT", "active_app": "pytorch_playground_project"}),
+        RouteSpec("autonomous notebook app", path="/api/view", query={"path": "/AGENT_DEMO"}),
     ]
 
 
@@ -220,6 +225,21 @@ def check_route(
     bad_pattern = body_has_connection_failure(body)
     if bad_pattern:
         return CheckResult(spec.label, False, duration, f"body contains {bad_pattern!r}", url)
+    if spec.path in {"/api/health", "/api/view"}:
+        try:
+            payload = json.loads(body)
+        except (ValueError, TypeError):
+            return CheckResult(spec.label, False, duration, "native API did not return JSON", url)
+        if not isinstance(payload, dict):
+            return CheckResult(spec.label, False, duration, "native API returned an invalid payload", url)
+        if payload.get("error"):
+            return CheckResult(spec.label, False, duration, f"native view error: {payload['error']}", url)
+        if spec.path == "/api/health" and (payload.get("status") != "ok" or payload.get("host") != "agilab-react"):
+            return CheckResult(spec.label, False, duration, "native host is not healthy", url)
+        if spec.path == "/api/view":
+            nodes = payload.get("nodes")
+            if type(payload.get("revision")) is not int or not isinstance(nodes, dict) or any(not isinstance(nodes.get(region), list) for region in ("main", "sidebar")):
+                return CheckResult(spec.label, False, duration, "native view did not return its render tree", url)
     return CheckResult(spec.label, True, duration, f"HTTP {status}", url)
 
 

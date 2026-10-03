@@ -8,7 +8,7 @@ import types
 from types import SimpleNamespace
 
 import pytest
-from streamlit.errors import StreamlitAPIException
+from agi_web.python_view_session import UIError
 
 
 pytestmark = pytest.mark.usefixtures("streamlit_loopback_config")
@@ -214,7 +214,7 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     errors: list[str] = []
 
     def _raise_download_error(_label, **_kwargs):
-        raise StreamlitAPIException("download failed")
+        raise UIError("download failed")
 
     fake_container = SimpleNamespace(
         download_button=_raise_download_error,

@@ -10,13 +10,19 @@
 `agi-env` provides headless environment bootstrap and runtime helpers: paths, credentials, virtual environments,
 and launch context.
 
+> The native UI described here is the current source implementation. Previously
+> published PyPI packages may still use the former provider; the commands below
+> install their published release, not this source migration. From an AGILAB
+> source checkout, use `uv sync --extra ui --extra notebook` to install the native
+> interface and notebook widget. Local validation does not publish those changes.
+
 ## Quick install
 
 ```bash
 pip install agi-env
 ```
 
-For Streamlit pages and local UI sessions, install the separate UI package:
+For native Python UI pages and local UI sessions, install the separate UI package:
 
 ```bash
 pip install agi-gui

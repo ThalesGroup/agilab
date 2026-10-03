@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-import streamlit as st
+from agi_web import python_ui as st
 from pydantic import ValidationError
 
 _HERE = Path(__file__).resolve().parent

@@ -17,7 +17,7 @@ APP_EXECUTION_LOCK = RLock()
 def app_session_state(state, name: str, keys: tuple[str, ...]):
     """Scope a fixed app's non-widget state without rewriting its sealed source.
 
-    Widget state remains Streamlit-owned. Callers list only persistent results
+    Widget state remains owned by the view session. Callers list only persistent results
     and submitted parameters, which may otherwise collide with another app.
     """
     storage_key = f"_agilab_notebook_{name}_state"

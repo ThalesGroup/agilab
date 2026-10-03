@@ -1,6 +1,16 @@
 # Text atlas
 
-A native Streamlit explorer and executable workflow for the actual 1,250-row
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
+A native Python UI explorer and executable workflow for the actual 1,250-row
 historical Wikinews corpus used by INRIA's scikit-learn MOOC. This is the third
 Tokki + AGILAB public notebook demo.
 
@@ -18,13 +28,13 @@ environment and install declared dependencies with uv:
 
 ```sh
 uv sync
-uv run streamlit run app.py
+uv run python -m agi_web.react_python_host app.py
 ```
 
 For an existing environment with these packages already installed:
 
 ```sh
-python -m streamlit run app.py
+python -m agi_web.react_python_host app.py
 ```
 
 No install is needed in the supplied AGILAB environment. No API, credential,

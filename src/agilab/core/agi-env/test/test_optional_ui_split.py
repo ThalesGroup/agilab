@@ -12,12 +12,13 @@ import pytest
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-from agi_env._optional_ui import require_streamlit
+from agi_env._optional_ui import require_python_ui
 
 
 AGI_ENV_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = next(parent for parent in AGI_ENV_ROOT.parents if (parent / ".git").exists())
 AGI_GUI_ROOT = REPO_ROOT / "src/agilab/lib/agi-gui"
+AGI_WEB_ROOT = REPO_ROOT / "src/agilab/lib/agi-web"
 
 
 def _requirement_name(requirement: str) -> str:
@@ -42,12 +43,33 @@ def _requirement_has_lower_bound_at_least(requirement: str, minimum: str) -> boo
 def _requirement_has_upper_bound_below(requirement: str, maximum: str) -> bool:
     parsed = Requirement(requirement)
     maximum_version = Version(maximum)
-    upper_bound_operators = {"<", "<="}
     return any(
-        specifier.operator in upper_bound_operators
-        and Version(specifier.version) <= maximum_version
+        (specifier.operator == "<" and Version(specifier.version) <= maximum_version)
+        or (
+            specifier.operator in {"<=", "=="}
+            and Version(specifier.version) < maximum_version
+        )
         for specifier in parsed.specifier
     )
+
+
+@pytest.mark.parametrize(
+    ("requirement", "expected"),
+    [
+        ("agi-web==2026.07.17", True),
+        ("agi-web>=2026.07.17,<2027.0", True),
+        ("agi-web<=2026.12", True),
+        ("agi-web==2027.0", False),
+        ("agi-web==2028.0", False),
+        ("agi-web<=2027.0", False),
+        ("agi-web<2028.0", False),
+        ("agi-web>=2026.07.17", False),
+    ],
+)
+def test_native_ui_dependency_upper_bound_accepts_safe_exact_pins(
+    requirement: str, expected: bool
+) -> None:
+    assert _requirement_has_upper_bound_below(requirement, "2027.0") is expected
 
 
 def _run_python(script: str) -> subprocess.CompletedProcess[str]:
@@ -85,20 +107,18 @@ def test_agi_env_resources_are_package_data_not_import_shadow_data_files() -> No
     assert "resources/**/*" in setuptools_config["package-data"]["agi_env"]
 
 
-def test_agi_gui_declares_streamlit_ui_runtime() -> None:
+def test_agi_gui_declares_native_ui_runtime_without_streamlit() -> None:
     data = tomllib.loads((AGI_GUI_ROOT / "pyproject.toml").read_text())
 
     dependencies = data["project"]["dependencies"]
 
     assert f"agi-env=={_project_version(AGI_ENV_ROOT / 'pyproject.toml')}" in dependencies
-    streamlit_dependencies = [
-        dependency
-        for dependency in dependencies
-        if _requirement_name(dependency) == "streamlit"
-    ]
-    assert len(streamlit_dependencies) == 1
-    assert _requirement_has_lower_bound_at_least(streamlit_dependencies[0], "1.58")
-    assert _requirement_has_upper_bound_below(streamlit_dependencies[0], "2")
+    names = {_requirement_name(dependency) for dependency in dependencies}
+    assert "streamlit" not in names
+    assert "streamlit-code-editor" not in names
+    native_provider = next(dependency for dependency in dependencies if _requirement_name(dependency) == "agi-web")
+    assert _requirement_has_lower_bound_at_least(native_provider, _project_version(AGI_WEB_ROOT / "pyproject.toml"))
+    assert _requirement_has_upper_bound_below(native_provider, "2027.0")
     assert "watchdog" in {_requirement_name(dependency) for dependency in dependencies}
 
 
@@ -138,20 +158,20 @@ def test_headless_import_does_not_require_streamlit() -> None:
 
 
 @pytest.mark.parametrize("module_name", ["agi_env.pagelib", "agi_env.streamlit_args"])
-def test_ui_modules_explain_optional_extra_when_streamlit_is_missing(module_name: str) -> None:
+def test_ui_modules_explain_optional_extra_when_native_provider_is_missing(module_name: str) -> None:
     result = _run_python(
         f"""
-        import builtins
         import importlib
+        import importlib.abc
+        import sys
 
-        real_import = builtins.__import__
+        class BlockNativeProvider(importlib.abc.MetaPathFinder):
+            def find_spec(self, fullname, path=None, target=None):
+                if fullname == "agi_web" or fullname.startswith("agi_web."):
+                    raise ModuleNotFoundError("blocked native UI provider", name="agi_web")
+                return None
 
-        def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-            if name == "streamlit" or name.startswith("streamlit."):
-                raise ModuleNotFoundError("blocked streamlit", name="streamlit")
-            return real_import(name, globals, locals, fromlist, level)
-
-        builtins.__import__ = blocked_import
+        sys.meta_path.insert(0, BlockNativeProvider())
 
         try:
             importlib.import_module({module_name!r})
@@ -159,24 +179,25 @@ def test_ui_modules_explain_optional_extra_when_streamlit_is_missing(module_name
             if "agi-gui" in str(exc):
                 raise SystemExit(0)
             raise SystemExit(f"unexpected error: {{exc}}")
-        raise SystemExit("expected Streamlit import failure")
+        raise SystemExit("expected native UI provider import failure")
         """
     )
 
     assert result.returncode == 0, result.stderr or result.stdout
 
 
-def test_require_streamlit_reports_ui_extra_for_missing_streamlit() -> None:
-    def missing_streamlit(name, *args, **kwargs):
-        raise ModuleNotFoundError("No module named 'streamlit'", name="streamlit")
+def test_require_native_ui_reports_ui_extra_for_missing_provider() -> None:
+    def missing_provider(name, *args, **kwargs):
+        assert name == "agi_web.python_ui"
+        raise ModuleNotFoundError("No module named 'agi_web'", name="agi_web")
 
     with pytest.raises(ModuleNotFoundError, match="agi-gui"):
-        require_streamlit(missing_streamlit)
+        require_python_ui(missing_provider)
 
 
-def test_require_streamlit_preserves_transitive_import_failures() -> None:
+def test_require_native_ui_preserves_transitive_import_failures() -> None:
     def missing_transitive_dependency(name, *args, **kwargs):
         raise ModuleNotFoundError("No module named 'watchdog'", name="watchdog")
 
     with pytest.raises(ModuleNotFoundError, match="watchdog"):
-        require_streamlit(missing_transitive_dependency)
+        require_python_ui(missing_transitive_dependency)

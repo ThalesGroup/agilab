@@ -4167,7 +4167,7 @@ def test_toml_to_notebook_with_export_context_embeds_supervisor_metadata_and_ana
     assert "render_analysis_page" in helper_source
     assert "shell=True" not in helper_source
     assert "_build_shorthand_agi_script" in helper_source
-    assert "_find_free_streamlit_port" in helper_source
+    assert "_find_free_analysis_port" in helper_source
     assert "controller_python = AGILAB_NOTEBOOK_EXPORT.get(\"controller_python\")" in helper_source
     compile(helper_source, "<agilab-notebook-export-helper>", "exec")
     assert validation_source == "validate_agilab_export()\n"

@@ -6,7 +6,7 @@ Explore a pure-Python Mandelbrot workload, then measure the unchanged AGILAB poo
 
 Use standard Python 3.13+ for the interface, with the dependencies in requirements.txt installed. Provide a free-threaded Python 3.14 interpreter through AGILAB_FREE_THREADING_PYTHON or python3.14t on PATH. The measured child interpreters use only the standard library and the bundled pool engine.
 
-    python -m streamlit run app.py --server.address=127.0.0.1
+    python -m agi_web.react_python_host app.py --address=127.0.0.1
     python -m pytest -q tests.py
 
 The initial page shows a small image preview. Run analysis commits controls and calculates image statistics. Run benchmark explicitly starts measurements. Changing unsubmitted controls does not change a completed benchmark.

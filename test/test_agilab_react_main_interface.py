@@ -15,7 +15,7 @@ def fixture_data():
     pages = {key: object() for key in ui._ROUTE_CONTENT}
     env = SimpleNamespace(app="alpha_project", target="alpha", AGILAB_EXPORT_ABS=Path("exports"), projects=["beta_project", "alpha_project"],
                           get_projects=lambda *_: ["beta_project", "alpha_project"], apps_path=Path("."), builtin_apps_path=Path("."))
-    st = SimpleNamespace(session_state={"env": env})
+    st = SimpleNamespace(session_state={"env": env}, query_params={})
     return st, env, pages
 
 
@@ -59,6 +59,27 @@ def test_actions_use_registered_pages_and_allowlisted_projects():
             data=data, routes=pages, navigate=navigate, select_project=select)
     navigate.assert_called_once_with(pages["workflow"])
     select.assert_called_once_with("beta_project")
+
+
+@pytest.mark.parametrize("child_params", [{"current_page": "/views/map.py"}, {"current_notebook": "/lab.ipynb"}])
+def test_active_analysis_navigation_returns_from_child_to_overview(child_params):
+    st, env, pages = fixture_data()
+    st.query_params.update(child_params)
+    data = ui.interface_data(st, env, pages, pages["analysis"])
+    navigate = Mock()
+    assert ui.handle_interface_action(
+        dict(kind="navigate", value="analysis", project=env.app, route="analysis"),
+        data=data, routes=pages, navigate=navigate, select_project=Mock(),
+    )
+    navigate.assert_called_once_with(pages["analysis"])
+    st.query_params.clear()
+    data = ui.interface_data(st, env, pages, pages["analysis"])
+    navigate.reset_mock()
+    assert not ui.handle_interface_action(
+        dict(kind="navigate", value="analysis", project=env.app, route="analysis"),
+        data=data, routes=pages, navigate=navigate, select_project=Mock(),
+    )
+    navigate.assert_not_called()
 
 
 def test_project_switch_schedules_existing_cold_bootstrap(monkeypatch, tmp_path):

@@ -35,15 +35,17 @@ back to the landing page first.
 
 Operational controls are kept out of the workflow page list. Use the landing
 sidebar **Settings** link to edit persisted environment variables and runtime
-diagnostics. The general AGILAB documentation link remains available from
-Streamlit's system menu under **Get help**.
+diagnostics. The general documentation link is available from the landing
+sidebar **Documentation** link.
 
-.. figure:: _static/page-shots/core-pages-overview.svg
-   :alt: Overview screenshot montage of the PROJECT, ORCHESTRATE, WORKFLOW, and ANALYSIS Streamlit pages.
+.. figure:: _static/native-ui/agilab_native_react_main_home.png
+   :alt: Native React home interface with project selection and workflow navigation.
    :align: center
    :class: diagram-panel diagram-wide
 
-   A compact visual tour of the four built-in Streamlit pages that structure the AGILAB workflow.
+   The native home interface connects PROJECT, ORCHESTRATE, WORKFLOW and
+   ANALYSIS. This capture comes from the installed UI and notebook wheels,
+   with the built-in flight telemetry project selected.
 
 Page bundles
 ------------

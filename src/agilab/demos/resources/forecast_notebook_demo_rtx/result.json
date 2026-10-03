@@ -135,7 +135,7 @@
   "files": {
     "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
-    "app.py": "dfb109b2b21d5dbcf12ffeb945fc84243b4580ebd25bba14cac3f3066e7728f4",
+    "app.py": "bfe3cad104f1d0c9667b0643626cd696525b0af3984602793cbcacdb6449ca70",
     "forecast_core.py": "08f913f4112efe95f742ab935a373f240ec99e806bbf293bf4f5ed93c1f731ff",
     "lab_stages.toml": "7c6131cb7bae88abc8841fcd131bb73b7422a305577f77659bb0f4558691748f",
     "solution.ipynb": "0d2fd5fb1e3c8f5700e949519160c41d4457f8384065c417005c0dc5374e384a",
@@ -196,5 +196,182 @@
     "agent": "OpenCode",
     "supervisor": "Codex",
     "workflow_mode": "hybrid_supervision_local_codegen"
+  },
+  "native_ui_migration": {
+    "schema": "agilab.native_notebook_demo_migration.v1",
+    "verified_at_utc": "2026-10-03T17:50:03.196373+00:00",
+    "interface_runtime": "agi_web.python_ui",
+    "original_files": {
+      "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+      "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+      "app.py": "dfb109b2b21d5dbcf12ffeb945fc84243b4580ebd25bba14cac3f3066e7728f4",
+      "forecast_core.py": "08f913f4112efe95f742ab935a373f240ec99e806bbf293bf4f5ed93c1f731ff",
+      "lab_stages.toml": "7c6131cb7bae88abc8841fcd131bb73b7422a305577f77659bb0f4558691748f",
+      "solution.ipynb": "0d2fd5fb1e3c8f5700e949519160c41d4457f8384065c417005c0dc5374e384a",
+      "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+      "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
+    },
+    "original_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "baseline_mae",
+        "coverage",
+        "forecast",
+        "horizon",
+        "mae",
+        "model",
+        "model_revision",
+        "seed"
+      ],
+      "result_sha256": "5ed332c162dce974d0016a9d9f4064bd483246dcbb644aebbee6ec2ab6ed9408",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface",
+      "forecast": {
+        "status": "passed",
+        "checks": [
+          "autonomous_run_passed",
+          "autonomous_artifacts_unchanged",
+          "original_source_hash",
+          "three_seed_real_model_inference",
+          "finite_forecast_shapes",
+          "ordered_quantiles",
+          "forecast_matches_instrumented_model_output",
+          "held_out_actual_invariance",
+          "future_promotion_changes_forecast",
+          "independent_mae_seasonal_baseline_and_interval_coverage",
+          "json_analysis_matches_independent_metrics",
+          "artifacts_unchanged_after_inference"
+        ],
+        "measurements": {
+          "cases": [
+            {
+              "seed": 7,
+              "context_length": 256,
+              "horizon": 28,
+              "promotion_start": 7,
+              "promotion_days": 7,
+              "mae": 11.976719175066266,
+              "baseline_mae": 14.679492405482701,
+              "coverage": 0.42857142857142855,
+              "nominal_interval_coverage": 0.8,
+              "seasonal_baseline_period": 7,
+              "future_actual_perturbation": 1000000,
+              "actual_perturbation_predictions_identical": true,
+              "promotion_zeroed_max_absolute_forecast_change": 8.673049926757812
+            },
+            {
+              "seed": 42,
+              "context_length": 256,
+              "horizon": 28,
+              "promotion_start": 7,
+              "promotion_days": 7,
+              "mae": 11.674583980015345,
+              "baseline_mae": 13.134320395333427,
+              "coverage": 0.5,
+              "nominal_interval_coverage": 0.8,
+              "seasonal_baseline_period": 7,
+              "future_actual_perturbation": 1000000,
+              "actual_perturbation_predictions_identical": true,
+              "promotion_zeroed_max_absolute_forecast_change": 8.052947998046875
+            },
+            {
+              "seed": 2026,
+              "context_length": 256,
+              "horizon": 28,
+              "promotion_start": 7,
+              "promotion_days": 7,
+              "mae": 12.196430206298828,
+              "baseline_mae": 13.096966062273298,
+              "coverage": 0.5,
+              "nominal_interval_coverage": 0.8,
+              "seasonal_baseline_period": 7,
+              "future_actual_perturbation": 1000000,
+              "actual_perturbation_predictions_identical": true,
+              "promotion_zeroed_max_absolute_forecast_change": 8.208465576171875
+            }
+          ],
+          "real_model_calls": 10,
+          "model_revision": "ddec01313e50b6bc58ebaa92ede81bc24a3d9f9a",
+          "dependency_versions": {
+            "chronos-forecasting": "2.3.2",
+            "torch": "2.14.0",
+            "transformers": "5.17.0",
+            "numpy": "2.5.3",
+            "pandas": "2.3.3",
+            "accelerate": "1.15.0"
+          },
+          "python_version": "3.13.14",
+          "platform": "Linux",
+          "checked_at": "2026-09-22T10:10:42.185643+00:00",
+          "interpretation": "Three deterministic synthetic cases and one analysis-contract check. MAE and interval coverage are reported without requiring superiority to the baseline. Changing a promotion input demonstrates model sensitivity, not a causal business effect.",
+          "weight_source": "pinned_hugging_face_cache",
+          "weight_files_sha256": {
+            "config.json": "f2780468adc8b16322aa0b6e28b26476c9401ecf64ab53292b6d2b0d3f423722",
+            "model.safetensors": "492290ae82bb89f9769e3479ce90b3179de1f33e600c34daa0352531538b23cd"
+          }
+        }
+      }
+    },
+    "verifier_sha256": "c6d9731f897bf123cba144706a92a4c920cea4ce256097999e83e38c88df1714",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": true,
+    "native_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "baseline_mae",
+        "coverage",
+        "forecast",
+        "horizon",
+        "mae",
+        "model",
+        "model_revision",
+        "seed"
+      ],
+      "result_sha256": "193064db99a600fa44fcec8cc9ed9b81b77f65479a65a37c007f49560b408a53",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface"
+    },
+    "scientific_proof_retention": {
+      "scope": "historical independent scientific verification; unchanged scientific sources and data",
+      "sections": [
+        "forecast"
+      ],
+      "original_artifacts_sha256": {
+        "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "forecast_core.py": "08f913f4112efe95f742ab935a373f240ec99e806bbf293bf4f5ed93c1f731ff",
+        "lab_stages.toml": "7c6131cb7bae88abc8841fcd131bb73b7422a305577f77659bb0f4558691748f",
+        "solution.ipynb": "0d2fd5fb1e3c8f5700e949519160c41d4457f8384065c417005c0dc5374e384a",
+        "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
+      },
+      "current_artifacts_sha256": {
+        "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "forecast_core.py": "08f913f4112efe95f742ab935a373f240ec99e806bbf293bf4f5ed93c1f731ff",
+        "lab_stages.toml": "7c6131cb7bae88abc8841fcd131bb73b7422a305577f77659bb0f4558691748f",
+        "solution.ipynb": "0d2fd5fb1e3c8f5700e949519160c41d4457f8384065c417005c0dc5374e384a",
+        "source/LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+        "source/original.ipynb": "c33dc42f9f131c706dee79b83c88bd983b6a1535c1d591219c8da27b6f2d6559"
+      },
+      "excluded_interface_and_dependency_files": [
+        "app.py"
+      ],
+      "independently_reverified_test_files": []
+    }
   }
 }

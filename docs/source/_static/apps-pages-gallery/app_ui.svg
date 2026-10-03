@@ -14,7 +14,7 @@
   <rect x="52" y="54" width="536" height="252" rx="18" fill="#ffffff" filter="url(#shadow)"/>
   <rect x="52" y="54" width="536" height="58" rx="18" fill="#0f766e"/>
   <text x="84" y="91" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700" fill="#ffffff">App UI Bridge</text>
-  <text x="84" y="136" font-family="Inter, Arial, sans-serif" font-size="13" fill="#334155">Launches app-owned interactive Streamlit surfaces from ANALYSIS.</text>
+  <text x="84" y="136" font-family="Inter, Arial, sans-serif" font-size="13" fill="#334155">Launches app-owned interactive Native React UI surfaces from ANALYSIS.</text>
   <g fill="none" stroke="#0f766e" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" opacity=".95">
     <rect x="104" y="122" width="180" height="132"/><rect x="356" y="122" width="180" height="132"/><path d="M284 188 H356"/><path d="M336 170 L358 188 L336 206"/>
   </g>

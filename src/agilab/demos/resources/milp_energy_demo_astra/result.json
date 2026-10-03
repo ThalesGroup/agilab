@@ -70,18 +70,172 @@
   "files": {
     "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
     "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
-    "README.md": "d5d3acc08f4e6d94d38fc7513cd79b52f11551f2a3612a9428a0a8893633d6ae",
+    "README.md": "0aaa2ad75a4d1935def97cf7ad210bff93491ee0975bce35bbccab3d273cb258",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "1bfb20f4c6b614349a1e7d063efc49f42d08bfa6a5db93fab4890a58ed566b4b",
+    "app.py": "f13a965c9d9a681e8e729284c946743df272e7fdd8ed72c1c1a8ce3a0af5c5a7",
     "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
     "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
     "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
-    "pyproject.toml": "0bc5f92bb9685973bff8f8d694d1f56d1e9e7e20c2c28c46beb635276e4e8959",
-    "requirements.txt": "8d388ee850c637e686d364c30bb3af6ce42e1909b1269caa4ed54669ae664439",
+    "pyproject.toml": "f50103607eafcd5e68d20ffd6206b14155ebee5d46b310a2772fae144e01e5a5",
+    "requirements.txt": "ad9034fe197670e507b52e98f8cb4b5f6ff14d2b3fa8b545408673609fd9fd40",
     "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
     "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
     "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
     "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
-    "tests.py": "92f03e9e0ed6e76b60021477360565749f505c07aa11cd9790da09d8dc010a65"
+    "tests.py": "8b0e6126ffef85b1530c8713de2e48253af19e0209276893ac9807bfb6ef244b"
+  },
+  "native_ui_migration": {
+    "schema": "agilab.native_notebook_demo_migration.v1",
+    "verified_at_utc": "2026-10-03T18:44:50.862471+00:00",
+    "interface_runtime": "agi_web.python_ui",
+    "original_files": {
+      "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+      "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
+      "README.md": "d5d3acc08f4e6d94d38fc7513cd79b52f11551f2a3612a9428a0a8893633d6ae",
+      "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+      "app.py": "1bfb20f4c6b614349a1e7d063efc49f42d08bfa6a5db93fab4890a58ed566b4b",
+      "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
+      "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
+      "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
+      "pyproject.toml": "0bc5f92bb9685973bff8f8d694d1f56d1e9e7e20c2c28c46beb635276e4e8959",
+      "requirements.txt": "8d388ee850c637e686d364c30bb3af6ce42e1909b1269caa4ed54669ae664439",
+      "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
+      "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+      "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+      "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
+      "tests.py": "92f03e9e0ed6e76b60021477360565749f505c07aa11cd9790da09d8dc010a65"
+    },
+    "original_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_names": [
+        "active_modules",
+        "agilab_batch_measurement",
+        "capacity_limited_status",
+        "default_objective",
+        "full_batch_measurement",
+        "full_reference",
+        "installed_modules",
+        "reference_check"
+      ],
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface",
+      "milp_energy": {
+        "status": "passed",
+        "checks": [
+          "pinned notebook and CC BY 4.0 license",
+          "unchanged AGILAB pool engine",
+          "fresh HiGHS execution with one solver thread",
+          "independent 21879 objective and 30-module optimum",
+          "reference dispatch and integer commitment at every timestep",
+          "capacity-limited infeasibility without an incumbent",
+          "independent shortage and solar/startup constraints and costs",
+          "same scenario batch and outcomes on one and two AGILAB workers",
+          "measured overlapping worker processes"
+        ],
+        "reference_objective": 21879,
+        "scaling_validation": {
+          "cases": 4,
+          "workers": 2,
+          "scope": "local scenario throughput",
+          "note": "Timings are validation evidence, not a guarantee of public Space speedup"
+        }
+      }
+    },
+    "verifier_sha256": "c6d9731f897bf123cba144706a92a4c920cea4ce256097999e83e38c88df1714",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": false,
+    "native_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "active_modules",
+        "agilab_batch_measurement",
+        "capacity_limited_status",
+        "default_objective",
+        "full_batch_measurement",
+        "full_reference",
+        "installed_modules",
+        "reference_check"
+      ],
+      "result_sha256": "e28dfb77c6d94cfceb9d07de7a2044bacaacb98788e111acebc1c32c8152942a",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface"
+    },
+    "interface_test_verification": {
+      "tests.py": {
+        "status": "passed",
+        "sha256": "8b0e6126ffef85b1530c8713de2e48253af19e0209276893ac9807bfb6ef244b",
+        "command": "python tests.py",
+        "checkout": "fresh temporary project copy",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "c5045965673a8b598733746415b2ba8753d7ba02d42a3f792ba47ac1c7d5d0f3",
+        "seconds": 27.957,
+        "summary": [
+          "Ran 18 tests in 27.855s",
+          "",
+          "OK"
+        ]
+      }
+    },
+    "scientific_proof_retention": {
+      "scope": "historical independent scientific verification; unchanged scientific sources and data",
+      "sections": [
+        "milp_energy"
+      ],
+      "original_artifacts_sha256": {
+        "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+        "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
+        "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+        "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
+        "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
+        "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
+        "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
+        "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+        "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+        "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
+        "tests.py": "92f03e9e0ed6e76b60021477360565749f505c07aa11cd9790da09d8dc010a65"
+      },
+      "current_artifacts_sha256": {
+        "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+        "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
+        "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+        "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
+        "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
+        "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
+        "solution.ipynb": "b42c8862220c1e89db3e52ab674c428662c94de1d0ebb5e0eb2032bb452ffd75",
+        "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
+        "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
+        "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
+        "tests.py": "8b0e6126ffef85b1530c8713de2e48253af19e0209276893ac9807bfb6ef244b"
+      },
+      "excluded_interface_and_dependency_files": [
+        "README.md",
+        "app.py",
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "independently_reverified_test_files": [
+        "tests.py"
+      ]
+    },
+    "documentation_refresh": {
+      "scope": "documentation only; executable artifacts retain the completed native verification",
+      "files_sha256": {
+        "README.md": "0aaa2ad75a4d1935def97cf7ad210bff93491ee0975bce35bbccab3d273cb258"
+      },
+      "refreshed_at_utc": "2026-10-03T20:16:04.882081+00:00"
+    }
   }
 }

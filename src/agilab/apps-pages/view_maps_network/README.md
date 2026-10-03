@@ -19,7 +19,7 @@ Use for relay or satellite queue-analysis runs where route choice and link avail
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_maps_network/src/view_maps_network/view_maps_network.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
 ```
 
 ## Quality Contract

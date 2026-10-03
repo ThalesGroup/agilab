@@ -334,7 +334,7 @@ def test_view_queue_resilience_reuses_existing_session_env(
         monkeypatch.setenv("AGI_CLUSTER_SHARE", str(tmp_path / "clustershare"))
         monkeypatch.setenv("OPENAI_API_KEY", "dummy")
         monkeypatch.setenv("IS_SOURCE_ENV", "1")
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
 
         at = AppTest.from_file(PAGE_PATH, default_timeout=20)
         at.session_state["env"] = SimpleNamespace(

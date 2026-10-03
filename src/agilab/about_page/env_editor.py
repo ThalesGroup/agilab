@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-import streamlit as st
+from agi_web import python_ui as st
 from agi_env.agi_logger import AgiLogger
 from agi_env.credential_store_support import (
     CLUSTER_CREDENTIALS_KEY,

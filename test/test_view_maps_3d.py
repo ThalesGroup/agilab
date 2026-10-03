@@ -236,7 +236,7 @@ def _load_view_maps_3d_module():
     module = importlib.util.module_from_spec(spec)
     with warnings.catch_warnings():
         _suppress_page_import_warnings()
-        with patch("streamlit.title", lambda *args, **kwargs: None):
+        with patch("agi_web.python_ui.title", lambda *args, **kwargs: None):
             spec.loader.exec_module(module)
     return module
 

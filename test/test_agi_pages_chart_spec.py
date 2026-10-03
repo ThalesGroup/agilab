@@ -327,7 +327,8 @@ def test_agi_pages_render_streamlit_imports_streamlit_when_not_injected(monkeypa
 
     fake_streamlit = ModuleType("streamlit")
     fake_streamlit.components = SimpleNamespace(v1=SimpleNamespace(html=_html))
-    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
+    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
 
     assert agi_pages.render_streamlit(spec, height=280) == "imported-component"
     assert calls[0]["height"] == 280

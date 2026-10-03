@@ -20,7 +20,7 @@ import pandas as pd
 from pandas.api.types import is_integer_dtype, is_numeric_dtype
 import plotly.express as px
 import plotly.graph_objects as go
-import streamlit as st
+from agi_web import python_ui as st
 import tomllib as _toml
 from agi_env.app_settings_support import read_app_settings, update_app_settings_owned
 from agi_pages.runtime import ensure_repo_on_path, resolve_active_app_path

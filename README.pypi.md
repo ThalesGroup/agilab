@@ -23,7 +23,7 @@ agilab adoption-report --strict
 
 That loop is the product in miniature: controlled environment, reproducible
 execution, artifacts, run evidence, and a portable handoff path without needing
-the Streamlit UI or a cluster.
+the web UI or a cluster.
 
 [![PyPI version](https://img.shields.io/pypi/v/agilab.svg?cacheSeconds=300)](https://pypi.org/project/agilab/)
 [![Supported Python Versions](https://img.shields.io/pypi/pyversions/agilab.svg)](https://pypi.org/project/agilab/)
@@ -87,8 +87,8 @@ code, stage order, runtime hints, and review context remain usable through the
 stable, release-gated core runtime handoff technology if the AGILAB UI or
 distributed runtime is no longer the right interface for that work.
 Apps can also declare multiple UI surfaces, so the same runtime and evidence
-contract can be exposed through Streamlit, hosted Hugging Face, or
-browser-native `agi-web` UI islands with React-ready component contracts.
+contract can be exposed through the native `agi-web` React host, Jupyter, or
+hosted Hugging Face with shared browser/notebook component contracts.
 
 ## Demo Routes
 
@@ -156,12 +156,19 @@ agilab first-proof --json
 agilab adoption-report
 ```
 
-Use the UI profile only when you also want the local Streamlit pages:
+Use the UI profile when you also want the local web interface:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
 agilab
 ```
+
+In this source checkout, `agi-web` serves the React interface and renders retained
+Python pipeline, geographic and administration views through its own Python UI
+API. Streamlit is no longer a runtime dependency. Maps and analysis curves use
+the same React components in the web interface and Jupyter. Updated package
+publication and hosted deployment are separate from this source migration;
+previously published wheels retain the dependencies of their release.
 
 For a zero-install browser preview, open the public
 [AGILAB Space](https://huggingface.co/spaces/jpmorard/agilab). It opens the
@@ -185,8 +192,8 @@ agilab adoption-report
 `agilab dry-run` is the fast alias for `agilab first-proof --dry-run`; it
 verifies CLI/core readiness only.
 `agilab first-proof --json` runs the onboarding contract and writes
-`run_manifest.json` without requiring Streamlit. Add `--with-ui` only when you
-intentionally want the proof to boot the packaged Streamlit pages too.
+manifest without requiring the UI profile. Add `--with-ui` when you also want
+the proof to render the packaged Python views through the native UI API.
 
 ### Maturity snapshot
 
@@ -194,7 +201,7 @@ intentionally want the proof to boot the packaged Streamlit pages too.
 |---|---|
 | Local run | Stable |
 | Distributed (Dask) | Stable |
-| UI Streamlit | Beta |
+| React UI with Python views | Beta |
 | MLflow | Beta |
 | Production | Experimental |
 | RL examples | Example available |
@@ -215,7 +222,7 @@ Use this boundary before deploying it in sensitive environments:
 |---|---|---|
 | Go for controlled local use | Local research sandboxes, internal demos, notebook-to-app migration, reproducible validation with non-sensitive data. | Normal repository hygiene and local proof evidence. |
 | Go for hardened shared use | Shared team workspaces, SSH/Dask clusters, reviewed external apps, LLM connectors, local/offline LLMs, or sensitive internal datasets when the hardening gate passes. | Per-user isolation, strict `agilab security-check` gate, explicit secrets management, TLS/auth for exposed services, pinned/allowlisted external apps, SBOM plus vulnerability scan evidence for deployed install profiles, bounded resources, and a deployment threat model. |
-| Not safe as-is | Sole production MLOps control plane, public Streamlit exposure, regulated production model serving, enterprise governance, online monitoring, drift detection, or audit-trail ownership. | Pair AGILAB with a hardened production stack such as MLflow/Kubeflow/SageMaker/Dagster/Airflow or an internal platform. |
+| Not safe as-is | Sole production MLOps control plane, public UI exposure, regulated production model serving, enterprise governance, online monitoring, drift detection, or audit-trail ownership. | Pair AGILAB with a hardened production stack such as MLflow/Kubeflow/SageMaker/Dagster/Airflow or an internal platform. |
 
 For shared adoption, run `agilab security-check --profile shared --json` and
 use `--strict` or `AGILAB_SECURITY_CHECK_STRICT=1` when missing controls should
@@ -255,7 +262,7 @@ what they need:
 |---|---|---|
 | Base package | Lightweight `agilab` command shell plus Python 3.13+ stdlib shims. It does not install the core runtime, UI, apps, pages, notebooks, or model stacks by default. | Version/help checks, package/app management commands, and metadata/reporting helpers that do not execute AGILAB runtime code. |
 | `core` extra | `agi-core`, which wires `agi-env`, `agi-node`, and `agi-cluster` for compact local/distributed runtime smoke checks. | CLI proof, source-checkout validation, notebook/API runtime, and worker-runtime development without the UI or packaged examples. |
-| `ui` extra | Streamlit UI, page helpers, portable `agi-web` Canvas2D/WebGL and React-ready UI-island contracts, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
+| `ui` extra | Native `agi-web` React host, Python view helpers, shared browser/notebook components, pandas/network graph utilities, `agi-apps`, and the `agi-pages` provider. Promoted app and page payload packages are on PyPI; unpromoted app payloads remain release artifacts until publication is enabled. | Running the local product UI with the packaged runtime and optional public demo assets. |
 | `examples` extra | `agi-apps` app catalog/examples plus notebook/demo helper dependencies such as JupyterLab and optional plotting packages. | Running packaged notebooks, demos, learning examples, and package first-proof routes. |
 | `notebook` extra | Notebook execution helpers such as `nbclient`, `nbformat`, and `ipykernel`. | Running `agilab run notebook` to execute a local notebook and write AGILAB evidence. |
 | `pages` extra | `agi-pages` page-provider helpers without the full UI profile. | Installing or validating sidecar page-bundle discovery separately from built-in app projects. |
@@ -359,7 +366,7 @@ Use three planes to read that tree:
 | Area | Role | Stability contract |
 |---|---|---|
 | `src/agilab/core/*` | Runtime packages and compact API. | Stable where documented. |
-| `src/agilab/lib/agi-gui`, `src/agilab/lib/agi-web`, `src/agilab/pages` | Main web UI, Streamlit page helpers, portable Canvas2D/WebGL and React-ready UI-island contracts, and app-surface launch adapters. | Beta product surface; app runtime contracts should not depend on one UI backend. |
+| `src/agilab/lib/agi-gui`, `src/agilab/lib/agi-web`, `src/agilab/pages` | Main React UI, retained Python view helpers, shared browser/notebook components, Canvas2D/WebGL contracts, and app-surface launch adapters. | Beta product surface; app runtime contracts should not depend on one UI backend. |
 | `src/agilab/lib/agi-apps` | PyPI umbrella carrying app catalog/example assets and exact-pinning the app payload packages already promoted to PyPI. Deferred app payloads remain release artifacts until publication is enabled. | Packaged asset surface for the `ui` and `examples` extras. |
 | `src/agilab/lib/agi-pages` | PyPI provider package for public analysis page discovery. Published `agi-page-*` payload packages are distributed independently; `agi-pages` supplies the discovery/provider surface. | Packaged page-provider surface for the `ui` and `pages` extras. |
 | `src/agilab/apps/builtin` | First-proof and demo apps. | Packaged examples, not deployment templates. |
@@ -436,7 +443,7 @@ installer flags, IDE run configs, and troubleshooting, use the Quick Start docs.
 
 ## Published Package
 
-For a CLI-only package smoke without Streamlit:
+For a CLI-only package smoke without the UI profile:
 
 ```bash
 uv --preview-features extra-build-dependencies tool install --upgrade "agilab[examples]"

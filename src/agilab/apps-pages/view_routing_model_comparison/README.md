@@ -21,7 +21,7 @@ source-destination hotspots, and side-by-side decision evidence.
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_routing_model_comparison/src/view_routing_model_comparison/view_routing_model_comparison.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_routing_model_comparison/src/view_routing_model_comparison/view_routing_model_comparison.py -- --active-app src/agilab/apps/builtin/uav_relay_queue_project
 ```
 
 ## Quality Contract

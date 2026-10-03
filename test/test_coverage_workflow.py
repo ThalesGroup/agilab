@@ -119,10 +119,11 @@ def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
     assert '"badges/skills.svg"' not in trigger_block
 
 
-def test_agi_env_coverage_installs_streamlit_ui_dependency() -> None:
+def test_agi_env_coverage_installs_native_ui_source_dependency() -> None:
     run_block = _agi_env_run_block()
 
-    assert "--with streamlit" in run_block
+    assert "--with-editable ./src/agilab/lib/agi-web" in run_block
+    assert "--with streamlit" not in run_block
 
 
 def test_agi_env_coverage_excludes_ipython_signature_compatibility_line() -> None:

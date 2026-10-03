@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 from uuid import uuid4
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agilab.cluster.cluster_lan_discovery import DiscoveryOptions, discover_lan_nodes
 from agilab.orchestrate.orchestrate_page_support import ORCHESTRATE_ACTION_LABELS

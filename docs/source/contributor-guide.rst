@@ -49,7 +49,7 @@ Before editing, pick the closest lane:
      - Built-in app, example README, app args, analysis view
      - Targeted app/page ``pytest`` or the app smoke test
    * - UI helper
-     - Streamlit page state, sidebar/header, workflow/orchestrate helper
+     - native React UI page state, sidebar/header, workflow/orchestrate helper
      - Targeted root ``pytest`` for the touched helper
    * - Workflow or release tooling
      - GitHub workflows, badges, release proof, package policy
@@ -84,6 +84,19 @@ Use the smallest command that proves your change:
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile badges``
    * - Shared-core typing
      - ``uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py``
+
+For a targeted root or UI regression, run ``./dev test <test-file>``. For the
+complete source contracts, run ``./dev test``. The helper enables the
+``test-ui`` dependency group for those UI tests: it installs the optional
+geographic page bundles and scientific-view test libraries. Targeted core
+tests keep their headless dependency contract.
+
+The isolated root suite used by CI can also be run directly::
+
+   uv --preview-features extra-build-dependencies run --extra ui --extra notebook --group test-ui python -m tools.testing.root_test_runner
+
+This test group does not change the dependencies of a base or default UI
+installation.
 
 Run broader test suites only when the touched area needs them. Do not trigger
 GitHub Actions when the same failure can be reproduced locally.

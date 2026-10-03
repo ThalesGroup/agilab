@@ -9,6 +9,12 @@ It exposes a small discovery API so the AGILAB ANALYSIS page and exported
 notebooks can resolve installed view bundles without embedding the page source
 in the root `agilab` wheel.
 
+> The native UI described here is the current source implementation. Previously
+> published PyPI packages may still use the former provider; the commands below
+> install their published release, not this source migration. From an AGILAB
+> source checkout, use `uv sync --extra ui --extra notebook` to install the native
+> interface and notebook widget. Local validation does not publish those changes.
+
 ## Quick Install
 
 ```bash
@@ -42,7 +48,7 @@ wheel/sdist payload packages. Install the page package you need alongside
 ## Portable Chart Specs
 
 `agi-pages` also exposes a lightweight chart contract for page bundles that need
-the same dataframe-driven visualization to work in Streamlit, exported
+the same dataframe-driven visualization to work in native Python UI, exported
 notebooks, and static proof artifacts.
 
 ```python
@@ -56,7 +62,7 @@ spec = agi_pages.build_chart_spec(
     y="accuracy",
 )
 
-agi_pages.render_streamlit(spec)
+agi_pages.render_streamlit(spec)  # compatibility name; renders with agi_web.python_ui
 ```
 
 The spec stores an ECharts-compatible `option`, normalized table records, and a

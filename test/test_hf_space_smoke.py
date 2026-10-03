@@ -4,6 +4,7 @@ import importlib.util
 import json
 import runpy
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -24,6 +25,12 @@ def _load_module():
 
 def _clock(*values: float):
     return iter(values).__next__
+
+
+def _healthy_native_response(url: str, _timeout: float):
+    if urllib.parse.urlsplit(url).path == "/api/health":
+        return 200, json.dumps({"status": "ok", "host": "agilab-react"})
+    return 200, json.dumps({"revision": 1, "error": None, "nodes": {"main": [], "sidebar": []}})
 
 
 def test_profile_helpers_reject_unknown_profiles() -> None:
@@ -61,7 +68,7 @@ def test_build_space_url_encodes_current_page_query() -> None:
 
     url = module.build_space_url("https://demo.hf.space/", spec)
 
-    assert url.startswith("https://demo.hf.space?")
+    assert url.startswith("https://demo.hf.space/api/view?path=%2FANALYSIS&")
     assert "active_app=flight_telemetry_project" in url
     assert "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_maps%2Fsrc%2Fview_maps%2Fview_maps.py" in url
 
@@ -72,7 +79,7 @@ def test_build_space_url_encodes_weather_view_query() -> None:
 
     url = module.build_space_url("https://demo.hf.space/", spec)
 
-    assert url.startswith("https://demo.hf.space?")
+    assert url.startswith("https://demo.hf.space/api/view?path=%2FANALYSIS&")
     assert "active_app=weather_forecast_project" in url
     assert (
         "current_page=%2Fapp%2Fsrc%2Fagilab%2Fapps-pages%2Fview_forecast_analysis"
@@ -263,11 +270,11 @@ def test_check_route_rejects_localhost_connection_body() -> None:
     assert "127.0.0.1" in result.detail
 
 
-def test_check_route_rejects_streamlit_api_exception_body() -> None:
+def test_check_route_rejects_native_ui_exception_body() -> None:
     module = _load_module()
 
     def _fetcher(_url: str, _timeout: float):
-        return 200, "streamlit.errors.StreamlitAPIException: Multiple Pages specified"
+        return 200, "agi_web.python_view_session.UIError: Multiple Pages specified"
 
     result = module.check_route(
         "https://demo.hf.space",
@@ -278,7 +285,30 @@ def test_check_route_rejects_streamlit_api_exception_body() -> None:
     )
 
     assert result.success is False
-    assert "streamlitapiexception" in result.detail
+    assert "agi_web.python_view_session.uierror" in result.detail
+
+
+@pytest.mark.parametrize(
+    ("path", "body", "detail"),
+    [
+        ("/api/view", "<html><div id='root'></div></html>", "did not return JSON"),
+        ("/api/view", '{"error": "missing project data"}', "native view error: missing project data"),
+        ("/api/view", '{"revision": 1, "nodes": {"main": []}}', "did not return its render tree"),
+        ("/api/health", '{"status": "ok", "host": "another-app"}', "host is not healthy"),
+    ],
+)
+def test_check_route_rejects_http_success_without_healthy_native_render(path, body, detail) -> None:
+    module = _load_module()
+    result = module.check_route(
+        "https://demo.hf.space",
+        module.RouteSpec("native", path=path),
+        timeout=1.0,
+        fetcher=lambda _url, _timeout: (200, body),
+        clock=_clock(0.0, 0.2),
+    )
+
+    assert result.success is False
+    assert detail in result.detail
 
 
 def test_check_route_reports_fetch_exception_and_http_error() -> None:
@@ -296,7 +326,7 @@ def test_check_route_reports_fetch_exception_and_http_error() -> None:
     )
     http_error = module.check_route(
         "https://demo.hf.space/",
-        module.RouteSpec("health", path="/_stcore/health"),
+        module.RouteSpec("health", path="/api/health"),
         timeout=1.0,
         fetcher=lambda _url, _timeout: (500, "boom"),
         clock=_clock(1.0, 1.3),
@@ -471,7 +501,7 @@ def test_run_smoke_summarizes_routes_and_public_app_tree() -> None:
     )
 
     def _fetch_text(_url: str, _timeout: float):
-        return 200, "ok"
+        return _healthy_native_response(_url, _timeout)
 
     def _fetch_json(_url: str, _timeout: float):
         if _url.endswith("src/agilab/apps"):
@@ -576,7 +606,7 @@ def test_run_smoke_marks_successful_slow_run_outside_target() -> None:
     summary = module.run_smoke(
         timeout=1.0,
         target_seconds=1.0,
-        fetch_text_fn=lambda _url, _timeout: (200, "ok"),
+        fetch_text_fn=_healthy_native_response,
         fetch_json_fn=_fetch_json,
         clock=clock.__next__,
     )

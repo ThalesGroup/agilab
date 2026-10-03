@@ -93,9 +93,9 @@ CLI_COMMANDS: tuple[dict[str, Any], ...] = (
     {
         "id": "ui",
         "command": "agilab",
-        "kind": "streamlit-ui",
+        "kind": "react-ui",
         "maturity": "live-product-path",
-        "description": "Launch the local Streamlit workbench.",
+        "description": "Launch the local React workbench with Python views.",
         "docs": ["docs/source/quick-start.rst", "docs/source/agilab-help.rst"],
         "evidence_outputs": [],
     },

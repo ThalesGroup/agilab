@@ -189,7 +189,7 @@ class GuardTests(unittest.TestCase):
 
 class InterfaceTests(unittest.TestCase):
     def test_actual_evidence_and_stale_controls(self):
-        from streamlit.testing.v1 import AppTest
+        from agi_web.testing import AppTest
         app = AppTest.from_file(str(Path(__file__).with_name("app.py")), default_timeout=60).run()
         self.assertFalse(app.exception)
         self.assertNotIn("analysis", app.session_state)

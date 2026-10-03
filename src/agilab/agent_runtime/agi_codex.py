@@ -16,7 +16,7 @@ import sys
 import importlib.util
 from pathlib import Path
 
-import streamlit as st
+from agi_web import python_ui as st
 
 SNIPPET_EXECUTION_BOUNDARY = "unrestricted_local_python_snippet"
 SNIPPET_EXECUTION_NOTICE = (

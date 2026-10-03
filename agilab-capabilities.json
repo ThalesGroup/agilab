@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-03T10:16:42Z",
+  "generated_at_utc": "2026-10-03T19:20:46Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 37,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 294,
+    "evidence_schema_count": 295,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -70,9 +70,9 @@
     {
       "id": "ui",
       "command": "agilab",
-      "kind": "streamlit-ui",
+      "kind": "react-ui",
       "maturity": "live-product-path",
-      "description": "Launch the local Streamlit workbench.",
+      "description": "Launch the local React workbench with Python views.",
       "docs": [
         "docs/source/quick-start.rst",
         "docs/source/agilab-help.rst"
@@ -318,7 +318,7 @@
       "role": "ui-component",
       "status": "PyPI package",
       "version": "2026.09.21.2",
-      "description": "AGILAB Streamlit UI dependency bundle and compatibility imports",
+      "description": "AGILAB native React UI dependency bundle and Python view helpers",
       "project": "src/agilab/lib/agi-gui",
       "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
       "pypi_environment": "pypi-agi-gui",
@@ -329,7 +329,7 @@
       "role": "ui-component",
       "status": "PyPI package",
       "version": "2026.07.17",
-      "description": "AGILAB portable web components with shared React analysis views for Streamlit and Jupyter",
+      "description": "AGILAB portable web components with native React Python views and shared analysis components for Jupyter",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
       "pypi_environment": "pypi-agi-web",
@@ -2086,6 +2086,27 @@
       ]
     },
     {
+      "schema": "agilab.native_notebook_demo_migration.v1",
+      "sources": [
+        "src/agilab/demos/resources/forecast_notebook_demo/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/forecast_notebook_demo_rtx/result.json",
+        "src/agilab/demos/resources/free_threading_demo/result.json",
+        "src/agilab/demos/resources/free_threading_demo_astra/result.json",
+        "src/agilab/demos/resources/free_threading_demo_rtx/result.json",
+        "src/agilab/demos/resources/milp_energy_demo/result.json",
+        "src/agilab/demos/resources/milp_energy_demo_astra/result.json",
+        "src/agilab/demos/resources/milp_energy_demo_rtx/result.json",
+        "src/agilab/demos/resources/notebook_agent_demo/result.json",
+        "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
+        "src/agilab/demos/resources/notebook_agent_rtx_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_rtx/result.json",
+        "tools/demos/verify_agilab_native_notebook_demo_artifacts.py"
+      ]
+    },
+    {
       "schema": "agilab.notebook_adoption.v1",
       "sources": [
         "src/agilab/agent_runtime/notebook_adoption.py"
@@ -2125,7 +2146,8 @@
         "tools/demos/export_free_threading_demo.py",
         "tools/demos/export_milp_energy_demo.py",
         "tools/demos/export_notebook_agent_demo.py",
-        "tools/demos/export_text_notebook_demo.py"
+        "tools/demos/export_text_notebook_demo.py",
+        "tools/demos/verify_agilab_native_notebook_demo_artifacts.py"
       ]
     },
     {
@@ -2168,7 +2190,8 @@
       "sources": [
         "src/agilab/notebooks/notebook_export_support.py",
         "src/agilab/notebooks/notebook_helper_cell.py",
-        "src/agilab/notebooks/notebook_pipeline_import.py"
+        "src/agilab/notebooks/notebook_pipeline_import.py",
+        "tools/testing/agilab_native_python_notebook_browser_smoke.py"
       ]
     },
     {

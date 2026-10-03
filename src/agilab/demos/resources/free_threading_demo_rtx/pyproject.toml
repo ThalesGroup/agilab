@@ -3,11 +3,15 @@ name = "free-threading-lab"
 version = "1.0.0"
 description = "AGILAB CPU-scaling lab: GIL-on threads, GIL-off threads and GIL-on processes measured in the same free-threaded CPython build"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
-    "streamlit>=1.36",
+    "agi-web>=2026.07.17,<2027.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests.py"]
 addopts = "-q"
+
+[tool.uv.sources.agi-web]
+path = "../../../lib/agi-web"
+editable = true

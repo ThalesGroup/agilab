@@ -1,7 +1,7 @@
 """Build evidence and local-builder instructions shared by the public demos."""
 from __future__ import annotations
 
-import streamlit as st
+from agi_web import python_ui as st
 
 
 def render_build_evidence(report: dict, *, extra_metrics: tuple[tuple[str, int], ...] = ()) -> None:

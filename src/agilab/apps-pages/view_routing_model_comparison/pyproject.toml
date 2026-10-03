@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 keywords = [
     "agilab",
     "thalesgroup",
-    "streamlit",
+    "react",
     "analysis",
     "routing",
     "page-bundle",

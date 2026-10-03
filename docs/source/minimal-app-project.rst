@@ -7,7 +7,7 @@ Overview
 - Demonstrates the project layout expected by the platform (manager package,
   worker package, ``app_args`` definitions, Analysis configuration) with minimal
   business logic so you can focus on custom code.
-- Ships with a small custom Streamlit argument form and an empty
+- Ships with a small custom native React UI argument form and an empty
   ``pre_prompt.json`` prompt seed so copied projects have explicit places for
   UI customisation and WORKFLOW prompts.
 

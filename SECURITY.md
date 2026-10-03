@@ -144,7 +144,7 @@ organization's security requirements in mind. At minimum:
   gate. The report covers floating or unallowlisted ``APPS_REPOSITORY`` checkouts, plaintext
   ``~/.agilab/.env`` secrets, exposed UI binds, cluster-share isolation, generated-code execution,
   optional local-model profiles, and missing SBOM / ``pip-audit`` evidence.
-- Keep the Streamlit UI on loopback by default. AGILAB refuses ``0.0.0.0`` or ``::`` public binds
+- Keep the native React UI on loopback by default. AGILAB refuses ``0.0.0.0`` or ``::`` public binds
   unless ``AGILAB_PUBLIC_BIND_OK=1`` is paired with an explicit auth/TLS indicator such as
   ``AGILAB_TLS_TERMINATED=1``.
 - Treat shell execution and install profiles as privileged operator surfaces. The installer can

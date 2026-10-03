@@ -62,7 +62,7 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert "test/test_lightning_evidence.py" in chunks["support"]
     assert "test/test_pytorch_playground_app.py" in chunks["support"]
     assert "test/test_python_versions.py" in chunks["support"]
-    assert "test/test_streamlit_156_adoption.py" in chunks["support"]
+    assert "test/test_agilab_react_runtime_adoption.py" in chunks["support"]
     assert "test/test_ui_performance.py" in chunks["support"]
     assert chunks["pages-flow"] == [
         "test/test_ui_pages.py",

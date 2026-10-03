@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 from types import ModuleType
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agilab.security.ui_public_bind_guard import enforce_public_bind_policy_or_stop
 

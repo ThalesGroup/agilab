@@ -20,8 +20,8 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
 import re
-import streamlit as st
-from streamlit.errors import StreamlitAPIException
+from agi_web import python_ui as st
+from agi_web.python_view_session import UIError
 
 from agi_env import AgiEnv
 from agi_env.snippet_contract import stale_snippet_cleanup_message
@@ -1563,7 +1563,7 @@ def _rerun_fragment_or_app() -> None:
     """Prefer a fragment rerun when valid; otherwise fall back to a full app rerun."""
     try:
         st.rerun(scope="fragment")
-    except StreamlitAPIException:
+    except UIError:
         st.rerun()
 
 

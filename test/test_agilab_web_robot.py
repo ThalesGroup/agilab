@@ -24,10 +24,10 @@ def _load_module():
     return module
 
 
-def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
+def test_build_react_command_uses_source_ui_and_active_app() -> None:
     module = _load_module()
 
-    command = module.build_streamlit_command(
+    command = module.build_react_command(
         active_app=module.DEFAULT_ACTIVE_APP,
         apps_path=module.DEFAULT_APPS_PATH,
         port=8899,
@@ -43,10 +43,10 @@ def test_build_streamlit_command_uses_source_ui_and_active_app() -> None:
     ]
     assert command[5:7] == [
         "ui",
-        "streamlit",
+        "python",
     ]
     assert "src/agilab/main_page.py" in joined
-    assert "--server.port 8899" in joined
+    assert "--port 8899" in joined
     assert "--active-app" in command
     assert str(module.DEFAULT_ACTIVE_APP) in command
     assert "--apps-path" in command
@@ -71,29 +71,23 @@ def test_web_robot_entrypoint_help_exits_before_launch(monkeypatch, capsys) -> N
     assert "--dev-scope-before-smoke" in output
 
 
-def test_web_robot_theme_fallback_rejects_missing_spec(monkeypatch) -> None:
+def test_web_robot_help_does_not_import_streamlit(monkeypatch, capsys) -> None:
     original_import = builtins.__import__
-    original_spec = importlib.util.spec_from_file_location
 
     def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "agilab.streamlit_theme_env":
-            raise ModuleNotFoundError("blocked theme env")
+        if name == "streamlit" or name.startswith("streamlit."):
+            raise AssertionError("Streamlit must not be imported")
         return original_import(name, globals, locals, fromlist, level)
 
-    def missing_theme_spec(name, path, *args, **kwargs):
-        if name == "agilab_streamlit_theme_env_local":
-            return None
-        return original_spec(name, path, *args, **kwargs)
-
     monkeypatch.setattr(builtins, "__import__", blocked_import)
-    monkeypatch.setattr(importlib.util, "spec_from_file_location", missing_theme_spec)
-
+    monkeypatch.setattr(sys, "argv", [str(MODULE_PATH), "--help"])
     try:
         runpy.run_path(str(MODULE_PATH), run_name="__main__")
-    except ModuleNotFoundError as exc:
-        assert "Unable to load streamlit_theme_env.py" in str(exc)
-    else:  # pragma: no cover - assertion guard
-        raise AssertionError("expected theme fallback import failure")
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:
+        raise AssertionError("expected argparse help")
+    assert "--frontend-smoke-only" in capsys.readouterr().out
 
 
 def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None:
@@ -118,15 +112,9 @@ def test_build_server_env_scrubs_parent_uv_temp_environment(monkeypatch) -> None
     assert "UV_PROJECT_ENVIRONMENT" not in env
     assert "VIRTUAL_ENV" not in env
     assert env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
-    assert env["STREAMLIT_CONFIG_FILE"] == str(module.REPO_ROOT / "src/agilab/resources/config.toml")
-    assert env["STREAMLIT_THEME_BASE"] == "dark"
-    assert env["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
-    assert env["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
-    assert env["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
-    assert env["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
 
 
-def test_streamlit_server_output_tail_is_available_while_process_runs() -> None:
+def test_react_server_output_tail_is_available_while_process_runs() -> None:
     module = _load_module()
 
     command = [
@@ -134,14 +122,14 @@ def test_streamlit_server_output_tail_is_available_while_process_runs() -> None:
         "-c",
         "import time; print('server boot failed detail', flush=True); time.sleep(5)",
     ]
-    with module.StreamlitServer(command, env={}, url="http://127.0.0.1:9999") as server:
+    with module.ReactPythonServer(command, env={}, url="http://127.0.0.1:9999") as server:
         time.sleep(0.2)
         assert "server boot failed detail" in server.output_tail()
 
 
-def test_streamlit_server_exit_kills_process_after_timeout() -> None:
+def test_react_server_exit_kills_process_after_timeout() -> None:
     module = _load_module()
-    server = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    server = module.ReactPythonServer(["fake"], env={}, url="http://demo")
 
     class _Process:
         terminated = False
@@ -182,9 +170,9 @@ def test_streamlit_server_exit_kills_process_after_timeout() -> None:
     assert output.closed is True
 
 
-def test_streamlit_server_exit_handles_no_process_and_finished_process() -> None:
+def test_react_server_exit_handles_no_process_and_finished_process() -> None:
     module = _load_module()
-    no_process = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    no_process = module.ReactPythonServer(["fake"], env={}, url="http://demo")
     no_process.__exit__(None, None, None)
 
     class _Process:
@@ -203,7 +191,7 @@ def test_streamlit_server_exit_handles_no_process_and_finished_process() -> None
         def close(self):
             self.closed = True
 
-    finished = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    finished = module.ReactPythonServer(["fake"], env={}, url="http://demo")
     process = _Process()
     output = _Output()
     finished.process = process
@@ -215,9 +203,9 @@ def test_streamlit_server_exit_handles_no_process_and_finished_process() -> None
     assert output.closed is True
 
 
-def test_streamlit_server_output_tail_handles_missing_and_unreadable_files(tmp_path: Path) -> None:
+def test_react_server_output_tail_handles_missing_and_unreadable_files(tmp_path: Path) -> None:
     module = _load_module()
-    server = module.StreamlitServer(["fake"], env={}, url="http://demo")
+    server = module.ReactPythonServer(["fake"], env={}, url="http://demo")
 
     assert server.output_tail() == ""
 
@@ -251,7 +239,7 @@ def test_build_url_preserves_path_without_optional_query() -> None:
     assert module.build_url("http://127.0.0.1:8501/PROJECT") == "http://127.0.0.1:8501/PROJECT"
 
 
-def test_build_page_url_targets_streamlit_page_route() -> None:
+def test_build_page_url_targets_native_page_route() -> None:
     module = _load_module()
 
     url = module.build_page_url("http://127.0.0.1:8501/", "ANALYSIS", active_app="flight_telemetry_project")
@@ -439,7 +427,7 @@ def test_resolve_analysis_view_path_switches_between_local_and_remote() -> None:
     assert remote_path == "/app/src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py"
 
 
-def test_wait_for_streamlit_health_succeeds_when_health_route_responds() -> None:
+def test_wait_for_react_health_succeeds_when_health_route_responds() -> None:
     module = _load_module()
 
     class _Response:
@@ -454,7 +442,7 @@ def test_wait_for_streamlit_health_succeeds_when_health_route_responds() -> None
         def getcode(self):
             return self.status
 
-    result = module.wait_for_streamlit_health(
+    result = module.wait_for_react_health(
         "http://demo",
         timeout=1.0,
         opener=lambda _url: _Response(),
@@ -463,11 +451,11 @@ def test_wait_for_streamlit_health_succeeds_when_health_route_responds() -> None
     )
 
     assert result.success is True
-    assert result.label == "streamlit health"
-    assert result.url == "http://demo/_stcore/health"
+    assert result.label == "react health"
+    assert result.url == "http://demo/api/health"
 
 
-def test_frontend_static_asset_check_accepts_streamlit_js_and_css_mime_types() -> None:
+def test_frontend_static_asset_check_accepts_react_js_and_css_mime_types() -> None:
     module = _load_module()
 
     class _Response:
@@ -503,7 +491,7 @@ def test_frontend_static_asset_check_accepts_streamlit_js_and_css_mime_types() -
 
     assert step.success is True
     assert step.label == "frontend static assets"
-    assert "2 Streamlit JS/CSS asset" in step.detail
+    assert "2 React JS/CSS asset" in step.detail
 
 
 def test_frontend_static_asset_check_rejects_html_served_for_js() -> None:
@@ -669,7 +657,7 @@ def test_build_parser_has_expected_defaults() -> None:
     assert args.dev_scope_before_smoke is False
 
 
-def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
+def test_wait_for_react_health_can_timeout_without_success() -> None:
     module = _load_module()
 
     timeline = iter([0.0, 0.1, 0.2, 0.3, 0.45, 0.6])
@@ -683,7 +671,7 @@ def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
         calls.append(url)
         raise RuntimeError("cannot connect")
 
-    step = module.wait_for_streamlit_health(
+    step = module.wait_for_react_health(
         "http://127.0.0.1:9999",
         timeout=0.4,
         opener=_opener,
@@ -692,14 +680,14 @@ def test_wait_for_streamlit_health_can_timeout_without_success() -> None:
     )
 
     assert step.success is False
-    assert step.label == "streamlit health"
-    assert step.url == "http://127.0.0.1:9999/_stcore/health"
+    assert step.label == "react health"
+    assert step.url == "http://127.0.0.1:9999/api/health"
     assert step.duration_seconds >= 0.4
     assert step.detail.startswith("not ready:")
-    assert calls == ["http://127.0.0.1:9999/_stcore/health"] * 4
+    assert calls == ["http://127.0.0.1:9999/api/health"] * 4
 
 
-def test_wait_for_streamlit_health_reports_last_http_status() -> None:
+def test_wait_for_react_health_reports_last_http_status() -> None:
     module = _load_module()
 
     class _Response:
@@ -714,7 +702,7 @@ def test_wait_for_streamlit_health_reports_last_http_status() -> None:
         def getcode(self):
             return self.status
 
-    step = module.wait_for_streamlit_health(
+    step = module.wait_for_react_health(
         "http://demo",
         timeout=0.1,
         opener=lambda _url: _Response(),
@@ -726,7 +714,7 @@ def test_wait_for_streamlit_health_reports_last_http_status() -> None:
     assert step.detail == "not ready: HTTP 503"
 
 
-def test_assert_page_healthy_reports_streamlit_exception_block() -> None:
+def test_assert_page_healthy_reports_native_exception_block() -> None:
     module = _load_module()
 
     class _Locator:
@@ -754,11 +742,11 @@ def test_assert_page_healthy_reports_streamlit_exception_block() -> None:
 
     assert step.success is False
     assert step.label == "landing page"
-    assert step.detail.startswith("Streamlit exception block found")
+    assert step.detail.startswith("React exception block found")
     assert step.url == page.url
 
 
-def test_assert_page_healthy_streamlit_exception_includes_screenshot(tmp_path: Path) -> None:
+def test_assert_page_healthy_native_exception_includes_screenshot(tmp_path: Path) -> None:
     module = _load_module()
 
     class _Locator:
@@ -784,7 +772,7 @@ def test_assert_page_healthy_streamlit_exception_includes_screenshot(tmp_path: P
             Path(path).write_bytes(b"png")
 
         def locator(self, selector: str) -> _Locator:
-            if selector == "[data-testid='stException']":
+            if selector == ".py-exception":
                 return _Locator(count=1)
             return _Locator()
 
@@ -797,7 +785,7 @@ def test_assert_page_healthy_streamlit_exception_includes_screenshot(tmp_path: P
     )
 
     assert step.success is False
-    assert "Streamlit exception block found (1)" in step.detail
+    assert "React exception block found (1)" in step.detail
     assert "screenshot=" in step.detail
 
 
@@ -1597,7 +1585,7 @@ class _FakeBrowserPage:
         ):
             raise self.selector_error
         assert selector in {
-            "[data-testid='stApp']",
+            ".py-app",
             "[data-testid='stFileUploader'], [data-testid='stFileUploaderDropzone']",
         }
 
@@ -1613,7 +1601,7 @@ class _FakeBrowserPage:
     def locator(self, selector: str, **kwargs):
         if selector == "body":
             return _FakeLocator(self, selector=selector)
-        if selector == "[data-testid='stException']":
+        if selector == ".py-exception":
             return _FakeLocator(self, selector=selector, count=0)
         if selector == "a" and kwargs.get("has_text") == "Create from built-in notebook":
             return _FakeLocator(self, selector="a:Create from built-in notebook", count=1)
@@ -2085,13 +2073,13 @@ def _patch_local_server(monkeypatch, module, *, health_success: bool) -> None:
         def output_tail() -> str:
             return "server died"
 
-    monkeypatch.setattr(module, "StreamlitServer", _Server)
+    monkeypatch.setattr(module, "ReactPythonServer", _Server)
     monkeypatch.setattr(module, "build_server_env", lambda: {"ENV": "1"})
     monkeypatch.setattr(
         module,
-        "wait_for_streamlit_health",
+        "wait_for_react_health",
         lambda *_args, **_kwargs: module.RobotStep(
-            "streamlit health",
+            "react health",
             health_success,
             0.2,
             "HTTP 200" if health_success else "not ready",
@@ -2109,7 +2097,7 @@ def test_main_local_json_handles_health_success_and_process_exit(capsys, monkeyp
 
     assert code == 1
     payload = json.loads(capsys.readouterr().out)
-    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "streamlit process"]
+    assert [step["label"] for step in payload["steps"]] == ["react health", "react process"]
     assert "process exited with 9" in payload["steps"][1]["detail"]
 
 
@@ -2139,7 +2127,7 @@ def test_main_local_json_runs_frontend_smoke_after_healthy_server(capsys, monkey
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "frontend landing hydration"]
+    assert [step["label"] for step in payload["steps"]] == ["react health", "frontend landing hydration"]
     assert calls[0]["base_url"] == "http://127.0.0.1:8765"
     assert calls[0]["screenshot_dir"] == tmp_path.resolve()
 
@@ -2188,7 +2176,7 @@ def test_main_local_frontend_smoke_runs_dev_scope_before_assets(capsys, monkeypa
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert [step["label"] for step in payload["steps"]] == [
-        "streamlit health",
+        "react health",
         "dev scope before frontend smoke",
         "frontend static assets",
     ]
@@ -2229,7 +2217,7 @@ def test_main_local_frontend_smoke_stops_when_dev_scope_fails(capsys, monkeypatc
     assert code == 1
     payload = json.loads(capsys.readouterr().out)
     assert [step["label"] for step in payload["steps"]] == [
-        "streamlit health",
+        "react health",
         "dev scope before frontend smoke",
     ]
 
@@ -2249,7 +2237,7 @@ def test_main_local_json_runs_full_robot_after_healthy_server(capsys, monkeypatc
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [step["label"] for step in payload["steps"]] == ["streamlit health", "analysis page"]
+    assert [step["label"] for step in payload["steps"]] == ["react health", "analysis page"]
     assert calls[0]["analysis_view"] == "view_maps"
     assert calls[0]["analysis_view_path"] == str(module.ANALYSIS_VIEW_PATHS["view_maps"].resolve())
 
@@ -2257,13 +2245,13 @@ def test_main_local_json_runs_full_robot_after_healthy_server(capsys, monkeypatc
 def test_main_local_json_keeps_only_health_step_when_failed_server_still_running(capsys, monkeypatch) -> None:
     module = _load_module()
     _patch_local_server(monkeypatch, module, health_success=False)
-    monkeypatch.setattr(module.StreamlitServer.process, "poll", lambda: None)
+    monkeypatch.setattr(module.ReactPythonServer.process, "poll", lambda: None)
 
     code = module.main(["--json", "--port", "8765", "--timeout", "1"])
 
     assert code == 1
     payload = json.loads(capsys.readouterr().out)
-    assert [step["label"] for step in payload["steps"]] == ["streamlit health"]
+    assert [step["label"] for step in payload["steps"]] == ["react health"]
 
 
 def test_main_remote_non_json_renders_human_summary(capsys, monkeypatch) -> None:
@@ -2295,11 +2283,11 @@ def test_render_human_non_json_output_includes_route_and_step_details(capsys) ->
 
     text = module.render_human(
         summary=summary,
-        launch_command=["uv", "run", "streamlit"],
+        launch_command=["uv", "run", "python", "-m", "agi_web.react_python_host"],
         base_url="http://demo",
     )
 
-    assert "$ uv run streamlit" in text
+    assert "$ uv run python -m agi_web.react_python_host" in text
     assert "verdict: FAIL" in text
     assert "within_target=no" in text
     assert "- analysis: FAIL in 2.50s - missing View:" in text

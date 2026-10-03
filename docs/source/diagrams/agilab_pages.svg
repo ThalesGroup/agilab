@@ -35,7 +35,7 @@
     <text class="lane" x="0" y="-18">Entry</text>
     <rect class="card" width="186" height="104" fill="#dbeafe"/>
     <text class="card-title" x="93" y="35" text-anchor="middle">agilab.py</text>
-    <text class="body" x="93" y="61" text-anchor="middle">Streamlit entry</text>
+    <text class="body" x="93" y="61" text-anchor="middle">Python UI entry</text>
     <text class="note" x="93" y="82" text-anchor="middle">loads navigation pages</text>
   </g>
 

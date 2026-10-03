@@ -69,7 +69,7 @@ def test_partial_event_append_can_be_read(tmp_path):
 
 
 def test_ui_starts_without_launching_provider():
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     app = Path(demo.__file__).parents[1] / "demos" / "notebook_demo_ui.py"
     at = AppTest.from_file(str(app), default_timeout=30).run()
@@ -84,10 +84,12 @@ def test_ui_launcher_uses_packaged_file_and_preserves_settings(tmp_path, monkeyp
     assert demo.main(["--ui", "--output", str(tmp_path), "--tokki", "/custom/tokki",
                       "--timeout", "90"]) == 0
     command = captured[0]
-    assert Path(command[4]).is_file()
-    assert Path(command[4]).name == "notebook_demo_ui.py"
-    assert Path(command[4]).parent.name == "demos"
-    assert "--server.address=127.0.0.1" in command
+    assert command[:3] == [demo.sys.executable, "-m", "agi_web.react_python_host"]
+    assert Path(command[3]).is_file()
+    assert Path(command[3]).name == "notebook_demo_ui.py"
+    assert Path(command[3]).parent.name == "demos"
+    assert command[command.index("--address") + 1] == "127.0.0.1"
+    assert "--no-browser" in command
     assert command[command.index("--tokki") + 1] == "/custom/tokki"
     assert command[command.index("--output") + 1] == str(tmp_path)
 

@@ -9,7 +9,7 @@ import warnings
 
 import pandas as pd
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PAGE_PATH = str(REPO_ROOT / "src/agilab/apps-pages/view_maps/src/view_maps/view_maps.py")
@@ -274,7 +274,7 @@ def _load_view_maps_module():
     module = importlib.util.module_from_spec(spec)
     with warnings.catch_warnings():
         _suppress_page_import_warnings()
-        with patch("streamlit.title", lambda *args, **kwargs: None):
+        with patch("agi_web.python_ui.title", lambda *args, **kwargs: None):
             spec.loader.exec_module(module)
     return module
 

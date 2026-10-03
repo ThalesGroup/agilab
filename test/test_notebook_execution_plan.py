@@ -280,7 +280,7 @@ def test_builder_requires_actual_persisted_workflow_verification(
             '[project]\nname = "fixture"\nversion = "0.0.0"\n'
         )
         (config.cwd / "app.py").write_text(
-            "import streamlit as st\nst.title('Fixture')\n"
+            "from agi_web import python_ui as st\nst.title('Fixture')\n"
             "if st.button('Run analysis'):\n    st.metric('Answer', 42)\n"
         )
         return SimpleNamespace(returncode=0)

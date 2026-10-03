@@ -96,7 +96,7 @@ def notebook_project(tmp_path, monkeypatch):
 
 
 def _fake_app(monkeypatch, *, startup=False, interaction=False, slider=True, display=True, at_min=False):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
     app = SimpleNamespace(exception=[SimpleNamespace(message="startup")] if startup else [],
                           metric=[1] if display else [], dataframe=[1] if display else [])
     values = []
@@ -196,7 +196,7 @@ def _execution_notebook(project, source, **updates):
 
 
 def _execution_app(monkeypatch, mode):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
     app = SimpleNamespace(exception=[], metric=[], dataframe=[], json=[], markdown=[], text=[])
     if mode == "startup":
         app.exception = [SimpleNamespace(message="startup")]

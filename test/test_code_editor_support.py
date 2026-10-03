@@ -4,7 +4,6 @@ import importlib
 import importlib.util
 from pathlib import Path
 import sys
-from types import SimpleNamespace
 
 import pytest
 
@@ -41,53 +40,34 @@ def test_normalize_custom_buttons_rejects_invalid_payload():
         normalize_custom_buttons({"buttons": "invalid"})
 
 
-def test_code_editor_component_version_and_text_area_fallback(monkeypatch):
-    module = _load_module(
-        "agilab.code_editor_component_fallback_test",
-        "src/agilab/code_editor_component.py",
-    )
-
-    def missing_version(_name):
-        raise module.metadata.PackageNotFoundError("streamlit")
-
-    monkeypatch.setattr(module.metadata, "version", missing_version)
-    assert module._streamlit_minor_version() is None
-    monkeypatch.setattr(module.metadata, "version", lambda _name: "1")
-    assert module._streamlit_minor_version() is None
-    monkeypatch.setattr(module.metadata, "version", lambda _name: "bad.version")
-    assert module._streamlit_minor_version() is None
-
-    monkeypatch.setattr(module.metadata, "version", lambda _name: "1.57.0")
-    calls = []
-
-    def text_area(label, *, value, height, key):
-        calls.append((label, value, height, key))
-        return value + "\n# edited"
-
-    monkeypatch.setitem(sys.modules, "streamlit", SimpleNamespace(text_area=text_area))
-
-    result = module.code_editor("print('x')", key="snippet", height=120)
-
-    assert result["type"] == "fallback"
-    assert result["text"].endswith("# edited")
-    assert "Streamlit >=1.57" in result["component_error"]
-    assert calls == [("snippet (fallback editor)", "print('x')", 120, "snippet")]
+def test_native_editor_saves_only_after_form_submission(tmp_path):
+    from agi_web.testing import AppTest
+    from agilab.components.code_editor_component import code_editor
+    destination = tmp_path / "pipeline.py"
+    def view():
+        response = code_editor("x = 1", key="pipeline")
+        if response["type"] == "save": destination.write_text(response["text"])
+    app = AppTest.from_function(view).run()
+    app.text_area[0].set_value("x = 2").run()
+    assert not destination.exists()
+    app.button[0].click().run()
+    assert not app.exception
+    assert destination.read_text() == "x = 2"
+    destination.write_text("external change")
+    app.run()
+    assert destination.read_text() == "external change"
 
 
-def test_code_editor_component_delegates_to_optional_component(monkeypatch):
-    module = _load_module(
-        "agilab.code_editor_component_delegate_test",
-        "src/agilab/code_editor_component.py",
-    )
-    delegated = []
-
-    def fake_code_editor(body, **kwargs):
-        delegated.append((body, kwargs))
-        return {"text": body, "type": "component"}
-
-    monkeypatch.setattr(module, "_streamlit_requires_fallback", lambda: False)
-    monkeypatch.setitem(sys.modules, "code_editor", SimpleNamespace(code_editor=fake_code_editor))
-
-    assert module.code_editor("x = 1", language="python") == {"text": "x = 1", "type": "component"}
-    assert module._load_component_code_editor() is fake_code_editor
-    assert delegated == [("x = 1", {"language": "python"})]
+def test_native_editor_preserves_run_response_contract():
+    from agi_web.testing import AppTest
+    from agilab.components.code_editor_component import code_editor
+    responses = []
+    def view():
+        responses.append(code_editor("print(1)", key="snippet", buttons=[{"name": "Run", "commands": [["response", "run"]]}]))
+    app = AppTest.from_function(view).run()
+    app.text_area[0].set_value("print(2)")
+    app.button[0].click().run()
+    assert responses[-1]["type"] == "run"
+    assert responses[-1]["text"] == "print(2)" and responses[-1]["id"]
+    app.run()
+    assert responses[-1]["type"] == ""

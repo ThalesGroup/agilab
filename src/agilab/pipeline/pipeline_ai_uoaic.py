@@ -111,25 +111,9 @@ def resolve_uoaic_path(
 
 def load_uoaic_modules(
     *,
-    distribution_fn: Callable[[str], Any] | None = None,
     import_module_fn: Callable[[str], Any] | None = None,
-    spec_from_file_location_fn: Callable[[str, str], Any] | None = None,
-    module_from_spec_fn: Callable[[Any], Any] | None = None,
 ) -> Tuple[Any, ...]:
-    if distribution_fn is None:
-        distribution_fn = importlib.metadata.distribution
-    if import_module_fn is None:
-        import_module_fn = importlib.import_module
-    if spec_from_file_location_fn is None:
-        spec_from_file_location_fn = importlib.util.spec_from_file_location
-    if module_from_spec_fn is None:
-        module_from_spec_fn = importlib.util.module_from_spec
-    return _load_uoaic_modules_impl(
-        distribution_fn=distribution_fn,
-        import_module_fn=import_module_fn,
-        spec_from_file_location_fn=spec_from_file_location_fn,
-        module_from_spec_fn=module_from_spec_fn,
-    )
+    return _load_uoaic_modules_impl(import_module_fn=import_module_fn or importlib.import_module)
 
 
 def ensure_uoaic_runtime(

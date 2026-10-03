@@ -7,7 +7,7 @@ from pathlib import Path
 import re
 from threading import Thread
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agilab.agent_runtime.notebook_agent import (
     DEFAULT_REQUEST, GENERIC_REQUEST, SOURCE_URL, build, create_run, digest, read_events,

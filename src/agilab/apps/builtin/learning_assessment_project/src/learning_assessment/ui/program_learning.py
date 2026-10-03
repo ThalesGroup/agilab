@@ -57,7 +57,7 @@ def configured_banks(env: Any, args: Any) -> list[Path]:
 
 
 def select_bank(bundled_path: Path, env: Any, args: Any) -> dict[str, Any] | None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     with st.expander("Programme / banque d'exercices"):
         uploaded = st.file_uploader(
@@ -105,7 +105,7 @@ def _reference(case: dict[str, Any]) -> str:
 
 
 def _answer_widgets(case: dict[str, Any], key: str) -> dict[str, Any]:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     question = case.get("question_assessment")
     if question:
@@ -154,7 +154,7 @@ def _answer_widgets(case: dict[str, Any], key: str) -> dict[str, Any]:
 
 
 def _render_learning(bank: dict[str, Any], session: dict[str, Any], key: str) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     mode = st.selectbox(
         "Mode de travail",
@@ -249,7 +249,7 @@ def _render_learning(bank: dict[str, Any], session: dict[str, Any], key: str) ->
 
 
 def _render_reviews(bank: dict[str, Any], session: dict[str, Any], key: str) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     if not session["attempts"]:
         st.info("Aucune tentative enregistrée.")
@@ -326,7 +326,7 @@ def _render_reviews(bank: dict[str, Any], session: dict[str, Any], key: str) -> 
 
 
 def _render_practical(bank: dict[str, Any], session: dict[str, Any], key: str) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     competencies = {
         c["competency_id"]: c
@@ -416,7 +416,7 @@ def _render_practical(bank: dict[str, Any], session: dict[str, Any], key: str) -
 
 
 def render_program(bank: dict[str, Any]) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     bank = validate_case_payload(bank)
     program = bank.get("assessment_program")

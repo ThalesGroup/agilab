@@ -61,7 +61,7 @@ PUBLIC_GITHUB_TOPICS = (
     "mlflow",
     "experiment-tracking",
     "workflow-orchestration",
-    "streamlit",
+    "react",
     "ai-engineering",
     "agentic-ai",
     "free-threaded-python",

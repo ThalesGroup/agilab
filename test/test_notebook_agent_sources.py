@@ -6,7 +6,7 @@ from agilab.agent_runtime import notebook_agent as agent
 from agilab.agent_runtime import notebook_execution_verifier as verifier
 
 
-def _notebook(source="import streamlit as st\nfrom pathlib import Path\nimport json\nPath('results.json').write_text(json.dumps({'results': {'answer': 42}}))\nst.metric('answer', 42)\n"):
+def _notebook(source="from agi_web import python_ui as st\nfrom pathlib import Path\nimport json\nPath('results.json').write_text(json.dumps({'results': {'answer': 42}}))\nst.metric('answer', 42)\n"):
     return {"nbformat": 4, "metadata": {"kernelspec": {"language": "python"}},
             "cells": [{"cell_type": "code", "source": source}]}
 
@@ -16,7 +16,7 @@ def _project(tmp_path, source=None):
     project.mkdir()
     notebook = _notebook() if source is None else source
     (project / "solution.ipynb").write_text(json.dumps(notebook))
-    (project / "app.py").write_text("import streamlit as st\nfrom pathlib import Path\nimport json\nrunning = st.button('Run analysis')\nif running:\n    Path('results.json').write_text(json.dumps({'results': {'answer': 43}}))\nst.metric('answer', 43 if running else 42)\n")
+    (project / "app.py").write_text("from agi_web import python_ui as st\nfrom pathlib import Path\nimport json\nrunning = st.button('Run analysis')\nif running:\n    Path('results.json').write_text(json.dumps({'results': {'answer': 43}}))\nst.metric('answer', 43 if running else 42)\n")
     (project / "pyproject.toml").write_text('[project]\nname = "demo"\nversion = "0.0.0"\n')
     return project
 
@@ -85,6 +85,6 @@ def test_generic_verifier_rejects_results_left_in_project(tmp_path):
 
 def test_verifier_rejects_app_without_new_visible_result(tmp_path):
     project = _project(tmp_path)
-    (project / "app.py").write_text("import streamlit as st\nst.button('Run analysis')\nst.write('hello')\n")
+    (project / "app.py").write_text("from agi_web import python_ui as st\nst.button('Run analysis')\nst.write('hello')\n")
     with pytest.raises(ValueError, match="visible"):
         verifier.verify(project)

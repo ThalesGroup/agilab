@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the packaged React views in real Streamlit and JupyterLab hosts.
+"""Exercise the packaged React views in the native AGILAB React host and JupyterLab.
 
 Run from the repository root with the UI/notebook environment plus playwright and jupyterlab.
 Servers, kernels and config use task-owned temporary paths; no user server is stopped.
@@ -22,6 +22,8 @@ import uuid
 
 import nbformat
 from playwright.sync_api import sync_playwright
+
+from agilab_jupyter_widget_extension_fixture import stage_installed_widget_extensions
 
 
 DATA = """
@@ -53,18 +55,18 @@ millis_component = analysis_curves_component([
 ], x="x", series=("y",), title="Millisecond resolution", component_id="milliseconds")
 """
 
-STREAMLIT_SOURCE = (
+NATIVE_HOST_SOURCE = (
     DATA
     + """
 import json
-import streamlit as st
-from agi_web import render_streamlit
+from agi_web import python_ui as st
+from agi_web import render_streamlit as render_python
 st.set_page_config(page_title="AGILAB React host smoke", layout="wide")
-map_state = render_streamlit(map_component)
-render_streamlit(secondary_component, width="320px")
-curve_state = render_streamlit(curve_component)
+map_state = render_python(map_component)
+render_python(secondary_component, width="320px")
+curve_state = render_python(curve_component)
 for component in (numeric_component, seconds_component, millis_component):
-    render_streamlit(component)
+    render_python(component)
 st.code(json.dumps({"map": map_state.selection or {}, "curves": curve_state.selection or {}}, sort_keys=True))
 st.button("Refresh same recorded data")
 """
@@ -127,7 +129,7 @@ def wait_state(page, host, predicate):
             page.wait_for_timeout(200)
             text = page.locator('pre[data-role="python-selection"]').inner_text()
         else:
-            text = page.locator('[data-testid="stCode"] pre').inner_text()
+            text = page.locator('pre.py-code').inner_text()
         value = json.loads(text)
         if predicate(value):
             return value
@@ -159,7 +161,7 @@ def exercise(page, host, output):
     wait_state(page, host, lambda state: state["map"] == {})
     expect(primary.locator("circle")).to_have_count(2)
     expect(secondary.locator("circle")).to_have_count(2)
-    if host == "streamlit":
+    if host == "agilab-react":
         page.get_by_role(
             "button", name="Refresh same recorded data", exact=True
         ).click()
@@ -194,7 +196,17 @@ def exercise(page, host, output):
     page.screenshot(
         path=str(output / f"agilab_shared_react_{host}_preview.png"), full_page=True
     )
+    if host == "jupyter":
+        page.locator(".jp-SideBar .lm-TabBar-tab").first.click()
+    page.set_viewport_size({"width": 390, "height": 844})
+    for name, region in (("coordinates", primary), ("curves", curves)):
+        region.scroll_into_view_if_needed()
+        expect(region).to_be_visible()
+        assert region.evaluate("element => element.scrollWidth <= element.clientWidth + 2")
+        region.screenshot(path=str(output / f"agilab_shared_react_{host}_{name}_mobile_preview.png"))
+    page.screenshot(path=str(output / f"agilab_shared_react_{host}_mobile_preview.png"), full_page=True)
     return {
+        "mobile_layout": True,
         "selection_roundtrip": True,
         "filters_ranges_reset": True,
         "instances_isolated": True,
@@ -213,13 +225,15 @@ def main() -> int:
     output = args.output_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     processes, logs = [], []
-    import streamlit
+    import agi_web
+    from importlib.metadata import distributions
     import anywidget
     import jupyterlab
 
     results = {
+        "streamlit_distributions": [d.metadata["Name"] for d in distributions() if "streamlit" in d.metadata["Name"].lower()],
         "versions": {
-            "streamlit": streamlit.__version__,
+            "agi_web": agi_web.__version__,
             "anywidget": anywidget.__version__,
             "jupyterlab": jupyterlab.__version__,
         }
@@ -227,8 +241,8 @@ def main() -> int:
     try:
         with tempfile.TemporaryDirectory(prefix="agilab-shared-react-hosts-") as temp:
             root = Path(temp)
-            streamlit_file = root / "agilab_shared_react_streamlit_smoke.py"
-            streamlit_file.write_text(STREAMLIT_SOURCE)
+            native_host_file = root / "agilab_shared_react_native_host_smoke.py"
+            native_host_file.write_text(NATIVE_HOST_SOURCE)
             notebook_file = root / "agilab_shared_react_jupyter_smoke.ipynb"
             notebook = nbformat.v4.new_notebook(
                 cells=[nbformat.v4.new_code_cell(NOTEBOOK_SOURCE)],
@@ -248,6 +262,7 @@ def main() -> int:
                 JUPYTER_RUNTIME_DIR=str(root / "runtime"),
                 JUPYTERLAB_SETTINGS_DIR=str(root / "settings"),
             )
+            results["widget_extensions"] = stage_installed_widget_extensions(root / "data")
             # This task kernel does not start a debugger session; keep the
             # separate Jupyter debugger plugin outside the host smoke.
             labconfig = root / "config/labconfig"
@@ -279,22 +294,19 @@ def main() -> int:
             (settings / "notification.jupyterlab-settings").write_text(
                 json.dumps({"fetchNews": "false", "checkForUpdates": False})
             )
-            streamlit_port, jupyter_port, token = (
+            native_host_port, jupyter_port, token = (
                 free_port(),
                 free_port(),
                 uuid.uuid4().hex,
             )
             commands = {
-                "streamlit": [
+                "agilab-react": [
                     sys.executable,
                     "-m",
-                    "streamlit",
-                    "run",
-                    str(streamlit_file),
-                    "--server.address=127.0.0.1",
-                    f"--server.port={streamlit_port}",
-                    "--server.headless=true",
-                    "--browser.gatherUsageStats=false",
+                    "agi_web.react_python_host",
+                    str(native_host_file),
+                    "--address", "127.0.0.1",
+                    "--port", str(native_host_port), "--no-browser",
                 ],
                 "jupyter": [
                     sys.executable,
@@ -309,7 +321,7 @@ def main() -> int:
                 ],
             }
             urls = {
-                "streamlit": f"http://127.0.0.1:{streamlit_port}",
+                "agilab-react": f"http://127.0.0.1:{native_host_port}",
                 "jupyter": f"http://127.0.0.1:{jupyter_port}/lab/tree/{notebook_file.name}?token={token}",
             }
             for host, command in commands.items():
@@ -427,6 +439,7 @@ def main() -> int:
                             page.close()
                 finally:
                     browser.close()
+        assert not results["streamlit_distributions"], results
         results["status"] = "pass"
     except Exception as exc:
         results.update(status="fail", error=f"{type(exc).__name__}: {exc}")

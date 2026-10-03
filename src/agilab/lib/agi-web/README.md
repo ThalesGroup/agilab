@@ -6,8 +6,8 @@
 
 `agi-web` defines a portable component contract for AGILAB app-owned UI islands.
 It lets an app describe a rich browser component once, attach deterministic
-evidence hashes, and render it in Streamlit, Jupyter or static HTML. Coordinate
-maps and analysis curves use the same bundled React views in Streamlit and Jupyter.
+evidence hashes, and render it in the native React host, Jupyter or static HTML.
+Coordinate maps and analysis curves use the same bundled React views in both hosts.
 The bundled static adapter can render a WebGL decision-surface heatmap with a
 Canvas2D overlay/fallback for local replay/scrub controls, clickable timelines,
 keyboard scrubbing, confidence badges, uncertainty-contour glow, and hover
@@ -28,7 +28,7 @@ pip install "agilab[ui]"
 ## Component Contract
 
 ```python
-from agi_web import AgiWebComponent, AgiWebRendererSpec, render_streamlit
+from agi_web import AgiWebComponent, AgiWebRendererSpec, render_python
 
 component = AgiWebComponent(
     component_id="playground-boundary",
@@ -48,12 +48,12 @@ component = AgiWebComponent(
     },
 )
 
-render_streamlit(component)
+render_python(component)
 ```
 
 The contract is intentionally framework-neutral:
 
-- The payload is normalized JSON, so Canvas2D, WebGL, Streamlit, notebook,
+- The payload is normalized JSON, so Canvas2D, WebGL, native Python views, notebook,
   static-report, and React renderers can consume the same data.
 - The evidence block records the renderer, payload hash, action hash, and asset
   hash, so visual proof artifacts can be compared deterministically.
@@ -64,14 +64,14 @@ The contract is intentionally framework-neutral:
 ## Shared React Analysis Views
 
 Install `agi-web[notebook]` in the notebook kernel environment and enable Jupyter
-widgets in the frontend. Streamlit rendering uses components v2 (Streamlit >=1.58).
+widgets in the frontend. Python views use the bundled native component protocol.
 The coordinate view plots longitude/latitude without external tiles; the existing
 AGILAB geographic map remains a separate display option. Curves support numeric
 or UTC datetime axes, series visibility, range controls and missing-value gaps.
 
 ```python
 from agi_web import coordinate_map_component, analysis_curves_component
-from agi_web import render_notebook, render_streamlit
+from agi_web import render_notebook, render_python
 
 positions = coordinate_map_component(
     [{"latitude": 48, "longitude": 2, "flight": "001"}],
@@ -87,8 +87,8 @@ widget = render_notebook(positions)
 display(widget)
 # Point clicks synchronize widget.selection back to Python.
 
-# In a Streamlit page, the result exposes selection and triggers reruns.
-result = render_streamlit(curves)
+# In a native Python view, the result exposes selection and triggers rerenders.
+result = render_python(curves)
 ```
 
 Use distinct `component_id` values for simultaneous views. The constructors
@@ -117,7 +117,8 @@ temporary loopback servers and kernel are stopped after the run.
 ## React main interface
 
 The main AGILAB entrypoint now uses a React workspace header, project picker,
-navigation, home cards and the PROJECT overview. `st.navigation` still owns the registered routes and
+navigation, home cards, the PROJECT overview and ANALYSIS selection controls.
+The native Python session owns registered routes and
 deep links; the component emits one-shot actions validated against server-side
 projects and routes. Project changes reuse the URL/bootstrap lifecycle and clear
 project-specific inputs after the new environment loads, before widgets render.
@@ -126,10 +127,23 @@ links to execution, analysis/notebook export, pipeline and project editing.
 Workspace actions also validate the canonical project path so a stale action
 cannot cross between projects with the same name in different directories.
 Detailed diagnostics and project metrics keep their native Python renderers.
+The ANALYSIS overview uses the existing artifact summary, discovered views and
+notebooks. A saved selection follows the existing Python settings persistence;
+queued actions validate the project path and current selection/discovery context.
+An unsuccessful settings write keeps a separate draft and an enabled retry;
+the interface confirms a saved selection after the write succeeds.
+Opening a saved view or notebook uses its server-resolved route. The notebook
+export button opens the existing Python WORKFLOW export controls, including their
+protection of edited exports. Child views keep their Python launchers.
 
 Pipeline editing, specialized geographic views, project operations and settings
 continue in Python. Standalone Python pages retain their native project picker.
 Notebook exports continue to use the independent shared map/curve renderers.
+The source dependency graph and native host no longer require Streamlit.
+Notebook exports render retained Python views through the same React host bundle
+and a Jupyter widget bridge. Maps and curves also retain their dedicated widgets.
+`render_streamlit(..., streamlit=...)` remains a compatibility spelling for
+`render_python`; its default provider is `agi_web.python_ui`.
 The frontend ships in the `agi-web` wheel and uses the same `npm run build` step;
 end users do not need Node or a CDN.
 
@@ -142,7 +156,8 @@ UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies 
 
 The fixture uses the real main navigation with isolated project and Python page
 bodies and health facts; page-specific AppTests cover the retained Python tools. Browser evidence
-includes route changes, cold project changes, native widget reruns, direct URLs,
+includes saved/empty analysis selections, Python view/notebook routes, the Workflow
+export entry, cold project changes, native widget reruns, direct URLs,
 session isolation, responsive layout, console/network results and screenshots.
 
 ## Visual Guard

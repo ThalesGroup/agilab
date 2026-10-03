@@ -7,7 +7,7 @@ distributed execution contract yet.
 
 - A local app package under `src/simple_app/`.
 - Pydantic-backed runtime arguments in `simple_app_args.py`.
-- A Streamlit argument form in `src/app_args_form.py`.
+- A native Python UI argument form in `src/app_args_form.py`.
 - Local artifact output wiring through AGILAB path/settings helpers.
 - A small `run()` method that writes a deterministic manifest.
 
@@ -40,7 +40,7 @@ From the repository root, create the app from PROJECT, select it, then open the
 app argument form:
 
 ```bash
-uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 ```
 
 This template is intentionally workerless. Add a worker template only when the

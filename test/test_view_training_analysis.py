@@ -667,7 +667,8 @@ def test_view_training_analysis_additional_helper_and_entrypoint_branches(monkey
     assert len(fig.data) == 2
 
     monkeypatch.setattr(
-        "agi_pages.runtime.configure_streamlit_page",
+        importlib.import_module("agi_pages.runtime"),
+        "configure_streamlit_page",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("skip main")),
     )
     with pytest.raises(RuntimeError, match="skip main"):

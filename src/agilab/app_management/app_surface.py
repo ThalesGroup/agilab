@@ -12,7 +12,7 @@ from typing import Any
 
 APP_SURFACE_SECTION = "app_surface"
 APP_SURFACE_BACKENDS_KEY = "backends"
-DEFAULT_SURFACE_NAME = "streamlit"
+DEFAULT_SURFACE_NAME = "react"
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +101,9 @@ def _surface_spec_from_mapping(
     inherited_entrypoint: str = "",
 ) -> AppSurfaceSpec | None:
     backend = str(payload.get("backend") or name or DEFAULT_SURFACE_NAME).strip().lower()
+    # Existing saved surface declarations keep their entrypoint while using the native host.
+    if backend == "streamlit":
+        backend = "react"
     title = str(payload.get("title") or root.get("title") or "App Surface").strip()
     entrypoint = str(payload.get("entrypoint") or inherited_entrypoint or "").strip()
     url = str(payload.get("url") or "").strip()
@@ -126,7 +129,7 @@ def app_surface_specs(
 
     Backward compatibility:
     - legacy ``[app_surface] entrypoint = ...`` is exposed as the default
-      ``streamlit`` surface.
+      ``react`` surface.
     - optional ``[app_surface.backends.<name>]`` entries add explicit named
       surfaces without changing the existing ANALYSIS/ORCHESTRATE behavior.
     """
@@ -359,7 +362,7 @@ def render_app_surface(
         return False
     active_app_path = Path(active_app).expanduser().resolve()
     selected = select_app_surface_spec(active_app_path, name=surface, config=config)
-    if selected is None or selected.backend != "streamlit":
+    if selected is None or selected.backend != "react":
         return False
     entrypoint = resolve_app_surface_entrypoint(active_app_path, selected.entrypoint)
     if entrypoint is None:

@@ -443,10 +443,12 @@ import sys
 from types import SimpleNamespace
 
 from agi_env import AgiEnv
-from streamlit import config as streamlit_config
+from agi_web.python_view_session import ViewSession, use_session
 
-# Import the editor page under the same local UI contract as the AppTest probes.
-streamlit_config.set_option("server.address", "127.0.0.1")
+# Keep the direct helper probes in an isolated native view context.
+ui_context = use_session(ViewSession(lambda: None))
+ui_context.__enter__()
+os.environ["AGILAB_UI_ADDRESS"] = "127.0.0.1"
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_RELEASE_SMOKE"
@@ -599,11 +601,10 @@ import tomllib
 
 from agi_cluster.agi_distributor import AGI, RunRequest
 from agi_env import AgiEnv
-from streamlit import config as streamlit_config
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 # This subprocess exercises pages through AppTest without a server bootstrap.
-streamlit_config.set_option("server.address", "127.0.0.1")
+os.environ["AGILAB_UI_ADDRESS"] = "127.0.0.1"
 
 root = Path.cwd()
 marker = "NOTEBOOK_IMPORT_EXECUTE_ANALYSIS_SMOKE"

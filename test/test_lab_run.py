@@ -26,14 +26,14 @@ def test_lab_run_uses_shared_import_guard_for_local_helpers():
     assert "import_agilab_module(" in source
 
 
-def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
+def test_main_prints_version_without_launching_react(monkeypatch, capsys):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_detect_cli_version", lambda: "2026.4.9")
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -43,56 +43,49 @@ def test_main_prints_version_without_launching_streamlit(monkeypatch, capsys):
     assert capsys.readouterr().out.strip() == "agilab 2026.4.9"
 
 
-def test_main_keeps_streamlit_launch_path(monkeypatch, tmp_path: Path):
+def test_main_launches_react_host_with_view_arguments(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
-    monkeypatch.setattr(
-        lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps")
-    )
-    for env_key in [
-        "STREAMLIT_CONFIG_FILE",
-        "STREAMLIT_THEME_BASE",
-        "STREAMLIT_THEME_PRIMARY_COLOR",
-        "STREAMLIT_THEME_BACKGROUND_COLOR",
-        "STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR",
-        "STREAMLIT_THEME_TEXT_COLOR",
-    ]:
-        monkeypatch.delenv(env_key, raising=False)
-
+    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps"))
+    monkeypatch.delenv("AGILAB_UI_HOST", raising=False)
     captured: list[list[str]] = []
 
-    def fake_main():
-        captured.append(list(lab_run.sys.argv))
+    def fake_main(argv):
+        captured.append(list(argv))
         return 17
 
-    monkeypatch.setattr(
-        lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main)
-    )
-
-    rc = lab_run.main(["--server.headless", "true"])
+    monkeypatch.setattr(lab_run, "_load_react_host", lambda: SimpleNamespace(main=fake_main))
+    original_argv = list(lab_run.sys.argv)
+    rc = lab_run.main(["--no-browser", "--port", "8765", "--active-app", "demo_project"])
 
     assert rc == 17
-    assert captured == [
-        [
-            "streamlit",
-            "run",
-            "--server.address",
-            "127.0.0.1",
-            str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
-            "--",
-            "--apps-path",
-            str(tmp_path / "apps"),
-            "--server.headless",
-            "true",
-        ]
-    ]
-    assert lab_run.os.environ["STREAMLIT_CONFIG_FILE"] == str(
-        Path(lab_run.__file__).resolve().parent / "resources" / "config.toml"
-    )
-    assert lab_run.os.environ["STREAMLIT_THEME_BASE"] == "dark"
-    assert lab_run.os.environ["STREAMLIT_THEME_PRIMARY_COLOR"] == "#4A90E2"
-    assert lab_run.os.environ["STREAMLIT_THEME_BACKGROUND_COLOR"] == "#08111F"
-    assert lab_run.os.environ["STREAMLIT_THEME_SECONDARY_BACKGROUND_COLOR"] == "#102334"
-    assert lab_run.os.environ["STREAMLIT_THEME_TEXT_COLOR"] == "#F7F2E8"
+    assert captured == [[
+        str(Path(lab_run.__file__).resolve().parent / "main_page.py"),
+        "--address", "127.0.0.1", "--port", "8765", "--no-browser",
+        "--", "--apps-path", str(tmp_path / "apps"), "--active-app", "demo_project",
+    ]]
+    assert lab_run.sys.argv == original_argv
+
+
+def test_main_uses_explicit_guarded_address_and_passes_one_view_separator(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: None)
+    monkeypatch.setenv("AGILAB_UI_HOST", "0.0.0.0")
+    captured = []
+    monkeypatch.setattr(lab_run, "_load_react_host", lambda: SimpleNamespace(
+        main=lambda argv: captured.append(argv) or 0,
+    ))
+
+    assert lab_run.main(["--address", "127.0.0.1", "--", "--active-app", "demo"]) == 0
+    assert captured[0][1:] == ["--address", "127.0.0.1", "--port", "8501", "--", "--active-app", "demo"]
+
+
+def test_main_rejects_explicit_public_address_before_host_import(monkeypatch):
+    monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
+    monkeypatch.delenv("AGILAB_PUBLIC_BIND_OK", raising=False)
+    monkeypatch.setattr(lab_run, "_load_react_host", lambda: pytest.fail("host imported before bind validation"))
+
+    with pytest.raises(SystemExit, match="refuses to bind"):
+        lab_run.main(["--address", "192.168.1.20"])
 
 
 def test_main_dispatches_pytorch_playground_without_generic_ui(monkeypatch):
@@ -106,7 +99,7 @@ def test_main_dispatches_pytorch_playground_without_generic_ui(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_pytorch_playground", fake_pytorch_playground)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
             AssertionError("generic AGILAB UI should not be launched")
         ),
@@ -132,7 +125,6 @@ def test_pytorch_playground_local_launcher_uses_app_uv_project(
     monkeypatch.setattr(
         lab_run, "_pytorch_playground_project_root", lambda: project_root
     )
-    monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
 
     rc = lab_run._run_pytorch_playground(
         ["--host", "127.0.0.1", "--port", "8765", "--no-browser", "--", "--demo-flag"],
@@ -148,15 +140,15 @@ def test_pytorch_playground_local_launcher_uses_app_uv_project(
             "run",
             "--project",
             str(project_root),
-            "streamlit",
-            "run",
-            "--server.address",
-            "127.0.0.1",
-            "--server.port",
-            "8765",
-            "--server.headless",
-            "true",
+            "python",
+            "-m",
+            "agi_web.react_python_host",
             str(script_path),
+            "--address",
+            "127.0.0.1",
+            "--port",
+            "8765",
+            "--no-browser",
             "--",
             "--demo-flag",
         ]
@@ -180,7 +172,7 @@ def test_pytorch_playground_hf_backend_prints_runtime_url(monkeypatch, capsys):
     )
 
 
-def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_doctor_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -191,9 +183,9 @@ def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_doctor", fake_doctor)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -203,7 +195,7 @@ def test_main_dispatches_doctor_without_launching_streamlit(monkeypatch):
     assert captured == [["--cluster", "--scheduler", "127.0.0.1"]]
 
 
-def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_first_proof_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -214,9 +206,9 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -226,7 +218,7 @@ def test_main_dispatches_first_proof_without_launching_streamlit(monkeypatch):
     assert captured == [["--json", "--with-ui"]]
 
 
-def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_agent_run_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -237,9 +229,9 @@ def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_agent_run", fake_agent_run)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -249,7 +241,7 @@ def test_main_dispatches_agent_run_without_launching_streamlit(monkeypatch):
     assert captured == [["--agent", "codex", "--", "codex", "review"]]
 
 
-def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_dry_run_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -260,9 +252,9 @@ def test_main_dispatches_dry_run_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -283,9 +275,9 @@ def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_first_proof", fake_first_proof)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -295,7 +287,7 @@ def test_main_dispatches_dry_run_alias_as_first_proof(monkeypatch):
     assert captured == [["--dry-run", "--max-seconds", "45"]]
 
 
-def test_main_dispatches_workflow_validation_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_workflow_validation_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -306,9 +298,9 @@ def test_main_dispatches_workflow_validation_without_launching_streamlit(monkeyp
     monkeypatch.setattr(lab_run, "_run_workflow", fake_workflow)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -318,7 +310,7 @@ def test_main_dispatches_workflow_validation_without_launching_streamlit(monkeyp
     assert captured == [["validate", "lab_stages.toml", "--dry-run"]]
 
 
-def test_main_dispatches_publish_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_publish_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -329,9 +321,9 @@ def test_main_dispatches_publish_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_publish", fake_publish)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -341,7 +333,7 @@ def test_main_dispatches_publish_without_launching_streamlit(monkeypatch):
     assert captured == [["v2026.06.05", "--dry-run"]]
 
 
-def test_main_dispatches_release_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_release_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -352,9 +344,9 @@ def test_main_dispatches_release_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_release", fake_release)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -522,7 +514,7 @@ def test_release_watch_dry_run_prints_latest_run_commands(monkeypatch, capsys):
     assert "gh run watch --repo ThalesGroup/agilab '<run-id>' --exit-status" in output
 
 
-def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_app_management_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -533,9 +525,9 @@ def test_main_dispatches_app_management_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(lab_run, "_run_app", fake_app)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -556,9 +548,9 @@ def test_main_dispatches_app_surface_without_pypi_management(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_app_surface", fake_app_surface)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -568,7 +560,7 @@ def test_main_dispatches_app_surface_without_pypi_management(monkeypatch):
     assert captured == [["demo_project", "--ui", "hf", "--no-browser"]]
 
 
-def test_app_surface_local_launcher_uses_declared_streamlit_surface(
+def test_app_surface_local_launcher_uses_declared_react_surface(
     monkeypatch, tmp_path: Path
 ):
     project_root = tmp_path / "demo_project"
@@ -591,7 +583,6 @@ def test_app_surface_local_launcher_uses_declared_streamlit_surface(
     monkeypatch.setattr(
         lab_run, "_resolve_app_surface_project_root", lambda _project: project_root
     )
-    monkeypatch.setattr(lab_run, "_ensure_streamlit_config_file", lambda: None)
 
     rc = lab_run._run_app_surface(
         [
@@ -616,15 +607,15 @@ def test_app_surface_local_launcher_uses_declared_streamlit_surface(
             "run",
             "--project",
             str(project_root),
-            "streamlit",
-            "run",
-            "--server.address",
-            "127.0.0.1",
-            "--server.port",
-            "8765",
-            "--server.headless",
-            "true",
+            "python",
+            "-m",
+            "agi_web.react_python_host",
             str(script_path),
+            "--address",
+            "127.0.0.1",
+            "--port",
+            "8765",
+            "--no-browser",
             "--",
             "--active-app",
             str(project_root),
@@ -712,7 +703,7 @@ def test_app_surface_hf_launcher_allows_space_override(
     )
 
 
-def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_kubernetes_job_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -723,9 +714,9 @@ def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(lab_run, "_run_kubernetes_job", fake_kubernetes_job)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -735,7 +726,7 @@ def test_main_dispatches_kubernetes_job_without_launching_streamlit(monkeypatch)
     assert captured == [["--app", "demo_project", "--image", "agilab:local"]]
 
 
-def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_security_check_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -746,9 +737,9 @@ def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch)
     monkeypatch.setattr(lab_run, "_run_security_check", fake_security_check)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -758,7 +749,7 @@ def test_main_dispatches_security_check_without_launching_streamlit(monkeypatch)
     assert captured == [["--json", "--strict"]]
 
 
-def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_adoption_report_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -769,9 +760,9 @@ def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch
     monkeypatch.setattr(lab_run, "_run_adoption_report", fake_adoption_report)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -781,7 +772,7 @@ def test_main_dispatches_adoption_report_without_launching_streamlit(monkeypatch
     assert captured == [["--json", "--strict"]]
 
 
-def test_public_headless_cli_imports_and_help_do_not_require_streamlit() -> None:
+def test_public_headless_cli_imports_and_help_do_not_require_react() -> None:
     script = """
         import builtins
         import contextlib
@@ -845,7 +836,7 @@ def test_public_headless_cli_imports_and_help_do_not_require_streamlit() -> None
     assert result.returncode == 0, result.stderr or result.stdout
 
 
-def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
+def test_main_dispatches_evidence_contract_commands_without_launching_react(
     monkeypatch,
 ):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
@@ -858,9 +849,9 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
     monkeypatch.setattr(lab_run, "_run_evidence_contract", fake_evidence_contract)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -889,7 +880,7 @@ def test_main_dispatches_evidence_contract_commands_without_launching_streamlit(
     assert captured[-1] == ["sign", "proof.agipack", "--key", "signer.pem"]
 
 
-def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
+def test_main_dispatches_env_footprint_without_launching_react(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     captured: list[list[str]] = []
 
@@ -900,9 +891,9 @@ def test_main_dispatches_env_footprint_without_launching_streamlit(monkeypatch):
     monkeypatch.setattr(lab_run, "_run_env", fake_env)
     monkeypatch.setattr(
         lab_run,
-        "_load_streamlit_cli",
+        "_load_react_host",
         lambda: (_ for _ in ()).throw(
-            AssertionError("streamlit should not be launched")
+            AssertionError("React host should not be launched")
         ),
     )
 
@@ -916,16 +907,16 @@ def test_main_reports_missing_ui_dependencies(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
     monkeypatch.setattr(lab_run, "_resolve_apps_path", lambda _value: None)
     monkeypatch.setattr(
-        lab_run, "_missing_ui_dependencies", lambda: ["streamlit", "agi-gui"]
+        lab_run, "_missing_ui_dependencies", lambda: ["agi-web", "agi-gui"]
     )
 
-    with pytest.raises(SystemExit, match=r"streamlit, agi-gui.*agilab\[ui\]"):
+    with pytest.raises(SystemExit, match=r"agi-web, agi-gui.*agilab\[ui\]"):
         lab_run.main([])
 
 
 def test_main_refuses_public_bind_without_auth_or_tls(monkeypatch):
     monkeypatch.setattr(lab_run, "_guard_against_uvx_in_source_tree", lambda: None)
-    monkeypatch.setenv("STREAMLIT_SERVER_ADDRESS", "0.0.0.0")
+    monkeypatch.setenv("AGILAB_UI_HOST", "0.0.0.0")
     monkeypatch.delenv("AGILAB_PUBLIC_BIND_OK", raising=False)
     monkeypatch.delenv("AGILAB_TLS_TERMINATED", raising=False)
 
@@ -940,21 +931,21 @@ def test_main_allows_explicit_public_bind_with_tls_indicator(
     monkeypatch.setattr(
         lab_run, "_resolve_apps_path", lambda _value: str(tmp_path / "apps")
     )
-    monkeypatch.setenv("STREAMLIT_SERVER_ADDRESS", "0.0.0.0")
+    monkeypatch.setenv("AGILAB_UI_HOST", "0.0.0.0")
     monkeypatch.setenv("AGILAB_PUBLIC_BIND_OK", "1")
     monkeypatch.setenv("AGILAB_TLS_TERMINATED", "1")
     captured: list[list[str]] = []
 
-    def fake_main():
-        captured.append(list(lab_run.sys.argv))
+    def fake_main(argv):
+        captured.append(list(argv))
         return 0
 
     monkeypatch.setattr(
-        lab_run, "_load_streamlit_cli", lambda: SimpleNamespace(main=fake_main)
+        lab_run, "_load_react_host", lambda: SimpleNamespace(main=fake_main)
     )
 
     assert lab_run.main([]) == 0
-    assert captured[0][2:4] == ["--server.address", "0.0.0.0"]
+    assert captured[0][1:3] == ["--address", "0.0.0.0"]
 
 
 def _isolate_uv_detection_environment(monkeypatch, tmp_path: Path) -> Path:
@@ -1170,7 +1161,7 @@ def test_main_refuses_custom_uv_tool_environment_before_cli_side_effects(
         effects.append("called")
         raise AssertionError("CLI side effect happened before the source uv guard")
 
-    for name in ("_ensure_streamlit_config_file", "_load_streamlit_cli", "_detect_cli_version"):
+    for name in ("_load_react_host", "_detect_cli_version"):
         monkeypatch.setattr(lab_run, name, forbidden)
     with pytest.raises(SystemExit, match="source checkout via .*uvx"):
         lab_run.main(["--version"])

@@ -22,8 +22,8 @@ os.environ.setdefault(
     "STREAMLIT_CONFIG_FILE",
     str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
 )
-import streamlit as st
-from streamlit.errors import StreamlitAPIException
+from agi_web import python_ui as st
+from agi_web.python_view_session import UIError
 from agi_env.app_settings_support import read_app_settings
 from agi_env.ui.sidecar_registry import isolated_import_process_state
 
@@ -482,7 +482,7 @@ def clear_log() -> None:
 
 def _rerun_fragment_or_app() -> None:
     """Prefer a fragment rerun when valid; otherwise fall back to a full app rerun."""
-    _orchestrate_rerun_fragment_or_app(st.rerun, StreamlitAPIException)
+    _orchestrate_rerun_fragment_or_app(st.rerun, UIError)
 
 
 def _update_delete_confirm_state(
@@ -595,7 +595,7 @@ def _looks_like_shared_path(path: Path) -> bool:
 def _set_active_app_query_param(active_app: Any) -> None:
     """Best-effort update of the active-app query parameter during page transitions."""
     _orchestrate_set_active_app_query_param(
-        st.query_params, active_app, streamlit_api_exception=StreamlitAPIException
+        st.query_params, active_app, streamlit_api_exception=UIError
     )
 
 

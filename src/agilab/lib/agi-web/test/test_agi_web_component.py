@@ -151,7 +151,7 @@ def test_agi_web_render_streamlit_uses_components_html() -> None:
     assert calls[0][1:] == (400, False)
 
 
-def test_agi_web_render_streamlit_imports_default_streamlit(monkeypatch) -> None:
+def test_agi_web_render_python_imports_default_native_provider(monkeypatch) -> None:
     agi_web = _load_agi_web()
     calls: list[tuple[str, int, bool]] = []
 
@@ -163,8 +163,8 @@ def test_agi_web_render_streamlit_imports_default_streamlit(monkeypatch) -> None
     real_import = builtins.__import__
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "streamlit":
-            return fake_st
+        if name == "agi_web" and "python_ui" in fromlist:
+            return SimpleNamespace(python_ui=fake_st)
         return real_import(name, globals, locals, fromlist, level)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
@@ -174,7 +174,7 @@ def test_agi_web_render_streamlit_imports_default_streamlit(monkeypatch) -> None
         renderer=agi_web.AgiWebRendererSpec("demo"),
     )
 
-    assert agi_web.render_streamlit(component, height=360) == "rendered"
+    assert agi_web.render_python(component, height=360) == "rendered"
     assert calls[0][1:] == (360, False)
 
 

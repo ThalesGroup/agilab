@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 from agi_pages.runtime import (
     configure_streamlit_page,
     ensure_repo_on_path,

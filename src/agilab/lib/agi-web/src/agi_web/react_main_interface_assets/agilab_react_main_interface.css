@@ -1,6 +1,19 @@
 .agilab-main-interface { color:var(--st-text-color, #172033); font-family:var(--st-font, sans-serif); line-height:1.5; width:100%; }
 .agilab-main-interface * { box-sizing:border-box; }
 .agilab-project-workspace { padding-top:16px; }
+.agilab-analysis-workspace { padding-top:16px; }
+.agilab-analysis-selection { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:24px 0 16px; }
+.agilab-analysis-choices { min-width:0; margin:0; padding:16px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; }
+.agilab-analysis-choices legend { font-size:18px; font-weight:600; padding:0 6px; }
+.agilab-analysis-choice { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0; }
+.agilab-analysis-choice label { display:flex; align-items:center; gap:10px; min-width:0; overflow-wrap:anywhere; }
+.agilab-analysis-choice input { flex-shrink:0; width:18px; height:18px; accent-color:var(--st-primary-color, #2563eb); }
+.agilab-analysis-save { display:flex; align-items:center; flex-wrap:wrap; gap:16px; }
+.agilab-analysis-save span { font-size:14px; }
+.agilab-analysis-export { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:20px; margin-top:24px; background:var(--st-secondary-background-color, #f3f6fa); border-radius:12px; }
+.agilab-analysis-export h2 { font-size:20px; margin:0 0 8px; }
+.agilab-analysis-export p { margin:0; }
+@media(max-width:700px) { .agilab-analysis-selection { grid-template-columns:1fr; } }
 .agilab-project-health { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:24px 0; }
 .agilab-health-card { min-width:0; padding:18px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; background:var(--st-secondary-background-color, #f3f6fa); overflow-wrap:anywhere; }
 .agilab-health-card h2 { font-size:14px; margin:0 0 12px; }

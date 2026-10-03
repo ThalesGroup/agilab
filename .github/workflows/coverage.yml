@@ -74,7 +74,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-env \
             --with-editable ./src/agilab/core/agi-node \
             --with sqlalchemy \
-            --with streamlit \
+            --with-editable ./src/agilab/lib/agi-web \
             --with pytest \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \

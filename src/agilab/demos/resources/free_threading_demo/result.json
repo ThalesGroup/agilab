@@ -172,14 +172,14 @@
   },
   "files": {
     "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
-    "README.md": "c2318063fa98766b4f813fd5e2d90e8d50cbdc546a99c7403de0273f1c090208",
+    "README.md": "32cf8fe4eda8ae9f07666da7fc44b13e1b2242e57896d10021d7b25fbe8bbdda",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "0b9ab0fc3452dd6434bc502990741c17d4b3b49465f4fe1ebf30ff3cf692dfe6",
+    "app.py": "daab8a20d6e51be33509219d2a5218b25e2bb75cb7db955c6b7e1220ae18dc20",
     "benchmark.py": "e9ed8505a41456ac5704d89df64bdfe55ff91ee840163f9d95c59c6bb47b7177",
     "free_threading_core.py": "d10a74f6e6c3cb1ddb2932949685273db36a42862118188ea372ac939ec58d7f",
     "lab_stages.toml": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
-    "pyproject.toml": "0b03e01cfda95433d0910ca961388bba04c6456bd661f50fcd746163e530e7e8",
-    "requirements.txt": "64900359e58fd5bc762e49ae2bdc61f7c5f6d8aea2b181fdaaf4e0ad1e2b2d2c",
+    "pyproject.toml": "5c819d857a7e4bcef84629648b91068d9cec44b004e684f0789068a7d801b591",
+    "requirements.txt": "a0cab6beace831d78f20bc503cbe4c15fbd4038fc14938bf14f16a2b86332510",
     "solution.ipynb": "552edfb16401300f43604e18698e897e0508479c5aa29cadb52d120b0a9f0aa2",
     "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
     "tests.py": "779193db06e7914c70dbe6f3c111d3859a166e8419375c9fd783aa56a2add107"
@@ -201,5 +201,243 @@
   "build_timing": {
     "scope": "Wall-clock from first local request through final verification, including repairs and intervening validation work",
     "recorded_generation_response_seconds": 4137.01
+  },
+  "native_ui_migration": {
+    "schema": "agilab.native_notebook_demo_migration.v1",
+    "verified_at_utc": "2026-10-03T17:49:35.313222+00:00",
+    "interface_runtime": "agi_web.python_ui",
+    "original_files": {
+      "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+      "README.md": "c2318063fa98766b4f813fd5e2d90e8d50cbdc546a99c7403de0273f1c090208",
+      "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+      "app.py": "0b9ab0fc3452dd6434bc502990741c17d4b3b49465f4fe1ebf30ff3cf692dfe6",
+      "benchmark.py": "e9ed8505a41456ac5704d89df64bdfe55ff91ee840163f9d95c59c6bb47b7177",
+      "free_threading_core.py": "d10a74f6e6c3cb1ddb2932949685273db36a42862118188ea372ac939ec58d7f",
+      "lab_stages.toml": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
+      "pyproject.toml": "0b03e01cfda95433d0910ca961388bba04c6456bd661f50fcd746163e530e7e8",
+      "requirements.txt": "64900359e58fd5bc762e49ae2bdc61f7c5f6d8aea2b181fdaaf4e0ad1e2b2d2c",
+      "solution.ipynb": "552edfb16401300f43604e18698e897e0508479c5aa29cadb52d120b0a9f0aa2",
+      "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
+      "tests.py": "779193db06e7914c70dbe6f3c111d3859a166e8419375c9fd783aa56a2add107"
+    },
+    "original_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "case_count",
+        "digest",
+        "engine_sha256",
+        "height",
+        "iterations",
+        "modes",
+        "same_work_verified",
+        "source_sha256",
+        "width"
+      ],
+      "result_sha256": "a3180d8764ccc9b6246c78e8382cb28ceeab0f4c019a1e86eb255ad9ef94e2cb",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface",
+      "workflow": {
+        "checks": [
+          "fresh_workflow_execution",
+          "fresh_result_artifact",
+          "notebook_result_agreement"
+        ],
+        "result_file": "results.json",
+        "result_sha256": "a3180d8764ccc9b6246c78e8382cb28ceeab0f4c019a1e86eb255ad9ef94e2cb",
+        "schema": "agilab.notebook_workflow_verification.v1",
+        "scientific_correctness_verified": false,
+        "stage_count": 1,
+        "stages_sha256": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
+        "status": "passed",
+        "verification_scope": "local_workflow_result_agreement"
+      },
+      "free_threading": {
+        "status": "passed",
+        "checks": [
+          "unchanged_AGILAB_pool_engine",
+          "independent_scalar_image_oracle",
+          "real_threads_and_spawned_processes",
+          "actual_GIL_state_before_after_and_per_task",
+          "same_image_across_modes_widths_and_repeats",
+          "same_interpreter_build_controls",
+          "complete_tile_reduction",
+          "end_to_end_timing_and_repeated_medians"
+        ],
+        "hardware": {
+          "host_cpu_count": 16,
+          "process_cpu_count": 16,
+          "effective_cpus": 8
+        },
+        "python_build": "3.14.6 free-threading build (main, Jun 23 2026, 15:54:43) [Clang 22.1.3 ]",
+        "measurements": [
+          {
+            "mode": "gil_on_threads",
+            "role": "baseline",
+            "workers": 1,
+            "actual_workers": 1,
+            "pool_width": 1,
+            "wall_seconds": 0.08399708347860724,
+            "engine_seconds": 0.022834875038824975,
+            "speedup": 1.0,
+            "engine_speedup": 1.0,
+            "observed_worker_counts": [
+              1,
+              1
+            ]
+          },
+          {
+            "mode": "gil_on_threads",
+            "role": "parallel",
+            "workers": 2,
+            "actual_workers": 1,
+            "pool_width": 2,
+            "wall_seconds": 0.08339831256307662,
+            "engine_seconds": 0.023308916483074427,
+            "speedup": 1.0071796526467818,
+            "engine_speedup": 0.9796626563661305,
+            "observed_worker_counts": [
+              1,
+              2
+            ]
+          },
+          {
+            "mode": "gil_off_threads",
+            "role": "baseline",
+            "workers": 1,
+            "actual_workers": 1,
+            "pool_width": 1,
+            "wall_seconds": 0.08296604198403656,
+            "engine_seconds": 0.02267756243236363,
+            "speedup": 1.0,
+            "engine_speedup": 1.0,
+            "observed_worker_counts": [
+              1,
+              1
+            ]
+          },
+          {
+            "mode": "gil_off_threads",
+            "role": "parallel",
+            "workers": 2,
+            "actual_workers": 2,
+            "pool_width": 2,
+            "wall_seconds": 0.07146354159340262,
+            "engine_seconds": 0.011828833492472768,
+            "speedup": 1.1609562041590145,
+            "engine_speedup": 1.9171427551832907,
+            "observed_worker_counts": [
+              2,
+              2
+            ]
+          },
+          {
+            "mode": "gil_on_processes",
+            "role": "baseline",
+            "workers": 1,
+            "actual_workers": 1,
+            "pool_width": 1,
+            "wall_seconds": 0.14997514546848834,
+            "engine_seconds": 0.08589535404462367,
+            "speedup": 1.0,
+            "engine_speedup": 1.0,
+            "observed_worker_counts": [
+              1,
+              1
+            ]
+          },
+          {
+            "mode": "gil_on_processes",
+            "role": "parallel",
+            "workers": 2,
+            "actual_workers": 2,
+            "pool_width": 2,
+            "wall_seconds": 0.14658593793865293,
+            "engine_seconds": 0.08007227093912661,
+            "speedup": 1.023120959469208,
+            "engine_speedup": 1.0727228419676513,
+            "observed_worker_counts": [
+              2,
+              2
+            ]
+          }
+        ],
+        "measurement_scope": "local build-machine validation; not Space benchmark results"
+      }
+    },
+    "verifier_sha256": "c6d9731f897bf123cba144706a92a4c920cea4ce256097999e83e38c88df1714",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": false,
+    "native_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "case_count",
+        "digest",
+        "engine_sha256",
+        "height",
+        "iterations",
+        "modes",
+        "same_work_verified",
+        "source_sha256",
+        "width"
+      ],
+      "result_sha256": "a3180d8764ccc9b6246c78e8382cb28ceeab0f4c019a1e86eb255ad9ef94e2cb",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface"
+    },
+    "scientific_proof_retention": {
+      "scope": "historical independent scientific verification; unchanged scientific sources and data",
+      "sections": [
+        "workflow",
+        "free_threading"
+      ],
+      "original_artifacts_sha256": {
+        "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+        "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+        "benchmark.py": "e9ed8505a41456ac5704d89df64bdfe55ff91ee840163f9d95c59c6bb47b7177",
+        "free_threading_core.py": "d10a74f6e6c3cb1ddb2932949685273db36a42862118188ea372ac939ec58d7f",
+        "lab_stages.toml": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
+        "solution.ipynb": "552edfb16401300f43604e18698e897e0508479c5aa29cadb52d120b0a9f0aa2",
+        "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
+        "tests.py": "779193db06e7914c70dbe6f3c111d3859a166e8419375c9fd783aa56a2add107"
+      },
+      "current_artifacts_sha256": {
+        "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
+        "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
+        "benchmark.py": "e9ed8505a41456ac5704d89df64bdfe55ff91ee840163f9d95c59c6bb47b7177",
+        "free_threading_core.py": "d10a74f6e6c3cb1ddb2932949685273db36a42862118188ea372ac939ec58d7f",
+        "lab_stages.toml": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
+        "solution.ipynb": "552edfb16401300f43604e18698e897e0508479c5aa29cadb52d120b0a9f0aa2",
+        "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
+        "tests.py": "779193db06e7914c70dbe6f3c111d3859a166e8419375c9fd783aa56a2add107"
+      },
+      "excluded_interface_and_dependency_files": [
+        "README.md",
+        "app.py",
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "independently_reverified_test_files": []
+    },
+    "documentation_refresh": {
+      "scope": "documentation only; executable artifacts retain the completed native verification",
+      "files_sha256": {
+        "README.md": "32cf8fe4eda8ae9f07666da7fc44b13e1b2242e57896d10021d7b25fbe8bbdda"
+      },
+      "refreshed_at_utc": "2026-10-03T18:11:13.174288+00:00"
+    }
   }
 }

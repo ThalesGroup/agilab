@@ -5,6 +5,7 @@ from contextlib import nullcontext
 import importlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -653,41 +654,14 @@ def test_chat_offline_handles_invalid_json_payload(monkeypatch):
     assert errors == ["GPT-OSS returned an invalid JSON payload."]
 
 
-def test_load_uoaic_modules_reports_missing_package_and_dependency(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    monkeypatch.setattr(
-        pipeline_ai.importlib_metadata,
-        "distribution",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(pipeline_ai.importlib_metadata.PackageNotFoundError()),
-    )
+def test_load_uoaic_modules_reports_missing_native_dependency(monkeypatch):
+    errors = []
+    monkeypatch.setattr(pipeline_ai, "st", SimpleNamespace(error=lambda message: errors.append(str(message))))
+    def missing_import(name):
+        raise ModuleNotFoundError(name, name=name)
     with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-    assert any("universal-offline-ai-chatbot" in message for message in errors)
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            return tmp_path / "missing"
-
-        @staticmethod
-        def read_text(_name):
-            return ""
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda _name: (_ for _ in ()).throw(ImportError("missing dep", name="numpy")),
-    )
-    errors.clear()
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-    assert any("Missing dependency `numpy`" in message for message in errors)
+        pipeline_ai._load_uoaic_modules(import_module_fn=missing_import)
+    assert len(errors) == 1 and "agilab[local-llm]" in errors[0]
 
 
 def test_pipeline_ai_import_falls_back_when_pipeline_modules_are_unavailable():
@@ -836,166 +810,17 @@ def test_pipeline_ai_import_fallback_raises_when_pipeline_ai_controls_local_spec
         )
 
 
-def test_load_uoaic_modules_loads_modules_from_wheel_files(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    src_dir = wheel_root / "src"
-    src_dir.mkdir(parents=True)
-    (wheel_root / "site.dist-info").write_text("dist-info marker", encoding="utf-8")
-
-    module_files = {}
-    for short in ("chunker", "embedding", "loader", "model_loader", "prompts", "qa_chain", "vectorstore"):
-        file_path = src_dir / f"{short}.py"
-        file_path.write_text(f"IDENT = '{short}'\n", encoding="utf-8")
-        module_files[f"src/{short}.py"] = file_path
-
-    class FakeDist:
-        files = list(module_files)
-
-        @staticmethod
-        def locate_file(path):
-            if path == "":
-                return wheel_root / "site.dist-info"
-            return module_files[str(path)]
-
-        @staticmethod
-        def read_text(_name):
-            return ""
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
-    )
-
-    modules = pipeline_ai._load_uoaic_modules()
-
-    assert [module.IDENT for module in modules] == [
-        "chunker",
-        "embedding",
-        "loader",
-        "model_loader",
-        "prompts",
-        "qa_chain",
-        "vectorstore",
-    ]
-    assert errors == []
+def test_load_uoaic_modules_uses_native_adapters(monkeypatch):
+    from agilab.pipeline import local_assistant_backend
+    sentinel = tuple(object() for _ in range(7))
+    monkeypatch.setattr(local_assistant_backend, "load_adapters", lambda **kwargs: sentinel)
+    assert pipeline_ai._load_uoaic_modules() == sentinel
 
 
-def test_load_uoaic_modules_reports_generic_file_load_failure(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    wheel_root.mkdir()
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            if path == "":
-                return wheel_root
-            return wheel_root / str(path)
-
-        @staticmethod
-        def read_text(_name):
-            return ""
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("generic failure", name=name)),
-    )
-
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-
-    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
 
 
-def test_load_uoaic_modules_record_fallback_and_spec_failure_paths(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    wheel_root.mkdir()
-    chunker_file = wheel_root / "src" / "chunker.py"
-    chunker_file.parent.mkdir(parents=True)
-    chunker_file.write_text("IDENT = 'chunker'\n", encoding="utf-8")
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            return wheel_root / str(path)
-
-        @staticmethod
-        def read_text(_name):
-            return "src/chunker.py,,\n"
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
-    )
-
-    class _Loader:
-        @staticmethod
-        def exec_module(_module):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(
-        pipeline_ai.importlib.util,
-        "spec_from_file_location",
-        lambda *_args, **_kwargs: SimpleNamespace(loader=_Loader()),
-    )
-
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-
-    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
 
 
-def test_load_uoaic_modules_record_read_failure_uses_generic_error(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    wheel_root.mkdir()
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            return wheel_root / str(path)
-
-        @staticmethod
-        def read_text(_name):
-            raise RuntimeError("record broken")
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
-    )
-
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-
-    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
 
 
 def test_pipeline_ai_support_direct_module_covers_ollama_defaults_and_safety_edges(monkeypatch):
@@ -1141,34 +966,11 @@ def test_pipeline_ai_support_direct_gpt_oss_readiness_edges():
     assert unreachable.status == "service_unreachable"
 
 
-def test_pipeline_ai_support_direct_module_loads_uoaic_modules_with_default_dependencies(monkeypatch, tmp_path):
-    class FakeDist:
-        @staticmethod
-        def locate_file(_path):
-            return tmp_path
-
-    monkeypatch.setattr(
-        pipeline_ai_support_direct.importlib_metadata,
-        "distribution",
-        lambda _name: FakeDist(),
-    )
-    monkeypatch.setattr(
-        pipeline_ai_support_direct.importlib,
-        "import_module",
-        lambda name: SimpleNamespace(module_name=name),
-    )
-
-    modules = pipeline_ai_support_direct._load_uoaic_modules()
-
-    assert [module.module_name for module in modules] == [
-        "src.chunker",
-        "src.embedding",
-        "src.loader",
-        "src.model_loader",
-        "src.prompts",
-        "src.qa_chain",
-        "src.vectorstore",
-    ]
+def test_pipeline_ai_support_direct_module_loads_native_adapters(monkeypatch):
+    from agilab.pipeline import local_assistant_backend
+    sentinel = tuple(object() for _ in range(7))
+    monkeypatch.setattr(local_assistant_backend, "load_adapters", lambda **kwargs: sentinel)
+    assert pipeline_ai_support_direct._load_uoaic_modules() == sentinel
 
 
 def test_pipeline_ai_uoaic_import_falls_back_when_support_module_is_unavailable():
@@ -1220,38 +1022,10 @@ def test_pipeline_ai_uoaic_direct_module_covers_default_wrappers(monkeypatch, tm
         "_load_uoaic_modules_impl",
         lambda **kwargs: captured_load.update(kwargs) or ("loaded",),
     )
-    sentinel_distribution = lambda _name: "dist"
     sentinel_import_module = lambda name: f"import:{name}"
-    sentinel_spec = lambda *args, **kwargs: "spec"
-    sentinel_from_spec = lambda spec: f"module:{spec}"
-    monkeypatch.setattr(
-        pipeline_ai_uoaic_direct.importlib.metadata,
-        "distribution",
-        sentinel_distribution,
-    )
-    monkeypatch.setattr(
-        pipeline_ai_uoaic_direct.importlib,
-        "import_module",
-        sentinel_import_module,
-    )
-    monkeypatch.setattr(
-        pipeline_ai_uoaic_direct.importlib.util,
-        "spec_from_file_location",
-        sentinel_spec,
-    )
-    monkeypatch.setattr(
-        pipeline_ai_uoaic_direct.importlib.util,
-        "module_from_spec",
-        sentinel_from_spec,
-    )
-
+    monkeypatch.setattr(pipeline_ai_uoaic_direct.importlib, "import_module", sentinel_import_module)
     assert pipeline_ai_uoaic_direct.load_uoaic_modules() == ("loaded",)
-    assert captured_load == {
-        "distribution_fn": sentinel_distribution,
-        "import_module_fn": sentinel_import_module,
-        "spec_from_file_location_fn": sentinel_spec,
-        "module_from_spec_fn": sentinel_from_spec,
-    }
+    assert captured_load == {"import_module_fn": sentinel_import_module}
 
     captured_runtime: dict[str, object] = {}
 
@@ -1546,6 +1320,11 @@ def test_ensure_uoaic_runtime_handles_missing_cached_and_build_paths(monkeypatch
         "data_path": pipeline_ai.normalize_path(data_dir),
         "db_path": pipeline_ai.normalize_path(db_dir),
         "chain": "cached-chain",
+        "model_configuration": {
+            key: os.getenv(key, "") for key in (
+                pipeline_ai.UOAIC_MODEL_ENV, "UOAIC_OLLAMA_ENDPOINT", "UOAIC_TEMPERATURE",
+            )
+        },
     }
     fake_st.session_state = {
         "env": object(),
@@ -4330,86 +4109,8 @@ def test_universal_offline_controls_warns_when_normalized_paths_are_invalid(monk
     assert any("Provide a valid directory for the Universal Offline vector store." in message for kind, message in messages if kind == "warning")
 
 
-def test_load_uoaic_modules_record_fallback_handles_missing_spec(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    wheel_root.mkdir()
-    chunker_file = wheel_root / "src" / "chunker.py"
-    chunker_file.parent.mkdir(parents=True)
-    chunker_file.write_text("IDENT = 'chunker'\n", encoding="utf-8")
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            return wheel_root / str(path)
-
-        @staticmethod
-        def read_text(_name):
-            return "src/chunker.py,,\n"
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
-    )
-    monkeypatch.setattr(pipeline_ai.importlib.util, "spec_from_file_location", lambda *_args, **_kwargs: None)
-
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-
-    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
 
 
-def test_load_uoaic_modules_record_fallback_exec_failure_uses_record_path(monkeypatch, tmp_path):
-    errors: list[str] = []
-    fake_st = SimpleNamespace(session_state={}, error=lambda message: errors.append(str(message)))
-    monkeypatch.setattr(pipeline_ai, "st", fake_st)
-
-    wheel_root = tmp_path / "wheel"
-    wheel_root.mkdir()
-    chunker_file = wheel_root / "src" / "chunker.py"
-    chunker_file.parent.mkdir(parents=True)
-    chunker_file.write_text("IDENT = 'chunker'\n", encoding="utf-8")
-
-    class FakeDist:
-        files = []
-
-        @staticmethod
-        def locate_file(path):
-            return wheel_root / str(path)
-
-        @staticmethod
-        def read_text(_name):
-            return "src/chunker.py\n"
-
-    monkeypatch.setattr(pipeline_ai.importlib_metadata, "distribution", lambda *_args, **_kwargs: FakeDist())
-    monkeypatch.setattr(
-        pipeline_ai.importlib,
-        "import_module",
-        lambda name: (_ for _ in ()).throw(ImportError("fallback", name=name)),
-    )
-
-    class _Loader:
-        @staticmethod
-        def exec_module(_module):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(
-        pipeline_ai.importlib.util,
-        "spec_from_file_location",
-        lambda *_args, **_kwargs: SimpleNamespace(loader=_Loader()),
-    )
-
-    with pytest.raises(RuntimeError):
-        pipeline_ai._load_uoaic_modules()
-
-    assert any("Failed to load Universal Offline AI Chatbot module files" in message for message in errors)
 
 
 def test_prompt_to_plaintext_and_uoaic_messages_cover_blank_and_system_only_inputs():

@@ -877,8 +877,8 @@ def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
         ],
         "test/test_ui_public_bind_guard.py": [
             "test_public_bind_requires_explicit_ok_and_auth_or_tls_indicator",
-            "test_direct_streamlit_public_bind_is_refused_without_controls",
-            "test_direct_streamlit_public_bind_is_allowed_with_controls",
+            "test_direct_react_public_bind_is_refused_without_controls",
+            "test_direct_react_public_bind_is_allowed_with_controls",
             "AGILAB_TLS_TERMINATED",
         ],
         "src/agilab/security/security_check.py": [
@@ -894,7 +894,7 @@ def _check_public_ui_bind_guard(repo_root: Path) -> dict[str, Any]:
     missing = _missing_required_tokens(repo_root, required)
     ok = not missing
     summary = (
-        "public Streamlit binds require explicit operator acknowledgement plus an auth/TLS indicator and regression coverage"
+        "public native UI binds require explicit operator acknowledgement plus an auth/TLS indicator and regression coverage"
         if ok
         else "public UI bind guard contract is incomplete"
     )
@@ -971,7 +971,7 @@ def _check_production_boundary_docs(repo_root: Path) -> dict[str, Any]:
         ],
         "docs/source/security-adoption.rst": [
             "No-go as a standalone production platform",
-            "Public Streamlit exposure",
+            "Public native React UI exposure",
             "sole MLOps control plane",
         ],
         "docs/source/agilab-mlops-positioning.rst": [

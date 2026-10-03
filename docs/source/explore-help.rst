@@ -88,7 +88,7 @@ Main Content Area
 
       You can also create a complete starter bundle directly from this page using
       **Create analysis view**. It creates a minimal pyproject and runnable
-      Streamlit module so the page is immediately usable and ready to be
+      native React UI module so the page is immediately usable and ready to be
       customized. Use **Starting point** when you want to begin from a blank
       template or duplicate an existing app page before clicking **Create**.
 

@@ -178,7 +178,9 @@ def test_pypi_readme_tracks_public_readme_contract() -> None:
         "## Source Checkout",
         "## Published Package",
         "| Distributed (Dask) | Stable |",
-        "| UI Streamlit | Beta |",
+        "| React UI with Python views | Beta |",
+        "Updated package publication and hosted deployment are separate from this source migration",
+        "previously published wheels retain the dependencies of their release.",
         "| RL examples | Example available |",
         "Current public evaluation summary, refreshed from the public KPI bundle:",
         "Overall public evaluation, rounded category average: `3.8 / 5`.",
@@ -337,7 +339,8 @@ def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() ->
     )
     assert "agilab first-proof --json" in local_proof
     assert "agilab first-proof --json --with-ui" not in readme
-    assert "Add `--with-ui` only when" in readme
+    assert "Add `--with-ui` when you also want" in readme
+    assert "the proof to render the packaged Python views through the native UI API." in readme
     assert "If startup fails, run a progressive fallback" in readme
     assert "agilab\n" in local_proof
     assert "python3 -m venv" not in local_proof

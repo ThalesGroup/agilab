@@ -12,7 +12,7 @@ import json
 import os
 import tempfile
 
-import streamlit as st
+from agi_web import python_ui as st
 
 import benchmark
 import free_threading_core as core

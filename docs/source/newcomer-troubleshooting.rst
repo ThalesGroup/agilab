@@ -96,21 +96,19 @@ Failure 4: the web UI or Main Page/ORCHESTRATE smoke fails
 
 Symptom:
 
-- ``streamlit run src/agilab/main_page.py`` fails
-- the newcomer proof command reports a failing ``streamlit integrity check`` step
+- ``python -m agilab`` fails
+- the newcomer proof command reports a failing ``python ui integrity check`` step
 - the newcomer proof command reports a failing ``source ui smoke`` step
-- Main Page or ORCHESTRATE raises exceptions during AppTest startup
+- Main Page or ORCHESTRATE raises exceptions during ``agi_web.testing.AppTest`` startup
 
-Recovery (run from the repository root; ``rm -rf .venv`` deletes the whole
-local environment and forces a full re-resolve on the next ``uv run``)::
+Recovery (run from the repository root to refresh the UI profile)::
 
-    uv cache clean streamlit
-    rm -rf .venv
+    uv sync --extra ui
     uv --preview-features extra-build-dependencies run python tools/newcomer_first_proof.py
 
 If that fails, run the pages directly::
 
-    uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+    uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 
 Then verify the built-in app can be resolved by path::
 

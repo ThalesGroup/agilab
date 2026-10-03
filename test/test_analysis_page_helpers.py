@@ -1573,7 +1573,8 @@ def test_ensure_sidecar_skips_source_bootstrap_when_stamp_is_fresh(tmp_path: Pat
     assert "export" not in command
     assert process_env is not None
     assert process_env["PATH"].startswith(f"{Path.home()}/.local/bin:")
-    assert "streamlit" in command
+    assert "agi_web.react_python_host" in command
+    assert "streamlit" not in command
     assert "run" in command
     assert str(view_path) in command
     assert "--active-app" in command
@@ -1695,7 +1696,7 @@ def test_concurrent_analysis_sidecars_prepare_and_launch_project_once(
     assert results == [True, True]
     assert registry.ensure_calls == 1
     assert sum("sync" in command for command in commands) == 1
-    assert sum("streamlit" in command for command in commands) == 1
+    assert sum("agi_web.react_python_host" in command for command in commands) == 1
 
 
 def test_atomic_sync_stamp_failure_preserves_previous_payload(
@@ -1822,7 +1823,7 @@ def test_merge_pending_view_selection_stages_new_view_before_widget(tmp_path: Pa
     module = _load_analysis_module()
     entry = tmp_path / "my_view" / "main.py"
     entry.parent.mkdir(parents=True)
-    entry.write_text("import streamlit as st\n", encoding="utf-8")
+    entry.write_text("from agi_web import python_ui as st\n", encoding="utf-8")
     session_state = {
         "pending_view_selection__demo_project": str(entry),
         "view_selection__demo_project": ["view_maps"],
@@ -2510,7 +2511,8 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monke
     pyproject = tomllib.loads((tmp_path / "demo_view" / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["name"] == "view-demo-view"
     dependencies = pyproject["project"]["dependencies"]
-    assert "streamlit>=1.58,<2" in dependencies
+    assert any(dependency.startswith("agi-web>=") for dependency in dependencies)
+    assert not any(dependency.startswith("streamlit") for dependency in dependencies)
     assert any(dependency.startswith("agi-env>=") for dependency in dependencies)
 
     template_text = entrypoint.read_text(encoding="utf-8")
@@ -2521,7 +2523,8 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monke
     assert "get_docs_menu_items(html_file=PAGE_HELP_HTML)" in template_text
 
     fake_streamlit = _FakeAnalysisTemplateStreamlit()
-    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
+    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
     spec = importlib.util.spec_from_file_location("generated_demo_view", entrypoint)
     assert spec is not None and spec.loader is not None
     generated_module = importlib.util.module_from_spec(spec)
@@ -2978,7 +2981,8 @@ def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Pa
         raise AssertionError("set_page_config should be suppressed during inline render")
 
     fake_streamlit.set_page_config = _forbidden_set_page_config
-    monkeypatch.setitem(sys.modules, "streamlit", fake_streamlit)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
+    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
     monkeypatch.setattr(module, "st", fake_streamlit)
 
     active_app = tmp_path / "flight_telemetry_project"
@@ -2987,7 +2991,7 @@ def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Pa
     page_path.write_text(
         """
 import argparse
-import streamlit as st
+from agi_web import python_ui as st
 from agi_pages.runtime import configure_streamlit_page
 
 def main():

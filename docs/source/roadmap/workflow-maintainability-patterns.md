@@ -5,7 +5,7 @@ Target date: 2026-04-28
 This backlog captures the long-term maintainability work for AGILAB workflow
 pages. The goal is to make PROJECT, ORCHESTRATE, WORKFLOW, and service-control
 pages easier to test and evolve by applying explicit design patterns instead
-of adding more direct Streamlit state mutation.
+of adding more direct native React UI state mutation.
 
 ## Design Patterns
 
@@ -16,7 +16,7 @@ Use these patterns as the default direction for future workflow-page changes.
   locks, snippets, and selected apps in multiple widgets.
 - **Ports and Adapters**: isolate filesystem, subprocess, MLflow, OpenAI,
   keyring, GitHub, and AGILAB runtime calls behind injected dependencies.
-  Streamlit should remain a boundary adapter, not the domain model.
+  native React UI should remain a boundary adapter, not the domain model.
 - **Command Result**: buttons such as `INSTALL`, `RUN`, `EXPORT`, `CLONE`,
   `START SERVICE`, and `CLEAR LOGS` should call command functions that return
   typed results such as `success`, `refused`, `stale`, `failed`, or `no-op`.
@@ -39,7 +39,7 @@ Use these patterns as the default direction for future workflow-page changes.
 ## Roadmap Item: Pattern-Gated Workflow Changes
 
 Treat long-term workflow-page maintenance as an explicit design-pattern
-adoption program, not a sequence of isolated Streamlit fixes.
+adoption program, not a sequence of isolated native React UI fixes.
 
 Every non-trivial change to PROJECT, ORCHESTRATE, WORKFLOW, or service-control
 pages should declare which pattern it is advancing and should add or update the
@@ -55,7 +55,7 @@ The Pipeline-first slice is now the reference implementation:
   rediscovering them in individual widgets.
 - Stamp newly saved `lab_stages.toml` files with schema metadata and refuse
   unsupported future versions before editing.
-- Keep Streamlit as the rendering adapter; do not move page behavior into
+- Keep native React UI as the rendering adapter; do not move page behavior into
   `agi-env` or worker internals.
 
 ## Current Status
@@ -80,7 +80,7 @@ The Pipeline-first slice is now the reference implementation:
   support modules exist, but not every external dependency is behind an
   injected adapter yet.
 - Command Result: partially done. `ActionResult`, `ActionSpec`, and
-  `run_streamlit_action` provide shared Streamlit command-result primitives.
+  `run_streamlit_action` provide shared native React UI command-result primitives.
   Workflow run, clear-logs, delete, delete-all, and undo-delete flows now use
   typed command results. Orchestrate service start, status, health, export,
   and stop controls also return typed command results. Remaining workflow

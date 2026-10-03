@@ -4,7 +4,7 @@
 
 Package: `agi-page-app-ui`
 
-Launches app-owned interactive Streamlit surfaces from ANALYSIS.
+Launches app-owned interactive native Python UI surfaces from ANALYSIS.
 
 ## When To Use It
 
@@ -12,13 +12,13 @@ Use when the app owns live controls, training loops, or a custom UI that should 
 
 ## Expected Inputs
 
-- An active app with a [pages.app_ui] or app_surface Streamlit entrypoint.
+- An active app with a [pages.app_ui] or app_surface native Python UI entrypoint.
 - The app-owned UI source and its exported artifacts.
 
 Open it from `ANALYSIS` after selecting a project, or run it directly while developing:
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/app_ui/src/app_ui/app_ui.py -- --active-app src/agilab/apps/builtin/pytorch_playground_project
 ```
 
 ## Quality Contract

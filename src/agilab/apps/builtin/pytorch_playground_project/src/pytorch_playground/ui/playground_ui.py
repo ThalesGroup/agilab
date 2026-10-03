@@ -25,7 +25,7 @@ except Exception:  # pragma: no cover - app UI installs plotly, workers do not n
     go = None  # type: ignore[assignment]
 
 try:  # pragma: no cover - optional in headless worker/test environments
-    import streamlit as st
+    from agi_web import python_ui as st
 except Exception:  # pragma: no cover - workers import evidence helpers without Streamlit
     class _StreamlitStub:
         query_params: dict[str, object] = {}
@@ -419,7 +419,7 @@ def _ipc_decode(value: Any) -> Any:
 
 def _streamlit_script_context_active() -> bool:
     try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        from agi_web.python_ui import get_script_run_ctx
     except Exception:
         return False
     return get_script_run_ctx(suppress_warning=True) is not None

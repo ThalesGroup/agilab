@@ -93,7 +93,7 @@ _INTERACTIVE_PAGE_IMPORT_LEASE_TIMEOUT_SECONDS = 30.0
 
 apply_streamlit_theme_environment(packaged_streamlit_config_path(__file__))
 
-import streamlit as st
+from agi_web import python_ui as st
 
 _public_bind_guard_path = Path(__file__).resolve().parent / "ui_public_bind_guard.py"
 _public_bind_guard_spec = importlib.util.spec_from_file_location(
@@ -108,11 +108,11 @@ _public_bind_guard_module = importlib.util.module_from_spec(_public_bind_guard_s
 _public_bind_guard_spec.loader.exec_module(_public_bind_guard_module)
 
 try:
-    from streamlit import config as _streamlit_config
+    from agi_web.python_ui import config as _streamlit_config
 
     _public_bind_guard_module.enforce_public_bind_policy(
         os.environ,
-        streamlit_config_getter=_streamlit_config.get_option,
+        ui_config_getter=_streamlit_config.get_option,
     )
 except _public_bind_guard_module.PublicBindPolicyError as exc:
     st.error(str(exc))
@@ -1525,6 +1525,7 @@ def _page_file_runner(page_file: Path) -> Callable[[], None]:
         _render_page_load_timing(page_label, started_at)
 
     _run_page.__name__ = f"run_{resolved_page.stem}"
+    _run_page.__agilab_view_path__ = resolved_page
     return_fn = _run_page
     if not runner_cache_disabled:
         _PAGE_RUNNER_CACHE[resolved_page] = return_fn

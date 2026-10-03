@@ -120,7 +120,7 @@ The static scenario contract is available as JSON:
 
   .. code-block:: bash
 
-     agilab app surface pytorch_playground_project --ui streamlit
+     agilab app surface pytorch_playground_project --ui react
 
   Stop when the boundary-first panel is visible, press ``Run instant demo`` for
   ``Instant wow: clean circles``, read the start/now replay, try the XOR lesson

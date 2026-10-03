@@ -1,9 +1,10 @@
 ---
 schema: agilab.maintenance_memory.v1
 source: src/agilab/pages/4_ANALYSIS.py
-source_sha256: 210ec42e45e5904bc20ea49014e5a923b500193970081ed873df9ce04535546d
+source_sha256: 78a7aeb175d0c5d8b00e8ca621df7559517c3e5fa3a5382cee0b242d244510a3
 title: ANALYSIS page session environment and sidecar ownership contract
-verified_commit: c8387f96015503d20420664334f58968a9390551
+previous_verified_commit: c8387f96015503d20420664334f58968a9390551
+verified_worktree_base: 299ede5aa7509f6943cce01f8f11100c4e815bc3
 ---
 
 # ANALYSIS page session environment and sidecar ownership contract
@@ -12,7 +13,7 @@ Hidden invariant: ANALYSIS can be opened before the main navigation bootstrap
 has created `st.session_state["env"]`. It must therefore initialize the runtime
 through `AgiEnv.session_for_app(...)`, never `AgiEnv.for_app(...)`, direct
 `AgiEnv(...)` construction, or a borrowed `AgiEnv.current()` singleton. Each
-Streamlit session owns an independently mutable environment, while the legacy
+Native Python UI session owns an independently mutable environment, while the legacy
 process singleton remains available to CLI callers only.
 
 When ANALYSIS creates the environment, it must also set
@@ -73,3 +74,12 @@ runtime packages, native extensions, and source-tree escapes remain excluded.
 Focused ANALYSIS/UI and import-isolation tests, the AGI GUI parity profile, the
 real routing-training form import, and an isolated ORCHESTRATE browser robot
 scenario passed.
+
+2026-10-03 re-verification: the page now imports `agi_web.python_ui`, and view
+sidecars launch `agi_web.react_python_host` with an explicit loopback address.
+The source diff preserves session initialization, the signed sidecar registry,
+the inline process-state lease, and bounded preparation cleanup. Nineteen
+focused ANALYSIS tests passed for project selection, concurrent sidecar launch,
+preparation cleanup, and inline execution/restoration (receipt
+`fe5c35000525ffa6`). The source hash identifies the reviewed working-tree file;
+`verified_worktree_base` identifies its base commit, not a published release.

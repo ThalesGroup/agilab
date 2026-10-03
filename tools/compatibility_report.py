@@ -40,7 +40,7 @@ REQUIRED_PUBLIC_STATUSES = {
 }
 REQUIRED_VALIDATED_EVIDENCE = {
     "source-checkout-first-proof": ("tools/newcomer_first_proof.py", "--json", "run_manifest.json"),
-    "web-ui-local-first-proof": ("streamlit run", "src/agilab/main_page.py"),
+    "web-ui-local-first-proof": ("run --extra ui", "python -m agilab"),
     "agilab-hf-demo": ("tools/hf_space_smoke.py", "--json"),
     "service-mode-operator-surface": ("tools/service_health_check.py", "health"),
     "controlled-pilot-readiness-gate": (

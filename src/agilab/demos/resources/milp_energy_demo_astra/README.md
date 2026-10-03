@@ -1,5 +1,15 @@
 # MILP Energy Lab
 
+> Native host availability: this demo describes the migrated AGILAB source.
+> Previously published `agi-web` wheels may not contain `python_ui` or
+> `react_python_host`. Use the migrated checkout (`uv sync --extra ui --extra
+> notebook` at the AGILAB root), or install the local host package into the
+> same environment as this demo and its notebook kernel:
+> `python -m pip install /path/to/agilab/src/agilab/lib/agi-web`.
+> A demo-specific `requirements.txt` supplies its scientific dependencies;
+> installing it alone does not establish that the native host is available.
+> These instructions do not claim a new PyPI or hosted release.
+
 The fifth Tokki × AGILAB public lab: build gas capacity in integer modules,
 schedule those modules hour by hour, and measure independent scenarios with
 the actual supplied AGILAB worker engine. No providers, credentials, downloads,
@@ -10,7 +20,7 @@ paid services or user-supplied executable code.
 With the declared dependencies already installed:
 
 ```bash
-streamlit run app.py --server.address=127.0.0.1
+python -m agi_web.react_python_host app.py --address=127.0.0.1
 python tests.py
 python tests.py --browser
 python energy_core.py single --input milp-settings.json --output replay.json
@@ -158,7 +168,7 @@ notebook was inspected as data and never executed.
 ## Validation scope
 
 The focused suite runs real MILPs, independent physical/cost assertions,
-the startup tradeoff, boundary rejection, process cleanup and Streamlit AppTest.
+the startup tradeoff, boundary rejection, process cleanup and native Python UI AppTest.
 The supplied notebook/app verifier additionally executes solution.ipynb from
 a fresh directory and clicks Run analysis. It verifies execution/interface
 behavior, not scientific equivalence to the original notebook.

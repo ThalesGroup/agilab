@@ -23,7 +23,7 @@ def form(request, monkeypatch):
         "template_form_" + package, src / "app_args_form.py"
     )
     module = importlib.util.module_from_spec(spec)
-    import streamlit as st
+    from agi_web import python_ui as st
 
     # Import invokes render; an uninitialized session must not mutate settings.
     monkeypatch.setattr(st, "session_state", {})

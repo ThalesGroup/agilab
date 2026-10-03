@@ -210,7 +210,9 @@ def test_worker_args_accept_runtime_representations_without_private_transport_fi
     module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
     values = dict(sample_count=80, seed=34)
     if representation == "model":
-        value = SklearnPipelineArgs(**values)
+        # Notebook and page tests may reload this project before this test runs.
+        # Exercise the class belonging to the same runtime as the coercer.
+        value = module.SklearnPipelineArgs(**values)
     elif representation == "dict":
         value = dict(**values, _transport="ignored")
     elif representation == "namespace":
@@ -243,7 +245,7 @@ def test_worker_schedule_only_processes_assigned_batches(monkeypatch, plan, work
     module = importlib.import_module("sklearn_pipeline_worker.sklearn_pipeline_worker")
     monkeypatch.setattr(module.BaseWorker, "_t0", started)
     monkeypatch.setattr(module, "time", SimpleNamespace(time=lambda: 20.0))
-    worker = SklearnPipelineWorker()
+    worker = module.SklearnPipelineWorker()
     worker._worker_id = worker_id
     processed = []
     completed = []

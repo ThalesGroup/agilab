@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import pandas as pd
 from agilab.components.code_editor_component import code_editor
-import streamlit as st
+from agi_web import python_ui as st
 from agilab.pipeline.pipeline_page_state import (
     prepare_pipeline_editor_updates,
     hydrate_pipeline_editor_values,

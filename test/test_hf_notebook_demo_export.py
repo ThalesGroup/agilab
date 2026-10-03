@@ -21,6 +21,11 @@ def test_standalone_export_includes_both_verified_iris_bundles(tmp_path):
                 ROOT / resource / name
             ).read_bytes()
         assert resource in (tmp_path / "space/Dockerfile").read_text()
+    assert (tmp_path / "space/src/agi_web/python_ui.py").is_file()
+    assert (tmp_path / "space/src/agi_web/testing.py").is_file()
+    assert (tmp_path / "space/src/agi_web/react_python_host_assets/agilab_react_python_host.js").is_file()
+    assert "agi_web.react_python_host" in (tmp_path / "space/Dockerfile").read_text()
+    assert "streamlit" not in (tmp_path / "space/requirements.txt").read_text().lower()
 
 
 @pytest.mark.parametrize("resource", exporter.RESOURCE_PATHS)

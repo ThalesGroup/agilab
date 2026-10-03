@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import urllib.error
 import urllib.request
 
-import streamlit as st
+from agi_web import python_ui as st
 
 from agi_env import AgiEnv
 from agilab.security.llm_endpoint_policy import (

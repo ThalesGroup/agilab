@@ -16,7 +16,7 @@ import pytest
 from pathlib import Path
 from datetime import date
 from unittest.mock import patch, MagicMock
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agi_env import AgiEnv
 from agi_env.app_settings_support import update_app_settings_owned
@@ -518,7 +518,9 @@ def _load_flight_form_module(
 
     if inject_env:
         fake_st.session_state.setdefault("env", env)
-    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_st)
     missing = object()
     previous_flight_telemetry = sys.modules.get("flight_telemetry", missing)
     sys.modules["flight_telemetry"] = fake_flight_telemetry
@@ -1059,16 +1061,16 @@ def test_agilab_warm_query_cluster_failure_keeps_old_env_until_recovery(
 def test_agilab_main_page_refuses_unprotected_public_bind(
     mock_ui_env, streamlit_loopback_config, actual_host, env_host
 ):
-    streamlit_loopback_config.set_option("server.address", actual_host)
     home_root = mock_ui_env["apps_dir"].parent
     at = _app_test("src/agilab/main_page.py")
+    at._session.config["server_address"] = actual_host
 
     with patch.dict(
         os.environ,
         {
             "HOME": str(home_root),
             "AGILAB_UI_HOST": env_host,
-            "STREAMLIT_SERVER_ADDRESS": env_host,
+            "AGILAB_UI_ADDRESS": env_host,
             "AGILAB_PUBLIC_BIND_OK": "",
             "AGILAB_TLS_TERMINATED": "",
         },
@@ -1078,7 +1080,7 @@ def test_agilab_main_page_refuses_unprotected_public_bind(
 
     assert not list(at.exception)
     assert any(
-        "refuses to bind the Streamlit UI on non-loopback host" in item.value
+        "refuses to bind the React UI on non-loopback host" in item.value
         for item in at.error
     )
 
@@ -2158,7 +2160,7 @@ def test_orchestrate_custom_form_imports_manager_editable_dependency(mock_ui_env
     (source_root / "app_settings.toml").write_text("[args]\n", encoding="utf-8")
     marker = "manager editable dependency loaded"
     (source_root / "app_args_form.py").write_text(
-        "import streamlit as st\n"
+        "from agi_web import python_ui as st\n"
         "import sb3_trainer\n"
         "st.caption(sb3_trainer.MARKER)\n",
         encoding="utf-8",
@@ -2658,13 +2660,160 @@ def test_explore_page_multiselect(mock_ui_env):
     assert "Open" not in btns
 
 
+def test_analysis_react_overview_keeps_python_views_and_authoring(mock_ui_env):
+    """Mount the actual analysis page and keep its specialized Python routes."""
+    import json
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("from agi_web import python_ui as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    at.run()
+    assert not at.exception
+    components = list(at.get("bidi_component"))
+    assert len(components) == 1
+    data = json.loads(components[0].proto.json)
+    assert data["view"] == "analysis_workspace"
+    assert data["project"] == env.app
+    assert {card["label"] for card in data["overview"]["cards"]} == {
+        "Output files", "Latest output", "Views selected", "Notebooks selected"}
+    assert "view_maps" in {item["id"] for item in data["views"]}
+    assert "lab_stages.ipynb" in data["selected_notebooks"]
+    assert data["export_available"] is True
+    assert not any(widget.key == f"view_selection__{env.app}" for widget in at.multiselect)
+    labels = {str(item.label) for item in at.expander}
+    assert "How to choose pages and notebooks" in labels
+    assert "Choose analysis views" not in labels
+    assert any("Create" in label and "view" in label.lower() for label in labels)
+
+
+def test_analysis_react_selection_persists_and_reloads_in_native_page(mock_ui_env):
+    """Apply one component action through real settings persistence, then reload."""
+    from types import SimpleNamespace
+    import tomllib
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("from agi_web import python_ui as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    sent = False
+    captured = []
+
+    def emit(_streamlit, data, *, key):
+        nonlocal sent
+        captured.append(data)
+        if sent:
+            return SimpleNamespace(action=None)
+        sent = True
+        action = {field: data[field] for field in ("project", "project_path", "route", "context")}
+        action.update(kind="select", views=["view_maps"], notebooks=[])
+        return SimpleNamespace(action=action)
+
+    with patch("agi_web.react_main_interface.render_main_interface", side_effect=emit):
+        at.run()
+    assert not at.exception
+    assert len(captured) >= 2  # Hydration happens after the settings write.
+    assert captured[-1]["selected_views"] == ["view_maps"]
+    assert captured[-1]["selected_notebooks"] == []
+    settings = tomllib.loads(env.resolve_user_app_settings_file(env.app).read_text())
+    # Unavailable configured views retain their existing persistence contract.
+    assert "view_maps" in settings["pages"]["view_module"]
+    assert settings["notebooks"]["selected"] == []
+
+    reloaded = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    reloaded.session_state["env"] = env
+    reloaded.run()
+    assert not reloaded.exception
+    assert reloaded.session_state[f"view_selection__{env.app}"] == ["view_maps"]
+    assert reloaded.session_state[f"notebook_selection__{env.app}"] == []
+    assert "Choose analysis views" in {str(item.label) for item in reloaded.expander}
+
+
+@pytest.mark.parametrize("retry", [True, False])
+def test_analysis_react_failed_save_keeps_saved_state_and_allows_retry(mock_ui_env, retry):
+    """A failed real settings write must leave the draft available for retry."""
+    from types import SimpleNamespace
+    import tomllib
+    from agilab.ui.react_main_interface import NAVIGATION_ROUTES_SESSION_KEY, SHELL_ACTIVE_KEY
+
+    (mock_ui_env["pages_dir"] / "view_maps.py").write_text("from agi_web import python_ui as st\nst.write('Python map')\n")
+    notebooks_dir = mock_ui_env["project_dir"] / "notebooks"
+    notebooks_dir.mkdir()
+    (notebooks_dir / "lab_stages.ipynb").write_text("{}")
+    env = AgiEnv(apps_path=mock_ui_env["apps_dir"], app="flight_telemetry_project", verbose=0)
+    env.init_done = True
+    env.st_resources = (Path(__file__).resolve().parents[1] / "src/agilab/resources").resolve()
+    env.AGILAB_PAGES_ABS = str(mock_ui_env["pages_dir"])
+    env.projects = [env.app]
+    env.get_projects = MagicMock(return_value=env.projects)
+    settings_file = env.resolve_user_app_settings_file(env.app)
+    original = settings_file.read_bytes()
+    at = _app_test("src/agilab/pages/4_ANALYSIS.py")
+    at.session_state["env"] = env
+    at.session_state[SHELL_ACTIVE_KEY] = True
+    at.session_state[NAVIGATION_ROUTES_SESSION_KEY] = {key: object() for key in ("analysis", "workflow")}
+    captured = []
+    sent = False
+    recovering = False
+
+    def emit(_streamlit, data, *, key):
+        nonlocal sent
+        captured.append(data)
+        if sent:
+            return SimpleNamespace(action=None)
+        sent = True
+        action = {field: data[field] for field in ("project", "project_path", "route", "context")}
+        action.update(kind="discard" if recovering and not retry else "select", views=["view_maps"], notebooks=[])
+        return SimpleNamespace(action=action)
+
+    with patch("agi_web.react_main_interface.render_main_interface", side_effect=emit):
+        with patch("agi_env.app_settings_support.update_app_settings_owned", side_effect=PermissionError("read-only settings")):
+            at.run()
+        assert not at.exception
+        assert settings_file.read_bytes() == original
+        assert captured[-1]["selected_notebooks"] == ["lab_stages.ipynb"]
+        assert captured[-1]["draft_notebooks"] == []
+        assert captured[-1]["save_error"]
+        sent = False
+        recovering = True
+        at.run()
+    assert not at.exception
+    expected = [] if retry else ["lab_stages.ipynb"]
+    assert captured[-1]["selected_notebooks"] == expected
+    assert captured[-1]["draft_notebooks"] == expected
+    assert captured[-1]["save_error"] == ""
+    assert tomllib.loads(settings_file.read_text())["notebooks"]["selected"] == expected
+
+
 def test_explore_page_default_view_does_not_mutate_widget_state_after_render(
     mock_ui_env,
 ):
     """Default analysis views hydrate sidebar links without auto-opening a view."""
     page_path = mock_ui_env["pages_dir"] / "view_default.py"
     page_path.write_text(
-        "import streamlit as st\n\n"
+        "from agi_web import python_ui as st\n\n"
         "def main():\n"
         "    st.write('default view rendered')\n",
         encoding="utf-8",
@@ -2794,11 +2943,11 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
     """Returning from an app surface keeps the sidebar scoped to the app UI launcher."""
     pages_dir = mock_ui_env["pages_dir"]
     (pages_dir / "view_app_ui.py").write_text(
-        "import streamlit as st\n\ndef main():\n    st.write('app ui bridge')\n",
+        "from agi_web import python_ui as st\n\ndef main():\n    st.write('app ui bridge')\n",
         encoding="utf-8",
     )
     (pages_dir / "view_other.py").write_text(
-        "import streamlit as st\n\ndef main():\n    st.write('other view')\n",
+        "from agi_web import python_ui as st\n\ndef main():\n    st.write('other view')\n",
         encoding="utf-8",
     )
     app_surface = mock_ui_env["project_dir"] / "src" / "demo" / "app_surface.py"
@@ -2853,18 +3002,18 @@ def test_explore_page_app_surface_back_keeps_single_app_ui_sidebar_view(mock_ui_
 def test_explore_page_app_surface_uses_standard_view_selection(mock_ui_env):
     pages_dir = mock_ui_env["pages_dir"]
     (pages_dir / "view_app_ui.py").write_text(
-        "import streamlit as st\n\ndef main():\n    st.write('app ui bridge')\n",
+        "from agi_web import python_ui as st\n\ndef main():\n    st.write('app ui bridge')\n",
         encoding="utf-8",
     )
     (pages_dir / "view_extra.py").write_text(
-        "import streamlit as st\n\ndef main():\n    st.write('extra view')\n",
+        "from agi_web import python_ui as st\n\ndef main():\n    st.write('extra view')\n",
         encoding="utf-8",
     )
     app_surface = mock_ui_env["project_dir"] / "src" / "demo" / "app_surface.py"
     app_surface.parent.mkdir(parents=True)
     app_surface.write_text(
         "def render(mode='analysis', container=None, **_kwargs):\n"
-        "    import streamlit as st\n"
+        "    from agi_web import python_ui as st\n"
         "    target = container or st\n"
         "    target.markdown(f'surface:{mode}')\n",
         encoding="utf-8",
@@ -4048,13 +4197,13 @@ def test_project_metrics_count_ui_pages_and_format_kloc(tmp_path):
     project_page = _load_project_page_module()
     project = tmp_path / "demo_project"
     (project / "pages").mkdir(parents=True)
-    (project / "pages" / "PROJECT_EDITOR.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (project / "pages" / "PROJECT_EDITOR.py").write_text("from agi_web import python_ui as st\n", encoding="utf-8")
     (project / "pages" / "__init__.py").write_text("", encoding="utf-8")
     package = project / "src" / "demo_project"
     package.mkdir(parents=True)
-    (package / "app_surface.py").write_text("import streamlit as st\n", encoding="utf-8")
-    (package / "app_args_form.py").write_text("import streamlit as st\n", encoding="utf-8")
-    (package / "streamlit_app.py").write_text("import streamlit as st\n", encoding="utf-8")
+    (package / "app_surface.py").write_text("from agi_web import python_ui as st\n", encoding="utf-8")
+    (package / "app_args_form.py").write_text("from agi_web import python_ui as st\n", encoding="utf-8")
+    (package / "streamlit_app.py").write_text("from agi_web import python_ui as st\n", encoding="utf-8")
 
     assert project_page._project_ui_page_count(project) == 4
     assert project_page._format_project_kloc(1540) == "1.5 KLOC"

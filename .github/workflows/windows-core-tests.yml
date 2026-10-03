@@ -63,7 +63,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-cluster `
             --with-editable ./src/agilab/core/agi-core `
             --with sqlalchemy `
-            --with streamlit `
+            --with-editable ./src/agilab/lib/agi-web `
             --with fastparquet `
             --with pytest `
             --with pytest-asyncio `

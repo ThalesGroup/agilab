@@ -1,6 +1,6 @@
-"""React workspace chrome hosted by Streamlit, with one-shot Python actions.
+"""React workspace chrome on the native host, with one-shot Python actions.
 
-Importing this adapter does not import Streamlit or affect notebook renderers.
+Importing this adapter does not start a host or affect notebook renderers.
 """
 
 from functools import lru_cache

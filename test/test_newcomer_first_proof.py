@@ -29,11 +29,11 @@ def test_build_proof_commands_defaults_to_preinit_and_ui_smoke() -> None:
 
     assert [command.label for command in commands] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
     ]
     assert "tools/smoke_preinit.py" in " ".join(commands[0].argv)
-    assert "streamlit-integrity: OK" in commands[1].argv[-1]
+    assert "python-ui-integrity: OK" in commands[1].argv[-1]
     assert "AppTest.from_file" in commands[2].argv[-1]
     assert str(module.DEFAULT_ACTIVE_APP) in commands[2].argv[-1]
 
@@ -43,7 +43,7 @@ def test_build_proof_commands_defaults_to_preinit_and_ui_smoke() -> None:
     ("page_code", "expected_returncode", "expected_message"),
     [
         pytest.param(
-            "import streamlit as st\n"
+            "from agi_web import python_ui as st\n"
             "from agilab.ui_public_bind_guard import enforce_public_bind_policy_or_stop\n"
             "enforce_public_bind_policy_or_stop(st)\n"
             'st.session_state["env"] = "proof-env"\n',
@@ -52,7 +52,7 @@ def test_build_proof_commands_defaults_to_preinit_and_ui_smoke() -> None:
             id="inherited-public-address",
         ),
         pytest.param(
-            "import streamlit as st\n"
+            "from agi_web import python_ui as st\n"
             'st.error("UI smoke stopped at the setup guard")\n'
             "st.stop()\n",
             1,
@@ -68,19 +68,19 @@ def test_ui_smoke_subprocess_is_local_and_reports_stopped_pages(
     expected_returncode: int,
     expected_message: str,
 ) -> None:
-    pytest.importorskip("streamlit")
+    pytest.importorskip("agi_web")
     module = _load_module()
     monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
     page_root = tmp_path / "src" / "agilab"
     (page_root / "pages").mkdir(parents=True)
     (page_root / "main_page.py").write_text(page_code, encoding="utf-8")
     (page_root / "pages" / "2_ORCHESTRATE.py").write_text(
-        "import streamlit as st\n"
+        "from agi_web import python_ui as st\n"
         'assert st.session_state["env"] == "proof-env"\n',
         encoding="utf-8",
     )
     command = module._ui_smoke_command(tmp_path / "apps" / "proof_project")
-    env = {**os.environ, "STREAMLIT_SERVER_ADDRESS": "0.0.0.0"}
+    env = {**os.environ, "AGILAB_UI_HOST": "0.0.0.0"}
     env.pop("AGILAB_PUBLIC_BIND_OK", None)
     env.update(command.env)
     source_root = str(MODULE_PATH.parents[1] / "src")
@@ -107,7 +107,7 @@ def test_build_proof_commands_with_install_adds_install_and_seed_checks() -> Non
 
     assert [command.label for command in commands] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
@@ -139,7 +139,7 @@ def test_build_proof_commands_with_run_adds_execute_probe() -> None:
 
     assert [command.label for command in commands] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",
@@ -307,7 +307,7 @@ def test_run_proof_stops_on_first_failure() -> None:
 
     assert [result.label for result in results] == [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
     ]
     assert results[-1].returncode == 7
 

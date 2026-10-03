@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Any
 
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 try:
     import networkx as nx

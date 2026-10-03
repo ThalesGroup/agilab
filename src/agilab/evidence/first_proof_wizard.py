@@ -213,7 +213,7 @@ def first_proof_tool_contract(repo_root: Path = REPO_ROOT) -> FirstProofToolCont
             active_app=fallback_app,
             command_labels=(
                 "preinit smoke",
-                "streamlit integrity check",
+                "python ui integrity check",
                 "source ui smoke",
             ),
             target_seconds=600.0,

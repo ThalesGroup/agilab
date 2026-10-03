@@ -76,7 +76,7 @@ def test_landscape_modules_have_scored_exercises_and_accessible_figures(surface)
 
 
 def test_ml_exercise_selection_and_scoring_survive_learning_path_switches(surface):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     app = AppTest.from_string(
         "from learning_assessment.ui.app_surface import render\nrender(mode='analysis')",

@@ -17,8 +17,8 @@ os.environ.setdefault(
     "STREAMLIT_CONFIG_FILE",
     str(Path(__file__).resolve().parents[1] / "resources" / "config.toml"),
 )
-import streamlit as st
-from streamlit.errors import StreamlitAPIException
+from agi_web import python_ui as st
+from agi_web.python_view_session import UIError
 import tomllib  # For reading TOML files
 
 _import_guard_path = Path(__file__).resolve().parents[1] / "import_guard.py"
@@ -647,7 +647,7 @@ def _render_notebook_download_button(
         )
         if pycharm_path is not None:
             target.caption(f"PyCharm notebook: `{pycharm_path}`")
-    except (OSError, StreamlitAPIException) as exc:
+    except (OSError, UIError) as exc:
         target.error(f"Failed to prepare notebook export: {exc}")
 
 

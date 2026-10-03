@@ -83,12 +83,12 @@
     "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
     "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
     "NOTICE": "709db06755a197d70c21734f2b9d6fd5a382db8c14726a4de7a285eeeda2a06b",
-    "README.md": "88173b41a76f6860213e9be0209a9996a4b36cbca72d20c5c1dfb6729636f93e",
-    "app.py": "119ea1cc3906635886f417b7f8c652c1438ae7f9763cde6da401c544aa86ab68",
+    "README.md": "e324d826f5407027c263f46aa404986312d9fffd42d5cd1647f48e094af4a327",
+    "app.py": "7cbf3b7274597ca9e553c81543e30de289461711f1c20f46f0ce9c15547ba080",
     "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
     "lab_stages.toml": "97b04b15932c8096ba2a72df5ebfb2e2147c0c3c2f82078c171feef257e286a3",
-    "pyproject.toml": "469dc7fd3fff05cc72934fab186c349f9ae7f303322f878ebcb6f849eaca713e",
-    "requirements.txt": "5aee4f10fe3a4c3f11e55d1b369cb240e0f62d73800c9d91dc211f7529f7b51c",
+    "pyproject.toml": "30ca722b3030153d65f6b0356df886b833c2df7a76812e186647bb3966493628",
+    "requirements.txt": "ffdd1f82ff08284bb12fe24db072a610b4d2702a26d2408bbc6e706ed79a1814",
     "solution.ipynb": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b",
     "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
     "text_core.py": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
@@ -147,5 +147,148 @@
     "agent": "OpenCode",
     "supervisor": "Codex",
     "workflow_mode": "hybrid_supervision_local_codegen"
+  },
+  "native_ui_migration": {
+    "schema": "agilab.native_notebook_demo_migration.v1",
+    "verified_at_utc": "2026-10-03T17:54:11.573023+00:00",
+    "interface_runtime": "agi_web.python_ui",
+    "original_files": {
+      "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+      "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+      "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+      "NOTICE": "709db06755a197d70c21734f2b9d6fd5a382db8c14726a4de7a285eeeda2a06b",
+      "README.md": "88173b41a76f6860213e9be0209a9996a4b36cbca72d20c5c1dfb6729636f93e",
+      "app.py": "119ea1cc3906635886f417b7f8c652c1438ae7f9763cde6da401c544aa86ab68",
+      "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+      "lab_stages.toml": "97b04b15932c8096ba2a72df5ebfb2e2147c0c3c2f82078c171feef257e286a3",
+      "pyproject.toml": "469dc7fd3fff05cc72934fab186c349f9ae7f303322f878ebcb6f849eaca713e",
+      "requirements.txt": "5aee4f10fe3a4c3f11e55d1b369cb240e0f62d73800c9d91dc211f7529f7b51c",
+      "solution.ipynb": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b",
+      "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+      "text_core.py": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
+    },
+    "original_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "cluster_sizes",
+        "displayed_variance",
+        "n_articles",
+        "n_pca_components",
+        "retained_variance",
+        "silhouette",
+        "top_terms",
+        "vocabulary_size"
+      ],
+      "result_sha256": "520544de9b96a0468c8ede2d1158eb49eb89b272735ef7e8abaf5dbc5f2c6718",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface",
+      "text": {
+        "status": "passed",
+        "checks": [
+          "pinned_source_and_corpus",
+          "centered_pca_and_original_variance",
+          "cluster_terms_from_original_tfidf",
+          "retained_space_silhouette",
+          "uncached_seed_reproducibility",
+          "categories_excluded_from_fitting",
+          "parameter_extremes_and_invalid_inputs",
+          "notebook_core_agreement"
+        ],
+        "measurements": {
+          "articles": 1250,
+          "vocabulary": 6404,
+          "displayed_variance": 0.02076089009642601,
+          "retained_variance": 0.19257818162441254,
+          "silhouette": 0.05084473267197609,
+          "cases": [
+            {
+              "clusters": 2,
+              "vocabulary": 13473,
+              "silhouette": 0.1875908225774765
+            },
+            {
+              "clusters": 8,
+              "vocabulary": 3080,
+              "silhouette": 0.07450728863477707
+            }
+          ]
+        }
+      }
+    },
+    "verifier_sha256": "c6d9731f897bf123cba144706a92a4c920cea4ce256097999e83e38c88df1714",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": false,
+    "native_verification": {
+      "checks": [
+        "fresh_notebook_execution",
+        "fresh_result_artifact",
+        "app_startup",
+        "app_run_analysis_interaction"
+      ],
+      "result_file": "results.json",
+      "result_names": [
+        "cluster_sizes",
+        "displayed_variance",
+        "n_articles",
+        "n_pca_components",
+        "retained_variance",
+        "silhouette",
+        "top_terms",
+        "vocabulary_size"
+      ],
+      "result_sha256": "6090b8f242ea8e257042f15bbc4c5416997644726c8baa40d3aa1f9bf4a7bab8",
+      "scientific_correctness_verified": false,
+      "status": "passed",
+      "verification_scope": "execution_and_interface"
+    },
+    "scientific_proof_retention": {
+      "scope": "historical independent scientific verification; unchanged scientific sources and data",
+      "sections": [
+        "text"
+      ],
+      "original_artifacts_sha256": {
+        "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+        "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+        "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+        "NOTICE": "709db06755a197d70c21734f2b9d6fd5a382db8c14726a4de7a285eeeda2a06b",
+        "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+        "lab_stages.toml": "97b04b15932c8096ba2a72df5ebfb2e2147c0c3c2f82078c171feef257e286a3",
+        "solution.ipynb": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b",
+        "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+        "text_core.py": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
+      },
+      "current_artifacts_sha256": {
+        "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+        "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+        "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+        "NOTICE": "709db06755a197d70c21734f2b9d6fd5a382db8c14726a4de7a285eeeda2a06b",
+        "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+        "lab_stages.toml": "97b04b15932c8096ba2a72df5ebfb2e2147c0c3c2f82078c171feef257e286a3",
+        "solution.ipynb": "60ccb63eb3f70aeace0907434b8a79a7e32674d1efe594645880f8b6ed2a357b",
+        "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+        "text_core.py": "fc27ba23bf96401877cd234107cad5e80fa5426345cd7ddd8205b927a183cb0e"
+      },
+      "excluded_interface_and_dependency_files": [
+        "README.md",
+        "app.py",
+        "pyproject.toml",
+        "requirements.txt"
+      ],
+      "independently_reverified_test_files": []
+    },
+    "documentation_refresh": {
+      "scope": "documentation only; executable artifacts retain the completed native verification",
+      "files_sha256": {
+        "README.md": "e324d826f5407027c263f46aa404986312d9fffd42d5cd1647f48e094af4a327"
+      },
+      "refreshed_at_utc": "2026-10-03T20:16:04.881420+00:00"
+    }
   }
 }

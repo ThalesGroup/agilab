@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1084" height="321" viewBox="0 0 1084 321" role="img" aria-labelledby="title desc">
   <title id="title">minimal_app package layout</title>
-  <desc id="desc">The smallest AGILAB app: a manager package, typed arguments, and a Streamlit form.</desc>
+  <desc id="desc">The smallest AGILAB app: a manager package, typed arguments, and a Python UI form.</desc>
   <defs>
     <style>
       text { font-family: Arial, Helvetica, sans-serif; fill: #0e223f; }
@@ -19,7 +19,7 @@
   </defs>
   <rect width="1084" height="321" fill="url(#bg)" rx="28" ry="28" />
   <text class="title" x="46" y="52">minimal_app package layout</text>
-  <text class="subtitle" x="46" y="80">The smallest AGILAB app: a manager package, typed arguments, and a Streamlit form.</text>
+  <text class="subtitle" x="46" y="80">The smallest AGILAB app: a manager package, typed arguments, and a Python UI form.</text>
   <rect x="46" y="104" width="316" height="119" rx="18" ry="18" fill="#d9f0ff" stroke="#0e223f" stroke-width="2" />
   <text class="card-title" x="66" y="134">Manager</text>
   <text class="count" x="342" y="134" text-anchor="end">1 module</text>
@@ -34,7 +34,7 @@
   <rect x="722" y="104" width="316" height="119" rx="18" ry="18" fill="#ffe8ac" stroke="#0e223f" stroke-width="2" />
   <text class="card-title" x="742" y="134">Argument form</text>
   <text class="count" x="1018" y="134" text-anchor="end">1 module</text>
-  <text class="card-note" x="742" y="156">Streamlit form rendered by the PROJECT</text>
+  <text class="card-note" x="742" y="156">Python UI form rendered by the PROJECT</text>
   <text class="card-note" x="742" y="176">page.</text>
   <text class="member" x="742" y="200">app_args_form</text>
   <text class="footer" x="46" y="255">4 logical modules · compatibility shims collapsed · groups: tools/render_package_maps.py</text>

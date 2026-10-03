@@ -22,7 +22,7 @@ def verify(project: Path) -> dict:
     from sklearn.datasets import load_iris
     from sklearn.metrics import accuracy_score
     from sklearn.model_selection import train_test_split
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     project = project.resolve()
     for name in ("models.py", "app.py", "solution.ipynb"):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

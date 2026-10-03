@@ -8,7 +8,7 @@ Use Python 3.12 or newer on Linux or macOS in an isolated environment:
 
 ```sh
 python -m pip install -r requirements.txt
-python -m streamlit run app.py
+python -m agi_web.react_python_host app.py
 python -m pytest -q tests.py
 ```
 

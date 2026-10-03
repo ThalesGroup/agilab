@@ -14,7 +14,6 @@ from typing import Any
 import networkx as nx
 import numpy as np
 import pytest
-from streamlit.runtime.scriptrunner_utils.script_requests import RerunData
 
 from agi_env import AgiEnv
 import pandas as pd
@@ -3122,7 +3121,7 @@ def test_view_maps_network_main_handles_errors_and_propagates_reruns(
     assert len(codes) == 1
     assert "RuntimeError: boom" in codes[0]
 
-    module.page = lambda: (_ for _ in ()).throw(module.RerunException(RerunData()))
+    module.page = lambda: (_ for _ in ()).throw(module.RerunException())
     with pytest.raises(module.RerunException):
         module.main()
 

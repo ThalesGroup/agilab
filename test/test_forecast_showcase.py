@@ -8,7 +8,7 @@ from types import ModuleType
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import forecast_showcase as showcase
 
@@ -54,7 +54,7 @@ def demo_bundle(tmp_path, monkeypatch, local_model):
     tmp_path.mkdir()
     contents = {
         "app.py": (
-            "import streamlit as st\nfrom forecast_core import VALUE\n"
+            "from agi_web import python_ui as st\nfrom forecast_core import VALUE\n"
             "st.title('Forecast controls')\n"
             "horizon = st.slider('Forecast horizon', 1, 7, 3, key='forecast_horizon')\n"
             "st.metric('Forecast value', VALUE + horizon)\n"
@@ -128,6 +128,10 @@ def test_packaged_forecast_replay_keeps_historical_build_separate():
     assert b"transformers==5.17.0" in payload["requirements.txt"]
     assert original["verification"]["forecast"]["measurements"]["dependency_versions"]["transformers"] == "4.57.6"
     for name, expected in original["files"].items():
+        if name == "app.py" and "native_ui_migration" in report:
+            assert report["native_ui_migration"]["original_files"][name] == expected
+            assert hashlib.sha256(payload[name]).hexdigest() == report["files"][name]
+            continue
         if name not in {"README.md", "requirements.txt"}:
             assert hashlib.sha256(payload[name]).hexdigest() == expected
 

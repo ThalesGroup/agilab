@@ -354,7 +354,7 @@ def test_pipeline_run_controls_edge_branches_for_logs_ttl_and_lock_payloads(tmp_
         def rerun(self, scope=None):
             calls.append(scope)
             if scope == "fragment":
-                raise module.StreamlitAPIException("fragment unavailable")
+                raise module.UIError("fragment unavailable")
 
     monkeypatch.setattr(module, "st", _RerunStreamlit(fake_st.session_state))
     module._rerun_fragment_or_app()

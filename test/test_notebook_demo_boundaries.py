@@ -67,11 +67,17 @@ def test_concurrent_demos_cannot_replace_each_others_pool(first, second, monkeyp
         ).encode()
         return files
 
+    from agi_web.python_view_session import ViewSession, use_session
+
+    def run_scoped(module, files):
+        with use_session(ViewSession(lambda: None)):
+            module._run_verified_app(files)
+
     with ThreadPoolExecutor(max_workers=1) as executor:
-        task = executor.submit(first._run_verified_app, payload("first", wait=True))
+        task = executor.submit(run_scoped, first, payload("first", wait=True))
         try:
             assert state.entered.wait(5)
-            second._run_verified_app(payload("second"))
+            run_scoped(second, payload("second"))
             assert not getattr(state, "overlapped", False), "Two demos replaced shared imports concurrently"
             assert messages
         finally:
@@ -128,7 +134,7 @@ def test_iris_executes_the_verified_snapshot_and_restores_imports(iris_bundle, m
     (iris_bundle / "app.py").write_text("raise AssertionError('reread changed app')\n")
     original = ModuleType("models")
     monkeypatch.setitem(sys.modules, "models", original)
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     def page(payload):
         from agilab.demos.notebook_showcase import _run_verified_app
@@ -141,7 +147,7 @@ def test_iris_executes_the_verified_snapshot_and_restores_imports(iris_bundle, m
 
 
 def test_iris_invalid_receipt_shows_an_error_without_executing(iris_bundle, monkeypatch):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     (iris_bundle / "result.json").write_text('{"status": "failed"}')
     monkeypatch.setattr(iris, "_run_verified_app", lambda _: pytest.fail("Unverified app executed"))
@@ -188,7 +194,7 @@ def test_iris_export_rejects_invalid_destination_and_receipt_before_writing(tmp_
 @pytest.mark.parametrize("selected", ["forecast", "threading"])
 def test_demo_does_not_consume_another_apps_analysis(selected, tmp_path, monkeypatch):
     from agilab.demos import forecast_showcase
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     monkeypatch.setattr(forecast_showcase, "_prepare_model", lambda _: tmp_path)
     monkeypatch.setattr(forecast_showcase, "_validate_model", lambda path: path)

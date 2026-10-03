@@ -47,7 +47,7 @@ It has two main user interfaces:
 Shared components include:
 
 - ``agi-env`` for headless environment setup
-- ``agi-gui`` for the Streamlit UI dependency bundle and page helpers
+- ``agi-gui`` for the native React UI dependency bundle and page helpers
 - ``agi-web`` for portable, evidence-backed rich web component payloads
 - ``agi-node`` for worker/runtime packaging
 - ``agi-cluster`` for local and distributed execution
@@ -84,7 +84,7 @@ Main dependencies
 AGILab relies on a small set of core technologies:
 
 - `uv <https://docs.astral.sh/uv/>`_ for Python environment management
-- `Streamlit <https://streamlit.io/>`_ for the web UI
+- :doc:`agilab-native-react-ui-notebook-export` for the React UI and Python view runtime
 - `Dask <https://www.dask.org/>`_ for distributed execution support
 - `asyncssh <https://asyncssh.readthedocs.io/en/stable/>`_ for SSH-based remote execution
 - `Cython <https://cython.org/>`_ for optional compiled execution paths

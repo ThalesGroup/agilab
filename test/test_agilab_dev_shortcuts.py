@@ -74,6 +74,8 @@ def test_test_shortcut_keeps_pytest_arguments():
             "ui",
             "--extra",
             "notebook",
+            "--group",
+            "test-ui",
             "python",
             "-m",
             "tools.testing.pytest_entrypoint",
@@ -123,6 +125,7 @@ def test_test_shortcut_splits_repository_groups_by_dependency_contract():
         "--extra",
         "notebook",
     ]
+    assert commands[0][12:14] == ["--group", "test-ui"]
     assert commands[0][-3:] == [
         "python",
         "-m",
@@ -135,6 +138,7 @@ def test_test_shortcut_splits_repository_groups_by_dependency_contract():
     ]
     assert commands[1][-1] == "src/agilab/core/test"
     assert commands[4][4:6] == ["--extra", "ui"]
+    assert commands[4][6:8] == ["--group", "test-ui"]
     assert commands[4][-1] == "src/agilab/lib/agi-gui/test"
 
 

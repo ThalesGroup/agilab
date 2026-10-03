@@ -29,19 +29,6 @@ except ModuleNotFoundError:
     from import_guard import import_agilab_module
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
-_STREAMLIT_THEME_ENV_MODULE = import_agilab_module(
-    "agilab.streamlit_theme_env",
-    current_file=__file__,
-    fallback_path=_PACKAGE_DIR / "streamlit_theme_env.py",
-    fallback_name="agilab_streamlit_theme_env_local",
-)
-apply_streamlit_theme_environment = (
-    _STREAMLIT_THEME_ENV_MODULE.apply_streamlit_theme_environment
-)
-packaged_streamlit_config_path = (
-    _STREAMLIT_THEME_ENV_MODULE.packaged_streamlit_config_path
-)
-
 UI_EXTRA_HINT = "Install the UI profile with `python -m pip install 'agilab[ui]'`."
 PYTORCH_PLAYGROUND_HF_SPACE = "jpmorard/agilab"
 PYTORCH_PLAYGROUND_APP_NAME = "pytorch_playground_project"
@@ -67,14 +54,6 @@ _REUSE_CATALOG_MODULE = import_agilab_module(
     fallback_path=_PACKAGE_DIR / "reuse_catalog.py",
     fallback_name="agilab_reuse_catalog_local",
 )
-
-
-def _streamlit_config_path() -> Path:
-    return packaged_streamlit_config_path(__file__)
-
-
-def _ensure_streamlit_config_file(environ=os.environ) -> None:
-    apply_streamlit_theme_environment(_streamlit_config_path(), environ=environ)
 
 
 def _detect_repo_root(start: Path) -> Path | None:
@@ -785,12 +764,12 @@ def _pytorch_playground_script_path(project_root: Path) -> Path:
     script = project_root / "src" / "pytorch_playground" / "playground_ui.py"
     if not script.is_file():
         raise SystemExit(
-            f"agilab pytorch-playground: Streamlit surface not found: {script}"
+            f"agilab pytorch-playground: Python view surface not found: {script}"
         )
     return script
 
 
-def _validate_streamlit_host(host: str | None) -> str:
+def _validate_ui_host(host: str | None) -> str:
     if not host:
         return enforce_public_bind_policy()
     env = os.environ.copy()
@@ -832,7 +811,7 @@ def _pytorch_playground_hf_url(hf_url: str | None, hf_space: str | None) -> str:
     return _hf_runtime_url(space)
 
 
-def _pytorch_playground_streamlit_command(
+def _pytorch_playground_react_command(
     *,
     project_root: Path,
     script_path: Path,
@@ -848,16 +827,17 @@ def _pytorch_playground_streamlit_command(
         "run",
         "--project",
         str(project_root),
-        "streamlit",
-        "run",
-        "--server.address",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
+        str(script_path),
+        "--address",
         host,
-        "--server.port",
+        "--port",
         str(port),
     ]
     if headless:
-        command.extend(["--server.headless", "true"])
-    command.append(str(script_path))
+        command.append("--no-browser")
     if extra_args:
         command.append("--")
         command.extend(extra_args)
@@ -892,7 +872,7 @@ def _resolve_app_surface_project_root(project: str) -> Path:
     raise SystemExit(f"agilab app surface: project not found: {project}")
 
 
-def _app_surface_streamlit_command(
+def _app_surface_react_command(
     *,
     project_root: Path,
     entrypoint: Path,
@@ -908,16 +888,18 @@ def _app_surface_streamlit_command(
         "run",
         "--project",
         str(project_root),
-        "streamlit",
-        "run",
-        "--server.address",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
+        str(entrypoint),
+        "--address",
         host,
-        "--server.port",
+        "--port",
         str(port),
     ]
     if headless:
-        command.extend(["--server.headless", "true"])
-    command.extend([str(entrypoint), "--", "--active-app", str(project_root)])
+        command.append("--no-browser")
+    command.extend(["--", "--active-app", str(project_root)])
     command.extend(extra_args)
     return command
 
@@ -931,14 +913,14 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
     parser.add_argument(
         "--ui",
         default=None,
-        help="Surface name or backend. Examples: streamlit, hf, nicegui.",
+        help="Surface name or backend. Examples: react, hf, nicegui.",
     )
     parser.add_argument("--list", action="store_true", help="List declared surfaces.")
     parser.add_argument("--json", action="store_true", help="Emit JSON for --list.")
     parser.add_argument(
         "--host",
         default=None,
-        help="Local UI host. Streamlit uses AGILAB's guarded localhost bind by default.",
+        help="Local UI host. React uses AGILAB's guarded localhost bind by default.",
     )
     parser.add_argument("--port", type=int, default=8501, help="Local UI port.")
     parser.add_argument(
@@ -997,14 +979,14 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
             webbrowser.open(url)
         return 0
 
-    if selected.backend != "streamlit":
+    if selected.backend != "react":
         raise SystemExit(
             f"agilab app surface: backend {selected.backend!r} is declared but "
             "does not have a built-in launcher yet."
         )
 
     try:
-        host = _validate_streamlit_host(args.host)
+        host = _validate_ui_host(args.host)
     except PublicBindPolicyError as exc:
         raise SystemExit(f"agilab app surface: {exc}") from exc
     entrypoint = _APP_SURFACE_MODULE.resolve_app_surface_entrypoint(
@@ -1012,10 +994,9 @@ def _run_app_surface(argv: list[str], *, runner=subprocess.call) -> int:
     )
     if entrypoint is None:
         raise SystemExit(
-            f"agilab app surface: Streamlit entrypoint not found for {selected.name!r}."
+            f"agilab app surface: React entrypoint not found for {selected.name!r}."
         )
-    _ensure_streamlit_config_file()
-    command = _app_surface_streamlit_command(
+    command = _app_surface_react_command(
         project_root=project_root,
         entrypoint=entrypoint,
         host=host,
@@ -1040,9 +1021,9 @@ def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:
     parser.add_argument(
         "--host",
         default=None,
-        help="Local Streamlit host. Defaults to AGILAB's guarded localhost bind.",
+        help="Local React host. Defaults to AGILAB's guarded localhost bind.",
     )
-    parser.add_argument("--port", type=int, default=8501, help="Local Streamlit port.")
+    parser.add_argument("--port", type=int, default=8501, help="Local React port.")
     parser.add_argument(
         "--no-browser",
         action="store_true",
@@ -1068,14 +1049,13 @@ def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:
         return 0
 
     try:
-        host = _validate_streamlit_host(args.host)
+        host = _validate_ui_host(args.host)
     except PublicBindPolicyError as exc:
         raise SystemExit(f"agilab pytorch-playground: {exc}") from exc
 
     project_root = _pytorch_playground_project_root()
     script_path = _pytorch_playground_script_path(project_root)
-    _ensure_streamlit_config_file()
-    command = _pytorch_playground_streamlit_command(
+    command = _pytorch_playground_react_command(
         project_root=project_root,
         script_path=script_path,
         host=host,
@@ -1089,7 +1069,7 @@ def _run_pytorch_playground(argv: list[str], *, runner=subprocess.call) -> int:
 def _missing_ui_dependencies() -> list[str]:
     missing: list[str] = []
     for module_name, distribution_name in (
-        ("streamlit", "streamlit"),
+        ("agi_web", "agi-web"),
         ("agi_gui", "agi-gui"),
         ("agilab.apps", "agi-apps"),
     ):
@@ -1098,21 +1078,21 @@ def _missing_ui_dependencies() -> list[str]:
     return missing
 
 
-def _load_streamlit_cli():
+def _load_react_host():
     missing = _missing_ui_dependencies()
     if missing:
         raise SystemExit(
-            "agilab: the Streamlit UI dependencies are not installed. "
+            "agilab: the React UI dependencies are not installed. "
             f"Missing: {', '.join(missing)}. {UI_EXTRA_HINT}"
         )
     try:
-        import streamlit.web.cli as stcli
+        from agi_web import react_python_host
     except ModuleNotFoundError as exc:
         raise SystemExit(
-            "agilab: unable to import Streamlit UI runtime. "
+            "agilab: unable to import React UI runtime. "
             f"{UI_EXTRA_HINT}\nOriginal error: {exc}"
         ) from exc
-    return stcli
+    return react_python_host
 
 
 # Subcommands are dispatched from `raw_argv` below, before the argparse parser is
@@ -1297,8 +1277,15 @@ def main(argv: list[str] | None = None) -> int:
         help="Show the AGILAB version and exit.",
     )
 
+    parser.add_argument("--address", "--host", dest="address", default=None,
+                        help="UI bind address. Defaults to guarded loopback.")
+    parser.add_argument("--port", type=int, default=8501, help="UI port.")
+    parser.add_argument("--no-browser", action="store_true", help="Do not open a browser.")
+
     # Parse known arguments; extra arguments are captured in `unknown`
     args, unknown = parser.parse_known_args(raw_argv)
+    if unknown[:1] == ["--"]:
+        unknown = unknown[1:]
 
     if args.version:
         version = _detect_cli_version()
@@ -1306,15 +1293,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        streamlit_host = enforce_public_bind_policy()
+        ui_host = _validate_ui_host(args.address)
     except PublicBindPolicyError as exc:
         raise SystemExit(f"agilab: {exc}") from exc
 
     # Determine the target script (adjust path if necessary)
     target_script = str(Path(__file__).parent / "main_page.py")
 
-    # Build the base argument list for Streamlit.
-    new_argv = ["streamlit", "run", "--server.address", streamlit_host, target_script]
+    new_argv = [target_script, "--address", ui_host, "--port", str(args.port)]
+    if args.no_browser:
+        new_argv.append("--no-browser")
 
     # Collect custom arguments (only pass what is provided).
     custom_args = []
@@ -1332,10 +1320,7 @@ def main(argv: list[str] | None = None) -> int:
         new_argv.append("--")
         new_argv.extend(custom_args)
 
-    _ensure_streamlit_config_file()
-    sys.argv = new_argv
-    stcli = _load_streamlit_cli()
-    return stcli.main()
+    return _load_react_host().main(new_argv)
 
 
 if __name__ == "__main__":

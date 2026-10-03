@@ -5,7 +5,7 @@
 Package: `agi-page-timeseries-forecast`
 
 
-Reusable Streamlit analysis page for forecast-style artifacts.
+Reusable native Python UI analysis page for forecast-style artifacts.
 
 ## Expected Inputs
 
@@ -25,5 +25,5 @@ Run a compatible project such as `weather_forecast_project` once from
 ## Development Run
 
 ```bash
-uv --preview-features extra-build-dependencies run streamlit run src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/weather_forecast_project
+uv --preview-features extra-build-dependencies run python -m agi_web.react_python_host src/agilab/apps-pages/view_forecast_analysis/src/view_forecast_analysis/view_forecast_analysis.py -- --active-app src/agilab/apps/builtin/weather_forecast_project
 ```

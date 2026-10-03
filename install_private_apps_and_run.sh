@@ -51,4 +51,4 @@ rm -rf \
   --install-apps all
 
 uv --preview-features extra-build-dependencies run --extra ui \
-  streamlit run src/agilab/main_page.py "$@"
+  python -m agilab "$@"

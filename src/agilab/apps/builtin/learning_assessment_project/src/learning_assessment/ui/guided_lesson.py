@@ -28,7 +28,7 @@ METRIC_LABELS = {
 
 
 def render_guided_lesson(active_app: Path | None = None) -> None:
-    import streamlit as st
+    from agi_web import python_ui as st
 
     scope = str(active_app.resolve()) if active_app is not None else "bundled"
     prefix = "guided_lesson_" + hashlib.sha256(scope.encode()).hexdigest()[:12]

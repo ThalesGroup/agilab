@@ -428,7 +428,7 @@ def test_external_program_uses_real_ui_and_records_blank_then_submitted_answer(
     domain, bank, tmp_path, monkeypatch
 ):
     from types import SimpleNamespace
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
     from learning_assessment.ui import app_surface
 
     source = tmp_path / "synthetic_network_program.json"
@@ -474,7 +474,7 @@ def test_external_program_uses_real_ui_and_records_blank_then_submitted_answer(
 def test_bundled_default_is_blank_and_example_is_an_explicit_choice(
     domain, monkeypatch
 ):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
     from learning_assessment.ui import app_surface
 
     monkeypatch.setattr(app_surface, "_runtime_context", lambda _: (None, None))
@@ -507,7 +507,7 @@ def test_bundled_default_is_blank_and_example_is_an_explicit_choice(
 
 
 def test_program_drafts_are_isolated_when_learner_or_session_changes(domain, bank):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     script = (
         "from learning_assessment.ui.program_learning import render_program\nrender_program("

@@ -130,6 +130,10 @@ def test_workflow_evidence_commands_resolve_public_proof_tools() -> None:
         "--json",
         "run_manifest.json",
     )
+    assert check["details"]["required_evidence"]["web-ui-local-first-proof"] == (
+        "run --extra ui",
+        "python -m agilab",
+    )
     assert check["details"]["required_evidence"]["published-package-route"] == (
         'pip install "agilab[examples]"',
         "python -m agilab.lab_run first-proof --json",

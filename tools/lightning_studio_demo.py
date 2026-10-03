@@ -41,7 +41,6 @@ def build_demo_env(repo_root: Path, runtime_dir: Path, environ: dict[str, str] |
     env["AGI_EXPORT_DIR"] = str(runtime_dir / "export")
     env["AGI_LOCAL_SHARE"] = str(runtime_dir / "localshare")
     env["MLFLOW_TRACKING_DIR"] = str(runtime_dir / "mlflow")
-    env["STREAMLIT_BROWSER_GATHER_USAGE_STATS"] = "false"
     env["APPS_PATH"] = str((repo_root / "src" / "agilab" / "apps").resolve())
     return env
 
@@ -51,23 +50,23 @@ def ensure_runtime_layout(runtime_dir: Path) -> None:
         (runtime_dir / rel).mkdir(parents=True, exist_ok=True)
 
 
-def build_streamlit_command(repo_root: Path, *, active_app: str, port: int) -> list[str]:
+def build_react_command(repo_root: Path, *, active_app: str, port: int) -> list[str]:
     cmd = [
         "uv",
         "--preview-features",
         "extra-build-dependencies",
         "run",
-        "streamlit",
-        "run",
+        "--extra",
+        "ui",
+        "python",
+        "-m",
+        "agi_web.react_python_host",
         str((repo_root / "src" / "agilab" / "main_page.py").resolve()),
-        "--server.address",
+        "--address",
         "0.0.0.0",
-        "--server.port",
+        "--port",
         str(port),
-        "--server.headless",
-        "true",
-        "--browser.gatherUsageStats",
-        "false",
+        "--no-browser",
         "--",
         "--apps-path",
         str((repo_root / "src" / "agilab" / "apps").resolve()),
@@ -106,12 +105,12 @@ def main(argv: list[str] | None = None) -> int:
         "--port",
         type=int,
         default=DEFAULT_PORT,
-        help=f"Streamlit server port to expose in Lightning Studio (default: {DEFAULT_PORT}).",
+        help=f"React server port to expose in Lightning Studio (default: {DEFAULT_PORT}).",
     )
     parser.add_argument(
         "--print-command",
         action="store_true",
-        help="Print the final Streamlit command and exit without launching it.",
+        help="Print the final React command and exit without launching it.",
     )
     parser.add_argument(
         "--print-env",
@@ -124,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
     runtime_dir = resolve_runtime_dir(repo_root, args.runtime_dir)
     ensure_runtime_layout(runtime_dir)
     env = build_demo_env(repo_root, runtime_dir)
-    cmd = build_streamlit_command(repo_root, active_app=args.active_app, port=args.port)
+    cmd = build_react_command(repo_root, active_app=args.active_app, port=args.port)
 
     print(f"[lightning-demo] repo root: {repo_root}")
     print(f"[lightning-demo] runtime dir: {runtime_dir}")

@@ -4,7 +4,7 @@ import json
 
 import altair as alt
 from PIL import Image
-import streamlit as st
+from agi_web import python_ui as st
 
 from benchmark import BusyError, LABELS, effective_cpus, run_benchmark
 from free_threading_core import reference_image

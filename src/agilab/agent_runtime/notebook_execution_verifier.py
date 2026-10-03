@@ -43,7 +43,8 @@ def _reject_nonfinite(value: str):
 
 
 def verify(project: Path) -> dict:
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
+    from agi_web.python_view_session import ViewSession, use_session
 
     project = project.resolve()
     for name in ("app.py", "solution.ipynb", "pyproject.toml"):
@@ -69,10 +70,12 @@ def verify(project: Path) -> dict:
             os.chdir(scratch)
             namespace = {"__name__": "__main__", "PROJECT_ROOT": project}
             compiler = codeop.Compile()
-            for index, cell in enumerate(cells):
-                source = cell.get("source", "")
-                source = "".join(source) if isinstance(source, list) else source
-                exec(compiler(source, f"solution.ipynb:cell-{index}", "exec", incomplete_input=False), namespace)
+            notebook_view = ViewSession(lambda: None)
+            with use_session(notebook_view):
+                for index, cell in enumerate(cells):
+                    source = cell.get("source", "")
+                    source = "".join(source) if isinstance(source, list) else source
+                    exec(compiler(source, f"solution.ipynb:cell-{index}", "exec", incomplete_input=False), namespace)
             output = Path("results.json")
             if output.is_symlink() or not output.is_file():
                 raise ValueError("Notebook must write fresh results.json in its execution directory")

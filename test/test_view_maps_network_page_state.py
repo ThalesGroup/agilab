@@ -9,7 +9,7 @@ import networkx as nx
 import numpy as np
 import pytest
 import pandas as pd
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

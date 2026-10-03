@@ -1,6 +1,12 @@
 Quick-Start
 ===========
 
+
+The native source interface and embedded notebook workflow are documented in
+:doc:`agilab-native-react-ui-notebook-export`. Published release recipes below
+remain subject to the version recorded in :doc:`release-proof`; they do not
+claim that the source migration has already been published.
+
 If you are new to AGILab, this page owns one thing only: the exact commands for
 the recommended first proof.
 
@@ -26,7 +32,7 @@ Fast adoption path:
    * - 3. Record evidence
      - Run ``agilab first-proof --json``, then ``agilab adoption-report``.
        Add ``--with-ui`` only when you intentionally want the proof to boot the
-       local Streamlit pages too.
+       local native React UI pages too.
      - ``~/log/execute/flight_telemetry/run_manifest.json`` reports ``status: pass``.
    * - 4. Expand
      - Choose notebook, package, private app, or cluster routes only after the
@@ -44,7 +50,7 @@ Prerequisites
   use the published package route for the CI-covered CLI first proof, or use
   WSL2 for the source checkout path until native installer parity is published.
 - PyCharm and the local web UI are optional. The first proof below uses only a
-  shell by default; IDE run configurations and Streamlit pages are contributor
+  shell by default; IDE run configurations and native React UI pages are contributor
   conveniences, not installation requirements.
 - If you plan to explore remote workers later, keep SSH access for that later
   step; it is not needed for the first proof path.
@@ -78,11 +84,14 @@ The ``examples`` extra installs the ``agi-apps`` umbrella, which depends on the
 per-app package that contains the public built-in ``flight_telemetry_project`` used by
 the proof.
 
-Use the UI profile when you want the local Streamlit pages from the
-published package::
+Use the UI profile to open the interface supplied by the published release::
 
    uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
    agilab
+
+This published-package command does not establish that the native React
+migration is available in that release. For the native source interface,
+follow :doc:`agilab-native-react-ui-notebook-export`.
 
 The ``ui`` extra installs ``agi-apps`` and its per-app project packages for
 public built-in projects, ``agi-pages`` for packaged ANALYSIS page bundles, and
@@ -108,10 +117,10 @@ richer interactive app without changing the evidence contract. The PyTorch
 Playground is the public example::
 
    agilab app surface pytorch_playground_project --list
-   agilab app surface pytorch_playground_project --ui streamlit
+   agilab app surface pytorch_playground_project --ui react
    agilab app surface pytorch_playground_project --ui hf --no-browser
 
-The generic launcher is the pattern to reuse for future Streamlit, hosted, or
+The generic launcher is the pattern to reuse for future native React UI, hosted, or
 alternate UI adapters; the app still owns the runtime and evidence files.
 
 Recommended first proof path
@@ -179,7 +188,7 @@ machine-readable proof record.
 
    .. code-block:: bash
 
-      uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+      uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 
    Local UI is intended to stay on loopback. If you intentionally expose it through
    a reverse proxy, set ``AGILAB_PUBLIC_BIND_OK=1`` plus a real protection
@@ -338,7 +347,7 @@ installing or operating the full AGILAB UI.
     agilab first-proof --json --max-seconds 60
 
 The base package install is intentionally CLI/core only. Install the UI profile
-before launching the local Streamlit app::
+before launching the interface supplied by the installed release::
 
     uv --preview-features extra-build-dependencies tool install --upgrade "agilab[ui]"
     agilab
@@ -352,10 +361,10 @@ profile, run:
    agilab first-proof --json
 
 Add ``--with-ui`` to the first-proof command only when the proof should also
-boot the packaged Streamlit pages.
+boot the pages supplied by that installed release.
 
 Optional feature stacks stay out of the base package install. Add
-``agilab[ui]`` for the local Streamlit app, ``agilab[pages]`` for analysis
+``agilab[ui]`` for the release's local interface, ``agilab[pages]`` for analysis
 page bundles without the full UI profile, ``agilab[ai]`` for AI assistant
 features such as OpenAI, Mistral, and OpenAI-compatible endpoints like vLLM,
 ``agilab[agents]`` for the packaged agent workflow client dependencies,
@@ -495,7 +504,7 @@ Fast UI robot contract tests are normal developer tests::
     uv --preview-features extra-build-dependencies run pytest -q test/test_agilab_widget_robot.py test/test_agilab_web_robot.py
 
 The full browser UI robot sweep is intentionally opt-in because it launches
-Streamlit and Playwright. Run it from a source checkout so the ``test/`` tree is
+native React UI and Playwright. Run it from a source checkout so the ``test/`` tree is
 present::
 
     REPO_ROOT="$(git rev-parse --show-toplevel)"

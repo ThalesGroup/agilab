@@ -2,14 +2,14 @@
 name = "milp-energy-lab"
 version = "1.0.0"
 description = "An interactive, independently checked modular energy MILP and AGILAB batch lab"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 readme = "README.md"
 license = "CC-BY-4.0 AND BSD-3-Clause"
 dependencies = [
   "pypsa==1.2.4",
   "highspy==1.15.1",
   "linopy==0.9.1",
-  "streamlit>=1.57,<2",
+  "agi-web>=2026.07.17,<2027.0",
   "pandas>=2.3,<3",
   "numpy>=2.3,<3",
   "altair>=6,<7",
@@ -18,3 +18,7 @@ dependencies = [
 
 [tool.setuptools]
 py-modules = ["energy_core", "energy_runner", "app", "agilab_pool"]
+
+[tool.uv.sources.agi-web]
+path = "../../../lib/agi-web"
+editable = true

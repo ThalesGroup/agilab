@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 import re
 
-import streamlit as st
+from agi_web import python_ui as st
 import pandas as pd
 import pydeck as pdk
 import plotly.express as px

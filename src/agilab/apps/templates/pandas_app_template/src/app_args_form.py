@@ -1,4 +1,4 @@
-import streamlit as st
+from agi_web import python_ui as st
 from pydantic import ValidationError
 
 from agi_env.streamlit_args import (

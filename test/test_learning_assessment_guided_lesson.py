@@ -196,7 +196,7 @@ def _element(elements, label):
 
 
 def test_guided_browser_state_requires_predictions_and_survives_reruns(lesson):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     app = AppTest.from_string(
         "from learning_assessment.ui.guided_lesson import render_guided_lesson\nrender_guided_lesson()",
@@ -239,10 +239,10 @@ def test_guided_browser_state_requires_predictions_and_survives_reruns(lesson):
 
 
 def test_progress_is_scoped_to_active_project(lesson):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     app = AppTest.from_string(
-        "from pathlib import Path\nimport streamlit as st\n"
+        "from pathlib import Path\nfrom agi_web import python_ui as st\n"
         "from learning_assessment.ui.guided_lesson import render_guided_lesson\n"
         "project = st.selectbox('Project', ['project_a', 'project_b'])\n"
         "render_guided_lesson(Path(project))",
@@ -259,10 +259,10 @@ def test_progress_is_scoped_to_active_project(lesson):
 
 
 def test_resuming_earlier_export_rehydrates_explanation_widgets(lesson, monkeypatch):
-    from streamlit.testing.v1 import AppTest
+    from agi_web.testing import AppTest
 
     upload = [None]
-    monkeypatch.setattr("streamlit.file_uploader", lambda *args, **kwargs: upload[0])
+    monkeypatch.setattr("agi_web.python_ui.file_uploader", lambda *args, **kwargs: upload[0])
     state = lesson.run_checkpoint(
         baseline(lesson), {**lesson.BASELINE, "drift_score": 0.3}, "fallback"
     )

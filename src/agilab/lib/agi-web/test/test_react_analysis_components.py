@@ -147,15 +147,12 @@ def test_notebook_preserves_css_width(width):
 
 
 @pytest.mark.parametrize("width", ["100%", "320px", "65%", "calc(100% - 2rem)"])
-def test_streamlit_css_width_respects_v2_layout_contract(width):
-    pytest.importorskip("streamlit")
-    from streamlit.elements.lib.layout_utils import validate_width
-
+def test_python_component_css_width_is_carried_by_the_shared_payload(width):
     mounted = []
 
     def factory(_name, **_assets):
         def mount(**arguments):
-            validate_width(arguments["width"])
+            assert arguments["width"] == "stretch"
             mounted.append(arguments)
             return SimpleNamespace(selection={})
 

@@ -19,7 +19,7 @@ Canonical pages
 - :doc:`agi-core-architecture` for the shared framework architecture and the
   role of ``agi_core``.
 - :doc:`agi-env` for ``AgiEnv`` and the environment/configuration helpers.
-- :doc:`agi-gui` for the Streamlit page helper package under
+- :doc:`agi-gui` for the native React UI page helper package under
   ``src/agilab/lib/agi-gui``.
 - :doc:`agi-web` for portable, evidence-backed web component payloads under
   ``src/agilab/lib/agi-web``.

@@ -389,7 +389,7 @@ def run_locked_stage(
 ) -> None:
     """Execute one immutable ORCHESTRATE-derived stage."""
     stored_placeholder = get_run_placeholder(index_page_str)
-    import streamlit as st
+    from agi_web import python_ui as st
 
     st.session_state[f"{index_page_str}__run_logs"] = []
     if stored_placeholder is not None:

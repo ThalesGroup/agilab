@@ -51,7 +51,7 @@ repositories as executable code until they have been reviewed.
        vulnerability scan evidence for the deployed install profile, bounded
        resources, and a deployment threat model.
    * - No-go as a standalone production platform
-     - Public Streamlit exposure, open multi-tenant service, regulated
+     - Public native React UI exposure, open multi-tenant service, regulated
        production model serving, enterprise governance, online monitoring,
        drift detection, or sole MLOps control plane.
      - Pair AGILAB with a hardened production stack such as MLflow, Kubeflow,

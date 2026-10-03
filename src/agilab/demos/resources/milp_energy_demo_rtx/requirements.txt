@@ -5,7 +5,7 @@ highspy==1.15.1
 linopy==0.9.1
 
 # Application and analysis stack (pinned to the verified local environment).
-streamlit==1.64.0
+agi-web>=2026.07.17,<2027.0
 pandas==2.3.3
 numpy==2.5.3
 altair==6.3.0

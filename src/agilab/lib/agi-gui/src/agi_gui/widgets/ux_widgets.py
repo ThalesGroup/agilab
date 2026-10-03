@@ -108,7 +108,7 @@ def _session_state(streamlit: Any) -> Any:
     streamlit_module = getattr(type(streamlit), "__module__", "")
     if state is None and streamlit_module.startswith("streamlit."):
         try:
-            import streamlit as native_streamlit
+            from agi_web import python_ui as native_streamlit
 
             state = getattr(native_streamlit, "session_state", None)
         except Exception:

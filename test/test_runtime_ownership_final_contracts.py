@@ -222,7 +222,11 @@ def test_notebook_ui_launcher_forwards_explicit_source_and_request(tmp_path, mon
     assert command[command.index("--request")+1] == "inspect this notebook"
     expected = str(Path("local.ipynb").resolve()) if source_args[0] == "--notebook" else source_args[1]
     assert command[command.index(source_args[0])+1] == expected
-    assert "--server.address=127.0.0.1" in command
+    import sys
+    assert command[:3] == [sys.executable, "-m", "agi_web.react_python_host"]
+    assert command[command.index("--address") + 1] == "127.0.0.1"
+    assert "--no-browser" in command
+    assert command.index("--") < command.index("--request")
 
 
 def _contract_unit(name, *, produces=True):

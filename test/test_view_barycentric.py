@@ -115,7 +115,7 @@ def _restore_page_dependency_modules():
 def _load_module():
     # Load Streamlit/Plotly before installing fake scientific dependencies so
     # their global module state is initialized against the real environment.
-    import streamlit  # noqa: F401
+    from agi_web import python_ui as streamlit  # noqa: F401
 
     fake_barviz = ModuleType("barviz")
     exec(BARVIZ_STUB, fake_barviz.__dict__)

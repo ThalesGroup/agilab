@@ -5,7 +5,7 @@
 Package: `agi-page-decision-evidence`
 
 
-Streamlit analysis page for generic decision-evidence exports.
+native Python UI analysis page for generic decision-evidence exports.
 
 Use this page after running a compatible producer such as `mission_decision_project` from AGILAB:
 

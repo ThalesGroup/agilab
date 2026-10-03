@@ -17,7 +17,7 @@ import importlib.util
 import os
 from pathlib import Path
 
-import streamlit as st
+from agi_web import python_ui as st
 import pandas as pd
 import pydeck as pdk
 import ast
@@ -49,7 +49,7 @@ except ModuleNotFoundError:  # pragma: no cover - fallback for lightweight envs
             raise RuntimeError(
                 "Writing settings requires the 'tomli-w' or 'tomlkit' package"
             ) from _exc
-from streamlit.runtime.scriptrunner import RerunException
+from agi_web.python_ui import RerunException
 from typing import Any, Optional
 from agi_env.agi_logger import AgiLogger
 from agi_pages.runtime import ensure_repo_on_path

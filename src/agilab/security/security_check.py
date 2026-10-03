@@ -59,7 +59,6 @@ DEFAULT_ARTIFACT_MAX_AGE_DAYS = 30
 PROFILES = ("local", "shared", "cluster", "public-ui")
 SECRET_KEY_RE = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)", re.IGNORECASE)
 LOCAL_HOSTS = {"", "127.0.0.1", "localhost", "::1"}
-EXPOSED_HOSTS = {"0.0.0.0", "::"}
 PUBLIC_BIND_OK_ENV = "AGILAB_PUBLIC_BIND_OK"
 PUBLIC_BIND_EVIDENCE_ENV = "AGILAB_PUBLIC_BIND_EVIDENCE"
 PLACEHOLDER_SECRET_VALUES = {
@@ -306,8 +305,8 @@ def _check_cluster_share(config: Mapping[str, str], *, cwd: Path, profile: str =
     )
 
 
-def _streamlit_config_address(home: Path) -> str | None:
-    config_path = home / ".streamlit" / "config.toml"
+def _native_config_address(home: Path) -> str | None:
+    config_path = home / ".agilab" / "config.toml"
     if not config_path.is_file():
         return None
     try:
@@ -355,31 +354,32 @@ def _check_ui_exposure(
     cwd: Path | None = None,
     profile: str = "local",
 ) -> Check:
-    host = (
-        config.get("STREAMLIT_SERVER_ADDRESS")
-        or config.get("AGILAB_UI_HOST")
-        or config.get("UVICORN_HOST")
-        or _streamlit_config_address(home)
-        or ""
-    ).strip()
-    if host not in EXPOSED_HOSTS:
+    from agilab.security.ui_public_bind_guard import (
+        PUBLIC_BIND_CONTROL_ENVS,
+        configured_ui_host,
+        host_is_exposed,
+    )
+
+    host = configured_ui_host(config)
+    # This report describes declared launch settings. A running host supplies
+    # its effective address directly to the same guard and takes precedence.
+    if not any(str(config.get(name) or "").strip() for name in ("AGILAB_UI_HOST", "AGILAB_UI_ADDRESS")):
+        file_address = _native_config_address(home)
+        if file_address is not None:
+            host = configured_ui_host(config, ui_config_getter=lambda _option: file_address)
+    if not host_is_exposed(host):
         return Check(
             "ui_network_exposure",
             "UI network exposure",
             "pass",
-            "No public bind address was detected from environment or Streamlit config.",
+            "No public bind address was detected from native launch settings or AGILAB config.",
             "Keep local UI binds on 127.0.0.1 unless an authenticated TLS front end is configured.",
             {"host": host or None},
         )
     public_bind_ok = _truthy(config.get(PUBLIC_BIND_OK_ENV))
     auth_or_tls = any(
         _truthy(config.get(name))
-        for name in (
-            "AGILAB_AUTH_REQUIRED",
-            "AGILAB_PUBLIC_AUTH",
-            "AGILAB_TLS_TERMINATED",
-            "STREAMLIT_AUTH_REQUIRED",
-        )
+        for name in PUBLIC_BIND_CONTROL_ENVS
     )
     if public_bind_ok and auth_or_tls:
         evidence = _public_bind_evidence_state(config, cwd=cwd or home)

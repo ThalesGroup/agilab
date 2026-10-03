@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import altair as alt
 import pandas as pd
-import streamlit as st
+from agi_web import python_ui as st
 
 import forecast_core as fc
 

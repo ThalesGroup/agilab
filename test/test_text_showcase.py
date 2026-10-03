@@ -8,7 +8,7 @@ from types import ModuleType
 import zipfile
 
 import pytest
-from streamlit.testing.v1 import AppTest
+from agi_web.testing import AppTest
 
 from agilab.demos import text_showcase as showcase
 

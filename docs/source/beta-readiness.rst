@@ -12,7 +12,7 @@ The beta scope covers:
 
 - local reproducible execution
 - Dask-based distributed execution
-- Streamlit UI workflows for trusted operators
+- native React UI workflows for trusted operators
 - package-mode install and first-proof evidence
 - notebook and Quarto report handoff
 - MLflow tracking handoff
