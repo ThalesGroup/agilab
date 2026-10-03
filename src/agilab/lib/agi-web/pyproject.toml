@@ -1,7 +1,7 @@
 [project]
 version = "2026.07.17"
 name = "agi-web"
-description = "AGILAB portable web component contract with static Canvas2D/WebGL adapters for Streamlit and HTML"
+description = "AGILAB portable web components with shared React analysis views for Streamlit and Jupyter"
 requires-python = ">=3.12"
 readme = "README.md"
 authors = [
@@ -35,6 +35,9 @@ keywords = [
 
 dependencies = []
 
+[project.optional-dependencies]
+notebook = ["anywidget>=0.9.18,<1"]
+
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
 Source = "https://github.com/ThalesGroup/agilab/tree/main/src/agilab/lib/agi-web"
@@ -60,6 +63,9 @@ build-backend = "setuptools.build_meta"
 include-package-data = false
 package-dir = {"" = "src"}
 packages = ["agi_web"]
+
+[tool.setuptools.package-data]
+agi_web = ["react_analysis_assets/*.js", "react_analysis_assets/*.css", "react_analysis_assets/*.LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]

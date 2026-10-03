@@ -372,6 +372,13 @@ Use this runbook whenever you:
 - **Model compatibility**: When working with GPT-5 Codex agents, confirm no new code
   calls deprecated Streamlit APIs like `st.experimental_rerun()`. Always migrate to
   `st.rerun` before merging.
+- **Shared React analysis views**: Coordinate maps and analysis curves live in
+  `src/agilab/lib/agi-web/frontend/`; rebuild their committed wheel assets with
+  `npm run build` after source changes. Their Streamlit adapter uses components v2;
+  the notebook adapter uses the optional AnyWidget dependency. Validate both real
+  hosts with `tools/agilab_react_analysis_browser_smoke.py`, including Python
+  selection roundtrips and reruns. Keep native notebook tables and diagnosed
+  Plotly fallback when Python widget dependencies are unavailable.
 - **Browser dev-log validation**: When validating Streamlit, React, `agi-web`,
   custom component, canvas/WebGL, or iframe pages in a real browser, inspect
   browser dev-log evidence as part of the validation. For robot runs, use

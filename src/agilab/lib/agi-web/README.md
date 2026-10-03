@@ -6,8 +6,8 @@
 
 `agi-web` defines a portable component contract for AGILAB app-owned UI islands.
 It lets an app describe a rich browser component once, attach deterministic
-evidence hashes, and render it in Streamlit or static HTML today while keeping a
-stable payload for richer adapters.
+evidence hashes, and render it in Streamlit, Jupyter or static HTML. Coordinate
+maps and analysis curves use the same bundled React views in Streamlit and Jupyter.
 The bundled static adapter can render a WebGL decision-surface heatmap with a
 Canvas2D overlay/fallback for local replay/scrub controls, clickable timelines,
 keyboard scrubbing, confidence badges, uncertainty-contour glow, and hover
@@ -54,12 +54,65 @@ render_streamlit(component)
 The contract is intentionally framework-neutral:
 
 - The payload is normalized JSON, so Canvas2D, WebGL, Streamlit, notebook,
-  static-report, and future React renderers can consume the same data.
+  static-report, and React renderers can consume the same data.
 - The evidence block records the renderer, payload hash, action hash, and asset
   hash, so visual proof artifacts can be compared deterministically.
 - The package has no JavaScript build dependency. The current static renderer
-  ships Canvas2D/WebGL paths; framework-specific adapters can be added beside
+  ships Canvas2D/WebGL paths; React assets are also bundled in the wheel. Adapters sit beside
   the contract without forcing Node tooling into every AGILAB install.
+
+## Shared React Analysis Views
+
+Install `agi-web[notebook]` in the notebook kernel environment and enable Jupyter
+widgets in the frontend. Streamlit rendering uses components v2 (Streamlit >=1.58).
+The coordinate view plots longitude/latitude without external tiles; the existing
+AGILAB geographic map remains a separate display option. Curves support numeric
+or UTC datetime axes, series visibility, range controls and missing-value gaps.
+
+```python
+from agi_web import coordinate_map_component, analysis_curves_component
+from agi_web import render_notebook, render_streamlit
+
+positions = coordinate_map_component(
+    [{"latitude": 48, "longitude": 2, "flight": "001"}],
+    label="flight", group="flight", component_id="flight-positions",
+)
+curves = analysis_curves_component(
+    [{"date": "2026-01-01", "observed": 10, "predicted": 11}],
+    x="date", series=("observed", "predicted"), component_id="flight-curves",
+)
+
+# In Jupyter, display the returned widgets in a cell.
+widget = render_notebook(positions)
+display(widget)
+# Point clicks synchronize widget.selection back to Python.
+
+# In a Streamlit page, the result exposes selection and triggers reruns.
+result = render_streamlit(curves)
+```
+
+Use distinct `component_id` values for simultaneous views. The constructors
+exclude invalid coordinates/dates, preserve original row identifiers and report
+chart truncation (20,000 rows by default). They leave full source data intact.
+React views require a live widget frontend; the static HTML adapter remains for
+the existing Canvas2D/WebGL components. Notebook page exports always retain
+native tables and diagnose missing Python widget dependencies before using Plotly.
+
+Maintainers rebuild assets with `npm ci --ignore-scripts` then `npm run build`
+in `frontend/`. The committed bundles contain React and its license, require no
+CDN downloads, and ship with deterministic SHA-256 integrity metadata.
+
+Run the real-host browser smoke (with Chromium installed for Playwright):
+
+```bash
+UV_PROJECT_ENVIRONMENT=.venv-dev uv --preview-features extra-build-dependencies run \
+  --no-sync --with playwright --with jupyterlab --with anywidget --with ipywidgets \
+  python tools/agilab_react_analysis_browser_smoke.py
+```
+
+The smoke checks point selections in Python, filters, range/reset controls,
+instance isolation, browser console/network errors and external requests. Its
+temporary loopback servers and kernel are stopped after the run.
 
 ## Visual Guard
 

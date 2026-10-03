@@ -81,6 +81,18 @@ def render_inline(
                 Markdown(f"Prediction table shows the first 1000 of {len(frame)} rows.")
             )
         try:
+            from agi_web import analysis_curves_component, render_notebook
+            component = analysis_curves_component(
+                frame, x="date", series=("y_true", "y_pred"),
+                labels={"y_true": "Observed", "y_pred": "Predicted"},
+                title=f"Forecast — {label}", y_label=str(metrics.get("target") or "Value"),
+                component_id=f"{page}-{label}",
+            )
+            outputs.append(render_notebook(component))
+            continue
+        except (ImportError, OSError) as exc:
+            outputs.append(Markdown(f"React widget unavailable: {exc}. Showing the standalone chart when possible."))
+        try:
             import plotly.graph_objects as go
         except ImportError:
             outputs.append(

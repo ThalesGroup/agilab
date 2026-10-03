@@ -272,6 +272,10 @@ def render_streamlit(
     if st is None:
         import streamlit as st  # type: ignore[no-redef]
 
+    from .react_analysis import REACT_ANALYSIS_RENDERERS, render_react_streamlit
+    if component.renderer.technology == "react" and component.renderer.renderer_id in REACT_ANALYSIS_RENDERERS:
+        return render_react_streamlit(component, st, height=height, width=width)
+
     fragment = component_to_static_html(component, height=height, width=width, host_origin=host_origin)
     return st.components.v1.html(fragment, height=height, scrolling=False)
 
@@ -285,6 +289,9 @@ def render_notebook(
 ) -> Any:
     """Return an IPython HTML object when available, otherwise a HTML string."""
 
+    from .react_analysis import REACT_ANALYSIS_RENDERERS, render_react_notebook
+    if component.renderer.technology == "react" and component.renderer.renderer_id in REACT_ANALYSIS_RENDERERS:
+        return render_react_notebook(component, height=height, width=width)
     fragment = component_to_static_html(component, height=height, width=width, host_origin=host_origin)
     try:
         from IPython.display import HTML

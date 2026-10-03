@@ -22,6 +22,7 @@ from .component import (
     stable_sha256,
     to_canonical_json,
 )
+from .react_analysis import coordinate_map_component, analysis_curves_component
 
 try:
     __version__ = _package_version("agi-web")
@@ -38,6 +39,8 @@ __all__ = (
     "AgiWebRendererSpec",
     "__version__",
     "component_evidence",
+    "coordinate_map_component",
+    "analysis_curves_component",
     "component_to_static_html",
     "normalize_component_id",
     "normalize_json_value",
