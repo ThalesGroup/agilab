@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -77,6 +78,7 @@ _pipeline_stage_templates_module = import_agilab_module(
 )
 PIPELINE_STAGE_TEMPLATE_ID_KEY = _pipeline_stage_templates_module.PIPELINE_STAGE_TEMPLATE_ID_KEY
 PIPELINE_STAGE_TEMPLATE_VERSION_KEY = _pipeline_stage_templates_module.PIPELINE_STAGE_TEMPLATE_VERSION_KEY
+normalize_pipeline_stage_for_save = _pipeline_stage_templates_module.normalize_pipeline_stage_for_save
 
 _notebook_export_support_module = import_agilab_module(
     "agilab.notebook_export_support",
@@ -1856,6 +1858,13 @@ def save_stage(
             else:
                 entry[key] = value
 
+    try:
+        entry = normalize_pipeline_stage_for_save(entry, previous=existing_entry)
+    except ValueError as exc:
+        st.error(f"Failed to save stage contract: {exc}")
+        st.session_state["_experiment_last_save_skipped"] = True
+        return nstages, stages
+
     nstages_saved = len(stages[module_str])
     nstages = max(int(nstages), nstages_saved)
 
@@ -1903,15 +1912,15 @@ def _force_persist_stage(
         current = stages[module_key][stage_idx]
         merged = dict(current) if isinstance(current, dict) else {}
         merged.update(_drop_toml_none_values(convert_paths_to_strings(entry)))
-        stages[module_key][stage_idx] = _drop_toml_none_values(merged)
+        stages[module_key][stage_idx] = _drop_toml_none_values(
+            normalize_pipeline_stage_for_save(merged, previous=current if isinstance(current, Mapping) else None)
+        )
         stages_file.parent.mkdir(parents=True, exist_ok=True)
+        prepared = _drop_toml_none_values(
+            convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
+        )
         with open(stages_file, "wb") as f:
-            tomli_w.dump(
-                _drop_toml_none_values(
-                    convert_paths_to_strings(_prepare_lab_stages_for_write(stages))
-                ),
-                f,
-            )
+            tomli_w.dump(prepared, f)
     except (OSError, TypeError, ValueError, tomllib.TOMLDecodeError) as exc:
         logger.error(
             "Force persist failed for stage %s -> %s: %s",
@@ -1919,6 +1928,60 @@ def _force_persist_stage(
             bound_log_value(stages_file, LOG_PATH_LIMIT),
             bound_log_value(exc, LOG_DETAIL_LIMIT),
         )
+
+
+def preview_pipeline_stage_conversion(stages_file: Path) -> dict[str, Any]:
+    """Preview an explicit legacy conversion without changing any source bytes."""
+    source = stages_file.read_bytes()
+    data = tomllib.loads(source.decode("utf-8"))
+    prepared = _pipeline_stage_templates_module.convert_legacy_pipeline_stages(data)
+    rows = []
+    for module, entries in prepared.items():
+        if module == "__meta__" or not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if isinstance(entry, Mapping):
+                rows.append({"module": module, "stage": index + 1,
+                             "kind": entry.get("kind", ""),
+                             "template": entry.get("template_id", ""),
+                             "changed": entry != data[module][index]})
+    return {"source_sha256": hashlib.sha256(source).hexdigest(),
+            "source_path": str(stages_file.resolve()), "data": prepared, "rows": rows}
+
+
+def apply_pipeline_stage_conversion(stages_file: Path, preview: Mapping[str, Any]) -> Path:
+    """Persist the reviewed preview only while its source is still unchanged."""
+    if stages_file.is_symlink() or str(stages_file.resolve()) != preview.get("source_path"):
+        raise ValueError("The stage conversion target changed; build a new preview.")
+    before = stages_file.read_bytes()
+    digest = hashlib.sha256(before).hexdigest()
+    if digest != preview.get("source_sha256"):
+        raise ValueError("lab_stages.toml changed after conversion preview; build a new preview.")
+    # Recompute, rather than trusting session-local preview data as an authority.
+    data = _pipeline_stage_templates_module.convert_legacy_pipeline_stages(
+        tomllib.loads(before.decode("utf-8"))
+    )
+    prepared = convert_paths_to_strings(_prepare_lab_stages_for_write(data))
+    content = tomli_w.dumps(prepared).encode("utf-8")
+    backup = stages_file.with_name(f"{stages_file.stem}_before_structured_conversion_{digest[:12]}.toml")
+    if backup.exists() and backup.read_bytes() != before:
+        raise ValueError("An existing conversion backup has different content.")
+    if not backup.exists():
+        with backup.open("xb") as handle:
+            handle.write(before)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=stages_file.parent, prefix=".agilab-stage-conversion-", delete=False) as handle:
+            temporary_path = Path(handle.name)
+            handle.write(content)
+        if hashlib.sha256(stages_file.read_bytes()).hexdigest() != digest:
+            raise ValueError("lab_stages.toml changed during conversion; source was preserved.")
+        os.chmod(temporary_path, stages_file.stat().st_mode)
+        os.replace(temporary_path, stages_file)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+    return backup
 
 def notebook_to_toml(
     uploaded_file: Any,
@@ -2222,6 +2285,7 @@ def on_import_notebook(
 
 def display_history_tab(stages_file: Path, module_path: Path) -> None:
     """Display the HISTORY tab with code editor for the stage contract."""
+    raw_data: Dict[str, Any] = {}
     if stages_file.exists():
         with open(stages_file, "rb") as f:
             raw_data = tomllib.load(f)
@@ -2248,14 +2312,25 @@ def display_history_tab(stages_file: Path, module_path: Path) -> None:
     if action_on_stages["type"] == "save":
         try:
             data = json.loads(action_on_stages["text"] or "{}")
-            cleaned: Dict[str, List[Dict[str, Any]]] = {}
+            cleaned: Dict[str, Any] = {}
+            if "__meta__" in raw_data:
+                cleaned["__meta__"] = copy.deepcopy(raw_data["__meta__"])
             for mod, entries in data.items():
                 if isinstance(entries, list):
-                    filtered = [entry for entry in entries if _is_displayable_stage(entry)]
+                    previous_entries = raw_data.get(mod, [])
+                    filtered = []
+                    for index, entry in enumerate(entries):
+                        if not _is_displayable_stage(entry):
+                            continue
+                        previous = previous_entries[index] if index < len(previous_entries) else None
+                        filtered.append(normalize_pipeline_stage_for_save(
+                            entry, previous=previous if isinstance(previous, Mapping) else None,
+                        ))
                     if filtered:
                         cleaned[mod] = filtered
+            prepared = convert_paths_to_strings(_prepare_lab_stages_for_write(cleaned))
             with open(stages_file, "wb") as f:
-                tomli_w.dump(convert_paths_to_strings(_prepare_lab_stages_for_write(cleaned)), f)
+                tomli_w.dump(prepared, f)
             _bump_history_revision()
         except (OSError, TypeError, ValueError, json.JSONDecodeError) as e:
             st.error(f"Failed to save stage contract from editor: {e}")

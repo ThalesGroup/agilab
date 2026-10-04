@@ -180,6 +180,17 @@ import_agilab_symbols(
 )
 import_agilab_symbols(
     globals(),
+    "agilab.notebook_pipeline_import",
+    {
+        "build_notebook_source_export": "_build_notebook_source_export",
+        "notebook_source_cell_edits_from_stages": "_notebook_source_cell_edits_from_stages",
+    },
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1] / "notebook_pipeline_import.py",
+    fallback_name="agilab_notebook_pipeline_import_workflow_fallback",
+)
+import_agilab_symbols(
+    globals(),
     "agilab.pipeline_lab",
     {
         "PipelineLabDeps": "PipelineLabDeps",
@@ -651,6 +662,51 @@ def _render_notebook_download_button(
         target.error(f"Failed to prepare notebook export: {exc}")
 
 
+def _render_source_notebook_downloads(stages_file: Path, key: str, *, container: Any | None = None) -> None:
+    """Offer a faithful source notebook and explicitly chosen stage edits."""
+    target = container or st
+    contract_path = stages_file.parent / "notebook_import_contract.json"
+    if not contract_path.is_file():
+        return
+    try:
+        contract = json.loads(contract_path.read_text(encoding="utf-8"))
+        if not isinstance(contract, dict) or not contract.get("notebook_document"):
+            return
+        source = _build_notebook_source_export(contract)
+        source_name = Path(str(contract.get("source", {}).get("source_notebook", "notebook.ipynb"))).name
+        if not source_name.endswith(".ipynb"):
+            source_name = "source-notebook.ipynb"
+        target.download_button(
+            "Download original source notebook", data=json.dumps(source, ensure_ascii=False, indent=2),
+            file_name=source_name, mime="application/x-ipynb+json", key=key + "source_original",
+        )
+        target.caption("Retains the original cell order, metadata, attachments and stored outputs.")
+        with stages_file.open("rb") as stream:
+            pipeline = tomllib.load(stream)
+        stages = [stage for value in pipeline.values() if isinstance(value, list)
+                  for stage in value if isinstance(stage, dict)]
+        try:
+            edits = _notebook_source_cell_edits_from_stages(contract, stages)
+        except ValueError as exc:
+            target.warning(str(exc))
+            return
+        if edits:
+            confirmed = target.checkbox(
+                "Apply stage edits to the source notebook", value=False, key=key + "source_apply_edits",
+                help="Updates matching code cells, clears their stale outputs and records the original source fingerprint.",
+            )
+            if confirmed:
+                edited = _build_notebook_source_export(contract, cell_edits=edits)
+                target.download_button(
+                    "Download source notebook with stage edits",
+                    data=json.dumps(edited, ensure_ascii=False, indent=2),
+                    file_name=Path(source_name).stem + "-stage-edits.ipynb",
+                    mime="application/x-ipynb+json", key=key + "source_edited",
+                )
+    except (OSError, TypeError, ValueError, AttributeError, UIError) as exc:
+        target.error(f"Failed to recover source notebook: {exc}")
+
+
 def _render_notebook_actions(
     env: AgiEnv,
     module_path: Path,
@@ -713,6 +769,7 @@ def _render_notebook_actions(
             )
         else:
             st.caption("No notebook export is available for this pipeline yet.")
+        _render_source_notebook_downloads(stages_file, index_page_str + "source_notebook_")
         overwrite_confirmed = st.checkbox(
             "Confirm replacement of edited notebook exports",
             value=False,

@@ -480,6 +480,17 @@ explicit product decision.
 
 ### Priority 1. Clean release lane
 
+Current source delivery status:
+
+- Native React source and local wheel/Space staging checks are separate from
+  public publication. The release workflow owns PyPI, release assets, hosted
+  Space deployment and proof publication.
+- External mutations require the configured `pypi-release-approval` environment;
+  local validation does not remove that gate or update older public artifacts.
+- After approval and publication, verify fresh installed packages, builtin
+  first-proof commands and the live hosted interface before updating scores or
+  declaring this priority complete.
+
 Ship only when the public package, public docs, release proof, coverage badges,
 trusted publishing, Hugging Face copy, and first-proof commands all describe the
 same release.
@@ -737,6 +748,14 @@ Why later:
 - new app publishing when the app lacks a clear purpose, deterministic first
   run, README, evidence, and package metadata
 
+## Versioned stage lifecycle delivered in source
+
+The explicit template/raw_python lifecycle, registry and payload fingerprints,
+visible drift, guarded run/export, reviewed refresh and conservative legacy
+conversion with source backup are implemented. See
+[Versioned pipeline stage templates](versioned-pipeline-stages.md). Retiring
+legacy compatibility remains a later policy decision.
+
 ## Feature sequencing after the professional baseline
 
 If the goal is near-term product sequencing rather than broad idea collection,
@@ -845,7 +864,7 @@ Why this order:
   baseline/candidate comparison, failure-injection evidence, service-contract
   handoff, and the shared evidence contract
 
-## Streamlit-inspired AGILab views
+## Native React and Python AGILab views
 
 The most promising Streamlit-style view patterns for AGILab are not generic
 gallery clones. They are focused application views that reinforce AGILab's core
@@ -1118,6 +1137,19 @@ Current shipped baseline:
   `global_pipeline_operator_actions_report_contract` and
   `global_pipeline_operator_ui_report_contract`
 
+Implemented source-checkout operator controls:
+
+- WORKFLOW prepares a retry or partial rerun of a selected branch using the
+  existing durable DAG runner, then executes it with the normal next/ready-stage
+  controls.
+- Preparation invalidates the selected step and descendants and their handoffs;
+  unrelated completed results, artifact files and history are retained.
+- Saved revisions survive reload. Source fingerprints reject changed DAGs; an
+  older state without a fingerprint requires explicit reset.
+- Uncertain external callbacks require their recorded owner/token recovery
+  before replay. Local product-widget and actual queue/relay engine proofs do
+  not certify cloud or shared deployments.
+
 Remaining scope for this item:
 
 - no open report-driven contract gap remains for the multi-app DAG runner/UI
@@ -1163,10 +1195,24 @@ Current shipped baseline:
   preview that records widget-to-args hints, a hide-code manifest, an app-view
   plan, and evidence hashes without launching a Voila server
 
+Implemented source-checkout recovery and edit path:
+
+- WORKFLOW persists a complete hash-verified notebook document, retaining IDs,
+  order, raw and empty cells, attachments, outputs, custom and kernel metadata.
+- Original-source and reviewed-edited-source downloads preserve provenance;
+  edited code clears stale outputs. Composite stages require explicit source
+  review when a safe cell mapping is unavailable.
+- Preflight diagnoses foreign kernels and unsupported shell/magic cells.
+  Explicit supported setup conversion declares plain pip requirements or
+  acknowledges a matplotlib backend without executing installation on import.
+- Fresh Python-kernel proofs cover source recovery, compiled code and artifact
+  output, and shared React map/curve widgets. They do not certify foreign kernels,
+  hosted notebooks or distributed app INSTALL and EXECUTE.
+
 Suggested scope:
 
-- harden notebook-to-pipeline import beyond the initial report and upload path,
-  including broader edge cases for exported supervisor notebooks
+- extend executed app and hosted/foreign-kernel validation beyond the local
+  Python source-recovery and compiled-notebook proofs
 - make notebook-native analysis surfaces or Voilà-style packaging possible
   without duplicating the current apps-pages logic blindly
 - preserve enough provenance so the notebook remains explainable

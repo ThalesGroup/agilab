@@ -45,6 +45,16 @@ EXCLUDED_PATH_PARTS = {
 # present on disk, closing the gap where a deleted/renamed focused test would silently leave
 # a high-risk action with zero coverage and a passing contract.
 EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
+    "Add template stage": (
+        "trial-only",
+        "persists a structured stage in the selected lab; focused lifecycle tests cover template execution, ownership and persistence, while generic robots avoid changing user labs",
+        ("test/test_versioned_pipeline_stage_lifecycle.py",),
+    ),
+    "Apply reviewed stage conversion": (
+        "trial-only",
+        "replaces a saved lab after an explicit conversion preview; focused lifecycle tests enforce exact backups and source-hash conflict protection, while generic robots avoid rewriting user labs",
+        ("test/test_versioned_pipeline_stage_lifecycle.py",),
+    ),
     "Build my app": (
         "trial-only",
         "builds a local notebook-derived app through the explicit agent demo flow; generic robots verify the controls without launching a build",

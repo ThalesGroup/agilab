@@ -1930,7 +1930,7 @@ def test_display_history_tab_filters_and_saves_editor_content(monkeypatch, tmp_p
     pipeline_editor.display_history_tab(stages_file, tmp_path / "demo_project")
 
     stored = tomllib.loads(stages_file.read_text(encoding="utf-8"))
-    assert stored["demo_project"] == [{"Q": "visible", "C": "print(2)"}]
+    assert stored["demo_project"] == [{"Q": "visible", "C": "print(2)", "kind": "raw_python"}]
     assert revisions == [True]
 
 
@@ -5039,9 +5039,10 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
                     {
                         "cell_type": "code",
                         "source": [
-                            "!pip install requests\n",
+                            "import requests\n",
+                            "requests.get('https://example.invalid/health')\n",
                             "import pandas as pd\n",
-                            "df = pd.read_csv('data/orders.csv')\n",
+                            "df = pd.read_csv('/tmp/orders.csv')\n",
                             "df.to_parquet('artifacts/orders.parquet')\n",
                         ],
                     },
@@ -5059,11 +5060,13 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
     assert view_plan["schema"] == "agilab.notebook_import_view_plan.v1"
     assert view_plan["status"] == "unmatched"
     assert contract["preflight"]["status"] == "review"
-    assert contract["artifact_contract"]["inputs"] == ["data/orders.csv"]
+    assert contract["artifact_contract"]["inputs"] == ["/tmp/orders.csv"]
     assert contract["artifact_contract"]["outputs"] == ["artifacts/orders.parquet"]
+    assert contract["environment"]["imports"] == ["pandas", "requests"]
     assert {warning["rule"] for warning in contract["warnings"]} >= {
-        "dependency_install",
-        "shell_execution",
+        "network_access",
+        "absolute_path",
+        "absolute_artifact_path",
     }
     assert messages == [
         (
@@ -5072,6 +5075,42 @@ def test_notebook_to_toml_writes_preflight_contract_and_reports_warnings(monkeyp
             "Contract: notebook_import_contract.json; View plan: notebook_import_view_plan.json",
         )
     ]
+
+
+def test_notebook_to_toml_blocks_shell_setup_and_keeps_source_recoverable(monkeypatch, tmp_path):
+    from agilab.notebooks.notebook_pipeline_import import build_notebook_source_export
+
+    messages = []
+    monkeypatch.setattr(pipeline_editor, "st", SimpleNamespace(
+        error=lambda message, *_args, **_kwargs: messages.append(str(message)),
+    ))
+    marker = tmp_path / "notebook-code-must-not-execute"
+    notebook = {
+        "nbformat": 4, "nbformat_minor": 5, "metadata": {},
+        "cells": [
+            {"id": "context", "cell_type": "markdown", "source": "Review setup before importing", "metadata": {}},
+            {"id": "setup", "cell_type": "code", "source": (
+                "!pip install requests\n"
+                "from pathlib import Path\n"
+                f"Path({str(marker)!r}).write_text('must not execute')\n"
+            ), "metadata": {}, "outputs": [], "execution_count": None},
+        ],
+    }
+    uploaded = SimpleNamespace(
+        name="shell-setup.ipynb", type="application/x-ipynb+json",
+        read=lambda: json.dumps(notebook).encode("utf-8"),
+    )
+    project = tmp_path / "blocked_project"
+    preview = pipeline_editor.build_notebook_import_preview(uploaded, project)
+    assert preview is not None
+    assert preview["preflight"]["status"] == "blocked"
+    assert preview["preflight"]["safe_to_import"] is False
+    assert {issue["rule"] for issue in preview["contract"]["errors"]} == {"notebook_magic_requires_conversion"}
+    assert build_notebook_source_export(preview["contract"]) == notebook
+    assert pipeline_editor.notebook_to_toml(uploaded, "lab_stages.toml", project) is None
+    assert not project.exists()
+    assert not marker.exists()
+    assert any("explicit Python conversion" in message for message in messages)
 
 
 def test_notebook_to_toml_uses_lab_stages_key_when_module_dir_has_no_name(monkeypatch, tmp_path):

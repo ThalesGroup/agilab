@@ -154,6 +154,75 @@ HTML export is useful for sharing an already computed visualisation; a Python
 view or notebook widget is required when interactions must execute Python
 callbacks. See :doc:`agi-web` for the component and renderer APIs.
 
+Workflow stage ownership and branch replay
+------------------------------------------
+
+Open **Versioned stage templates** in WORKFLOW to create a structured stage,
+review its parameters or resolve version and renderer drift. **Refresh from
+template** is explicit; **Keep as custom Python** retains the exact code.
+Editing Python in the stage editor, HISTORY or an imported notebook relinquishes
+template ownership. Both notebook export modes reject stale templates.
+See :doc:`roadmap/versioned-pipeline-stages` for the persisted contract and
+reviewed legacy conversion with a source backup.
+
+The multi-app runner exposes **Retry or rerun a branch**. Select a failed step
+and **Prepare retry**, or a completed step and **Prepare partial rerun**.
+Preparation invalidates that step, its descendants and their artifact handoffs.
+Other completed results, history and artifact files remain available.
+
+Use **Run next stage** or **Run ready stages** to execute the prepared branch
+through the existing persistent DAG runner. Reloading WORKFLOW recovers the
+saved revision and pending branch. An uncertain external callback requires
+recovery with its exact owner and idempotency token before retry. A changed DAG
+source, or an older state without its source fingerprint, requires an explicit
+**Reset preview state** before replay.
+
+
+.. figure:: _static/native-ui/agilab_full_workflow_versioned_template_editor_20261004.png
+   :alt: Native WORKFLOW template parameter editor and custom Python choice.
+   :width: 100%
+
+   Real WORKFLOW controls in an isolated source-checkout proof. Template
+   parameters were saved, edited and recovered after reload.
+
+.. figure:: _static/native-ui/agilab_full_workflow_partial_rerun_controls_20261004.png
+   :alt: Native WORKFLOW selected branch and explicit partial rerun preparation.
+   :width: 100%
+
+   The branch replay controls use the persistent runner. This capture uses
+   synthetic app callbacks to verify UI and persistence; it does not demonstrate
+   business computation or a cloud run.
+
+Recover and re-export an imported notebook
+------------------------------------------
+
+WORKFLOW preserves the complete source notebook in its hash-verified import
+contract, including cell IDs and order, markdown and raw cells, empty cells,
+attachments, outputs, custom metadata and kernel metadata. Download the original
+source or the source with reviewed code edits from WORKFLOW. Edited cells lose
+their stale outputs and execution counters; provenance records both hashes.
+
+For the command-line route::
+
+   python -m agilab.notebooks.notebook_pipeline_import source-export \
+     --contract notebook_import_contract.json \
+     --output agilab_authored_notebook_recovered.ipynb
+
+Add ``--cell-edits agilab_reviewed_notebook_cell_edits.json`` for reviewed source
+cell edits. A composite compiled stage cannot always be split safely into its
+original cells; WORKFLOW diagnoses this case and keeps the original recoverable.
+
+Foreign kernels and unsupported shell or magic cells remain diagnosed rather
+than silently rewritten. To explicitly convert a supported setup cell, repeat
+``--convert-setup-cell CELL_ID``. Simple plain-index ``%pip`` or ``!pip install``
+requirements become declared dependencies; import does not install them.
+``%matplotlib inline`` becomes an acknowledged non-interactive backend.
+Successive conversions retain prior dependency declarations and source
+provenance. Other shell commands and foreign-language magics require review in
+the source notebook.
+
+See :doc:`notebook-advanced` for the import and recovery boundary.
+
 Installed interface examples
 ----------------------------
 

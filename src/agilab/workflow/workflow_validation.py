@@ -21,6 +21,10 @@ from agilab.workflow.lab_stages_contract import (
     lab_stages_metadata_issues,
     module_key_from_project,
 )
+from agilab.pipeline.pipeline_stage_templates import (
+    pipeline_stage_execution_error,
+    rendered_pipeline_stage_code,
+)
 
 
 WORKFLOW_DRY_RUN_SCHEMA = "agilab.workflow_dry_run_report.v1"
@@ -321,8 +325,14 @@ def _stage_contract(
 ) -> tuple[StageContract, list[WorkflowIssue]]:
     explicit_id = _text(entry.get("id"))
     stage_id = explicit_id or f"{_slug(source_key)}_{index + 1:03d}"
-    code = _text(entry.get("C"))
+    template_error = pipeline_stage_execution_error(entry)
+    code = _text(entry.get("C")) if template_error else rendered_pipeline_stage_code(entry)
     code_facts, issues = _code_facts(code, stage_id=stage_id, path=str(stages_file))
+    if template_error:
+        issues.append(WorkflowIssue(
+            "error", "stage-template-drift", template_error, stage_id=stage_id,
+            path=str(stages_file), hint="Review and refresh the stage in WORKFLOW, or explicitly retain custom Python.",
+        ))
     label = _text(entry.get("label")) or _text(entry.get("D")) or _first_line(entry.get("Q")) or stage_id
     engine = _text(entry.get("R")).lower()
     kind = _text(entry.get("kind")) or _engine_kind(engine)

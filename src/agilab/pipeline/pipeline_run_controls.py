@@ -2683,6 +2683,21 @@ def run_all_stages(
         _push_run_log(index_page_str, message, log_placeholder)
         return
 
+    for idx in sequence:
+        error = _pipeline_stages.pipeline_stage_execution_error(stages[idx])
+        if error:
+            st.error(f"Stage {idx + 1}: {error}")
+            _push_run_log(index_page_str, f"Run workflow aborted: {error}", log_placeholder)
+            return
+        effective_stage, _ = _apply_stage_profile(stages[idx], pipeline_profile)
+        error = _pipeline_stages.pipeline_stage_execution_error(effective_stage)
+        if error:
+            st.error(f"Stage {idx + 1}: {error}")
+            _push_run_log(index_page_str, f"Run workflow aborted: {error}", log_placeholder)
+            return
+        if effective_stage.get("kind") == "template":
+            stages[idx] = {**stages[idx], "C": _pipeline_stages.rendered_pipeline_stage_code(stages[idx])}
+
     if _abort_if_legacy_agi_run_stages(
         index_page_str, stages_file, stages, sequence, log_placeholder
     ):

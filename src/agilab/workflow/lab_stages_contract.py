@@ -127,6 +127,9 @@ def is_displayable_stage(entry: Any) -> bool:
 
     if not isinstance(entry, Mapping) or not entry:
         return False
+    if entry.get("kind") == "template":
+        # A malformed/stale template must remain visible for explicit repair.
+        return True
     return any(
         isinstance(entry.get(field), str) and bool(str(entry[field]).strip())
         for field in ("Q", "C")

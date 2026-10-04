@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
 import os
 from pathlib import Path
 import socket
@@ -31,6 +32,7 @@ from .dag_execution_adapters import (
     _run_ready_adapter_stages_uncommitted,
 )
 from .dag_idempotency import DagExternalExecutionUncertainError  # noqa: F401 - public failure contract
+from .dag_operator_replay import prepare_operator_replay
 from .dag_execution_registry import (
     CONTROLLED_CONTRACT_ADAPTER,
     CONTROLLED_CONTRACT_RUNNER_STATUS,
@@ -349,6 +351,18 @@ class DagRunEngine:
     def state_path(self) -> Path:
         return self.lab_dir / ".agilab" / self.state_filename
 
+    def _build_source_bound_state(self) -> dict[str, Any]:
+        source_path = self.dag_path
+        if source_path is not None and not source_path.is_absolute():
+            source_path = self.repo_root / source_path
+        before = source_path.read_bytes() if source_path is not None else None
+        state = build_persisted_runner_state(repo_root=self.repo_root, dag_path=self.dag_path)
+        if source_path is not None:
+            if source_path.read_bytes() != before:
+                raise ValueError("The workflow source changed while its plan was being read. Reload before continuing.")
+            state["source"]["dag_sha256"] = sha256(before).hexdigest()
+        return state
+
     def load_or_create_state(self, *, reset: bool = False) -> tuple[dict[str, Any], Path, Path | None]:
         state, observed_revision = load_runner_state_snapshot(self.state_path)
         if state is not None and not reset:
@@ -357,10 +371,7 @@ class DagRunEngine:
         if state is not None:
             _raise_if_active_attempt(self.state_path, state)
 
-        replacement = build_persisted_runner_state(
-            repo_root=self.repo_root,
-            dag_path=self.dag_path,
-        )
+        replacement = self._build_source_bound_state()
         try:
             with runner_state_write_transaction(
                 self.state_path,
@@ -795,6 +806,30 @@ class DagRunEngine:
                 trigger={"surface": "workflow", "action": trigger_action},
             )
         return result
+
+    def prepare_operator_replay_transaction(
+        self,
+        state: Mapping[str, Any],
+        *,
+        unit_id: str,
+        action: str,
+    ) -> RunnerDispatchResult:
+        """Prepare a selected branch using the same durable transaction as runs."""
+        baseline = self._build_source_bound_state()
+
+        def prepare(current: Mapping[str, Any]) -> RunnerDispatchResult:
+            _raise_if_active_attempt(self.state_path, current)
+            updated = prepare_operator_replay(
+                current, baseline=baseline, unit_id=unit_id, action=action, timestamp=self.now_fn(),
+            )
+            return RunnerDispatchResult(
+                ok=True, message=f"Prepared {action} for {unit_id}. Run the ready stage to execute it.",
+                dispatched_unit_id="", state=updated,
+            )
+
+        return self._run_state_transaction(
+            state, action=prepare, trigger_action=f"operator_{action}_prepared",
+        )
 
     def recover_execution_attempt_transaction(
         self,

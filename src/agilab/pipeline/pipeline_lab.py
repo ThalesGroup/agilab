@@ -13,8 +13,8 @@ import pandas as pd
 from agilab.components.code_editor_component import code_editor
 from agi_web import python_ui as st
 from agilab.pipeline.pipeline_page_state import (
-    prepare_pipeline_editor_updates,
-    hydrate_pipeline_editor_values,
+    prepare_pipeline_editor_updates as prepare_pipeline_editor_updates,
+    hydrate_pipeline_editor_values as hydrate_pipeline_editor_values,
 )
 from agilab.pipeline.pipeline_dag_inspection import (
     _multi_app_dag_stage_links,
@@ -3403,7 +3403,7 @@ def _render_global_runner_state_view(
                 kind="reset",
                 help=(
                     "Acknowledge that this exact token may already have produced a side effect, "
-                    "mark it failed, and require a separate reset before retry."
+                    "mark it failed, and require a separate explicit retry preparation."
                 ),
             )
             if not recover_clicked:
@@ -3419,13 +3419,19 @@ def _render_global_runner_state_view(
                 st.caption(str(exc))
                 st.rerun()
                 return
-            st.success(f"Recovered `{unit_id}`. Reset the plan explicitly before retrying it.")
+            st.success(f"Recovered `{unit_id}`. Prepare this stage's retry explicitly before running it.")
             st.rerun()
             return
         return
 
     real_run_supported = real_run_support.supported
     if real_run_supported:
+        from agilab.dag.dag_operator_ui import render_operator_replay_controls
+
+        if render_operator_replay_controls(
+            st, engine=dag_engine, state=state, key_prefix=f"{index_page_str}_global_runner",
+        ):
+            return
         stage_backend = GLOBAL_DAG_STAGE_BACKEND_LOCAL
         distributed_stage_supported = bool(getattr(dag_engine, "distributed_stage_supported", lambda: False)())
         if distributed_stage_supported:
@@ -4465,6 +4471,13 @@ def display_lab_tab(
     existing_safe_actions = _existing_safe_actions_from_stages(persisted_stages)
     total_stages = len(persisted_stages)
     safe_prefix = index_page_str.replace("/", "_")
+    from agilab.pipeline.pipeline_template_controls import PipelineTemplateEditor
+    template_editor = PipelineTemplateEditor(
+        ui=st, module_path=module_path, stages_file=stages_file, total_stages=total_stages,
+        key_prefix=safe_prefix, save_stage_fn=save_stage, on_saved=_bump_history_revision,
+        rerun_editor=_rerun_fragment_or_app, execution_error_fn=_pipeline_stages_module.pipeline_stage_execution_error,
+    )
+    template_editor.render_toolbar(env)
     total_stages_key = f"{safe_prefix}_total_stages"
     prev_total = st.session_state.get(total_stages_key)
     st.session_state[index_page_str][0] = 0
@@ -4720,21 +4733,13 @@ def display_lab_tab(
 
     @st.fragment
     def _render_pipeline_stage_fragment(stage: int, entry: Dict[str, Any]) -> None:
-        # Per-stage keys
-        q_key = f"{safe_prefix}_q_stage_{stage}"
-        code_val_key = f"{safe_prefix}_code_stage_{stage}"
-        select_key = f"{safe_prefix}_venv_{stage}"
-        rev_key = f"{safe_prefix}_editor_rev_{stage}"
-        pending_q_key = f"{safe_prefix}_pending_q_{stage}"
-        pending_c_key = f"{safe_prefix}_pending_c_{stage}"
-        undo_key = f"{safe_prefix}_undo_{stage}"
-        confirm_delete_key = f"{safe_prefix}_confirm_delete_{stage}"
+        if entry.get("kind") == "template" and not _pipeline_stages_module.pipeline_stage_execution_error(entry):
+            entry = {**entry, "C": _pipeline_stages_module.rendered_pipeline_stage_code(entry)}
+        (q_key, code_val_key, select_key, rev_key, pending_q_key,
+         pending_c_key, undo_key, confirm_delete_key, ignore_blank_key) = template_editor.stage_widget_keys(stage)
 
-        if prepare_pipeline_editor_updates(st.session_state, safe_prefix, stage):
-            _rerun_fragment_or_app()
-        hydrate_pipeline_editor_values(st.session_state, safe_prefix, stage, entry)
-        ignore_blank_key = f"{safe_prefix}_ignore_blank_editor_{stage}"
-
+        if template_editor.render_stage(entry, stage):
+            return
         current_path = _valid_runtime_path(selected_map.get(stage, ""))
         if not current_path:
             entry_venv = _valid_runtime_path(entry.get("E", ""))

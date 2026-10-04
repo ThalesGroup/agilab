@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-04T09:17:08Z",
+  "generated_at_utc": "2026-10-04T19:02:49Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 295,
+    "evidence_schema_count": 299,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2185,6 +2185,12 @@
       ]
     },
     {
+      "schema": "agilab.notebook_document.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_pipeline_import.py"
+      ]
+    },
+    {
       "schema": "agilab.notebook_execution_plan.v1",
       "sources": [
         "src/agilab/demos/resources/forecast_notebook_demo/lab_stages.toml",
@@ -2284,6 +2290,18 @@
       "sources": [
         "src/agilab/notebooks/notebook_pipeline_import.py",
         "tools/kpi_evidence_bundle.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_setup_conversion.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_source_roundtrip.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_pipeline_import.py"
       ]
     },
     {
@@ -2403,6 +2421,13 @@
       "schema": "agilab.pipeline_recipe_memory.v1",
       "sources": [
         "src/agilab/pipeline/pipeline_recipe_memory.py"
+      ]
+    },
+    {
+      "schema": "agilab.pipeline_stage_payload.v1",
+      "sources": [
+        "docs/source/roadmap/versioned-pipeline-stages.md",
+        "src/agilab/pipeline/pipeline_stage_templates.py"
       ]
     },
     {

@@ -25,6 +25,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ### Changed
 
+- Add explicit versioned pipeline templates, visible drift, guarded execution and notebook export, and reviewed legacy conversion with source backups.
+- Prepare targeted retry and partial rerun of multi-app DAG branches through the durable runner, preserving unrelated results and recovery controls.
+- Preserve complete imported notebook sources and expose original or reviewed edited re-exports, with cumulative explicit setup conversion and recoverable runtime diagnostics.
+
 - Keep native hosted demo profiles installable after source pruning: exclude the source-only UI test group and resolve excluded view/app providers from their complete release wheels. Refresh the capability catalog and the two new app license inventories.
 
 - Use the native React interface and Python view adapter throughout the UI,

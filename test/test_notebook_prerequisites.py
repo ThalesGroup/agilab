@@ -157,7 +157,8 @@ def test_model_requirements_are_recorded_without_claiming_cache_or_device_readin
 def test_empty_source_blocks_and_magic_cells_report_incomplete_inspection():
     assert inspect()["safe_to_build"] is False
     report = inspect("%matplotlib inline\n")
-    assert report["status"] == "review" and report["inspection_only"]
+    assert report["status"] == "blocked" and report["inspection_only"]
+    assert not report["safe_to_build"]
     assert report["issues"][0]["code"] == "unparsed_cell"
 
 

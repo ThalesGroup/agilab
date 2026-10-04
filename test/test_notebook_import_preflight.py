@@ -116,8 +116,8 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     view_plan = json.loads(view_plan_path.read_text(encoding="utf-8"))
 
     assert preflight["schema"] == "agilab.notebook_import_preflight.v1"
-    assert preflight["status"] == "review"
-    assert preflight["safe_to_import"] is True
+    assert preflight["status"] == "blocked"
+    assert preflight["safe_to_import"] is False
     assert preflight["cleanup_required"] is True
     assert preflight["summary"]["pipeline_stage_count"] == 1
     assert preflight["artifact_contract"]["inputs"] == ["data/orders.csv"]
@@ -136,7 +136,7 @@ def test_notebook_import_preflight_flags_generic_risks_and_contract(tmp_path: Pa
     }
     assert contract["schema"] == "agilab.notebook_import_contract.v1"
     assert contract["module_name"] == "demo_project"
-    assert contract["preflight"]["status"] == "review"
+    assert contract["preflight"]["status"] == "blocked"
     assert contract["artifact_contract"] == preflight["artifact_contract"]
     assert contract["warnings"]
     assert contract["stages"][0]["id"] == "cell-2"
@@ -619,9 +619,9 @@ optional_artifacts = ["data/*.csv"]
     )
 
     assert report["report"] == "Notebook import preflight report"
-    assert report["status"] == "pass"
-    assert report["summary"]["risk_status"] == "review"
-    assert report["summary"]["safe_to_import"] is True
+    assert report["status"] == "fail"
+    assert report["summary"]["risk_status"] == "blocked"
+    assert report["summary"]["safe_to_import"] is False
     assert report["summary"]["contract_path"] == str(output_path)
     assert report["summary"]["pipeline_view_path"] == str(pipeline_view_path)
     assert report["summary"]["view_plan_path"] == str(view_plan_path)

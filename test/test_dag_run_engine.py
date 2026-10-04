@@ -975,6 +975,57 @@ def test_dag_run_engine_runs_ready_contract_stages_as_parallel_batch(tmp_path):
     assert flight["execution_mode"] == "contract_adapter"
 
 
+@pytest.mark.parametrize("optional_kind", [None, "", "   "])
+def test_operator_partial_rerun_accepts_dispatch_inferred_artifact_kind(tmp_path, optional_kind):
+    dag_path = _write_parallel_contract_repo(tmp_path)
+    payload = json.loads(dag_path.read_text())
+    artifact = next(node for node in payload["nodes"] if node["id"] == "flight_context")["produces"][0]
+    if optional_kind is None:
+        artifact.pop("kind")
+    else:
+        artifact["kind"] = optional_kind
+    dag_path.write_text(json.dumps(payload))
+    calls = []
+
+    def stage(unit_id):
+        def run(*, repo_root, run_root, idempotency_token):
+            calls.append((unit_id, idempotency_token))
+            return {"summary_metrics_path": f"{unit_id}/summary.json", "summary_metrics": {"stage_completed": 1}}
+
+        return run
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=dag_path,
+        stage_run_fns={
+            "uav_queue_project.queue_context": stage("queue_context"),
+            "flight_telemetry_project.flight_context": stage("flight_context"),
+        },
+    )
+    initial = engine.load_or_create_state()[0]
+    assert next(unit for unit in initial["units"] if unit["id"] == "flight_context")["produces"][0]["kind"] == ""
+    executed = engine.run_ready_controlled_stages_transaction(initial)
+    assert executed.ok
+    flight = next(unit for unit in executed.state["units"] if unit["id"] == "flight_context")
+    assert flight["produces"][0]["kind"] == "summary_metrics"
+    prepared = engine.prepare_operator_replay_transaction(
+        executed.state, unit_id="flight_context", action="partial_rerun",
+    ).state
+    assert prepared["source"]["dag_sha256"] == initial["source"]["dag_sha256"]
+    assert {unit["id"]: unit["dispatch_status"] for unit in prepared["units"]} == {
+        "flight_context": "runnable", "queue_context": "completed", "joined_review": "blocked",
+    }
+    rerun = engine.run_ready_controlled_stages_transaction(prepared)
+    assert rerun.ok and [unit_id for unit_id, _ in calls].count("flight_context") == 2
+    assert [unit_id for unit_id, _ in calls].count("queue_context") == 1
+    assert len({token for _, token in calls}) == 3
+    payload["description"] = "Deliberately changed after the run"
+    dag_path.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="fingerprint is missing or changed"):
+        engine.prepare_operator_replay_transaction(
+            rerun.state, unit_id="flight_context", action="partial_rerun",
+        )
+
+
 def test_parallel_batch_transaction_uses_distinct_durable_unit_tokens(tmp_path):
     dag_path = _write_parallel_contract_repo(tmp_path)
     repo_root = tmp_path / "repo"

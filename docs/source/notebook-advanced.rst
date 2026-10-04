@@ -42,6 +42,42 @@ This is a reproducibility sandbox, not hostile-code isolation. Run trusted
 notebooks locally, or add an external container/VM boundary before using
 untrusted notebooks.
 
+Import, recovery and reviewed source edits
+-----------------------------------------
+
+The WORKFLOW notebook upload path preserves a complete, hash-verified source
+document in ``notebook_import_contract.json``. The original source remains
+recoverable without executing it. Cell IDs, ordering, raw and empty cells,
+attachments, outputs, custom metadata and the original kernel metadata survive
+a source recovery.
+
+Use the WORKFLOW downloads, or::
+
+   python -m agilab.notebooks.notebook_pipeline_import source-export \
+     --contract notebook_import_contract.json \
+     --output agilab_authored_notebook_recovered.ipynb
+
+For reviewed source edits, add
+``--cell-edits agilab_reviewed_notebook_cell_edits.json``. Edited cells have
+their stale output and execution count cleared, with original and edited hashes
+recorded in provenance. Compilation and recovery are distinct: a stage combining
+multiple original cells cannot always be split safely back into those cells.
+
+An unsupported kernel, arbitrary shell command or foreign-language magic is
+diagnosed before a Python import is presented as executable. The original
+notebook remains recoverable. Supported setup conversions require an explicit
+``--convert-setup-cell CELL_ID`` selection, repeated for each selected cell:
+
+- Simple ``%pip`` or ``!pip install`` plain-index requirements become declared
+  dependencies without installing packages during import.
+- ``%matplotlib inline`` becomes an acknowledged non-interactive backend.
+- Successive conversions preserve earlier requirements and source provenance.
+
+These Python routes do not certify R execution, hosted Colab or Kaggle, or
+distributed INSTALL and EXECUTE. Those routes retain their own runtime and
+validation requirements. See :doc:`agilab-native-react-ui-notebook-export` for
+the shared React and Python views.
+
 Source-checkout launchers
 -------------------------
 

@@ -1,175 +1,110 @@
-# Feature: versioned pipeline stage templates
+# Versioned pipeline stage templates
 
-This note captures a recurring product problem observed in AGILab pipeline
-workflows: generated stages are still stored as Python snippets, even though the
-orchestrator knows much more structure than the saved text reveals.
+WORKFLOW supports explicit `template` and `raw_python` stages. A template
+stores its reviewed parameters and registry identity; Python remains a readable
+rendered artifact. Custom Python retains its source exactly.
 
-AGILab previously relied on targeted snippet migrations to keep some older labs
-running. That approach has since been retired because it was too fragile and too
-opaque: a saved stage could change behaviour simply because the loader rewrote it.
-The current product direction is better, but still incomplete:
+This lifecycle is implemented in the source checkout. Publication and hosted
+deployment evidence are tracked separately in the release proof.
 
-- saved Python now remains exactly as written
-- stale generated snippets must be regenerated or re-imported explicitly
-- AGILab still lacks a structured, version-aware representation for generated
-  pipeline stages
+## Create and inspect a template
 
-The proposed feature is to replace raw generated snippets with explicit,
-versioned pipeline stage templates whose identity belongs to the orchestration
-layer rather than to any single application.
+Open **Versioned stage templates** in WORKFLOW. The typed registry provides
+input configuration, execution configuration, evidence paths, and a named app
+action using `RunRequest` and `StageRequest`. Template IDs identify generic
+orchestration shapes. The target app and action are parameters.
 
-## Problem
+Persisted fields are:
 
-Today, AGILab stores many generated stages as raw Python code in
-``lab_stages.toml``. Even when a stage originates from **ORCHESTRATE**, the saved
-artifact is still a snippet, not a structured execution spec.
+- `kind = "template"`
+- `template_id`, `template_version`, and `template_fingerprint`
+- `template_payload` with schema `agilab.pipeline_stage_payload.v1`
+- `payload_fingerprint`
+- `C`, when cached, as the inspectable rendered Python artifact
 
-This has several drawbacks:
+The payload's `parameters` table accepts only the current template's named
+parameters and TOML-compatible Python literals. Unknown names, objects, `None`,
+and non-finite numbers are rejected.
 
-- the real source of truth is code text, not structured stage data
-- users cannot clearly see whether a stage is current, stale, or app-owned custom code
-- changes in app contracts still surface as snippet drift instead of schema drift
-- regeneration paths are explicit but not first-class in the saved data model
-- imports from orchestration and saved labs do not share a fully explicit lifecycle
+Use the registry helpers rather than hand-writing fingerprints:
 
-## Current product stance
+```python
+from agilab.pipeline.pipeline_stage_templates import (
+    DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY,
+    refresh_pipeline_stage_template,
+)
 
-This proposal does **not** suggest reintroducing silent snippet migration.
-
-The intended behaviour remains:
-
-- no implicit Python rewrite when a lab is loaded
-- no hidden repair pass during execution
-- explicit regeneration or refresh whenever a generated snippet becomes stale
-
-The missing piece is a better representation for generated stages, so AGILab can
-detect and explain drift without mutating saved Python behind the user's back.
-
-## Proposal
-
-Introduce two explicit stage kinds:
-
-- ``template`` for AGILab-generated stages
-- ``raw_python`` for fully custom snippets
-
-For ``template`` stages, store a structured payload instead of Python as the
-source of truth:
-
-- ``template_id``
-- ``template_version``
-- ``app``
-- ``action`` or ``task``
-- ``engine``
-- ``question``
-- ``args``
-
-Python code becomes a rendered view or export artifact, not the canonical
-representation. This keeps execution inspectable while making the actual stage
-contract explicit and versionable.
-
-The key design rule is that ``template_id`` must identify the structural shape
-owned by AGILab orchestration, not the business meaning of one particular app
-stage. In other words:
-
-- ``template_id`` says how the orchestrator should render, validate, and refresh
-  the stage
-- ``app`` says which application is targeted
-- ``action`` or ``task`` says what that application should do
-
-That avoids reintroducing app-specific coupling under a different name.
-
-## Example shape
-
-```toml
-[[pipeline]]
-kind = "template"
-template_id = "pipeline.agi_run.single_action"
-template_version = 3
-app = "example_project"
-action = "reference_allocator"
-engine = "agi.run"
-question = "Compute reference allocations"
-
-[pipeline.args]
-data_in = "network_sim/pipeline"
-data_out = "routing_reference/pipeline"
-time_horizon = 16
-trajectories_glob = "flight_trajectory/pipeline/*"
-sat_trajectories_glob = "sat_trajectory/pipeline/Trajectory/*.csv"
+stage = DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY.saved_stage(
+    "pipeline.agi_run.single_action"
+)
+payload = stage["template_payload"]
+payload["parameters"].update(
+    app="example_project",
+    apps_path="/path/to/apps",
+    action="reference_allocator",
+    args={"time_horizon": 16},
+)
+stage = refresh_pipeline_stage_template(stage, payload=payload)
+# Persist under the app module key in lab_stages.toml.
 ```
 
-In this model:
+A valid template can render without cached `C`. Saving through the supported
+helpers keeps the rendered code and structured payload aligned.
 
-- ``template_id`` is generic and reusable across apps
-- ``app`` and ``action`` carry the business-specific intent
-- changing one app action does not require inventing a new template family
+## Detect and resolve drift
 
-## Expected behaviour
+The registry fingerprint covers identity, version, runtime, payload schema and
+renderer code. Drift is visible when the saved version or renderer changes, the
+template is missing, the payload is malformed or changed without review, or
+cached Python differs from the payload.
 
-When AGILab loads a ``template`` stage:
+Loading never repairs saved Python. Static validation reports
+`stage-template-drift`; execution and both plain and supervisor notebook
+exports reject stale structured stages before using their code.
 
-- it compares the saved ``template_version`` with the current template registry
-- if the versions match, the stage renders and runs normally
-- if the versions differ, AGILab does not silently rewrite the stage
-- instead, AGILab marks the stage as outdated and offers an explicit
-  ``refresh from template`` action
+The user can choose:
 
-For ``raw_python`` stages:
+- **Apply template parameters** to apply reviewed literal parameters.
+- **Refresh from template** to render with the current registered contract.
+- **Keep as custom Python** to retain the exact source as `raw_python`.
 
-- AGILab stores and runs the code as-is
-- AGILab does not attempt implicit structural migration
-- the user remains responsible for keeping the snippet aligned with the runtime
+Refresh preserves stage identity, dependencies, outputs, app metadata, runtime
+environment and user descriptions. Keeping custom Python removes template
+ownership and preserves the previous metadata in `template_origin`. Deliberate
+edits in the normal editor, HISTORY or an imported notebook also relinquish
+template ownership. Registry or schema drift alone never implies such an edit.
 
-## Why this is better
+## Convert an existing lab explicitly
 
-- removes fragile text-rewrite migrations from the critical path
-- makes stage drift visible instead of hidden
-- produces more readable ``lab_stages.toml`` diffs
-- reduces regressions caused by legacy path or contract rewrites
-- separates product-supported templates from user-owned custom code
-- keeps orchestration concerns separate from app concerns
+**Preview legacy stage conversion** displays recognized template IDs and the
+proposed kinds without changing the source. **Apply reviewed stage conversion**
+recomputes that plan and refuses a changed target or source hash. It saves an
+adjacent backup of the exact original TOML and replaces the lab atomically.
 
-## Transition plan
+Only exact, current registered generated shapes become templates. Unknown,
+modified, obsolete or app-owned snippets remain exact `raw_python`. Arbitrary
+Python and old ORCHESTRATE snippets are not automatically rewritten.
 
-### Phase 1
+Existing labs remain usable under their existing runtime prerequisites. A
+future compatibility-retirement policy requires evidence that active labs have
+been converted; it is separate from this implementation.
 
-Add the structured fields for newly created stages while keeping support for
-legacy code stages.
+## Notebook roundtrip and ownership
 
-### Phase 2
+Supervisor exports preserve structured metadata in `agilab.stage_cell` and
+include it in stage fingerprints. Import restores that metadata before
+reconciling the editable Python source. An intentional notebook code edit
+becomes custom Python; unchanged structured stages retain their template
+identity and drift checks.
 
-Replace ad-hoc legacy repair logic with explicit stale-stage detection for
-structured stages. Existing raw Python remains untouched.
+See the native React and notebook guide for source recovery, reviewed cell edits
+and explicit setup-cell conversion. Mixed runtimes retain their supervisor and
+external-runtime boundaries.
 
-### Phase 3
+## Validation boundary
 
-Provide a one-shot converter for older labs:
-
-- convert known generated snippets into ``template`` stages
-- keep unknown snippets as ``raw_python``
-
-### Phase 4
-
-Retire the remaining compatibility helpers once the majority of active labs have
-been converted and the refresh workflow is well established.
-
-## Non-goals
-
-- banning custom Python snippets entirely
-- parsing arbitrary Python into structured stages
-- guaranteeing automated conversion for every hand-edited snippet
-- encoding app-specific meaning directly into ``template_id``
-
-## Product impact
-
-This feature improves trust in AGILab pipeline execution. Instead of forcing the
-user to reason about raw Python drift, AGILab would tell them exactly which
-stages are current, which are stale, and which are fully custom.
-
-That is a cleaner contract for both end users and developers, and it reduces the
-maintenance burden of keeping generated stages aligned with changing application
-interfaces.
-
-It also gives AGILab a clearer ownership boundary: orchestration owns template
-families and their versions, while applications only provide the runtime target
-and business action invoked by the stage.
+Focused regression tests exercise TOML persistence, actual save/run/export
+entrypoints, payload and registry drift, backup and concurrent-edit protection,
+legacy builtin labs and native Python UI controls. Notebook execution evidence
+uses fresh Python kernels. These checks do not certify cloud workers, foreign
+kernels, private data or a public deployment.
