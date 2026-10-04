@@ -223,7 +223,7 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {
-    "": ("Turn experiments", "First proof: built-in demo"),
+    "": ("Turn experiments", "Try the flight telemetry demo"),
     "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
@@ -234,7 +234,7 @@ PAGE_EXPECTED_TEXT = {
 }
 PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "PROJECT_EDITOR": 5, "PROJECT_EDIT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
-    "HOME": ("Turn experiments", "First proof: built-in demo"),
+    "HOME": ("Turn experiments", "Try the flight telemetry demo"),
     "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),

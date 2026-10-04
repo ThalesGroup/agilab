@@ -43,9 +43,10 @@ sidebar **Documentation** link.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The native home interface connects PROJECT, ORCHESTRATE, WORKFLOW and
-   ANALYSIS. This capture comes from the installed UI and notebook wheels,
-   with the built-in flight telemetry project selected.
+   The native home interface offers one recommended demo journey:
+   **Prepare demo** -> **Run demo** -> **Explore results**. Notebook entry paths
+   and workspace shortcuts remain in collapsed sections. This source capture
+   comes from an isolated local workspace; it does not claim public deployment.
 
 Page bundles
 ------------

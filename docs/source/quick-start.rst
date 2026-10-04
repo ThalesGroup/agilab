@@ -197,20 +197,21 @@ machine-readable proof record.
 
 4. **Use the landing-page first-proof wizard**
 
-   The web UI landing page exposes the current first-proof path directly:
+   The web UI landing page recommends one built-in demo journey. Each action is
+   explicit:
 
-   - click ``1. DEPLOY demo`` to select ``flight_telemetry_project`` and run
+   - click ``1. Prepare demo`` to select ``flight_telemetry_project`` and run
      ORCHESTRATE ``Deploy scheduler & workers``
-   - click ``2. RUN demo`` to start the local ORCHESTRATE ``RUN`` action with
+   - click ``2. Run demo`` to start the local ORCHESTRATE ``RUN`` action with
      cluster, benchmark, and service mode off
-   - click ``3. OPEN ANALYSIS`` after evidence exists to open the built-in
+   - click ``3. Explore results`` after evidence exists to open the built-in
      analysis route
 
    These three proof actions are shown as a compact row on the landing page.
    They open the target page in a new browser tab so the first-proof guide
    remains available while ORCHESTRATE or ANALYSIS loads.
 
-   If you want to start from a notebook, use the same wizard's
+   For notebooks, open **Notebook and other ways to start** and use the
    ``Create from built-in notebook`` button for AGILAB's packaged sample; there
    is no notebook file to locate or upload. The wizard opens ``PROJECT`` ->
    ``Create`` -> ``From notebook`` with the bundled sample already selected;

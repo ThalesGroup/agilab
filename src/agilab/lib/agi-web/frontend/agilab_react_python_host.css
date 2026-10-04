@@ -10,3 +10,4 @@
 .py-app[data-operation="text_input"] .py-island,
 .py-app[data-operation="text_area"] .py-island,
 .py-app[data-operation="number_input"] .py-island{pointer-events:auto}
+.py-link-button[aria-disabled="true"] {opacity:.55;cursor:default}

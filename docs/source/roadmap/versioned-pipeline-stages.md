@@ -64,7 +64,11 @@ exports reject stale structured stages before using their code.
 
 The user can choose:
 
-- **Apply template parameters** to apply reviewed literal parameters.
+- Edit labelled app, input/output, mode, action and reset fields, then use
+  **Apply template parameters** to apply the reviewed literals.
+- Open **Advanced parameters** and select **Edit complete parameters as JSON**
+  for the complete document. Unsupported, unknown, nested, missing and null
+  values stay intact; the renderer still validates explicit changes.
 - **Refresh from template** to render with the current registered contract.
 - **Keep as custom Python** to retain the exact source as `raw_python`.
 

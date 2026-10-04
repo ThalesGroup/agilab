@@ -62,9 +62,9 @@ What should I run first?
 
 Run one local first-proof lane before branching out:
 
-- built-in lane: landing page -> ``1. DEPLOY demo`` -> ``2. RUN demo`` ->
-  ``3. OPEN ANALYSIS`` for ``flight_telemetry_project``
-- notebook lane: landing page -> ``Create from built-in notebook`` to create
+- built-in lane: landing page -> ``1. Prepare demo`` -> ``2. Run demo`` ->
+  ``3. Explore results`` for ``flight_telemetry_project``
+- notebook lane: landing page -> **Notebook and other ways to start** -> ``Create from built-in notebook`` to create
   ``flight-telemetry-from-notebook-project``, then prove it with ORCHESTRATE
   ``Deploy scheduler & workers`` and ``RUN``
 

@@ -407,7 +407,10 @@ agilab
 In this source checkout, `agi-web` serves the React interface and renders retained
 Python pipeline, geographic and administration views through its own Python UI
 API. Maps and analysis curves use the same React components in the web
-interface and Jupyter. Updated package
+interface and Jupyter. Home recommends Prepare demo → Run demo → Explore results;
+notebook entry points and workspace shortcuts are available in collapsed sections.
+WORKFLOW templates use labelled parameter fields, with complete JSON available
+under Advanced parameters. Updated package
 publication and hosted deployment are separate from this source migration;
 previously published wheels retain the dependencies of their release.
 

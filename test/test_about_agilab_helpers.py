@@ -6885,171 +6885,54 @@ def test_env_editor_refresh_share_dir_success_and_ignored_empty(tmp_path, monkey
     assert env.dataframe_path == tmp_path / "share" / "flight_telemetry" / "dataframe"
 
 
-def test_render_newcomer_first_proof_places_wizard_before_diagnostics(
-    tmp_path,
-    monkeypatch,
+def test_render_newcomer_first_proof_keeps_one_default_demo_and_optional_paths(
+    tmp_path, monkeypatch,
 ):
     apps_path = tmp_path / "apps"
-    flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
-    flight_telemetry_project.mkdir(parents=True)
+    demo_path = apps_path / "builtin" / "flight_telemetry_project"
+    demo_path.mkdir(parents=True)
     fake_st = _FakeStreamlit()
     env = SimpleNamespace(
-        apps_path=apps_path,
-        app="minimal_app_project",
-        AGILAB_LOG_ABS=tmp_path / "log",
-        st_resources=tmp_path / "resources",
+        apps_path=apps_path, app="minimal_app_project",
+        AGILAB_LOG_ABS=tmp_path / "log", st_resources=tmp_path / "resources",
     )
-
     monkeypatch.setattr(about_agilab, "st", fake_st)
     monkeypatch.setattr(about_agilab, "display_landing_page", lambda _path: None)
 
     about_agilab.render_newcomer_first_proof(env)
 
-    wizard = _event_index(
-        fake_st.events,
-        "markdown",
-        "**First proof: built-in demo**",
+    alternatives = _event_index(
+        fake_st.events, "expander", "Notebook and other ways to start:False"
     )
-    install_button = _event_index(fake_st.events, "link_button", "1. DEPLOY demo")
-    install_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `Deploy scheduler & workers`")
-    run_button = _event_index(fake_st.events, "link_button", "2. RUN demo")
-    run_hint = _event_index(fake_st.events, "caption", "ORCHESTRATE `RUN`")
-    open_analysis = _event_index(fake_st.events, "link_button", "3. OPEN ANALYSIS")
-    link_types = {
-        body.rsplit(":", 1)[0]: body.rsplit(":", 1)[1]
-        for kind, body in fake_st.events
-        if kind == "link_type"
-    }
-    analysis_hint = next(
-        index
-        for index in range(open_analysis + 1, len(fake_st.events))
-        if fake_st.events[index][0] == "caption"
-        and "Opens ANALYSIS on `view_maps`" in fake_st.events[index][1]
-    )
-    notebook_option = _event_index(
-        fake_st.events, "expander", "Create from included notebook:False"
-    )
-    notebook_start = _event_index(
-        fake_st.events, "link_button", "Create from built-in notebook"
-    )
-    notebook_hint = _event_index(
-        fake_st.events,
-        "caption",
-        "No file to find or upload: AGILAB opens PROJECT",
-    )
-    notebook_full_proof = _event_index(
-        fake_st.events,
-        "expander",
-        "Notebook to validated app: full proof:False",
-    )
-    proof_details = _event_index(
-        fake_st.events,
-        "expander",
-        "If it fails / proof details:False",
-    )
-    chooser = _event_index(
-        fake_st.events,
-        "markdown",
-        "**Choose your next proof**",
-    )
-    progress = _event_index(fake_st.events, "markdown", "**Progress**")
-    validated_path = _event_index(fake_st.events, "caption", "Validated path:")
-
-    assert [body for kind, body in fake_st.events if kind == "expander"] == [
-        "Create from included notebook:False",
-        "Notebook to validated app: full proof:False",
-        "If it fails / proof details:False",
+    before_alternatives = fake_st.events[:alternatives]
+    assert [body for kind, body in before_alternatives if kind == "link_button"] == [
+        "1. Prepare demo", "2. Run demo", "3. Explore results",
     ]
-    assert not any(
-        "First proof path:" in body
-        for kind, body in fake_st.events
-        if kind == "caption"
-    )
-    pre_details = fake_st.events[:proof_details]
-    pre_detail_markdown = [body for kind, body in pre_details if kind == "markdown"]
-    assert pre_detail_markdown[0] == "**First proof: built-in demo**"
-    assert "| Step | Status | Action | Evidence |" in pre_detail_markdown[1]
-    assert "Download pipeline notebook" in pre_detail_markdown[1]
-    assert "lab_stages.ipynb" in pre_detail_markdown[1]
-    assert pre_detail_markdown[2] == "**Choose your next proof**"
-    assert "**Run the built-in proof**" in pre_detail_markdown[3]
-    assert "Flight telemetry first proof" in pre_detail_markdown[3]
-    assert "Capability Map" in pre_detail_markdown[3]
-    assert "capability-map.html" in pre_detail_markdown[3]
-    assert "| Route | Evidence signal | Access |" not in pre_detail_markdown[3]
-    assert "Mission decision" not in pre_detail_markdown[3]
-    assert "PyTorch playground" not in pre_detail_markdown[3]
-    assert [
-        body
-        for kind, body in pre_details
-        if kind == "selectbox" and body == "What do you want to prove first?"
-    ]
-    assert [body for kind, body in pre_details if kind == "columns"] == ["3"]
-    first_action_column = _event_index(fake_st.events, "enter_column", "0")
-    second_action_column = _event_index(fake_st.events, "enter_column", "1")
-    third_action_column = _event_index(fake_st.events, "enter_column", "2")
-    caption_bodies = [body for kind, body in pre_details if kind == "caption"]
-    assert len(caption_bodies) == 13
-    assert caption_bodies[0] == (
-        "Recommended path: run the built-in flight telemetry demo, then inspect the generated evidence. Notebook-first paths are below: use AGILAB's included notebook first; upload your own notebook from PROJECT Create when you are ready."
-    )
-    assert (
-        caption_bodies[1]
-        == "Runs ORCHESTRATE `Deploy scheduler & workers` for `flight_telemetry_project`."
-    )
-    assert caption_bodies[2] == "Runs ORCHESTRATE `RUN` for the same demo."
-    assert (
-        caption_bodies[3] == "Opens ANALYSIS on `view_maps` for the generated evidence."
-    )
-    assert caption_bodies[4] == "Create from included notebook"
-    assert caption_bodies[5] == (
-        "No file to find or upload: AGILAB opens PROJECT with its bundled notebook already selected."
-    )
-    assert caption_bodies[6] == (
-        "Then click PROJECT `Create`; it builds `flight_telemetry_from_notebook_project`."
-    )
-    assert (
-        caption_bodies[7] == "After creation, run ORCHESTRATE `Deploy scheduler & workers` and `RUN`."
-    )
-    assert caption_bodies[8] == (
-        "For your own notebook: open PROJECT -> Create -> From notebook -> Upload your own notebook."
-    )
-    assert caption_bodies[9] == (
-        "Use this lane when the starting asset is a notebook and the target is a reusable app with a no-lock-in handoff."
-    )
-    assert caption_bodies[10].startswith("Adoption gate: Not ready yet.")
-    assert "Run one local proof first" in caption_bodies[10]
-    assert caption_bodies[11].startswith("Handoff bundle:")
-    assert "strict security-check output" in caption_bodies[11]
-    assert caption_bodies[12].startswith("What do you want to prove first?")
-    assert "Run the built-in proof" in caption_bodies[12]
-    assert "Import the included notebook" in caption_bodies[12]
-    assert "See AI/ML demos" in caption_bodies[12]
-    assert "Validate engineering evidence" in caption_bodies[12]
-    assert "Capability Map" in caption_bodies[12]
-    assert link_types == {
-        "1. DEPLOY demo": "secondary",
-        "2. RUN demo": "secondary",
-        "3. OPEN ANALYSIS": "secondary",
-        "Create from built-in notebook": "secondary",
-    }
-    assert not [body for kind, body in pre_details if kind == "file_uploader"]
-    assert not [body for kind, body in pre_details if kind == "download_button"]
-    assert not [body for kind, body in pre_details if kind == "page_link"]
-    assert not any(
-        "agilab-proof" in body for kind, body in fake_st.events if kind == "markdown"
-    )
-    assert ("button", "1. Select demo") not in fake_st.events
-    assert ("link_button", "1. Select demo") not in fake_st.events
-    assert wizard < first_action_column < install_button < install_hint
-    assert install_hint < second_action_column < run_button < run_hint
-    assert run_hint < third_action_column < open_analysis
-    assert (
-        open_analysis < analysis_hint < notebook_option < notebook_start < notebook_hint
-    )
-    assert notebook_hint < notebook_full_proof < chooser < proof_details
-    assert proof_details < progress < validated_path
+    assert ("link_type", "1. Prepare demo:primary") in before_alternatives
+    assert not any(kind in {"selectbox", "file_uploader"} for kind, _ in before_alternatives)
+    hints = " ".join(body for kind, body in before_alternatives if kind == "caption")
+    assert "This does not run it" in hints
+    assert "After preparation succeeds" in hints
+    assert "minimal_app_project" in hints
+    assert "ORCHESTRATE" not in hints
+    assert "scheduler" not in hints
+    assert "worker" not in hints
+    assert env.app == "minimal_app_project"
+    assert "_orchestrate_pending_action" not in fake_st.session_state
+    assert "_orchestrate_pending_install_action" not in fake_st.session_state
 
+    alternative_start = _event_index(
+        fake_st.events, "enter_expander", "Notebook and other ways to start"
+    )
+    alternative_end = _event_index(
+        fake_st.events, "exit_expander", "Notebook and other ways to start"
+    )
+    optional_events = fake_st.events[alternative_start:alternative_end]
+    assert ("link_button", "Create from built-in notebook") in optional_events
+    assert ("expander", "Notebook to validated app: full proof:False") in optional_events
+    assert ("selectbox", "What do you want to prove first?") in optional_events
+    assert any("Download pipeline notebook" in body for kind, body in optional_events if kind == "markdown")
+    assert ("expander", "If it fails / proof details:False") in fake_st.events
 
 def test_about_first_proof_buttons_keep_compact_width():
     source = Path("src/agilab/about_page/onboarding.py").read_text(encoding="utf-8")
@@ -7349,9 +7232,9 @@ def test_first_proof_wizard_omits_redundant_select_demo_step(
     assert activated == []
     assert ("button", "1. Select demo") not in fake_st.events
     assert ("link_button", "1. Select demo") not in fake_st.events
-    assert ("link_button", "1. DEPLOY demo") in fake_st.events
-    assert ("link_button", "2. RUN demo") in fake_st.events
-    assert ("link_button", "3. OPEN ANALYSIS") in fake_st.events
+    assert ("link_button", "1. Prepare demo") in fake_st.events
+    assert ("link_button", "2. Run demo") in fake_st.events
+    assert ("link_button", "3. Explore results") in fake_st.events
     assert not any(kind == "switch_page" for kind, _body in fake_st.events)
 
 
@@ -7362,7 +7245,7 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"1. DEPLOY demo": True})
+    fake_st = _FakeStreamlit(button_values={"1. Prepare demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="minimal_app_project",
@@ -7382,7 +7265,7 @@ def test_first_proof_wizard_install_link_opens_orchestrate_in_new_tab(
     install_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("1. DEPLOY demo:")
+        if kind == "link_url" and body.startswith("1. Prepare demo:")
     )
     parsed_url = urlparse(install_url)
     query = parse_qs(parsed_url.query)
@@ -7401,7 +7284,7 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"2. RUN demo": True})
+    fake_st = _FakeStreamlit(button_values={"2. Run demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="minimal_app_project",
@@ -7421,7 +7304,7 @@ def test_first_proof_wizard_run_link_opens_orchestrate_in_new_tab(
     run_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("2. RUN demo:")
+        if kind == "link_url" and body.startswith("2. Run demo:")
     )
     parsed_url = urlparse(run_url)
     query = parse_qs(parsed_url.query)
@@ -7447,7 +7330,7 @@ def test_first_proof_wizard_links_do_not_replace_current_page(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"1. DEPLOY demo": True})
+    fake_st = _FakeStreamlit(button_values={"1. Prepare demo": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -7470,7 +7353,7 @@ def test_first_proof_wizard_links_do_not_replace_current_page(
     about_agilab.render_newcomer_first_proof(env)
 
     assert ("button", "1. Demo selected") not in fake_st.events
-    assert ("link_button", "1. DEPLOY demo") in fake_st.events
+    assert ("link_button", "1. Prepare demo") in fake_st.events
     assert ("switch_page", "ORCHESTRATE_PAGE_OBJECT") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
     assert fake_st.query_params == {}
@@ -7569,7 +7452,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     apps_path = tmp_path / "apps"
     flight_telemetry_project = apps_path / "builtin" / "flight_telemetry_project"
     flight_telemetry_project.mkdir(parents=True)
-    fake_st = _FakeStreamlit(button_values={"3. OPEN ANALYSIS": True})
+    fake_st = _FakeStreamlit(button_values={"3. Explore results": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -7588,7 +7471,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     analysis_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("3. OPEN ANALYSIS:")
+        if kind == "link_url" and body.startswith("3. Explore results:")
     )
     parsed_url = urlparse(analysis_url)
     query = parse_qs(parsed_url.query)
@@ -7596,7 +7479,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_without_run_evidence(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
-    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
+    assert ("link_type", "3. Explore results:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
@@ -7611,7 +7494,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     output_dir = tmp_path / "log" / "execute" / "flight_telemetry"
     output_dir.mkdir(parents=True)
     (output_dir / "forecast_metrics.json").write_text("{}", encoding="utf-8")
-    fake_st = _FakeStreamlit(button_values={"3. OPEN ANALYSIS": True})
+    fake_st = _FakeStreamlit(button_values={"3. Explore results": True})
     env = SimpleNamespace(
         apps_path=apps_path,
         app="flight_telemetry_project",
@@ -7630,7 +7513,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     analysis_url = next(
         body.split(":", 1)[1]
         for kind, body in fake_st.events
-        if kind == "link_url" and body.startswith("3. OPEN ANALYSIS:")
+        if kind == "link_url" and body.startswith("3. Explore results:")
     )
     parsed_url = urlparse(analysis_url)
     query = parse_qs(parsed_url.query)
@@ -7638,7 +7521,7 @@ def test_first_proof_wizard_analysis_click_opens_analysis_after_run_output(
     assert parsed_url.path == "/ANALYSIS"
     assert query["active_app"] == ["flight_telemetry_project"]
     assert query["current_page"][0].endswith("view_maps.py")
-    assert ("link_type", "3. OPEN ANALYSIS:secondary") in fake_st.events
+    assert ("link_type", "3. Explore results:secondary") in fake_st.events
     assert ("switch_page", "pages/4_ANALYSIS.py") not in fake_st.events
     assert ("switch_page", "pages/2_ORCHESTRATE.py") not in fake_st.events
 
