@@ -3,7 +3,7 @@ agi-web native runtime
 
 ``agi_web`` supplies AGILAB's native React host, Python UI facade and portable
 component contracts. It is used by the main interface, retained Python views
-and notebook widgets. The current source package does not require Streamlit.
+and notebook widgets, using the native React runtime and Python adapters.
 For installation, callback examples and export boundaries, see
 :doc:`agilab-native-react-ui-notebook-export`.
 

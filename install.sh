@@ -1330,17 +1330,6 @@ write_env_values() {
     echo -e "${GREEN}.env file updated.${NC}"
 }
 
-configure_streamlit() {
-    local config_dir="$HOME/.streamlit"
-    local config_file="$config_dir/config.toml"
-    local desired="${STREAMLIT_MAX_MESSAGE_SIZE:-600}"
-
-    # Preferred approach: rely on AgiEnv to propagate STREAMLIT_MAX_MESSAGE_SIZE /
-    # STREAMLIT_SERVER_MAX_MESSAGE_SIZE into the runtime environment. Avoid touching
-    # ~/.streamlit/config.toml to prevent user-config conflicts.
-    echo -e "${GREEN}Skipping Streamlit config file update; set STREAMLIT_MAX_MESSAGE_SIZE in .env for AgiEnv to propagate.${NC}"
-}
-
 install_core() {
     framework_dir="$AGI_INSTALL_PATH/src/agilab/core"
     chmod +x "$framework_dir/install.sh"
@@ -1835,8 +1824,6 @@ $UV pip install --upgrade --no-deps \
 popd > /dev/null
 
 maybe_run_root_tests
-
-configure_streamlit
 
 write_tokki_scope() {
     # Emit .tokki/scope so Tokki excludes apps that were not selected at

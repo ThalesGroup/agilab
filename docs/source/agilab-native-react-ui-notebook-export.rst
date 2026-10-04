@@ -2,8 +2,8 @@ Native React UI and notebook export
 ===================================
 
 AGILAB's source interface uses React and the ``agi_web`` Python view host.
-The main interface, shared coordinate map and analysis curves run without a
-Streamlit dependency. Pipeline editing, specialised geographic views and
+The main interface, shared coordinate map and analysis curves render through
+the native React host. Pipeline editing, specialised geographic views and
 administration remain Python views, rendered by the same native host.
 
 .. important::
@@ -103,7 +103,7 @@ For an app-aware view, pass ``active_app="/path/to/app_project"``. The Python
 file and app directory must be available to that kernel. The returned AnyWidget
 renders the controls inside the notebook, including callbacks, state and file
 downloads. Its styles are isolated in a Shadow DOM. The widget transport runs
-through the notebook kernel; it does not open a separate Streamlit browser.
+through the notebook kernel and renders the view with the native notebook adapter.
 
 The interface embeds local React, Graphviz, Vega and mathematics assets. This
 avoids a rendering dependency on a CDN. It does not make a scientific app's

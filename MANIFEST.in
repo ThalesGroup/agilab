@@ -12,5 +12,4 @@ include LICENSE
 include pyproject.toml
 include MANIFEST.in
 include setup.py
-include .streamlit/config.toml
 include tools/package_wheel_sanitizer.py
