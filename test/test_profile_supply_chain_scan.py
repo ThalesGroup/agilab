@@ -136,10 +136,11 @@ def _source_package(root: Path, name: str, metadata: str) -> SimpleNamespace:
     return SimpleNamespace(name=name, project=name)
 
 
-def test_packaged_scan_resolves_unpublished_source_versions_and_extra_dependencies(
+@pytest.fixture
+def unpublished_source_scan(
     tmp_path: Path, monkeypatch,
-) -> None:
-    """Exercise uv and CycloneDX with no registry or pre-existing first-party release."""
+) -> SimpleNamespace:
+    """Prepare source packages and a third-party wheel without any registry."""
     module = _load_module()
     core = _source_package(tmp_path, "agi-scan-core", 'dependencies = []\n')
     ui = _source_package(
@@ -165,37 +166,57 @@ def test_packaged_scan_resolves_unpublished_source_versions_and_extra_dependenci
     command = [uv, "pip", "compile", "--no-sources", "--generate-hashes", str(requirements),
                "--offline", "--no-index", "--find-links", str(wheelhouse),
                "--output-file", str(compiled)]
-    before = subprocess.run(command, capture_output=True, text=True, cwd=tmp_path)
+    return SimpleNamespace(
+        module=module, core=core, ui=ui, root=tmp_path, command=command,
+        requirements=requirements, constraints=constraints, compiled=compiled,
+    )
+
+
+def test_packaged_scan_resolves_unpublished_source_versions_and_extra_dependencies(
+    unpublished_source_scan: SimpleNamespace,
+) -> None:
+    """The source-resolution contract runs even without optional SBOM tooling."""
+    scan = unpublished_source_scan
+    before = subprocess.run(scan.command, capture_output=True, text=True, cwd=scan.root)
     assert before.returncode != 0
     assert "agi-scan-ui" in before.stderr
-    subprocess.run(command + ["--constraint", str(constraints)], check=True, capture_output=True, cwd=tmp_path)
-    text = compiled.read_text(encoding="utf-8")
+    subprocess.run(scan.command + ["--constraint", str(scan.constraints)], check=True, capture_output=True, cwd=scan.root)
+    text = scan.compiled.read_text(encoding="utf-8")
     assert "external-widget==1.2" in text
     assert "agi-scan-core @ file:" in text
     assert "agi-scan-ui @ file:" in text
-    assert requirements.read_text(encoding="utf-8") == "agi-scan-ui[widgets]>=9999\n"
-    audit = tmp_path / "requirements-audit.txt"
-    module.write_pip_audit_requirements(compiled, audit)
+    assert scan.requirements.read_text(encoding="utf-8") == "agi-scan-ui[widgets]>=9999\n"
+    audit = scan.root / "requirements-audit.txt"
+    scan.module.write_pip_audit_requirements(scan.compiled, audit)
     assert "agi-scan-core @" not in audit.read_text(encoding="utf-8")
     assert "agi-scan-ui @" not in audit.read_text(encoding="utf-8")
     assert "external-widget==1.2" in audit.read_text(encoding="utf-8")
     assert "--hash=sha256:" in audit.read_text(encoding="utf-8")
-    sbom = tmp_path / "sbom-cyclonedx.json"
-    subprocess.run([sys.executable, "-m", "cyclonedx_py", "requirements", str(compiled),
+    scan.requirements.write_text("agi-scan-ui>=10000\n", encoding="utf-8")
+    conflict = subprocess.run(scan.command + ["--constraint", str(scan.constraints)], capture_output=True, cwd=scan.root)
+    assert conflict.returncode != 0, "Local source constraints must retain requested version bounds"
+
+
+def test_packaged_scan_real_cyclonedx_records_first_party_provenance(
+    unpublished_source_scan: SimpleNamespace,
+) -> None:
+    if importlib.util.find_spec("cyclonedx_py") is None:
+        pytest.skip("CycloneDX is optional agilab[dev] tooling; source-resolution regression runs separately")
+    scan = unpublished_source_scan
+    subprocess.run(scan.command + ["--constraint", str(scan.constraints)], check=True, capture_output=True, cwd=scan.root)
+    sbom = scan.root / "sbom-cyclonedx.json"
+    subprocess.run([sys.executable, "-m", "cyclonedx_py", "requirements", str(scan.compiled),
                     "--output-file", str(sbom)], check=True, capture_output=True)
-    module.add_first_party_sbom_provenance(compiled, sbom)
+    scan.module.add_first_party_sbom_provenance(scan.compiled, sbom)
     components = {c["name"]: c for c in json.loads(sbom.read_text())["components"]}
     assert components["external-widget"]["version"] == "1.2"
-    for package in (core, ui):
+    for package in (scan.core, scan.ui):
         component = components[package.name]
         assert component["version"] == "9999.0.1"
         properties = {p["name"]: p["value"] for p in component["properties"]}
         assert properties["agilab:source-manifest"] == f"{package.name}/pyproject.toml"
         assert len(properties["agilab:source-manifest:sha256"]) == 64
-        assert any(r["url"] == (tmp_path / package.project).as_uri() for r in component["externalReferences"])
-    requirements.write_text("agi-scan-ui>=10000\n", encoding="utf-8")
-    conflict = subprocess.run(command + ["--constraint", str(constraints)], capture_output=True, cwd=tmp_path)
-    assert conflict.returncode != 0, "Local source constraints must retain requested version bounds"
+        assert any(r["url"] == (scan.root / package.project).as_uri() for r in component["externalReferences"])
 
 
 def test_first_party_sources_fail_closed_on_missing_or_mismatched_metadata(tmp_path: Path, monkeypatch) -> None:
