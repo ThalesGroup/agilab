@@ -136,9 +136,9 @@ interactive exploration into a replayable, inspectable workflow:
   fields, and UAV queue-family packet/PDR fields, and flags invalid reduce JSON
   without hiding the rest of the evidence page
 - a repository guardrail requires every non-template built-in app to expose a
-  reducer contract, while ``minimal_app_project`` and ``multi_app_dag_project`` are
-  explicitly template-only until a clone or concrete worker flow adds merge
-  outputs
+  metrics reducer contract; ``minimal_app_project`` now persists concrete
+  CSV/Parquet pass-through output but remains exempt from that metrics-summary
+  contract, while ``multi_app_dag_project`` remains a planning template
 - the public reducer benchmark validates 8 partials / 80,000 synthetic items in
   ``0.003s`` against a ``5.0s`` target
 
@@ -351,10 +351,12 @@ between research experiments and engineering validation:
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
-That supports a ``Strategic potential`` score of ``4.3 / 5``. The current
-release gate, packaged-example maturity contract, release proof, and live
-Hugging Face smoke align the public GitHub, PyPI, docs, and demo state required
-for that threshold. It is not scored at ``4.5 / 5`` because that level still
+The ``Strategic potential`` benchmark remains ``4.3 / 5``, provisional for the
+native React release. Its release gate, packaged-example maturity contract,
+release proof, and live Hugging Face smoke must align the public GitHub, PyPI,
+docs, and demo state before that threshold is confirmed for the new version.
+The previous publication proof remains historical. It is not scored at
+``4.5 / 5`` because that level still
 requires two attached external fresh-machine proofs, live multi-app operator UI
 evidence, and credentialed operator-gated connector validation. The public
 scorecard in :doc:`strategic-potential` keeps those boundaries explicit.
@@ -362,6 +364,28 @@ scorecard in :doc:`strategic-potential` keeps those boundaries explicit.
 Together, the current public category scores round to an overall public
 evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,
 not a production MLOps certification.
+
+October 4, 2026 reevaluation
+----------------------------
+
+The native React migration adds verified desktop/mobile browser flows, retained
+Python forms, fresh-kernel notebook rendering and callbacks, and functional
+checks for all 14 builtin payloads. The complete local GUI profile passes
+5,283 tests with six skips. DAG evidence covers planning, and R execution uses
+the documented external R/jsonlite prerequisites. These are source and local
+installed-package proofs;
+test counts do not measure adoption, return on investment, or production uptime.
+The public source change is recorded in
+`pull request 1065 <https://github.com/ThalesGroup/agilab/pull/1065>`_.
+
+The documented thresholds therefore retain ``4.0 / 5`` for adoption, research
+experimentation, and engineering prototyping, and ``3.2 / 5`` for production
+readiness. The arithmetic mean remains ``3.8 / 5``; strategic potential is
+evaluated separately. Broader external replication, cloud deployment proofs,
+and production operating evidence are still needed to raise the categories.
+Private application validation does not count as new public replication.
+The native release's ``4.3 / 5`` strategic benchmark stays provisional until
+the publication and hosted-demo proofs align.
 
 Where AGILab helps
 ------------------

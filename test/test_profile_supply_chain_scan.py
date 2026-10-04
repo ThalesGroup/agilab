@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 import tomllib
+from types import SimpleNamespace
+import zipfile
 
 import pytest
 
@@ -101,6 +105,154 @@ def test_packaged_projects_profile_collects_build_source_dependencies(tmp_path: 
     requirements = destination.read_text(encoding="utf-8")
     assert "skforecast>=0.19,<0.20" in requirements
     assert "torch>=2.8.0,<3" in requirements
+    assert scan.source_constraints in scan.commands[0]
+    assert "--no-sources" in scan.commands[0]
+
+
+def _source_package(root: Path, name: str, metadata: str) -> SimpleNamespace:
+    project = root / name
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        '[build-system]\nrequires = []\nbuild-backend = "metadata_backend"\n'
+        'backend-path = ["."]\n[project]\n'
+        f'name = "{name}"\nversion = "9999.0.1"\n' + metadata,
+        encoding="utf-8",
+    )
+    (project / "metadata_backend.py").write_text(
+        "import pathlib, tomllib\n"
+        "def prepare_metadata_for_build_wheel(metadata_directory, config_settings=None):\n"
+        "    p = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']\n"
+        "    dirname = p['name'].replace('-', '_') + '-' + p['version'] + '.dist-info'\n"
+        "    d = pathlib.Path(metadata_directory) / dirname; d.mkdir()\n"
+        "    lines = ['Metadata-Version: 2.3', 'Name: ' + p['name'], 'Version: ' + p['version']]\n"
+        "    lines += ['Requires-Dist: ' + r for r in p.get('dependencies', [])]\n"
+        "    for extra, requirements in p.get('optional-dependencies', {}).items():\n"
+        "        lines.append('Provides-Extra: ' + extra)\n"
+        "        lines += ['Requires-Dist: ' + r + '; extra == ' + repr(extra) for r in requirements]\n"
+        "    (d / 'METADATA').write_text('\\n'.join(lines) + '\\n')\n"
+        "    return dirname\n",
+        encoding="utf-8",
+    )
+    return SimpleNamespace(name=name, project=name)
+
+
+@pytest.fixture
+def unpublished_source_scan(
+    tmp_path: Path, monkeypatch,
+) -> SimpleNamespace:
+    """Prepare source packages and a third-party wheel without any registry."""
+    module = _load_module()
+    core = _source_package(tmp_path, "agi-scan-core", 'dependencies = []\n')
+    ui = _source_package(
+        tmp_path, "agi-scan-ui",
+        'dependencies = ["agi-scan-core>=9999"]\n'
+        '[project.optional-dependencies]\nwidgets = ["external-widget>=1,<2"]\n',
+    )
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "PACKAGE_CONTRACTS", (core, ui))
+    wheelhouse = tmp_path / "wheelhouse"
+    wheelhouse.mkdir()
+    with zipfile.ZipFile(wheelhouse / "external_widget-1.2-py3-none-any.whl", "w") as wheel:
+        wheel.writestr("external_widget-1.2.dist-info/METADATA", "Metadata-Version: 2.3\nName: external-widget\nVersion: 1.2\n")
+        wheel.writestr("external_widget-1.2.dist-info/WHEEL", "Wheel-Version: 1.0\nGenerator: regression-fixture\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+        wheel.writestr("external_widget-1.2.dist-info/RECORD", "")
+    requirements = tmp_path / "requirements.in"
+    requirements.write_text("agi-scan-ui[widgets]>=9999\n", encoding="utf-8")
+    constraints = tmp_path / "agilab-first-party-source-constraints.txt"
+    module.write_first_party_constraints(constraints)
+    compiled = tmp_path / "requirements.txt"
+    uv = shutil.which("uv")
+    assert uv, "The release security scan requires uv"
+    command = [uv, "pip", "compile", "--no-sources", "--generate-hashes", str(requirements),
+               "--offline", "--no-index", "--find-links", str(wheelhouse),
+               "--output-file", str(compiled)]
+    return SimpleNamespace(
+        module=module, core=core, ui=ui, root=tmp_path, command=command,
+        requirements=requirements, constraints=constraints, compiled=compiled,
+    )
+
+
+def test_packaged_scan_resolves_unpublished_source_versions_and_extra_dependencies(
+    unpublished_source_scan: SimpleNamespace,
+) -> None:
+    """The source-resolution contract runs even without optional SBOM tooling."""
+    scan = unpublished_source_scan
+    before = subprocess.run(scan.command, capture_output=True, text=True, cwd=scan.root)
+    assert before.returncode != 0
+    assert "agi-scan-ui" in before.stderr
+    subprocess.run(scan.command + ["--constraint", str(scan.constraints)], check=True, capture_output=True, cwd=scan.root)
+    text = scan.compiled.read_text(encoding="utf-8")
+    assert "external-widget==1.2" in text
+    assert "agi-scan-core @ file:" in text
+    assert "agi-scan-ui @ file:" in text
+    assert scan.requirements.read_text(encoding="utf-8") == "agi-scan-ui[widgets]>=9999\n"
+    audit = scan.root / "requirements-audit.txt"
+    scan.module.write_pip_audit_requirements(scan.compiled, audit)
+    assert "agi-scan-core @" not in audit.read_text(encoding="utf-8")
+    assert "agi-scan-ui @" not in audit.read_text(encoding="utf-8")
+    assert "external-widget==1.2" in audit.read_text(encoding="utf-8")
+    assert "--hash=sha256:" in audit.read_text(encoding="utf-8")
+    scan.requirements.write_text("agi-scan-ui>=10000\n", encoding="utf-8")
+    conflict = subprocess.run(scan.command + ["--constraint", str(scan.constraints)], capture_output=True, cwd=scan.root)
+    assert conflict.returncode != 0, "Local source constraints must retain requested version bounds"
+
+
+def test_packaged_scan_real_cyclonedx_records_first_party_provenance(
+    unpublished_source_scan: SimpleNamespace,
+) -> None:
+    if importlib.util.find_spec("cyclonedx_py") is None:
+        pytest.skip("CycloneDX is optional agilab[dev] tooling; source-resolution regression runs separately")
+    scan = unpublished_source_scan
+    subprocess.run(scan.command + ["--constraint", str(scan.constraints)], check=True, capture_output=True, cwd=scan.root)
+    sbom = scan.root / "sbom-cyclonedx.json"
+    subprocess.run([sys.executable, "-m", "cyclonedx_py", "requirements", str(scan.compiled),
+                    "--output-file", str(sbom)], check=True, capture_output=True)
+    scan.module.add_first_party_sbom_provenance(scan.compiled, sbom)
+    components = {c["name"]: c for c in json.loads(sbom.read_text())["components"]}
+    assert components["external-widget"]["version"] == "1.2"
+    for package in (scan.core, scan.ui):
+        component = components[package.name]
+        assert component["version"] == "9999.0.1"
+        properties = {p["name"]: p["value"] for p in component["properties"]}
+        assert properties["agilab:source-manifest"] == f"{package.name}/pyproject.toml"
+        assert len(properties["agilab:source-manifest:sha256"]) == 64
+        assert any(r["url"] == (scan.root / package.project).as_uri() for r in component["externalReferences"])
+
+
+def test_first_party_sources_fail_closed_on_missing_or_mismatched_metadata(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    package = _source_package(tmp_path, "agi-scan-core", 'dependencies = []\n')
+    monkeypatch.setattr(module, "PACKAGE_CONTRACTS", (package,))
+    manifest = tmp_path / package.project / "pyproject.toml"
+    manifest.write_text('[project]\nname = "unrelated"\nversion = "1"\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="metadata mismatch"):
+        module.first_party_sources(tmp_path)
+    manifest.unlink()
+    with pytest.raises(FileNotFoundError):
+        module.first_party_sources(tmp_path)
+
+
+def test_first_party_sbom_rejects_unregistered_or_missing_components(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    package = _source_package(tmp_path, "agi-scan-core", 'dependencies = []\n')
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "PACKAGE_CONTRACTS", (package,))
+    requirements = tmp_path / "requirements.txt"
+    sbom = tmp_path / "sbom-cyclonedx.json"
+    sbom.write_text('{"components": []}', encoding="utf-8")
+    requirements.write_text("unknown @ file:///unregistered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unregistered local package source"):
+        module.add_first_party_sbom_provenance(requirements, sbom)
+    requirements.write_text(f"{package.name} @ {(tmp_path / package.project).as_uri()}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="expected one source component"):
+        module.add_first_party_sbom_provenance(requirements, sbom)
+    uri = (tmp_path / package.project).as_uri()
+    requirements.write_text(f"-e {uri}\n", encoding="utf-8")
+    sbom.write_text(json.dumps({"components": [{"name": "unknown", "externalReferences": [{"url": uri}]}]}))
+    module.add_first_party_sbom_provenance(requirements, sbom)
+    component = json.loads(sbom.read_text())["components"][0]
+    assert component["name"] == package.name
+    assert component["version"] == "9999.0.1"
 
 
 def test_packaged_project_manifests_ignore_stale_generated_payload(

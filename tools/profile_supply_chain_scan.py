@@ -5,20 +5,25 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import tomllib
 from typing import Iterable, Sequence
+from urllib.parse import quote
 
 try:
     from tools.package_split_contract import (
         APP_PROJECT_PACKAGE_SPECS,
+        PACKAGE_CONTRACTS,
         app_project_name_for_package,
     )
 except ModuleNotFoundError:  # Direct execution via ``python tools/...``.
     from package_split_contract import (
         APP_PROJECT_PACKAGE_SPECS,
+        PACKAGE_CONTRACTS,
         app_project_name_for_package,
     )
 
@@ -54,6 +59,7 @@ class ProfileScan:
     pip_audit_json: str
     sbom_json: str
     input_requirements: str | None
+    source_constraints: str | None
     source_manifests: tuple[str, ...]
     commands: tuple[tuple[str, ...], ...]
 
@@ -118,6 +124,76 @@ def write_packaged_project_requirements(
     )
 
 
+def first_party_sources(repo_root: Path = REPO_ROOT) -> dict[str, dict[str, str]]:
+    """Bind registered package names to validated checkout metadata."""
+    sources: dict[str, dict[str, str]] = {}
+    for package in PACKAGE_CONTRACTS:
+        project_root = (repo_root / package.project).resolve()
+        project_root.relative_to(repo_root.resolve())
+        manifest = project_root / "pyproject.toml"
+        payload = tomllib.loads(manifest.read_text(encoding="utf-8"))
+        project = payload.get("project", {})
+        if project.get("name") != package.name or not project.get("version"):
+            raise ValueError(f"{manifest}: registered package name/version metadata mismatch")
+        sources[package.name] = {
+            "uri": project_root.as_uri(),
+            "version": str(project["version"]),
+            "manifest": manifest.relative_to(repo_root.resolve()).as_posix(),
+            "sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        }
+    return sources
+
+
+def write_first_party_constraints(destination: Path) -> None:
+    """Resolve only needed first-party dependencies from the release checkout."""
+    sources = first_party_sources(REPO_ROOT)
+    destination.write_text(
+        "# Registered AGILAB release sources; original dependency constraints still apply.\n"
+        + "\n".join(f"{name} @ {source['uri']}" for name, source in sources.items())
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def add_first_party_sbom_provenance(requirements: Path, sbom: Path) -> None:
+    """Keep local package versions and exact source-manifest identity in the SBOM."""
+    sources = first_party_sources(REPO_ROOT)
+    sources_by_uri = {source["uri"]: name for name, source in sources.items()}
+    local_requirements: list[tuple[str, str]] = []
+    for line in requirements.read_text(encoding="utf-8").splitlines():
+        named = re.match(r"^([\w.-]+)(?:\[[^\]]+\])? @ (file:\S+)", line)
+        editable = re.match(r"^(?:-e|--editable)\s+(file:\S+)", line)
+        if named:
+            local_requirements.append((named[1], named[2]))
+        elif editable:
+            local_requirements.append((sources_by_uri.get(editable[1], ""), editable[1]))
+        elif _is_local_requirement_line(line.strip()):
+            raise ValueError(f"{requirements}: unregistered local package source: {line}")
+    payload = json.loads(sbom.read_text(encoding="utf-8"))
+    for name, uri in local_requirements:
+        source = sources.get(name)
+        if source is None or uri != source["uri"]:
+            raise ValueError(f"{requirements}: unregistered local package source: {name} @ {uri}")
+        components = [
+            c for c in payload["components"]
+            if c.get("name") in (name, "unknown")
+            and any(ref.get("url") == uri for ref in c.get("externalReferences", []))
+        ]
+        if len(components) != 1:
+            raise ValueError(f"{sbom}: expected one source component for {name}")
+        component = components[0]
+        component["name"] = name
+        component["version"] = source["version"]
+        component["purl"] = f"pkg:pypi/{name}@{quote(source['version'], safe='')}"
+        component.setdefault("properties", []).extend(
+            [
+                {"name": "agilab:source-manifest", "value": source["manifest"]},
+                {"name": "agilab:source-manifest:sha256", "value": source["sha256"]},
+            ]
+        )
+    sbom.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
     """Return the command plan for one install profile."""
     if profile not in PROFILE_EXTRAS:
@@ -128,9 +204,11 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
     pip_audit_json = profile_dir / "pip-audit.json"
     sbom_json = profile_dir / "sbom-cyclonedx.json"
     input_requirements: Path | None = None
+    source_constraints: Path | None = None
     source_manifests: tuple[Path, ...] = ()
     if profile == PACKAGED_PROJECTS_PROFILE:
         input_requirements = profile_dir / "requirements.in"
+        source_constraints = profile_dir / "agilab-first-party-source-constraints.txt"
         source_manifests = packaged_project_manifests()
         export_cmd = [
             "uv",
@@ -138,8 +216,11 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
             "extra-build-dependencies",
             "pip",
             "compile",
+            "--no-sources",
             "--generate-hashes",
             str(input_requirements),
+            "--constraint",
+            str(source_constraints),
             "--output-file",
             str(requirements),
         ]
@@ -201,6 +282,7 @@ def build_profile_scan(profile: str, *, output_root: Path) -> ProfileScan:
         pip_audit_json=str(pip_audit_json),
         sbom_json=str(sbom_json),
         input_requirements=str(input_requirements) if input_requirements else None,
+        source_constraints=str(source_constraints) if source_constraints else None,
         source_manifests=tuple(str(path.relative_to(REPO_ROOT)) for path in source_manifests),
         commands=commands,
     )
@@ -257,10 +339,14 @@ def _run_plan(plan: Sequence[ProfileScan]) -> None:
                 Path(scan.input_requirements),
                 (REPO_ROOT / manifest for manifest in scan.source_manifests),
             )
+        if scan.source_constraints:
+            write_first_party_constraints(Path(scan.source_constraints))
         for index, command in enumerate(scan.commands):
             subprocess.run(command, check=True)
             if index == 0:
                 write_pip_audit_requirements(Path(scan.requirements), Path(scan.audit_requirements))
+        if scan.source_constraints:
+            add_first_party_sbom_provenance(Path(scan.requirements), Path(scan.sbom_json))
 
 
 def _build_parser() -> argparse.ArgumentParser:

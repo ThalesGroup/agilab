@@ -26,15 +26,20 @@ monitor, or standalone certification layer.
 Current score
 -------------
 
-AGILAB currently supports a ``Strategic potential`` score of ``4.3 / 5``.
+The public scorecard retains a ``Strategic potential`` benchmark of ``4.3 / 5``.
+The October 4, 2026 native React reevaluation marks that rating as provisional
+for the new release until its publication evidence is aligned.
 
 That score reflects bridge-layer value: reducing friction between exploratory
 AI work and engineering-grade validation. Future score updates should be based
 on new public evidence, not stronger wording.
 
-The ``4.3 / 5`` threshold is supported by the passing release gate and
+The ``4.3 / 5`` threshold requires a passing release gate and
 packaged-example maturity contract, plus release proof that aligns GitHub,
-PyPI, the public docs, and the live Hugging Face demo. The score remains below
+PyPI, the public docs, and the live Hugging Face demo. Local native installation,
+browser and fresh-kernel notebook proofs strengthen the workbench evidence;
+they do not establish that the new public release and hosted demo are aligned.
+The previous release proof remains historical. The score remains below
 ``4.5 / 5`` because two attached external fresh-machine proofs, live multi-app
 operator UI evidence, and credentialed operator-gated connector validation are
 not all established yet.

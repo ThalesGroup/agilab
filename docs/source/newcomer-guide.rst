@@ -176,6 +176,11 @@ cluster, and VM-based cluster validation.
 It is not scored higher yet because Azure, AWS, and GCP deployment validation
 remains open.
 
+The October 4, 2026 reevaluation retains ``4.0 / 5``. Native React startup,
+retained Python views, and exported interactive notebooks have been checked
+in local installed environments. These checks reduce demonstrated UI friction;
+they do not measure new-user success rates or close the cloud-validation gap.
+
 After day 1: cluster proof
 --------------------------
 
