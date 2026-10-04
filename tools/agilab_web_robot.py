@@ -231,7 +231,7 @@ class ReactPythonServer:
 PAGE_LOAD_SMOKE_PAGES = {
     "ABOUT": {
         "route": None,
-        "expect_any": ("First proof", "Explore more proof routes"),
+        "expect_any": ("Try the flight telemetry demo",),
         "budget_seconds": 1.2,
     },
     "PROJECT": {
@@ -813,7 +813,7 @@ def run_browser_robot(
                     assert_page_healthy(
                         page,
                         label="landing page",
-                        expect_any=("First proof", "Explore more proof routes"),
+                        expect_any=("Try the flight telemetry demo",),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),
@@ -1161,7 +1161,7 @@ def run_frontend_smoke(
                     assert_page_healthy(
                         page,
                         label="frontend landing hydration",
-                        expect_any=("First proof", "Explore more proof routes"),
+                        expect_any=("Try the flight telemetry demo",),
                         timeout_ms=timeout_ms,
                         screenshot_dir=screenshot_dir,
                     ),
