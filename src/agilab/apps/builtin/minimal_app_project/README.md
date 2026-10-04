@@ -21,16 +21,22 @@ one sitting.
 1. Select `minimal_app_project` in `PROJECT`.
 2. Open `ORCHESTRATE`.
 3. Run `Deploy scheduler & workers`.
-4. Use it as a code reference before adapting a real app.
+4. Place a CSV or Parquet table in the configured input directory and run the workflow.
+5. Use the working pass-through pipeline as a code reference before adding domain logic.
 
 ## Expected Inputs
 
-No domain input is required. The app prepares app-owned input and output paths.
+Provide at least one CSV or Parquet table in the configured input directory.
+The app prepares app-owned input and output paths. The default `nfile = 1`
+selects the first matching table; set `nfile = 0` to dispatch all tables.
 
 ## Expected Outputs
 
-The default worker writes minimal placeholder evidence and proves the packaging
-contract. It is intentionally small.
+The default worker preserves the input table values and columns, adds the
+standard `worker_id` provenance column, and writes Parquet results such as
+`0_output.parquet` in the configured output directory.
+`nskip` skips input rows and positive `nread` limits the rows read per table.
+The manager reports missing table inputs before dispatching work.
 
 ## Change One Thing
 

@@ -2523,8 +2523,10 @@ def test_create_analysis_page_bundle_writes_blank_template(tmp_path: Path, monke
     assert "get_docs_menu_items(html_file=PAGE_HELP_HTML)" in template_text
 
     fake_streamlit = _FakeAnalysisTemplateStreamlit()
+    import agi_web
+
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    monkeypatch.setattr(agi_web, "python_ui", fake_streamlit, raising=False)
     spec = importlib.util.spec_from_file_location("generated_demo_view", entrypoint)
     assert spec is not None and spec.loader is not None
     generated_module = importlib.util.module_from_spec(spec)
@@ -2981,8 +2983,10 @@ def test_render_view_page_inline_executes_page_main_with_active_app(tmp_path: Pa
         raise AssertionError("set_page_config should be suppressed during inline render")
 
     fake_streamlit.set_page_config = _forbidden_set_page_config
+    import agi_web
+
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    monkeypatch.setattr(agi_web, "python_ui", fake_streamlit, raising=False)
     monkeypatch.setattr(module, "st", fake_streamlit)
 
     active_app = tmp_path / "flight_telemetry_project"

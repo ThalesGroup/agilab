@@ -31,6 +31,8 @@ class PackageContract:
 
 
 APP_PROJECT_PACKAGE_SPECS: tuple[tuple[str, str], ...] = (
+    ("agi-app-minimal", "src/agilab/lib/agi-app-minimal"),
+    ("agi-app-r-runtime-bridge", "src/agilab/lib/agi-app-r-runtime-bridge"),
     ("agi-app-mission-decision", "src/agilab/lib/agi-app-mission-decision"),
     ("agi-app-pandas-execution", "src/agilab/lib/agi-app-pandas-execution"),
     ("agi-app-polars-execution", "src/agilab/lib/agi-app-polars-execution"),

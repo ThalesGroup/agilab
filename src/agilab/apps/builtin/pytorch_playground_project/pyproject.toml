@@ -1,23 +1,13 @@
 [project]
 name = "pytorch_playground_project"
-version = "2026.05.30.post1"
+version = "2026.10.04"
 description = "Built-in AGILab app for reproducible PyTorch classifier playground experiments."
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
     { name = "Jean-Pierre Morard" }
 ]
-dependencies = [
-    "agi-env>=2026.05.31",
-    "agi-node>=2026.05.31",
-    "agi-gui>=2026.05.31",
-    "agi-web>=2026.05.31",
-    "numpy>=2.2,<3",
-    "pandas>=2.3.0,<4",
-    "plotly>=6.8,<7",
-    "pydantic>=2.12,<2.13",
-    "torch>=2.8.0,<3",
-]
+dependencies = ["agi-env>=2026.10.04", "agi-node>=2026.10.04", "agi-gui>=2026.10.04", "agi-web>=2026.10.04", "numpy>=2.2,<3", "pandas>=2.3.0,<4", "plotly>=6.8,<7", "pydantic>=2.12,<2.13", "torch>=2.8.0,<3"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"
@@ -27,6 +17,7 @@ Homepage = "https://github.com/ThalesGroup/agilab"
 Repository = "https://github.com/ThalesGroup/agilab"
 Discussions = "https://github.com/ThalesGroup/agilab/discussions"
 Changelog = "https://github.com/ThalesGroup/agilab/releases"
+
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }

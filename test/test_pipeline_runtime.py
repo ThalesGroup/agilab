@@ -1519,7 +1519,8 @@ def test_run_locked_stage_runpy_executes_and_logs(tmp_path, monkeypatch):
     fake_streamlit.session_state = {"snippet_file": str(snippet_file)}
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):
@@ -1590,7 +1591,8 @@ def test_lab_snippet_runner_labels_unrestricted_local_execution(tmp_path, monkey
     )
     fake_streamlit.warning = lambda message: warnings.append(message)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     runpy.run_path("src/agilab/agent_runtime/agi_codex.py")
 
@@ -1608,7 +1610,8 @@ def test_run_locked_stage_handles_missing_snippet_and_lock_refusal(tmp_path, mon
     fake_streamlit.session_state = {}
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     env = SimpleNamespace(app="demo", active_app="", apps_path=tmp_path / "apps", copilot_file=tmp_path / "copilot.py")
     stages_file = tmp_path / "lab_stages.toml"
@@ -1669,7 +1672,8 @@ def test_run_locked_stage_refuses_stale_generated_agi_snippet(tmp_path, monkeypa
     fake_streamlit.session_state = {"snippet_file": str(tmp_path / "snippet.py")}
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     env = SimpleNamespace(
         app="demo",
@@ -1734,7 +1738,8 @@ def test_run_locked_stage_covers_runtime_fallbacks_empty_output_and_export_targe
     }
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):
@@ -1795,7 +1800,8 @@ def test_run_locked_stage_retries_active_app_when_engine_requires_runtime(tmp_pa
     fake_streamlit.session_state = {"snippet_file": str(snippet_file)}
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):
@@ -1855,7 +1861,8 @@ def test_run_locked_stage_uses_active_app_as_primary_runtime_fallback(tmp_path, 
     fake_streamlit.session_state = {"snippet_file": str(snippet_file)}
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):
@@ -1911,7 +1918,8 @@ def test_run_locked_stage_runpy_empty_output_logs_message_and_export_target(tmp_
     }
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):
@@ -1975,7 +1983,8 @@ def test_run_locked_stage_agi_run_executes_script_and_logs(tmp_path, monkeypatch
     }
     fake_streamlit.error = lambda message: logs.append(f"ERROR:{message}")
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     @contextmanager
     def fake_start_mlflow_run(*_args, **_kwargs):

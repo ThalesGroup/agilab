@@ -838,7 +838,7 @@ def test_clone_source_resolution_prefers_exact_active_legacy_tree(tmp_path: Path
     assert resolved == active_legacy
 
 
-def test_create_project_clone_action_repairs_builtin_core_paths(tmp_path: Path):
+def test_create_project_clone_action_repairs_builtin_framework_paths(tmp_path: Path):
     module = _load_project_module()
     (tmp_path / "builtin" / "flight_telemetry_project").mkdir(parents=True)
 
@@ -854,6 +854,7 @@ name = "flight_telemetry_from_notebook_project"
 [tool.uv.sources]
 agi-env = { path = "../../../core/agi-env", editable = true }
 agi-node = { path = "../../../core/agi-node", editable = true }
+agi-web = { path = "../../../lib/agi-web", editable = true }
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -865,6 +866,7 @@ name = "flight_telemetry_from_notebook_worker"
 
 [tool.uv.sources]
 agi-env = { path = "../../../../../core/agi-env", editable = true }
+agi-web = { path = "../../../../../lib/agi-web", editable = true }
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -880,7 +882,7 @@ agi-env = { path = "../../../../../core/agi-env", editable = true }
     )
 
     assert result.status == "success"
-    assert "Repaired local core source paths" in str(result.detail)
+    assert "Repaired local framework source paths" in str(result.detail)
     dest = tmp_path / "flight_telemetry_from_notebook_project"
     app_pyproject = tomllib.loads((dest / "pyproject.toml").read_text(encoding="utf-8"))
     worker_pyproject = tomllib.loads(
@@ -895,6 +897,9 @@ agi-env = { path = "../../../../../core/agi-env", editable = true }
     assert worker_pyproject["tool"]["uv"]["sources"]["agi-env"]["path"] == (
         "../../../../core/agi-env"
     )
+
+    assert app_pyproject["tool"]["uv"]["sources"]["agi-web"]["path"] == "../../lib/agi-web"
+    assert worker_pyproject["tool"]["uv"]["sources"]["agi-web"]["path"] == "../../../../lib/agi-web"
 
 
 def test_repair_cloned_builtin_core_paths_ignores_non_builtin_source(tmp_path: Path):
@@ -914,7 +919,7 @@ agi-env = { path = "../../../core/agi-env", editable = true }
     pyproject.write_text(original, encoding="utf-8")
     env = SimpleNamespace(apps_path=tmp_path)
 
-    message = module._repair_cloned_builtin_core_source_paths(env, source_root, dest_root)
+    message = module._repair_cloned_builtin_source_paths(env, source_root, dest_root)
 
     assert message is None
     assert pyproject.read_text(encoding="utf-8") == original
@@ -941,7 +946,7 @@ plain = "not-a-table"
     valid.write_text(original_valid, encoding="utf-8")
     env = SimpleNamespace(apps_path=tmp_path)
 
-    message = module._repair_cloned_builtin_core_source_paths(env, source_root, dest_root)
+    message = module._repair_cloned_builtin_source_paths(env, source_root, dest_root)
 
     assert message is None
     assert valid.read_text(encoding="utf-8") == original_valid
@@ -959,7 +964,7 @@ def test_create_project_clone_action_reports_core_source_repair_failure(
     def _raise_repair(*_args, **_kwargs) -> None:
         raise ValueError("rewrite failed")
 
-    monkeypatch.setattr(module, "_repair_cloned_builtin_core_source_paths", _raise_repair)
+    monkeypatch.setattr(module, "_repair_cloned_builtin_source_paths", _raise_repair)
     env = SimpleNamespace(apps_path=tmp_path, clone_project=_clone_project)
 
     result = module._create_project_clone_action(

@@ -262,7 +262,9 @@ def test_resuming_earlier_export_rehydrates_explanation_widgets(lesson, monkeypa
     from agi_web.testing import AppTest
 
     upload = [None]
-    monkeypatch.setattr("agi_web.python_ui.file_uploader", lambda *args, **kwargs: upload[0])
+    from agi_web import python_ui
+
+    monkeypatch.setattr(python_ui, "file_uploader", lambda *args, **kwargs: upload[0])
     state = lesson.run_checkpoint(
         baseline(lesson), {**lesson.BASELINE, "drift_score": 0.3}, "fallback"
     )

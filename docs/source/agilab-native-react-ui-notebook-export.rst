@@ -16,6 +16,20 @@ administration remain Python views, rendered by the same native host.
 Install and launch from source
 ------------------------------
 
+The native release target is ``2026.10.04`` (normalised by PyPI to
+``2026.10.4``). Once its publication is recorded in :doc:`release-proof`, a
+new environment can install the UI, notebooks and promoted built-ins with::
+
+   python -m pip install 'agilab[ui,notebook,examples]==2026.10.4'
+   agilab --no-browser
+
+Run the installed CLI outside the source checkout. The Minimal App, R Runtime
+Bridge and legacy UAV Queue are also packaged, through the matching GitHub
+Release distribution archive; see :doc:`public-app-catalog`. An app's Python,
+scientific and external runtime prerequisites still apply. Private app
+packages use their private distribution channel and are not included in
+public wheels.
+
 From the AGILAB repository root, install the UI and notebook profiles::
 
    uv sync --extra ui --extra notebook

@@ -23,6 +23,28 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Changed
+
+- Use the native React interface and Python view adapter throughout the UI,
+  without a Streamlit runtime dependency. Keep Python application authoring
+  and notebook exports with the shared React/AnyWidget views.
+- Coordinate the affected package versions at 2026.10.4. Preserve the
+  publication routes: 11 built-in app payloads through PyPI and three through
+  GitHub Release archives, covering all 14 built-in applications.
+- Document installation and notebook use outside the source checkout,
+  including the separate private application distribution channel.
+
+### Fixed
+
+- Add the Minimal and R Runtime Bridge payloads and their catalog entries.
+  Make Minimal execute CSV/Parquet pass-through jobs with persisted output.
+- Keep Python container state isolated between native UI sessions.
+- Rebase both core and native UI library source paths when copying a built-in
+  application into the user apps directory, including notebook-created apps.
+- Install explicit optional view dependencies for the isolated GUI release
+  validation profile.
+
+
 ## [2026.09.21.2] - 2026-09-23
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2

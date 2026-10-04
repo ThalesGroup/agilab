@@ -117,10 +117,21 @@ Package route legend:
      - Queue-policy proof generator and scenario-cockpit evidence source used
        by the advanced proof pack.
    * - ``minimal_app_project``
-     - None
-     - Source built-in
+     - ``agi-app-minimal``
+     - Release artifact
      - Minimal app structure reference for adapting manager, worker, settings,
        and app argument form code.
+   * - ``r_runtime_bridge_project``
+     - ``agi-app-r-runtime-bridge``
+     - Release artifact
+     - Python manager and worker adapter for external R computations. Requires
+       an installed ``Rscript`` runtime; the app wheel does not bundle R.
+
+All fourteen built-in projects have installable payloads. Eleven are promoted
+to PyPI through ``agilab[examples]``. The Minimal App, R Runtime Bridge and
+legacy UAV Queue payloads are distributed as wheels and source archives in
+the matching GitHub Release distribution archive. Install their wheels into
+the same AGILAB environment to make them available without a source checkout.
 
 Recommended first choices
 -------------------------

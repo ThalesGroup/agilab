@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import builtins
 from contextlib import contextmanager
-import sys
 from types import SimpleNamespace
+
+from agi_web import python_ui as native_ui
+from agi_web.testing import AppTest
 
 from agi_gui import ux_widgets
 
@@ -45,27 +46,31 @@ class _FakeStreamlit:
         self.events.append(("rerun", "called"))
 
 
-def test_session_state_handles_streamlit_like_object_when_native_import_fails() -> None:
-    class StreamlitLike:
-        __module__ = "streamlit.delta_generator"
-
+def test_session_state_handles_ui_object_without_writable_state() -> None:
+    class NoWritableState:
         def __setattr__(self, name, value):
             if name == "session_state":
                 raise TypeError(name)
             super().__setattr__(name, value)
 
-    original_import = builtins.__import__
+    assert ux_widgets._session_state(NoWritableState()) == {}
 
-    def _fake_import(name, globals=None, locals=None, fromlist=(), level=0):
-        if name == "streamlit":
-            raise RuntimeError("streamlit unavailable")
-        return original_import(name, globals, locals, fromlist, level)
 
-    builtins.__import__ = _fake_import
-    try:
-        assert ux_widgets._session_state(StreamlitLike()) == {}
-    finally:
-        builtins.__import__ = original_import
+def test_native_container_uses_its_active_session_and_isolates_other_sessions() -> None:
+    def view(marker):
+        state = ux_widgets._session_state(native_ui.sidebar)
+        state.setdefault("marker", marker)
+        native_ui.write(state["marker"])
+
+    first = AppTest.from_function(view, args=("first",)).run()
+    second = AppTest.from_function(view, args=("second",)).run()
+    first.run()
+
+    assert not first.exception and not second.exception
+    assert first.session_state["marker"] == "first"
+    assert second.session_state["marker"] == "second"
+    assert first.markdown[0].value == "first"
+    assert second.markdown[0].value == "second"
 
 
 def test_state_pop_attribute_fallback_returns_default_for_missing_key() -> None:
@@ -596,45 +601,51 @@ def test_compact_choice_omits_native_default_when_keyed_state_exists() -> None:
     assert calls[0][2]["key"] == "mode"
 
 
-def test_compact_choice_uses_global_streamlit_state_for_streamlit_containers(monkeypatch) -> None:
+def test_compact_choice_uses_active_native_state_for_containers(monkeypatch) -> None:
     calls = []
-    native_state = _State({"mode": "Edit"})
+    original = native_ui.segmented_control
 
-    class SidebarLike:
-        __module__ = "streamlit.delta_generator"
+    def record(label, options, **kwargs):
+        calls.append((label, list(options), kwargs))
+        return original(label, options, **kwargs)
 
-        def segmented_control(self, label, options, **kwargs):
-            calls.append((label, list(options), kwargs))
-            return native_state["mode"]
+    monkeypatch.setattr(native_ui, "segmented_control", record)
 
-    monkeypatch.setitem(sys.modules, "streamlit", SimpleNamespace(session_state=native_state))
+    def view():
+        result = ux_widgets.compact_choice(native_ui.sidebar, "Mode", ["Run", "Edit"], key="mode", default="Run")
+        native_ui.write(result)
 
-    result = ux_widgets.compact_choice(SidebarLike(), "Mode", ["Run", "Edit"], key="mode", default="Run")
+    app = AppTest.from_function(view)
+    app.session_state["mode"] = "Edit"
+    app.run()
 
-    assert result == "Edit"
+    assert not app.exception
+    assert app.markdown[0].value == "Edit"
     assert "default" not in calls[0][2]
     assert calls[0][2]["key"] == "mode"
 
 
 def test_compact_choice_ignores_callable_container_session_state(monkeypatch) -> None:
     calls = []
-    native_state = _State({"mode": "Edit"})
+    original = native_ui.segmented_control
 
-    class SidebarLike:
-        __module__ = "streamlit.delta_generator"
+    def record(label, options, **kwargs):
+        calls.append((label, list(options), kwargs))
+        return original(label, options, **kwargs)
 
-        def session_state(self):
-            return None
+    monkeypatch.setattr(native_ui.Container, "session_state", lambda self: None, raising=False)
+    monkeypatch.setattr(native_ui, "segmented_control", record)
 
-        def segmented_control(self, label, options, **kwargs):
-            calls.append((label, list(options), kwargs))
-            return native_state["mode"]
+    def view():
+        result = ux_widgets.compact_choice(native_ui.sidebar, "Mode", ["Run", "Edit"], key="mode", default="Run")
+        native_ui.write(result)
 
-    monkeypatch.setitem(sys.modules, "streamlit", SimpleNamespace(session_state=native_state))
+    app = AppTest.from_function(view)
+    app.session_state["mode"] = "Edit"
+    app.run()
 
-    result = ux_widgets.compact_choice(SidebarLike(), "Mode", ["Run", "Edit"], key="mode", default="Run")
-
-    assert result == "Edit"
+    assert not app.exception
+    assert app.markdown[0].value == "Edit"
     assert "default" not in calls[0][2]
     assert calls[0][2]["key"] == "mode"
 

@@ -384,7 +384,8 @@ def test_app_surface_reports_playground_ui_dependency_import_error(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", _FakeStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(builtins, "__import__", _raising_import)
 
     try:
@@ -574,7 +575,8 @@ def test_app_surface_analysis_uses_manifest_token_from_session(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(module, "_resolve_active_app_path", lambda _active_app=None: PROJECT_PATH.resolve())
     monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path, **_kwargs: (SimpleNamespace(), fake_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: evidence_dirs)
@@ -662,7 +664,8 @@ def test_app_surface_missing_evidence_renders_page_and_checked_paths(monkeypatch
 
     evidence_path = tmp_path / "evidence"
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", _FakeStreamlit())
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     try:
         module._render_missing_evidence([evidence_path])
@@ -689,7 +692,8 @@ def test_app_surface_manifest_token_helpers_cover_stale_state_edges(
     session_state: dict[str, object] = {}
     fake_streamlit = SimpleNamespace(session_state=session_state)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
 
     app_path = tmp_path / "pytorch_playground_project"
     app_path.mkdir()
@@ -774,7 +778,8 @@ def test_app_surface_run_button_persists_args_records_manifest_and_reruns(
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (runtime_env, initial_args))
     monkeypatch.setattr(module, "_analysis_evidence_dirs", lambda _env, _args, _path: [evidence])
     monkeypatch.setattr(
@@ -807,7 +812,8 @@ def test_app_surface_styles_and_entrypoint_delegate_to_render(monkeypatch: pytes
         "agi_web.python_ui",
         SimpleNamespace(markdown=lambda body, **kwargs: events.append(("markdown", (body, kwargs)))),
     )
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(module, "render", lambda **kwargs: events.append(("render", kwargs)))
 
     try:
@@ -892,7 +898,8 @@ def test_app_surface_full_renders_orchestrate_form_and_analysis_together(monkeyp
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", _FakeStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
     monkeypatch.setattr(module, "_load_orchestrate_args", lambda _active_app_path, **_kwargs: (fake_runtime_env, fake_args))
@@ -971,7 +978,8 @@ def test_app_surface_full_reports_app_args_form_dependency_error(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", _FakeStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(module, "_load_playground_ui_or_report", lambda **_kwargs: SimpleNamespace(PAGE_TITLE="PyTorch Playground"))
     monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (SimpleNamespace(), SimpleNamespace()))
     monkeypatch.setattr(module, "_load_app_args_form", lambda: (_ for _ in ()).throw(ImportError("broken app form dependency")))
@@ -1117,7 +1125,8 @@ def test_app_surface_full_run_button_executes_before_analysis(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", _FakeStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setitem(sys.modules, "pytorch_playground", fake_package)
     monkeypatch.setattr(module, "_load_app_args_form", lambda: fake_app_args_form)
     monkeypatch.setattr(module, "_load_orchestrate_args", _load_args)
@@ -1212,7 +1221,8 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", FakeStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(module, "_load_orchestrate_args", lambda _path, **_kwargs: (_ for _ in ()).throw(RuntimeError("bad args")))
     module._render_analysis_surface(PROJECT_PATH.resolve())
     assert ("st-error", "Unable to load ORCHESTRATE app arguments: bad args") in events
@@ -1224,7 +1234,8 @@ def test_app_surface_additional_modes_and_error_paths(monkeypatch: pytest.Monkey
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", NoMarkdownStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     assert module._render_surface_styles() is None
 
     module._render_full_surface(None)
@@ -1583,7 +1594,7 @@ def test_playground_ui_helper_error_and_display_edges(monkeypatch: pytest.Monkey
     assert trained == config
     assert preset == module.DEFAULT_PRESET
     assert pending is False
-    monkeypatch.setattr("agi_web.python_ui.get_script_run_ctx", lambda **kwargs: None)
+    monkeypatch.setattr(importlib.import_module("agi_web.python_ui"), "get_script_run_ctx", lambda **kwargs: None)
     assert module._streamlit_script_context_active() is False
     assert module._session_state_get("missing", "fallback") == "fallback"
     monkeypatch.setattr(module, "st", SimpleNamespace())
@@ -5415,7 +5426,8 @@ def test_app_surface_analysis_reports_configuration_failure_without_training(
     messages, rendered = [], []
     fake_streamlit = SimpleNamespace(error=messages.append)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     package = importlib.import_module("pytorch_playground")
     def fail_config(args):
         raise failure
