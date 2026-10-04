@@ -270,3 +270,29 @@ def test_render_shell_is_eval_friendly():
         "CHANGED_COUNT=1",
         "DETECTION_ERROR=",
     ]
+
+def test_git_guard_uses_project_python_when_uv_is_unavailable(tmp_path: Path):
+    project = tmp_path / "worktree with spaces"
+    bin_dir = project / ".venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    interpreter = bin_dir / "python"
+    interpreter.symlink_to(sys.executable)
+    probe = tmp_path / "guard probe.py"
+    probe.write_text("import sys; print(sys.argv[1])\n", encoding="utf-8")
+    hook_environment = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith(("TOKKI_", "AGILAB_")) and key != "VIRTUAL_ENV"
+    }
+    hook_environment["PATH"] = "/usr/bin:/bin"
+    result = subprocess.run(
+        [
+            "/bin/bash", "-c",
+            'ROOT_DIR="$1"; source "$2"; run_guard_python "$3" "$4"',
+            "agilab-guard-test", str(project),
+            str(ROOT / ".githooks" / "guard_python.sh"), str(probe),
+            "guard argument with spaces",
+        ],
+        env=hook_environment, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "guard argument with spaces"
