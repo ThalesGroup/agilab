@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import builtins
 from pathlib import Path
 import sys
@@ -51,6 +52,50 @@ def _deny_streamlit(monkeypatch):
             raise AssertionError("Notebook view imported Streamlit")
         return original_import(name, *args, **kwargs)
     monkeypatch.setattr(builtins, "__import__", import_without_streamlit)
+
+
+def test_notebook_event_loop_renders_and_dispatches_with_restored_script_context(tmp_path, monkeypatch):
+    _deny_streamlit(monkeypatch)
+    previous = (Path.cwd(), sys.path[:], sys.argv[:])
+
+    async def exercise():
+        widgets = []
+        try:
+            for label in ("first", "second"):
+                project = tmp_path / label
+                script = _app(project, label)
+                source = script.read_text(encoding="utf-8")
+                source = source.replace("st.title(VALUE)",
+                    "import asyncio\n"
+                    "async def load_value():\n"
+                    "    await asyncio.sleep(0)\n"
+                    "    return VALUE\n"
+                    "st.title(asyncio.run(load_value()))")
+                source = source.replace("write_text(VALUE)", "write_text(asyncio.run(load_value()))")
+                script.write_text(source, encoding="utf-8")
+                widget = render_python_view(script, active_app=project)
+                widgets.append(widget)
+                assert widget.payload["error"] == ""
+                assert _nodes(widget, "title")[0]["props"]["body"] == label
+                messages = []
+                widget.send = messages.append
+                widget._receive(widget, {"kind": "action", "request_id": label, "value": {
+                    "id": _nodes(widget, "button")[0]["id"], "revision": widget.payload["revision"],
+                    "value": True, "csrf_token": widget.payload["csrf_token"],
+                }}, [])
+                assert messages[-1]["payload"]["error"] == ""
+                assert (project / "submitted.txt").read_text() == label
+                widget._receive(widget, {"kind": "render", "request_id": label, "value": {}}, [])
+                assert messages[-1]["payload"]["error"] == ""
+                assert widget.view_session.state["runs"] == 1
+                assert (Path.cwd(), sys.path, sys.argv) == previous
+            assert widgets[0].view_session.state["runs"] == 1
+            assert widgets[1].view_session.state["runs"] == 1
+        finally:
+            for widget in widgets:
+                widget.close()
+
+    asyncio.run(exercise())
 
 
 def test_notebook_widget_dispatches_real_callback_with_restored_process_state(tmp_path, monkeypatch):

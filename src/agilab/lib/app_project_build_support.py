@@ -12,6 +12,18 @@ from pathlib import Path
 
 APP_PROJECT_SPECS: tuple[dict[str, str], ...] = (
     {
+        "project": "minimal_app_project",
+        "slug": "minimal_app",
+        "distribution": "agi-app-minimal",
+        "package": "agi_app_minimal",
+    },
+    {
+        "project": "r_runtime_bridge_project",
+        "slug": "r_runtime_bridge",
+        "distribution": "agi-app-r-runtime-bridge",
+        "package": "agi_app_r_runtime_bridge",
+    },
+    {
         "project": "mission_decision_project",
         "slug": "mission_decision",
         "distribution": "agi-app-mission-decision",

@@ -39,6 +39,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Add the Minimal and R Runtime Bridge payloads and their catalog entries.
   Make Minimal execute CSV/Parquet pass-through jobs with persisted output.
 - Keep Python container state isolated between native UI sessions.
+- Execute retained Python views and callbacks safely under Jupyter's active
+  event loop, preserving session context and script state.
 - Rebase both core and native UI library source paths when copying a built-in
   application into the user apps directory, including notebook-created apps.
 - Install explicit optional view dependencies for the isolated GUI release

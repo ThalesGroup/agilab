@@ -13,7 +13,7 @@ import secrets
 import sys
 from typing import Any
 
-from .python_view_session import UIError, ViewSession
+from .python_view_session import UIError, ViewSession, run_view_operation
 
 
 @contextmanager
@@ -152,6 +152,9 @@ export async function render({model, el}) {
             self.on_msg(self._receive)
 
         def _receive(self, _widget, message, _buffers):
+            return run_view_operation(lambda: self._receive_sync(message))
+
+        def _receive_sync(self, message):
             request_id = message.get("request_id") if isinstance(message, dict) else None
             try:
                 if not isinstance(message, dict):
