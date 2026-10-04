@@ -194,7 +194,8 @@ def test_view_data_io_decision_full_page_renders_artifact_evidence(monkeypatch, 
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_st)
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setitem(sys.modules, "agi_pages.runtime", fake_runtime)
     monkeypatch.setitem(sys.modules, "agi_env", fake_agi_env)
     monkeypatch.setitem(sys.modules, "agi_gui.pagelib", fake_pagelib)

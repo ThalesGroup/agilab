@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping
 import json
 import os
 import re
+import runpy
 import shutil
 import subprocess
 import sys
@@ -492,6 +494,48 @@ def write_profile_assets(stage_dir: Path, profile: str, apps: Sequence[str], pag
     )
 
 
+def write_profile_pyproject(stage_dir: Path, apps: Sequence[str], pages: Sequence[str]) -> None:
+    """Keep runtime requirements while removing checkout-only UI test inputs."""
+    import tomlkit
+
+    root_manifest = stage_dir / "pyproject.toml"
+    support_path = stage_dir / "src/agilab/lib/app_project_build_support.py"
+    app_projects = {
+        item["distribution"]: item["project"]
+        for item in runpy.run_path(str(support_path))["APP_PROJECT_SPECS"]
+    } if support_path.is_file() else {}
+    page_root = (stage_dir / "src/agilab/apps-pages").resolve()
+    # uv also honors local overrides in selected source dependencies. Filtering
+    # the root alone still builds empty providers via agi-apps' source manifest.
+    for path in [root_manifest, *sorted((stage_dir / "src").rglob("pyproject.toml"))]:
+        original = path.read_text(encoding="utf-8")
+        manifest = tomlkit.parse(original)
+        if path == root_manifest:
+            # uv resolves every group, including this source-only UI suite.
+            manifest.get("dependency-groups", {}).pop("test-ui", None)
+        sources = manifest.get("tool", {}).get("uv", {}).get("sources", {})
+        for package, source in list(sources.items()):
+            local_path = source.get("path") if isinstance(source, Mapping) else None
+            if not isinstance(local_path, str):
+                continue
+            source_path = (path.parent / local_path).resolve()
+            project = app_projects.get(package)
+            if project is not None and source_path.is_dir() and project not in apps:
+                # The wrapper remains, but its app payload was pruned. Resolve
+                # the unchanged runtime requirement to its complete release wheel.
+                del sources[package]
+                continue
+            if source_path.exists():
+                continue
+            if source_path.is_relative_to(page_root) and source_path.relative_to(page_root).parts[0] not in pages:
+                del sources[package]
+            else:
+                raise RuntimeError(f"missing staged project source for {package}: {local_path}")
+        updated = tomlkit.dumps(manifest)
+        if updated != original:
+            path.write_text(updated, encoding="utf-8")
+
+
 def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[str, Any]:
     apps, pages = profile_entries(profile)
     if not (repo_root / "src/agilab/main_page.py").is_file():
@@ -514,6 +558,7 @@ def stage_space_tree(repo_root: Path, stage_dir: Path, *, profile: str) -> dict[
 
     prune_dir_except(stage_dir / "src/agilab/apps/builtin", apps)
     prune_dir_except(stage_dir / "src/agilab/apps-pages", pages)
+    write_profile_pyproject(stage_dir, apps, pages)
     require_clean_public_apps(stage_dir / "src/agilab/apps")
     require_no_symlinked_sources(stage_dir / "src")
 

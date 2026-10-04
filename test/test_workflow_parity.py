@@ -232,7 +232,10 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
     assert "--cov=agi_env" in agi_env.argv
     assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
-    assert _has_with_dependency(agi_env.argv, "streamlit==1.57.0")
+    assert "./src/agilab/lib/agi-web" in _option_values(
+        agi_env.argv, "--with-editable"
+    )
+    assert not any("streamlit" in argument.lower() for argument in agi_env.argv)
     assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
 
     assert len(agi_core_combined) == 3
@@ -303,6 +306,11 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     )
     assert all(_has_extra(command.argv, "ui") for command in agi_gui_commands)
     assert all(_has_extra(command.argv, "viz") for command in agi_gui_commands)
+    assert all(
+        any(command.argv[i:i + 2] == ["--group", "test-ui"]
+            for i in range(len(command.argv) - 1))
+        for command in agi_gui_commands
+    )
     assert agi_gui_commands[0].remove_paths[:2] == [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",

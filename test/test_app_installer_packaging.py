@@ -141,6 +141,8 @@ APP_GENERATED_DIRS = {
 }
 APP_GENERATED_SUFFIXES = {".c", ".pyc", ".pyo", ".pyx", ".so"}
 APP_PROJECT_BY_DISTRIBUTION = {
+    "agi-app-minimal": "minimal_app_project",
+    "agi-app-r-runtime-bridge": "r_runtime_bridge_project",
     "agi-app-mission-decision": "mission_decision_project",
     "agi-app-pandas-execution": "execution_pandas_project",
     "agi-app-polars-execution": "execution_polars_project",
@@ -1539,11 +1541,15 @@ def test_agi_apps_umbrella_bundles_only_the_base_minimal_app_template() -> None:
     )
 
 
-def test_agi_apps_catalog_matches_per_app_packages() -> None:
+def test_agi_apps_catalog_matches_per_app_packages(tmp_path: Path) -> None:
     catalog = json.loads((ROOT / "src/agilab/lib/agi-apps/src/agi_apps/catalog.json").read_text(encoding="utf-8"))
     catalog_distributions = [item["distribution"] for item in catalog]
 
     assert catalog_distributions == [distribution for distribution, _ in APP_PROJECT_PACKAGE_SPECS]
+    support = _load_app_project_build_support()
+    support.write_agi_apps_catalog(tmp_path)
+    generated = json.loads((tmp_path / "catalog.json").read_text(encoding="utf-8"))
+    assert generated == catalog
 
 
 def test_agi_apps_umbrella_copy_keeps_only_minimal_app_builtin_payload(tmp_path: Path) -> None:

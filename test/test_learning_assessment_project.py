@@ -312,7 +312,8 @@ def test_tescia_args_form_renders_scoring_model_as_latex(monkeypatch, tmp_path) 
     fake_env.app_settings_file = str(tmp_path / "app_settings.toml")
     fake_streamlit = _FakeStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
 
     runpy.run_path(str(APP_SRC / "app_args_form.py"), run_name="__main__")
@@ -1857,7 +1858,8 @@ def test_tescia_app_surface_cache_decorator_fallbacks(monkeypatch) -> None:
 
     monkeypatch.setattr(builtins, "__import__", original_import)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", BrokenCacheStreamlit())
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     module = _load_app_surface_module()
     assert module.cached_load_cases(
         str(SAMPLE_CASES), module._file_mtime_ns(SAMPLE_CASES)
@@ -1879,7 +1881,8 @@ def test_tescia_app_surface_import_path_and_safe_config_fallbacks(monkeypatch) -
 
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", FailingConfigStreamlit())
 
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     module._safe_page_config()
 
 
@@ -1922,7 +1925,8 @@ def test_tescia_app_surface_render_covers_classroom_tabs(monkeypatch, tmp_path) 
 
     fake_streamlit = InteractiveStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
 
@@ -1976,7 +1980,8 @@ def test_tescia_app_surface_render_covers_classroom_upload_and_partial_status(
     )
     fake_streamlit = UploadingStreamlit(fake_env, [upload])
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
     monkeypatch.setattr(
@@ -2018,7 +2023,8 @@ def test_tescia_app_surface_render_covers_classroom_upload_and_partial_status(
 
     empty_upload_streamlit = UploadingStreamlit(fake_env, [])
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", empty_upload_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     module.render(mode="analysis", active_app=active_app)
 
     assert (
@@ -2031,13 +2037,15 @@ def test_tescia_app_surface_render_covers_classroom_upload_and_partial_status(
         no_click_streamlit.buttons.append(label) or False
     )
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", no_click_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     module.render(mode="analysis", active_app=active_app)
     assert "Save classroom uploads" in no_click_streamlit.buttons
 
     error_upload_streamlit = UploadingStreamlit(fake_env, [upload])
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", error_upload_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.setattr(
         module,
         "save_classroom_uploads",
@@ -2071,7 +2079,8 @@ def test_tescia_app_surface_render_reports_classroom_upload_errors(
 
     fake_streamlit = ErrorUploadStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
     monkeypatch.setattr(
@@ -2114,7 +2123,8 @@ def test_tescia_app_surface_live_refresh_branch(monkeypatch, tmp_path) -> None:
 
     fake_streamlit = RefreshingStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
     monkeypatch.setattr(module.time, "sleep", lambda _seconds: None)
@@ -2177,7 +2187,8 @@ def test_tescia_app_surface_error_refresh_last_run_authoring_and_warning(
     fake_streamlit.errors = []
     fake_streamlit.warnings = []
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
     cases = module.load_cases()
@@ -2260,7 +2271,8 @@ def test_tescia_app_surface_sample_fallback_uses_info_and_namespaced_answer_keys
 
     fake_streamlit = RecordingStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
     module = _load_app_surface_module()
     sample_report = module.classroom_preview_report(module.load_cases())
@@ -2317,7 +2329,8 @@ def test_tescia_app_surface_script_entrypoint(monkeypatch, tmp_path) -> None:
     fake_env = _FakeEnv(tmp_path)
     fake_streamlit = _FakeStreamlit(fake_env)
     monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_streamlit)
-    monkeypatch.setattr("agi_web.python_ui", sys.modules["agi_web.python_ui"])
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", sys.modules["agi_web.python_ui"], raising=False)
     monkeypatch.syspath_prepend(str(APP_SRC))
 
     runpy.run_path(str(APP_SURFACE), run_name="__main__")

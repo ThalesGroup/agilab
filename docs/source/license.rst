@@ -79,6 +79,8 @@ App packages
    :maxdepth: 1
    :caption: App packages
 
+   agi-app-minimal <agi-app-minimal-licenses>
+   agi-app-r-runtime-bridge <agi-app-r-runtime-bridge-licenses>
    agi-app-mission-decision <agi-app-mission-decision-licenses>
    agi-app-pandas-execution <agi-app-pandas-execution-licenses>
    agi-app-polars-execution <agi-app-polars-execution-licenses>

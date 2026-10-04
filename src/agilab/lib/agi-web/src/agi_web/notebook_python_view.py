@@ -11,9 +11,9 @@ from pathlib import Path
 import runpy
 import secrets
 import sys
-from typing import Any
+from typing import Any, Mapping
 
-from .python_view_session import UIError, ViewSession
+from .python_view_session import UIError, ViewSession, run_view_operation
 
 
 @contextmanager
@@ -152,6 +152,9 @@ export async function render({model, el}) {
             self.on_msg(self._receive)
 
         def _receive(self, _widget, message, _buffers):
+            return run_view_operation(lambda: self._receive_sync(message))
+
+        def _receive_sync(self, message):
             request_id = message.get("request_id") if isinstance(message, dict) else None
             try:
                 if not isinstance(message, dict):
@@ -185,8 +188,13 @@ export async function render({model, el}) {
     return _WIDGET_CLASS
 
 
-def render_python_view(script: str | Path, *, active_app: str | Path | None = None):
-    """Return an interactive notebook widget for an explicitly selected Python file."""
+def render_python_view(
+    script: str | Path,
+    *,
+    active_app: str | Path | None = None,
+    session_state: Mapping[str, Any] | None = None,
+):
+    """Return a notebook view with an optional explicitly supplied host context."""
     path = Path(script).expanduser().resolve(strict=True)
     if not path.is_file() or path.suffix != ".py":
         raise UIError("The notebook view entry point must be a Python file.")
@@ -199,4 +207,7 @@ def render_python_view(script: str | Path, *, active_app: str | Path | None = No
             runpy.run_path(str(path), run_name="__main__")
 
     query = {"active_app": str(project)} if project else {}
-    return _widget_class()(ViewSession(run_script, query=query), path, project)
+    session = ViewSession(run_script, query=query)
+    if session_state is not None:
+        session.state.update(session_state)
+    return _widget_class()(session, path, project)

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 import copy
 from dataclasses import dataclass, field
 import datetime as dt
@@ -17,7 +19,27 @@ import sys
 import threading
 import traceback
 from types import SimpleNamespace
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterator, Mapping, TypeVar
+
+
+_Result = TypeVar("_Result")
+
+
+def run_view_operation(operation: Callable[[], _Result]) -> _Result:
+    """Run a synchronous view outside a notebook caller's active event loop.
+
+    Delegate the whole operation before taking view locks so callbacks, script
+    context restoration and rerenders stay on one thread. Preserve ContextVars
+    without inheriting the caller's event loop; ordinary synchronous hosts keep
+    executing on their current thread.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return operation()
+    context = copy_context()
+    with ThreadPoolExecutor(max_workers=1, thread_name_prefix="agilab-python-view") as executor:
+        return executor.submit(context.run, operation).result()
 
 
 class UIError(RuntimeError):
@@ -224,6 +246,9 @@ class ViewSession:
                 sys.argv = previous
 
     def render(self) -> dict[str, Any]:
+        return run_view_operation(self._render)
+
+    def _render(self) -> dict[str, Any]:
         with self.lock, self.render_lock, use_session(self), self.activity():
             self.last_error = ""
             self.last_traceback = ""
@@ -292,6 +317,9 @@ class ViewSession:
             self.empty_selections[widget.key] = wire_value is None
 
     def dispatch(self, action: Mapping[str, Any]) -> dict[str, Any]:
+        return run_view_operation(lambda: self._dispatch(action))
+
+    def _dispatch(self, action: Mapping[str, Any]) -> dict[str, Any]:
         with self.lock, self.render_lock, use_session(self), self.activity():
             if type(action.get("revision")) is not int or action["revision"] != self.revision:
                 raise UIError("This action belongs to an older view. Refresh the controls.")

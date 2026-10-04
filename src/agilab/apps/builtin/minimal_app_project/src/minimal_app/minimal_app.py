@@ -120,8 +120,28 @@ class MinimalApp(BaseWorker):
     def build_distribution(
         self,
         _workers: dict | None = None,
-    ) -> Tuple[List[List], List[List[Tuple[int, int]]], str, str, str]:  # pragma: no cover - template hook
-        return [], [], "id", "nb_fct", ""
+    ) -> Tuple[List[List], List[List], str, str, str]:
+        """Dispatch the selected CSV/Parquet inputs as file batches."""
+        files = sorted(
+            path for path in self.args.data_in.glob(self.args.files)
+            if path.is_file() and path.suffix.lower() in {".csv", ".parquet"}
+        )
+        if self.args.nfile > 0:
+            files = files[: self.args.nfile]
+        if not files:
+            raise FileNotFoundError(
+                f"No CSV or Parquet files found in {self.args.data_in} "
+                f"with pattern {self.args.files!r}"
+            )
+        weights = [(str(path), max(path.stat().st_size // 1024, 1)) for path in files]
+        chunks = WorkDispatcher.make_chunks(
+            len(weights), weights, workers=_workers or {"127.0.0.1": 1},
+            verbose=self.verbose, threshold=12,
+        )
+        plan = [[[path for path, _size in chunk]] for chunk in chunks]
+        metadata = [[{"file": Path(chunk[0][0]).name, "size_kb": sum(size for _path, size in chunk)}]
+                    for chunk in chunks]
+        return plan, metadata, "file", "size_kb", "KB"
 
 
 class MinimalAppApp(MinimalApp):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextvars import ContextVar
 import http.client
 import json
 from pathlib import Path
@@ -12,7 +14,7 @@ import threading
 import pytest
 
 from agi_web import python_ui as ui
-from agi_web.python_view_session import UIError, ViewSession
+from agi_web.python_view_session import UIError, ViewSession, session_exists
 from agi_web.react_python_host import ReactPythonServer
 
 
@@ -26,6 +28,56 @@ def nodes(session, kind):
 
 def act(session, node, value, **kwargs):
     return session.dispatch({"id": node["id"], "revision": session.revision, "value": value, **kwargs})
+
+
+@pytest.mark.parametrize("harness", [False, True])
+def test_native_views_and_callbacks_run_inside_notebook_event_loop(harness):
+    from agi_web.testing import AppTest
+
+    marker = ContextVar("view_test_marker")
+    execution_threads = []
+    caller_thread = threading.get_ident()
+
+    async def load_value():
+        await asyncio.sleep(0)
+        execution_threads.append(threading.get_ident())
+        return marker.get()
+
+    def view():
+        label = asyncio.run(load_value())
+        ui.text(label)
+
+        def save():
+            ui.session_state["saved"] = asyncio.run(load_value())
+            ui.session_state["runs"] = ui.session_state.get("runs", 0) + 1
+
+        ui.button("Save", key="save", on_click=save)
+
+    async def exercise():
+        sessions = []
+        for label in ("first", "second"):
+            token = marker.set(label)
+            try:
+                if harness:
+                    app = AppTest.from_function(view).run()
+                    session = app._session
+                    assert not app.exception
+                    app.button("save").click().run()
+                else:
+                    session = ViewSession(view)
+                    assert session.render()["error"] == ""
+                    assert act(session, nodes(session, "button")[0], True)["error"] == ""
+                assert session.state == {"saved": label, "runs": 1}
+                assert marker.get() == label
+                assert not session_exists()
+                sessions.append(session)
+            finally:
+                marker.reset(token)
+        assert sessions[0].state["saved"] == "first"
+        assert sessions[1].state["saved"] == "second"
+
+    asyncio.run(exercise())
+    assert execution_threads and all(value != caller_thread for value in execution_threads)
 
 
 def test_native_views_import_with_streamlit_blocked():

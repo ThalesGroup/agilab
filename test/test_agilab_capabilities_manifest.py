@@ -47,7 +47,7 @@ def test_capability_manifest_exposes_public_surfaces() -> None:
 
     apps = {row["project"]: row for row in payload["public_apps"]}
     assert apps["flight_telemetry_project"]["package"] == "agi-app-flight-telemetry"
-    assert apps["minimal_app_project"]["status"] == "Source built-in"
+    assert apps["minimal_app_project"]["status"] == "Release artifact"
 
     schemas = {row["schema"] for row in payload["evidence_schemas"]}
     assert "agilab.workflow_dry_run_report.v1" in schemas

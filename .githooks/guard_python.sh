@@ -8,7 +8,7 @@
 # stdlib-only guards.
 run_guard_python() {
   if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
-    uv --preview-features extra-build-dependencies run python "$@"
+    "$ROOT_DIR/.venv/bin/python" "$@"
     return
   fi
   local common_dir main_root

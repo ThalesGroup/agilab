@@ -11,7 +11,7 @@ import tempfile
 from types import SimpleNamespace
 from typing import Any
 
-from .python_view_session import RerunView, StopRender, UIError, ViewSession, use_session
+from .python_view_session import RerunView, StopRender, UIError, ViewSession, run_view_operation, use_session
 
 
 def _walk(nodes):
@@ -185,6 +185,9 @@ class AppTest:
         return value
 
     def run(self, *, timeout=None):
+        return run_view_operation(self._run)
+
+    def _run(self):
         session = self._session
         with session.lock, session.render_lock, use_session(session):
             prepared, buttons = [], []

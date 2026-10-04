@@ -9,6 +9,8 @@ import sys
 import types
 import os
 from pathlib import Path
+import tomllib
+from zipfile import ZipFile
 
 import pytest
 
@@ -364,6 +366,93 @@ def test_advanced_profile_excludes_retired_weather_clone() -> None:
 
     assert "weather_forecast_project" in apps
     assert "weather_forecast_legacy_project" not in apps
+
+
+def test_staged_profile_resolves_pruned_payloads_from_wheelhouse_without_source_ui_tests(tmp_path: Path) -> None:
+    module = _load_module()
+    repo = _write_stage_repo(tmp_path)
+    for page, name in (
+        ("view_maps", "agi-page-geospatial-map"),
+        ("view_maps_3d", "agi-page-geospatial-3d"),
+        ("view_maps_network", "agi-page-network-map"),
+    ):
+        directory = repo / "src/agilab/apps-pages" / page
+        directory.mkdir(exist_ok=True)
+        (directory / "pyproject.toml").write_text(
+            f"[project]\nname={name!r}\nversion='1.0.0'\n", encoding="utf-8"
+        )
+    manifest = repo / "pyproject.toml"
+    wrapper = repo / "src/agilab/lib/agi-app-data-quality-gate"
+    wrapper.mkdir(parents=True)
+    (wrapper.parent / "app_project_build_support.py").write_text(
+        "APP_PROJECT_SPECS = ({'distribution': 'agi-app-data-quality-gate', 'project': 'data_quality_gate_project'},)\n",
+        encoding="utf-8",
+    )
+    (wrapper / "pyproject.toml").write_text(
+        "[project]\nname='agi-app-data-quality-gate'\nversion='1.0.0'\n"
+        "[project.entry-points.'agilab.apps']\ndata_quality_gate_project='provider:project_root'\n"
+        "old_quality_project='provider:project_root'\n",
+        encoding="utf-8",
+    )
+    manifest.write_text(
+        "[project]\nname='agilab'\nversion='1.0.0'\n"
+        "dependencies=['agi-page-geospatial-map']\n"
+        "[project.optional-dependencies]\nnetwork=['agi-page-network-map==1.0.0', 'agi-app-data-quality-gate==1.0.0']\n"
+        "[dependency-groups]\ndev=[]\n"
+        "test-ui=['agi-page-geospatial-3d', 'agi-page-network-map']\n"
+        "[tool.uv.sources]\n"
+        "agi-page-geospatial-map={path='src/agilab/apps-pages/view_maps'}\n"
+        "agi-page-geospatial-3d={path='src/agilab/apps-pages/view_maps_3d'}\n"
+        "agi-page-network-map={path='src/agilab/apps-pages/view_maps_network'}\n",
+        encoding="utf-8",
+    )
+    with manifest.open("a", encoding="utf-8") as stream:
+        stream.write("agi-app-data-quality-gate={path='src/agilab/lib/agi-app-data-quality-gate'}\n")
+    page_manifest = repo / "src/agilab/apps-pages/view_maps/pyproject.toml"
+    with page_manifest.open("a", encoding="utf-8") as stream:
+        stream.write(
+            "dependencies=['agi-app-data-quality-gate==1.0.0']\n"
+            "[tool.uv.sources]\n"
+            "agi-app-data-quality-gate={path='../../lib/agi-app-data-quality-gate'}\n"
+        )
+    original = manifest.read_bytes()
+    original_page = page_manifest.read_bytes()
+    wheelhouse = tmp_path / "release-wheelhouse"
+    wheelhouse.mkdir()
+    for name in ("agi-page-network-map", "agi-app-data-quality-gate"):
+        stem = name.replace("-", "_")
+        dist_info = f"{stem}-1.0.0.dist-info"
+        with ZipFile(wheelhouse / f"{stem}-1.0.0-py3-none-any.whl", "w") as wheel:
+            wheel.writestr(f"{dist_info}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: 1.0.0\n")
+            wheel.writestr(f"{dist_info}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
+            wheel.writestr(f"{dist_info}/RECORD", "")
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    module.stage_space_tree(repo, stage, profile="first-proof")
+    completed = subprocess.run(
+        ["uv", "sync", "--project", str(stage), "--dry-run", "--offline", "--extra", "network",
+         "--find-links", str(wheelhouse), "--python", sys.executable],
+        capture_output=True, text=True,
+    )
+    assert completed.returncode == 0, completed.stderr
+    locked_result = subprocess.run(
+        ["uv", "lock", "--project", str(stage), "--offline", "--find-links", str(wheelhouse), "--python", sys.executable],
+        capture_output=True, text=True,
+    )
+    assert locked_result.returncode == 0, locked_result.stderr
+    staged = tomllib.loads((stage / "pyproject.toml").read_text())
+    assert staged["project"] == tomllib.loads(original.decode())["project"]
+    assert staged["dependency-groups"] == {"dev": []}
+    assert set(staged["tool"]["uv"]["sources"]) == {"agi-page-geospatial-map"}
+    staged_page = tomllib.loads((stage / "src/agilab/apps-pages/view_maps/pyproject.toml").read_text())
+    assert staged_page["project"] == tomllib.loads(original_page.decode())["project"]
+    assert not staged_page["tool"]["uv"]["sources"]
+    locked = tomllib.loads((stage / "uv.lock").read_text())
+    app_source = next(package["source"] for package in locked["package"] if package["name"] == "agi-app-data-quality-gate")
+    assert "directory" not in app_source and "editable" not in app_source
+    assert sorted(path.name for path in (stage / "src/agilab/apps-pages").iterdir()) == sorted(module.FIRST_PROOF_PAGES)
+    assert manifest.read_bytes() == original
+    assert page_manifest.read_bytes() == original_page
 
 
 def test_stage_space_tree_prunes_private_app_entries_before_validation(tmp_path: Path) -> None:

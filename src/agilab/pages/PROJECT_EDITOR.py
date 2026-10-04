@@ -1461,18 +1461,18 @@ def _render_pypi_app_install_action(env) -> None:
             _render_installed_pypi_app_manager(env)
 
 
-def _repair_cloned_builtin_core_source_paths(
+def _repair_cloned_builtin_source_paths(
     env: AgiEnv,
     source_root: Path,
     dest_root: Path,
 ) -> str | None:
-    """Rewrite local core uv source paths after cloning a builtin app to user apps."""
+    """Rebase local framework uv sources when a builtin app changes directory depth."""
     try:
         source_root.relative_to(env.apps_path / "builtin")
     except ValueError:
         return None
 
-    core_root = env.apps_path.parent / "core"
+    framework_root = env.apps_path.parent
     repaired: list[Path] = []
     for pyproject_path in sorted(dest_root.rglob("pyproject.toml")):
         try:
@@ -1492,14 +1492,14 @@ def _repair_cloned_builtin_core_source_paths(
             if not isinstance(raw_path, str):
                 continue
             parts = Path(raw_path).parts
-            if "core" not in parts:
-                continue
-            core_index = parts.index("core")
-            core_suffix = Path(*parts[core_index + 1 :])
-            if not core_suffix.parts:
+            source_index = next(
+                (index for index, part in enumerate(parts) if part in {"core", "lib"}),
+                None,
+            )
+            if source_index is None or source_index == len(parts) - 1:
                 continue
             source["path"] = os.path.relpath(
-                core_root / core_suffix, pyproject_path.parent
+                framework_root / Path(*parts[source_index:]), pyproject_path.parent
             )
             modified = True
 
@@ -1510,7 +1510,7 @@ def _repair_cloned_builtin_core_source_paths(
 
     if not repaired:
         return None
-    return "Repaired local core source paths in " + ", ".join(
+    return "Repaired local framework source paths in " + ", ".join(
         path.as_posix() for path in repaired
     )
 
@@ -3473,7 +3473,7 @@ def _create_project_clone_action(
         )
 
     try:
-        source_path_repair_message = _repair_cloned_builtin_core_source_paths(
+        source_path_repair_message = _repair_cloned_builtin_source_paths(
             env,
             clone_source_root,
             dest_root,

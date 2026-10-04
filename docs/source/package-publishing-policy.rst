@@ -123,6 +123,8 @@ recommended use cases, see :doc:`public-app-catalog`.
   ``agi-app-learning-assessment``; no duplicate app payload)
 - ``agi-app-uav-queue``
 - ``agi-app-uav-relay-queue``
+- ``agi-app-minimal``
+- ``agi-app-r-runtime-bridge``
 
 Eleven app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-mission-decision``, ``agi-app-pandas-execution``,
@@ -131,11 +133,19 @@ Eleven app payload packages are promoted to PyPI in the current release plan:
 ``agi-app-sklearn-pipeline``, ``agi-app-data-quality-gate``,
 ``agi-app-pytorch-playground``, ``agi-app-learning-assessment``, and
 ``agi-app-uav-relay-queue``. The remaining app project payload,
-``agi-app-uav-queue``, is also built as a wheel and source-distribution
+``agi-app-uav-queue``, together with ``agi-app-minimal`` and
+``agi-app-r-runtime-bridge``, is also built as a wheel and source-distribution
 artifact and kept in the GitHub Release distribution archive until it is
 explicitly promoted. Each payload is staged during package build, with local
 virtual environments, compiled artifacts, locks, and generated build outputs
 excluded.
+
+Together these fourteen payloads cover every built-in source project. The
+``examples`` profile installs the eleven promoted apps; install the other
+three app wheels from the matching GitHub Release distribution archive when
+needed. The R bridge additionally requires an installed ``Rscript`` runtime;
+its Python package does not bundle R. Scientific dependencies and datasets
+remain app-specific and must be installed before executing a selected app.
 
 End users can add a trusted promoted app package to an existing AGILAB
 environment from ``PROJECT`` through ``agi-app`` or from the CLI with

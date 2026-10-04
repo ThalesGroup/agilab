@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -41,6 +43,43 @@ def test_license_inventory_filters_retired_local_packages() -> None:
 
     assert [row["name"] for row in rows] == ["agi-env", "numpy"]
     assert rows[0]["license"] == module.LOCAL_PACKAGE_LICENSE
+
+
+def test_licensecheck_compat_script_uses_declared_console_entrypoint(tmp_path: Path) -> None:
+    module = _load_module()
+    package = tmp_path / "licensecheck"
+    package.mkdir()
+    (package / "__init__.py").write_text(
+        "import json, sys\n"
+        "def cli():\n"
+        "    assert sys.argv[1:] == ['--format', 'json']\n"
+        "    from license_expression import LicenseWithExceptionSymbol\n"
+        "    from types import SimpleNamespace\n"
+        "    symbol = LicenseWithExceptionSymbol()\n"
+        "    symbol.license_symbol = SimpleNamespace(key='GPL-2.0-only')\n"
+        "    symbol.exception_symbol = SimpleNamespace(key='Classpath-exception-2.0')\n"
+        "    assert symbol.key == 'GPL-2.0-only WITH Classpath-exception-2.0'\n"
+        "    print(json.dumps({'packages': [], 'info': {'version': '2026.0.8'}}))\n"
+        "    return 0\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "license_expression.py").write_text(
+        "class LicenseWithExceptionSymbol:\n    pass\n", encoding="utf-8"
+    )
+    metadata = tmp_path / "licensecheck-2026.0.8.dist-info"
+    metadata.mkdir()
+    (metadata / "METADATA").write_text(
+        "Metadata-Version: 2.1\nName: licensecheck\nVersion: 2026.0.8\n", encoding="utf-8"
+    )
+    (metadata / "entry_points.txt").write_text(
+        "[console_scripts]\nlicensecheck = licensecheck:cli\n", encoding="utf-8"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", module.LICENSECHECK_COMPAT_SCRIPT, "--format", "json"],
+        cwd=tmp_path, capture_output=True, text=True, check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["info"]["version"] == "2026.0.8"
 
 
 def test_license_docs_cover_public_package_split() -> None:

@@ -986,7 +986,7 @@ def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> 
     assert proof_payload["success"] is True
     expected_step_labels = [
         "preinit smoke",
-        "streamlit integrity check",
+        "python ui integrity check",
         "source ui smoke",
         "flight install smoke",
         "seeded script check",

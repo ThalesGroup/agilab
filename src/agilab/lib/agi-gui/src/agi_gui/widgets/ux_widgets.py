@@ -1,4 +1,4 @@
-"""Small compatibility wrappers for recent Streamlit UX primitives."""
+"""Small wrappers for native Python UI primitives."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ _ACTION_KIND_ALIASES = {
 
 @dataclass(frozen=True)
 class ActionStyle:
-    """Normalized Streamlit button defaults for a class of UI actions."""
+    """Normalized Python UI button defaults for a class of UI actions."""
 
     kind: str
     button_type: str = "secondary"
@@ -102,17 +102,15 @@ _ACTION_STYLES = {
 
 
 def _session_state(streamlit: Any) -> Any:
+    from agi_web import python_ui
+
+    # Containers (including the shared sidebar object) render within the active
+    # ViewSession; attaching a dict to them would share state between sessions.
+    if isinstance(streamlit, python_ui.Container):
+        return python_ui.session_state
     state = getattr(streamlit, "session_state", None)
     if callable(state):
         state = None
-    streamlit_module = getattr(type(streamlit), "__module__", "")
-    if state is None and streamlit_module.startswith("streamlit."):
-        try:
-            from agi_web import python_ui as native_streamlit
-
-            state = getattr(native_streamlit, "session_state", None)
-        except Exception:
-            state = None
     if state is None:
         state = {}
         try:
