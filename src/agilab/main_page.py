@@ -204,7 +204,7 @@ def _stop_for_import_guard_error(exc: BaseException) -> None:
         "AGILAB cannot start because PyCharm/Python is bound to another AGILAB checkout."
     )
     st.markdown(
-        "**What happened:** this Streamlit run is using AGILAB code from one checkout "
+        "**What happened:** this native React run is using AGILAB code from one checkout "
         "and the Python SDK or import path from another checkout. Stop the current run, "
         "then rebind PyCharm to the checkout you want to launch."
     )

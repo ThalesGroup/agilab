@@ -89,7 +89,16 @@ def diagnose_notebook(
     raw_steps = notebook_import.get("pipeline_stages", notebook_import.get("pipeline_steps", []))
     steps = [step for step in raw_steps if isinstance(step, dict)]
     cell_reports: list[dict[str, Any]] = []
-    issues: list[NotebookImportDoctorIssue] = []
+    issues: list[NotebookImportDoctorIssue] = [
+        NotebookImportDoctorIssue(
+            level=str(issue["level"]), code=str(issue["rule"]),
+            location=str(issue["location"]), message=str(issue["message"]),
+            suggestion="Recover the preserved source notebook and review its runtime before conversion.",
+            evidence=(str(issue.get("evidence", "")),),
+        )
+        for issue in notebook_import.get("import_diagnostics", [])
+        if issue.get("rule") != "invalid_python_cell"
+    ]
     cumulative_defs: dict[str, str] = {}
     artifact_inputs: set[str] = set()
     artifact_outputs: set[str] = set()

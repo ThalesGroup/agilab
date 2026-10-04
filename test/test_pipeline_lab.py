@@ -7099,7 +7099,7 @@ def test_durable_runner_recovery_uses_exact_token_and_never_dispatches(outcome, 
                    for label, _ in fake_st.button_calls)
     assert recovered == ([{"unit_id": "alpha", "idempotency_token": "exact-token"}] if clicked else [])
     if outcome == "success":
-        assert any(kind == "success" and "Reset the plan explicitly" in message for kind, message in fake_st.messages)
+        assert any(kind == "success" and "Prepare this stage's retry explicitly" in message for kind, message in fake_st.messages)
     elif outcome.endswith("conflict"):
         assert any("recovery token changed" in message for _, message in fake_st.messages)
         assert not any(kind == "success" for kind, _ in fake_st.messages)

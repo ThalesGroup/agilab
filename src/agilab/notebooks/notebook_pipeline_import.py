@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ast
+import codeop
 from collections.abc import Iterable
 import copy
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shlex
 import tomllib
 from typing import Any, Mapping
 
@@ -27,6 +29,7 @@ VIEW_MANIFEST_SCHEMA = "agilab.notebook_import_views.v1"
 VIEW_MANIFEST_NAME = "notebook_import_views.toml"
 NOTEBOOK_IMPORT_METADATA_SCHEMA = "agilab.notebook_import.v1"
 NOTEBOOK_EXPORT_STAGE_CELL_SCHEMA = "agilab.notebook_export.stage_cell.v1"
+NOTEBOOK_DOCUMENT_SCHEMA = "agilab.notebook_document.v1"
 DEFAULT_RUN_ID = "notebook-pipeline-import-proof"
 PERSISTENCE_FORMAT = "json"
 CREATED_AT = "2026-04-25T00:00:20Z"
@@ -57,6 +60,10 @@ STAGE_EXECUTION_CONTROL_KEYS = (
     "profiles",
     "pipeline_profiles",
     "automation_profiles",
+)
+STAGE_TEMPLATE_METADATA_KEYS = (
+    "template_id", "template_version", "template_fingerprint", "template_payload",
+    "payload_fingerprint", "template_origin",
 )
 
 
@@ -868,10 +875,19 @@ def _build_from_supervisor_metadata(
                 "environment_field": "E",
             },
         }
+        if source_override is not None:
+            current_cell = cells[export_source_cell_index - 1]
+            stage_payload["notebook_document_cell_id"] = str(
+                current_cell.get("id", "") or f"cell-{export_source_cell_index}"
+            )
         for key in STAGE_EXECUTION_CONTROL_KEYS:
             value = _supervisor_stage_value(
                 stage, stage_cell_metadata, key, None
             )
+            if value is not None:
+                stage_payload[key] = copy.deepcopy(value)
+        for key in STAGE_TEMPLATE_METADATA_KEYS:
+            value = _supervisor_stage_value(stage, stage_cell_metadata, key, None)
             if value is not None:
                 stage_payload[key] = copy.deepcopy(value)
         original_cell_id = str(notebook_import_metadata.get("cell_id", "") or "")
@@ -961,7 +977,7 @@ def _build_from_supervisor_metadata(
     }
 
 
-def build_notebook_pipeline_import(
+def _build_notebook_pipeline_import(
     *,
     notebook: Mapping[str, Any],
     source_notebook: Path | str,
@@ -1030,6 +1046,8 @@ def build_notebook_pipeline_import(
                 "code_field": "C",
             },
         }
+        if isinstance(cell.get("id"), str) and cell["id"]:
+            stage_payload["notebook_cell_id"] = cell["id"]
         if runtime_role:
             stage_payload["runtime_role"] = runtime_role
             runtime_engine = _runtime_engine_for_role(runtime_role)
@@ -1088,6 +1106,345 @@ def build_notebook_pipeline_import(
             "extracts_artifact_references": True,
         },
     }
+
+
+def _notebook_document_hash(notebook: Mapping[str, Any]) -> str:
+    """Hash the JSON document, independent of whitespace in its source file."""
+    encoded = json.dumps(notebook, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _declared_notebook_languages(notebook: Mapping[str, Any]) -> list[str]:
+    metadata = notebook.get("metadata", {})
+    if not isinstance(metadata, Mapping):
+        return []
+    languages = []
+    for field, key in (("language_info", "name"), ("kernelspec", "language")):
+        record = metadata.get(field, {})
+        if isinstance(record, Mapping) and record.get(key):
+            languages.append(str(record[key]).strip().lower())
+    return list(dict.fromkeys(languages))
+
+
+def _notebook_runtime_diagnostics(
+    notebook: Mapping[str, Any], notebook_import: Mapping[str, Any]
+) -> list[dict[str, str]]:
+    """Diagnose Python conversion without evaluating cells or rewriting magics."""
+    if notebook_import.get("source", {}).get("import_mode") == "agilab_supervisor_metadata":
+        # Supervisor exports already carry individual runtime/environment contracts.
+        return []
+    diagnostics = []
+    python_languages = {"python", "python3", "ipython"}
+    languages = _declared_notebook_languages(notebook)
+    foreign = [language for language in languages if language not in python_languages]
+    if _kernel_name(notebook).lower() in {
+        "ir", "irkernel", "r", "julia", "bash", "javascript", "nodejs", "octave", "sos",
+    }:
+        foreign = list(dict.fromkeys([*foreign, _kernel_name(notebook).lower()]))
+    if foreign:
+        diagnostics.append(_risk(
+            "error", "unsupported_notebook_kernel", "notebook",
+            "Notebook declares a non-Python kernel. Keep the original notebook, or explicitly "
+            "convert its code and declare Python before creating a Python pipeline.",
+            evidence=", ".join(foreign),
+        ))
+    cells = _notebook_cells(notebook)
+    compiler = codeop.Compile()
+    for stage in notebook_import.get("pipeline_stages", []):
+        index = int(stage.get("source_cell_index", 0) or 0)
+        cell = cells[index - 1] if 0 < index <= len(cells) else {}
+        metadata = cell.get("metadata", {})
+        language = ""
+        if isinstance(metadata, Mapping):
+            language = str(metadata.get("language", "") or "").strip().lower()
+            vscode = metadata.get("vscode", {})
+            if not language and isinstance(vscode, Mapping):
+                language = str(vscode.get("languageId", "") or "").strip().lower()
+        if language and language not in python_languages:
+            diagnostics.append(_risk(
+                "error", "unsupported_cell_language", str(stage["id"]),
+                "This cell declares a different language. Preserve it in the source notebook; "
+                "convert it explicitly or keep a separate runtime with artifact boundaries.",
+                evidence=language,
+            ))
+            continue
+        source = _source_from_stage(stage)
+        try:
+            compiler(source, f"notebook:cell-{index}", "exec", incomplete_input=False)
+        except (SyntaxError, ValueError, OverflowError) as exc:
+            magic = any(line.lstrip().startswith(("%", "!", "?")) for line in source.splitlines())
+            diagnostics.append(_risk(
+                "error", "notebook_magic_requires_conversion" if magic else "invalid_python_cell",
+                str(stage["id"]),
+                "Notebook magics or shell shortcuts require an explicit Python conversion; "
+                "the importer preserves the original code and never executes or strips them."
+                if magic else "This cell cannot run as a Python pipeline stage; correct the source "
+                "or keep it in its original notebook runtime.",
+                evidence=str(exc),
+            ))
+    return diagnostics
+
+
+def build_notebook_pipeline_import(
+    *, notebook: Mapping[str, Any], source_notebook: Path | str,
+    run_id: str = DEFAULT_RUN_ID,
+) -> dict[str, Any]:
+    """Inspect an editable notebook and preserve its complete source document."""
+    imported = _build_notebook_pipeline_import(
+        notebook=notebook, source_notebook=source_notebook, run_id=run_id,
+    )
+    document = copy.deepcopy(dict(notebook))
+    digest = _notebook_document_hash(document)
+    imported["notebook_document"] = {
+        "schema": NOTEBOOK_DOCUMENT_SCHEMA, "sha256": digest, "notebook": document,
+    }
+    imported["source"]["document_sha256"] = digest
+    imported["source"]["declared_languages"] = _declared_notebook_languages(notebook)
+    setup_conversion = _agilab_export_payload(notebook).get("setup_conversion", {})
+    imported["declared_requirements"] = (
+        _string_list(setup_conversion.get("requirements", []))
+        if isinstance(setup_conversion, Mapping) else []
+    )
+    imported["import_diagnostics"] = _notebook_runtime_diagnostics(notebook, imported)
+    imported["provenance"].update({
+        "preserves_complete_notebook_document": True,
+        "preserves_cell_order": True, "preserves_cell_metadata": True,
+        "original_document_sha256": digest,
+    })
+    return imported
+
+
+def build_notebook_source_export(
+    notebook_import: Mapping[str, Any], *, cell_edits: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Recover the original document, optionally applying explicitly chosen cell edits.
+
+    Unedited exports retain all cells, attachments, metadata and stored outputs.
+    Edits address original Jupyter cell IDs, retain original provenance, and clear
+    stale outputs only on changed code cells. No transformation or execution is implicit.
+    """
+    record = notebook_import.get("notebook_document", {})
+    if not isinstance(record, Mapping) or record.get("schema") != NOTEBOOK_DOCUMENT_SCHEMA:
+        raise ValueError("This import has no preserved source notebook; import the original .ipynb again.")
+    notebook = record.get("notebook")
+    if not isinstance(notebook, Mapping) or _notebook_document_hash(notebook) != record.get("sha256"):
+        raise ValueError("Preserved notebook document fingerprint does not match; recover the original .ipynb.")
+    exported = copy.deepcopy(dict(notebook))
+    edits = dict(cell_edits or {})
+    cells = _notebook_cells(exported)
+    by_id: dict[str, list[dict[str, Any]]] = {}
+    for index, cell in enumerate(cells, start=1):
+        cell_id = str(cell.get("id", "") or f"cell-{index}")
+        by_id.setdefault(cell_id, []).append(cell)
+    changed = []
+    for cell_id, source in edits.items():
+        matches = by_id.get(cell_id, [])
+        if len(matches) != 1 or matches[0].get("cell_type") != "code":
+            raise ValueError(f"Cell edit must identify one original code cell: {cell_id!r}.")
+        if not isinstance(source, str):
+            raise ValueError(f"Cell edit source must be text: {cell_id!r}.")
+        cell = matches[0]
+        original_source = _source_text(cell)
+        if source == original_source:
+            continue
+        cell["source"] = source.splitlines(keepends=True)
+        cell["execution_count"] = None
+        cell["outputs"] = []
+        changed.append({"cell_id": cell_id, "original_source_sha256": _hash_source(original_source),
+                        "current_source_sha256": _hash_source(source)})
+    if changed:
+        current_digest = _notebook_document_hash(exported)
+        metadata = exported.setdefault("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError("Notebook metadata must be an object to record edited-source provenance.")
+        agilab_metadata = metadata.setdefault("agilab", {})
+        if not isinstance(agilab_metadata, dict):
+            raise ValueError("Notebook metadata.agilab must be an object to record edited-source provenance.")
+        previous_provenance = copy.deepcopy(agilab_metadata.get("source_roundtrip"))
+        agilab_metadata["source_roundtrip"] = {
+            "schema": "agilab.notebook_source_roundtrip.v1", "divergence": "edited",
+            "original_document_sha256": record["sha256"], "current_document_sha256": current_digest,
+            "hash_scope": "document_before_roundtrip_metadata", "changed_cells": changed,
+            "executes_notebook": False,
+        }
+        if previous_provenance is not None:
+            agilab_metadata["source_roundtrip"]["upstream_provenance"] = previous_provenance
+    return exported
+
+
+def notebook_source_cell_edits_from_stages(
+    notebook_import: Mapping[str, Any], stages: Iterable[Mapping[str, Any]],
+) -> dict[str, str]:
+    """Map reviewed stage edits back to cells without guessing composite changes."""
+    notebook = build_notebook_source_export(notebook_import)
+    original_cells = {
+        str(cell.get("id", "") or f"cell-{index}"): cell
+        for index, cell in enumerate(_notebook_cells(notebook), start=1)
+        if cell.get("cell_type") == "code"
+    }
+    originals = {cell_id: _source_text(cell) for cell_id, cell in original_cells.items()}
+    edits: dict[str, str] = {}
+    assigned: dict[str, str] = {}
+    for stage in stages:
+        source = str(stage.get("C", "") or "")
+        document_cell_id = str(stage.get("NB_SOURCE_DOCUMENT_CELL_ID", "") or "")
+        source_cells = stage.get("NB_SOURCE_CELLS")
+        if document_cell_id:
+            if document_cell_id not in original_cells:
+                raise ValueError(f"Source notebook cell no longer exists: {document_cell_id!r}.")
+            cell = original_cells[document_cell_id]
+            stage_index = _coerce_nonnegative_int(_export_stage_cell_metadata(cell).get("stage_index"))
+            if stage_index is not None:
+                source = _replace_exported_stage_source(originals[document_cell_id], stage_index, source)
+            candidates = [(document_cell_id, source)]
+        elif isinstance(source_cells, list):
+            if hashlib.sha256(source.encode("utf-8")).hexdigest() != stage.get("NB_COMPILED_SHA256"):
+                raise ValueError(
+                    "The combined notebook stage was edited. Its changes cannot be assigned to "
+                    "individual cells automatically; edit the source notebook and import it again."
+                )
+            candidates = [(cell.get("id"), cell.get("source")) for cell in source_cells
+                          if isinstance(cell, Mapping)]
+        else:
+            candidates = [(stage.get("NB_CELL_ID"), source)]
+        for cell_id, code in candidates:
+            if cell_id not in originals:
+                if cell_id and notebook_import.get("source", {}).get("import_mode") == "agilab_supervisor_metadata":
+                    raise ValueError(
+                        "This older supervisor import has no current source-cell identity. "
+                        "Import the source notebook again before applying stage edits to its export."
+                    )
+                continue
+            if not isinstance(code, str):
+                raise ValueError(f"Notebook source cell must contain text: {cell_id!r}.")
+            if cell_id in assigned and assigned[cell_id] != code:
+                raise ValueError(f"Conflicting stage edits for notebook cell {cell_id!r}.")
+            assigned[cell_id] = code
+            if code != originals[cell_id]:
+                edits[cell_id] = code
+    return edits
+
+
+def _replace_exported_stage_source(source_cell_text: str, stage_index: int, code: str) -> str:
+    """Replace just the encoded source literal, preserving the supervisor wrapper."""
+    previous_code = _extract_exported_stage_source(source_cell_text, stage_index)
+    if previous_code == code:
+        return source_cell_text
+    if previous_code == source_cell_text:
+        # This source cell already contains plain stage code rather than an encoding.
+        return code
+    variable_name = f"STAGE_{stage_index:03d}_CODE"
+    tree = ast.parse(source_cell_text)
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        if not isinstance(node.targets[0], ast.Name) or node.targets[0].id != variable_name:
+            continue
+        value = node.value
+        if value.end_lineno is None or value.end_col_offset is None:
+            break
+        lines = source_cell_text.encode("utf-8").splitlines(keepends=True)
+        start = sum(len(line) for line in lines[:value.lineno - 1]) + value.col_offset
+        end = sum(len(line) for line in lines[:value.end_lineno - 1]) + value.end_col_offset
+        original_bytes = source_cell_text.encode("utf-8")
+        return (original_bytes[:start] + repr(code).encode("utf-8") + original_bytes[end:]).decode("utf-8")
+    raise ValueError("Edited supervisor stage source cannot be mapped to its encoded source cell; edit the notebook explicitly.")
+
+
+def build_notebook_setup_conversion(
+    notebook_import: Mapping[str, Any], *, cell_ids: Iterable[str],
+) -> dict[str, Any]:
+    """Explicitly move simple pip setup to requirements and choose a batch plot backend.
+
+    Only selected cells are changed. Arbitrary shell commands, remote requirement
+    files, installer flags and foreign-language magics require manual conversion.
+    Neither package installation nor notebook code runs here.
+    """
+    original = build_notebook_source_export(notebook_import)
+    selected = set(cell_ids)
+    if not selected:
+        raise ValueError("Choose at least one setup cell to convert explicitly.")
+    edits: dict[str, str] = {}
+    requirements: list[str] = []
+    retained = []
+    requirement_pattern = re.compile(
+        r"[A-Za-z0-9][A-Za-z0-9_.-]*(?:\[[A-Za-z0-9_,.-]+\])?"
+        r"(?:(?:===|==|!=|~=|<=|>=|<|>)[A-Za-z0-9.*+!-]+"
+        r"(?:,(?:===|==|!=|~=|<=|>=|<|>)[A-Za-z0-9.*+!-]+)*)?"
+    )
+    for index, cell in enumerate(_notebook_cells(original), start=1):
+        cell_id = str(cell.get("id", "") or f"cell-{index}")
+        if cell_id not in selected:
+            continue
+        if cell.get("cell_type") != "code":
+            raise ValueError(f"Setup conversion requires a code cell: {cell_id!r}.")
+        converted = []
+        changed = False
+        for line in _source_text(cell).splitlines(keepends=True):
+            stripped = line.strip()
+            if re.match(r"^[!%]pip\s+install\s+", stripped):
+                tokens = shlex.split(re.sub(r"^[!%]pip\s+install\s+", "", stripped))
+                tokens = [token for token in tokens if token not in {"-q", "--quiet"}]
+                if not tokens or any(not requirement_pattern.fullmatch(token) for token in tokens):
+                    raise ValueError(
+                        f"Setup cell {cell_id!r} uses installer flags, URLs or requirement files; "
+                        "declare these dependencies manually before conversion."
+                    )
+                requirements.extend(tokens)
+                converted.append("# AGILAB setup requirements: " + ", ".join(tokens) + "\n")
+                changed = True
+            elif stripped == "%matplotlib inline":
+                converted.extend(["import matplotlib\n", "matplotlib.use('Agg')  # Explicit batch-backend conversion.\n"])
+                changed = True
+            else:
+                converted.append(line)
+        if not changed:
+            raise ValueError(f"Setup cell {cell_id!r} has no supported conversion.")
+        source = "".join(converted)
+        try:
+            codeop.Compile()(source, f"notebook:cell-{index}", "exec", incomplete_input=False)
+        except (SyntaxError, ValueError, OverflowError) as exc:
+            raise ValueError(f"Setup cell {cell_id!r} still needs manual conversion: {exc}") from exc
+        edits[cell_id] = source
+        retained.append(copy.deepcopy(cell))
+    if set(edits) != selected:
+        raise ValueError("Setup conversion names an unknown or ambiguous source cell.")
+    converted_notebook = build_notebook_source_export(notebook_import, cell_edits=edits)
+    previous = _agilab_export_payload(original).get("setup_conversion", {})
+    if not isinstance(previous, Mapping):
+        raise ValueError("Existing setup conversion metadata must be an object; review it before another conversion.")
+    previous_requirements = previous.get("requirements", [])
+    previous_cells = previous.get("original_setup_cells", [])
+    previous_ids = previous.get("selected_cell_ids", [])
+    if (
+        not isinstance(previous_requirements, list) or not all(isinstance(value, str) for value in previous_requirements)
+        or not isinstance(previous_cells, list) or not all(isinstance(value, Mapping) for value in previous_cells)
+        or not isinstance(previous_ids, list) or not all(isinstance(value, str) for value in previous_ids)
+    ):
+        raise ValueError("Existing setup conversion declarations are invalid; review them before another conversion.")
+    cells_by_hash = {_notebook_document_hash(cell): copy.deepcopy(dict(cell)) for cell in [*previous_cells, *retained]}
+    declaration = copy.deepcopy(dict(previous))
+    declaration.update({
+        "schema": "agilab.notebook_setup_conversion.v1", "requirements": list(dict.fromkeys([*previous_requirements, *requirements])),
+        "original_setup_cells": list(cells_by_hash.values()), "selected_cell_ids": sorted(set(previous_ids) | selected),
+        "installs_dependencies": False, "executes_notebook": False,
+        "next_action": "Review requirements and add them to the project environment before execution.",
+    })
+    if previous:
+        declaration["upstream_conversion"] = copy.deepcopy(dict(previous))
+    converted_notebook["metadata"]["agilab"]["setup_conversion"] = declaration
+    return converted_notebook
+
+
+def write_notebook_source_export(
+    path: Path, notebook_import: Mapping[str, Any], *, cell_edits: Mapping[str, str] | None = None,
+) -> Path:
+    """Write a recovered notebook after validating its provenance, without execution."""
+    notebook = build_notebook_source_export(notebook_import, cell_edits=cell_edits)
+    path = Path(path).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
 
 
 def _context_lookup(notebook_import: Mapping[str, Any]) -> dict[str, str]:
@@ -1227,6 +1584,9 @@ def build_lab_stages_preview(
         ).strip()
         if source_stage_fingerprint:
             entry["NB_SOURCE_STAGE_FINGERPRINT"] = source_stage_fingerprint
+        document_cell_id = str(stage.get("notebook_document_cell_id", "") or "")
+        if document_cell_id:
+            entry["NB_SOURCE_DOCUMENT_CELL_ID"] = document_cell_id
         if bool(stage.get("stage_id_explicit", False)):
             stage_id = str(stage.get("id", "") or "").strip()
             if stage_id:
@@ -1258,6 +1618,13 @@ def build_lab_stages_preview(
         for key in STAGE_EXECUTION_CONTROL_KEYS:
             if key in stage:
                 entry[key] = copy.deepcopy(stage[key])
+        for key in STAGE_TEMPLATE_METADATA_KEYS:
+            if key in stage:
+                entry[key] = copy.deepcopy(stage[key])
+        if entry.get("kind") == "template" or entry.get("template_origin"):
+            from agilab.pipeline.pipeline_stage_templates import reconcile_imported_pipeline_template_stage
+
+            entry = reconcile_imported_pipeline_template_stage(entry)
         entries.append(entry)
     if preserve_notebook_state and (
         not isinstance(source, Mapping)
@@ -1325,7 +1692,10 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
     summary = notebook_import.get("summary", {})
     summary_map = summary if isinstance(summary, dict) else {}
     artifact_contract = build_notebook_artifact_contract(notebook_import)
-    risks: list[dict[str, str]] = []
+    risks: list[dict[str, str]] = [
+        dict(issue) for issue in notebook_import.get("import_diagnostics", [])
+        if isinstance(issue, Mapping)
+    ]
 
     pipeline_stage_count = int(summary_map.get("pipeline_stage_count", 0) or 0)
     markdown_cell_count = int(summary_map.get("markdown_cell_count", 0) or 0)
@@ -1403,6 +1773,7 @@ def build_notebook_import_preflight(notebook_import: Mapping[str, Any]) -> dict[
             "unknown_artifact_count": len(artifact_contract.get("unknown", [])),
         },
         "env_hints": list(notebook_import.get("env_hints", []) or []),
+        "declared_requirements": list(notebook_import.get("declared_requirements", []) or []),
         "artifact_contract": artifact_contract,
         "risks": risks,
     }
@@ -1455,6 +1826,7 @@ def build_notebook_import_contract(
         "schema": CONTRACT_SCHEMA,
         "module_name": str(module_name or "notebook_import_project"),
         "source": source if isinstance(source, dict) else {},
+        "notebook_document": copy.deepcopy(notebook_import.get("notebook_document", {})),
         "summary": summary if isinstance(summary, dict) else {},
         "preflight": {
             "schema": preflight_state.get("schema"),
@@ -1465,6 +1837,7 @@ def build_notebook_import_contract(
         },
         "environment": {
             "imports": list(notebook_import.get("env_hints", []) or []),
+            "requirements": list(notebook_import.get("declared_requirements", []) or []),
         },
         "artifact_contract": preflight_state.get("artifact_contract", {}),
         "warnings": [
@@ -2156,3 +2529,34 @@ def persist_notebook_pipeline_import(
         notebook_import=notebook_import,
         reloaded_import=reloaded,
     )
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Recover an imported notebook through an explicit, non-executing CLI."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Recover the source notebook preserved by an AGILAB import.")
+    parser.add_argument("command", choices=["source-export"])
+    parser.add_argument("--contract", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    choices = parser.add_mutually_exclusive_group()
+    choices.add_argument("--cell-edits", type=Path, help="JSON object mapping original code-cell IDs to reviewed Python source.")
+    choices.add_argument("--convert-setup-cell", action="append", default=[], help="Explicitly convert this cell's simple pip setup or inline plot magic.")
+    args = parser.parse_args(argv)
+    try:
+        contract = _read_json(args.contract)
+        if args.convert_setup_cell:
+            notebook = build_notebook_setup_conversion(contract, cell_ids=args.convert_setup_cell)
+        else:
+            edits = _read_json(args.cell_edits) if args.cell_edits else None
+            notebook = build_notebook_source_export(contract, cell_edits=edits)
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(notebook, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    except (OSError, TypeError, ValueError) as exc:
+        parser.exit(2, f"Source notebook export failed: {exc}\n")
+    print(f"Source notebook written: {args.output}; notebook execution: none.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

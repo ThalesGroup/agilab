@@ -847,6 +847,8 @@ def build_notebook_export_context(
 
 
 def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
+    from agilab.pipeline.pipeline_stage_templates import rendered_pipeline_stage_code
+
     notebook_data = {
         "cells": [],
         "metadata": _notebook_metadata(),
@@ -859,7 +861,7 @@ def _build_plain_notebook(toml_data: Dict[str, Any]) -> Dict[str, Any]:
         for stage in stages:
             code_text = ""
             if isinstance(stage, dict):
-                code_text = str(stage.get("C", "") or "")
+                code_text = rendered_pipeline_stage_code(stage)
             elif isinstance(stage, str):
                 code_text = stage
             if not code_text:
@@ -970,6 +972,10 @@ def _stage_semantic_payload(stage: Any) -> dict[str, Any]:
     )
     payload["produces"] = _metadata_string_list(stage.get("produces", []))
     payload.update(_stage_execution_controls(stage))
+    for key in ("template_id", "template_version", "template_fingerprint", "template_payload",
+                "payload_fingerprint", "template_origin"):
+        if key in stage:
+            payload[key] = _metadata_value(stage[key])
     return payload
 
 
@@ -1180,7 +1186,11 @@ def _stage_records(
             raw_stage = stages[module_index]
             if isinstance(raw_stage, dict):
                 effective_stage = _stage_with_profile(raw_stage, profile)
-                code_text = str(raw_stage.get("C", "") or "")
+                from agilab.pipeline.pipeline_stage_templates import rendered_pipeline_stage_code
+                # Export consumes the same canonical renderer and drift guard as
+                # WORKFLOW; it never rewrites a stale source behind the user.
+                code_text = rendered_pipeline_stage_code(raw_stage)
+                rendered_pipeline_stage_code(effective_stage)
                 description = str(raw_stage.get("D", "") or "")
                 question = str(raw_stage.get("Q", "") or "")
                 model = str(raw_stage.get("M", "") or "")
@@ -1264,6 +1274,11 @@ def _stage_records(
                 ),
             }
             record.update(execution_controls)
+            if isinstance(raw_stage, Mapping):
+                for key in ("template_id", "template_version", "template_fingerprint", "template_payload",
+                            "payload_fingerprint", "template_origin"):
+                    if key in raw_stage:
+                        record[key] = _metadata_value(raw_stage[key])
             if notebook_import:
                 record["notebook_import"] = notebook_import
             records.append(record)
@@ -2117,6 +2132,10 @@ def _stage_cell_metadata(stage: dict[str, Any], *, kind: str) -> dict[str, Any]:
     if isinstance(notebook_import, Mapping) and notebook_import:
         stage_cell["notebook_import"] = dict(notebook_import)
     stage_cell.update(_stage_execution_controls(stage))
+    for key in ("template_id", "template_version", "template_fingerprint", "template_payload",
+                "payload_fingerprint", "template_origin"):
+        if key in stage:
+            stage_cell[key] = _metadata_value(stage[key])
 
     agilab_payload: dict[str, Any] = {
         "schema": NOTEBOOK_EXPORT_SCHEMA,

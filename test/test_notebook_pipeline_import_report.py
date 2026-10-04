@@ -168,8 +168,8 @@ def test_notebook_pipeline_import_preflight_flags_risky_cells(tmp_path: Path) ->
     assert imported["pipeline_stages"][0]["runtime"] == "agi.run"
     assert preview["risky_project"][0]["NB_RUNTIME_ROLE"] == "worker"
     assert preview["risky_project"][0]["NB_EXECUTION_COUNT"] == 7
-    assert preflight["status"] == "review"
-    assert preflight["safe_to_import"] is True
+    assert preflight["status"] == "blocked"
+    assert preflight["safe_to_import"] is False
     assert preflight["cleanup_required"] is True
     assert preflight["artifact_contract"]["inputs"] == [
         "/home/agilab/private.csv",
@@ -192,7 +192,7 @@ def test_notebook_pipeline_import_preflight_flags_risky_cells(tmp_path: Path) ->
     }
     assert contract["module_name"] == "risky_project"
     assert contract["warnings"]
-    assert contract["errors"] == []
+    assert {error["rule"] for error in contract["errors"]} == {"notebook_magic_requires_conversion"}
 
 
 def test_notebook_pipeline_import_uses_supervisor_export_metadata(tmp_path: Path) -> None:

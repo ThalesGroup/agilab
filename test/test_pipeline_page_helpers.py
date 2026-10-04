@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from importlib.machinery import ModuleSpec
 from pathlib import Path
 import sys
@@ -228,6 +229,48 @@ def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, mon
     module._render_notebook_download_button(notebook_path, "pipeline-export", container=fake_container)
 
     assert errors == ["Failed to prepare notebook export: download failed"]
+
+
+@pytest.mark.parametrize("apply_edits", [False, True])
+def test_source_notebook_download_keeps_original_until_stage_edits_are_chosen(tmp_path, apply_edits):
+    import tomli_w
+    from agilab.notebooks.notebook_pipeline_import import (
+        build_lab_stages_preview, build_notebook_import_contract, build_notebook_pipeline_import,
+    )
+
+    module = _load_pipeline_module()
+    original = {
+        "nbformat": 4, "nbformat_minor": 5, "metadata": {},
+        "cells": [
+            {"id": "intro", "cell_type": "markdown", "source": "Context", "metadata": {"keep": True}},
+            {"id": "compute", "cell_type": "code", "source": "answer = 1\n", "metadata": {},
+             "outputs": [{"output_type": "stream", "text": "old", "name": "stdout"}], "execution_count": 7},
+            {"id": "raw", "cell_type": "raw", "source": "Retain raw", "metadata": {}},
+        ],
+    }
+    imported = build_notebook_pipeline_import(notebook=original, source_notebook="authored-source.ipynb")
+    (tmp_path / "notebook_import_contract.json").write_text(json.dumps(build_notebook_import_contract(imported)))
+    pipeline = build_lab_stages_preview(imported, module_name="demo")
+    pipeline["demo"][0]["C"] = "answer = 2\n"
+    stages_file = tmp_path / "lab_stages.toml"
+    stages_file.write_text(tomli_w.dumps(pipeline))
+    downloads = []
+    errors = []
+    target = SimpleNamespace(
+        download_button=lambda label, **kwargs: downloads.append({"label": label, **kwargs}),
+        caption=lambda _message: None, warning=lambda _message: None,
+        error=lambda message: errors.append(str(message)), checkbox=lambda *_args, **_kwargs: apply_edits,
+    )
+    module._render_source_notebook_downloads(stages_file, "source_", container=target)
+    assert errors == []
+    assert json.loads(downloads[0]["data"]) == original
+    assert downloads[0]["label"] == "Download original source notebook"
+    assert len(downloads) == (2 if apply_edits else 1)
+    if apply_edits:
+        edited = json.loads(downloads[1]["data"])
+        assert edited["cells"][1]["source"] == ["answer = 2\n"]
+        assert edited["cells"][1]["outputs"] == []
+        assert edited["metadata"]["agilab"]["source_roundtrip"]["divergence"] == "edited"
 
 
 def test_pipeline_on_df_change_uses_page_local_load_last_stage(tmp_path, monkeypatch):

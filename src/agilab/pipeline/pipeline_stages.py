@@ -19,6 +19,10 @@ from agilab.workflow.lab_stages_contract import (
     is_displayable_stage as _contract_is_displayable_stage,
     lab_stages_metadata_issues,
 )
+from agilab.pipeline.pipeline_stage_templates import (
+    pipeline_stage_execution_error,
+    rendered_pipeline_stage_code,
+)
 
 ORCHESTRATE_LOCKED_STAGE_KEY = "_orchestrate_locked_stage"
 ORCHESTRATE_LOCKED_SOURCE_KEY = "_orchestrate_snippet_source"
@@ -752,7 +756,9 @@ def is_runnable_stage(entry: Dict[str, Any]) -> bool:
     """Return True if a stage has executable code content."""
     if not entry:
         return False
-    code = entry.get("C", "")
+    if pipeline_stage_execution_error(entry):
+        return False
+    code = rendered_pipeline_stage_code(entry)
     return isinstance(code, str) and bool(code.strip())
 
 

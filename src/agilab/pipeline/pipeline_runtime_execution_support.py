@@ -388,8 +388,17 @@ def run_locked_stage(
     wrap_code_with_mlflow_resume_fn: Callable[[str], str],
 ) -> None:
     """Execute one immutable ORCHESTRATE-derived stage."""
+    from agilab.pipeline.pipeline_stage_templates import (
+        pipeline_stage_execution_error, rendered_pipeline_stage_code,
+    )
     stored_placeholder = get_run_placeholder(index_page_str)
     from agi_web import python_ui as st
+
+    error = pipeline_stage_execution_error(entry)
+    if error:
+        st.error(error)
+        return
+    entry = {**entry, "C": rendered_pipeline_stage_code(entry)}
 
     st.session_state[f"{index_page_str}__run_logs"] = []
     if stored_placeholder is not None:
