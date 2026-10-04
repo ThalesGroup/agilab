@@ -332,6 +332,31 @@ def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
     assert f"rounded category average: `{snapshot['supported_score']}`" in summary
 
 
+def test_reevaluated_summary_keeps_native_release_rating_provisional() -> None:
+    module = _load_module()
+    snapshot = module.build_score_snapshot()
+
+    summary = module.render_readme_summary(snapshot)
+
+    assert "Reevaluated on `2026-10-04`" in summary
+    assert "Category scores remain unchanged" in summary
+    assert "Provisional for the native React release" in summary
+    assert "until GitHub, PyPI, documentation, and hosted-demo release proofs align" in summary
+    assert "external replication, cloud deployment, and production operating evidence" in summary
+
+
+def test_summary_remains_compatible_with_legacy_score_snapshots() -> None:
+    module = _load_module()
+    snapshot = module.build_score_snapshot()
+    for key in ("reevaluation_date", "reevaluation_basis", "strategic_potential_score_status"):
+        snapshot["summary"].pop(key)
+
+    summary = module.render_readme_summary(snapshot)
+
+    assert "Overall public evaluation, rounded category average: `3.8 / 5`." in summary
+    assert "Reevaluated on" not in summary
+
+
 def test_refresh_readme_summary_replaces_static_block(tmp_path: Path) -> None:
     module = _load_module()
     snapshot = module.build_score_snapshot()
@@ -1152,7 +1177,7 @@ def test_reduce_contract_adoption_guardrail_reports_template_exemption() -> None
     assert check["details"]["checked_app_count"] == 12
     assert check["details"]["template_only_exemptions"] == {
         "multi_app_dag_project": "cross-app DAG template preview with no concrete worker merge output",
-        "minimal_app_project": "starter template with placeholder worker hooks and no concrete merge output",
+        "minimal_app_project": "starter pass-through worker with tabular output but no metrics reducer summary contract",
     }
     assert check["details"]["failures"] == []
 

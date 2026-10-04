@@ -31,14 +31,26 @@ OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(l
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
 STRATEGIC_POTENTIAL_SCORE = "4.3 / 5"
 STRATEGIC_POTENTIAL_SCORE_BASIS = (
-    "The 4.3 threshold is supported by passing release and packaged-example gates "
-    "plus aligned GitHub, PyPI, docs, and Hugging Face release evidence. The 4.5 "
+    "The 4.3 threshold requires passing release and packaged-example gates "
+    "plus aligned GitHub, PyPI, docs, and Hugging Face release evidence. For the "
+    "native React release it remains provisional until that alignment is verified. The 4.5 "
     "external fresh-machine and credentialed-connector threshold is not yet met."
+)
+SCORE_REEVALUATION_DATE = "2026-10-04"
+SCORE_REEVALUATION_BASIS = (
+    "Native React, retained Python views, all 14 builtin app payloads, and fresh-kernel "
+    "notebook interactions strengthen the verified source and local installed-package "
+    "evidence. Category scores remain unchanged: external replication, cloud deployment, "
+    "and production operating evidence have not met the next documented thresholds."
+)
+STRATEGIC_POTENTIAL_SCORE_STATUS = (
+    "Provisional for the native React release until GitHub, PyPI, documentation, "
+    "and hosted-demo release proofs align."
 )
 README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
 README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"
 TEMPLATE_ONLY_BUILTIN_APPS = {
-    "minimal_app_project": "starter template with placeholder worker hooks and no concrete merge output",
+    "minimal_app_project": "starter pass-through worker with tabular output but no metrics reducer summary contract",
     "multi_app_dag_project": "cross-app DAG template preview with no concrete worker merge output",
 }
 
@@ -2532,6 +2544,9 @@ def build_score_snapshot() -> dict[str, Any]:
             },
             "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
             "strategic_potential_score_basis": STRATEGIC_POTENTIAL_SCORE_BASIS,
+            "strategic_potential_score_status": STRATEGIC_POTENTIAL_SCORE_STATUS,
+            "reevaluation_date": SCORE_REEVALUATION_DATE,
+            "reevaluation_basis": SCORE_REEVALUATION_BASIS,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },
@@ -2568,6 +2583,15 @@ def render_readme_summary(bundle: dict[str, Any]) -> str:
             f"- Overall public evaluation, rounded category average: `{bundle['supported_score']}`.",
         ]
     )
+    if review_date := bundle["summary"].get("reevaluation_date"):
+        lines.extend(
+            [
+                "",
+                f"Reevaluated on `{review_date}`: {bundle['summary']['reevaluation_basis']}",
+                "",
+                f"Strategic rating status: {bundle['summary']['strategic_potential_score_status']}",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -2684,6 +2708,9 @@ def build_bundle(
             },
             "strategic_potential_score": STRATEGIC_POTENTIAL_SCORE,
             "strategic_potential_score_basis": STRATEGIC_POTENTIAL_SCORE_BASIS,
+            "strategic_potential_score_status": STRATEGIC_POTENTIAL_SCORE_STATUS,
+            "reevaluation_date": SCORE_REEVALUATION_DATE,
+            "reevaluation_basis": SCORE_REEVALUATION_BASIS,
             "score_formula": _score_formula(),
             "score_rounding": "one decimal, half up",
         },

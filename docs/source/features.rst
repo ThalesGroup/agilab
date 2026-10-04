@@ -185,6 +185,12 @@ single notebook but less ceremony than a production MLOps platform:
 That supports an ``Engineering prototyping`` score of ``4.0 / 5`` in the
 current public evaluation snapshot.
 
+The October 4, 2026 reevaluation retains that score. Native React and Python
+views work without Streamlit, including exported interactive notebooks and all
+14 builtin payloads. These source and local installed-package proofs strengthen
+the existing evidence; independent external replication remains a requirement
+for a higher rating.
+
 - app templates and cloned projects provide two explicit shapes: workerless
   local/UI apps for simple prototypes, and manager/worker apps for distributed
   execution

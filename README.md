@@ -869,6 +869,10 @@ Current public evaluation summary, refreshed from the public KPI bundle:
 - `3.2 / 5` for production readiness.
 - `4.3 / 5` for strategic potential.
 - Overall public evaluation, rounded category average: `3.8 / 5`.
+
+Reevaluated on `2026-10-04`: Native React, retained Python views, all 14 builtin app payloads, and fresh-kernel notebook interactions strengthen the verified source and local installed-package evidence. Category scores remain unchanged: external replication, cloud deployment, and production operating evidence have not met the next documented thresholds.
+
+Strategic rating status: Provisional for the native React release until GitHub, PyPI, documentation, and hosted-demo release proofs align.
 <!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->
 
 These are public experimentation-workbench scores, not production MLOps claims.

@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 BUILTIN_APPS_ROOT = REPO_ROOT / "src" / "agilab" / "apps" / "builtin"
 TEMPLATE_ONLY_BUILTIN_APPS = {
     "multi_app_dag_project": "cross-app DAG template preview with no concrete worker merge output",
-    "minimal_app_project": "starter template with placeholder worker hooks and no concrete merge output",
+    "minimal_app_project": "starter pass-through worker with tabular output but no metrics reducer summary contract",
 }
 
 
