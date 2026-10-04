@@ -90,7 +90,7 @@ the current source checkout:
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
-built-in app installation and Streamlit UI.
+built-in app installation and React UI.
 
 Maintainer refresh
 ------------------

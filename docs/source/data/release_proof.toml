@@ -103,7 +103,7 @@ commands = [
   "python -m pip install \"{package_spec}\"",
   "python -m agilab.lab_run first-proof --json --max-seconds 60",
 ]
-follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and Streamlit UI."
+follow_up = "Use :doc:`quick-start` when you want the fuller source-checkout path with the built-in app installation and React UI."
 
 [maintenance]
 intro = "Maintainers can refresh the manifest from local release evidence and GitHub Actions evidence, render the page, and run the same consistency checks with one command:"

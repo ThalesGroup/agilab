@@ -336,7 +336,7 @@ Remaining state-of-the-art scope:
   or source checkout
 - OpenLineage transport integration to emit events to an external lineage
   backend, not only write an interoperable JSON payload
-- native OpenTelemetry SDK/OTLP instrumentation across Streamlit actions,
+- native OpenTelemetry SDK/OTLP instrumentation across React and native Python UI actions,
   worker build, distributed execution, notebook export, MLflow handoff, and
   agent runs
 - durable ML metadata backend, for example SQLite/Postgres/MLMD-compatible
@@ -770,7 +770,7 @@ use this order after the P0-P2 professionalization gates are under control:
    - add the shipped data connector UI preview report for static connector
      state and provenance review
    - add the shipped data connector live UI report for Release Decision
-     Streamlit integration without connector network probes
+     native Python view integration without connector network probes
    - add the shipped data connector app catalogs report for app-local
      connector catalogs across every non-template built-in app
    - this turns connector work into a practical data-access layer, not just path
@@ -1182,7 +1182,7 @@ Why it matters:
 Purpose:
 
 - improve developer and operator logging without breaking compatibility across
-  Streamlit, workers, subprocesses, and distributed services
+  native Python views, workers, subprocesses, and distributed services
 
 Recommended direction:
 
@@ -1365,8 +1365,9 @@ Completed baseline:
   state, page bindings, legacy fallbacks, and health-boundary provenance as
   static JSON+HTML evidence
 - `tools/data_connector_live_ui_report.py --compact` wires connector state and
-  connector-derived provenance into the Release Decision Streamlit page in
-  `streamlit_render_contract_only` mode
+  connector-derived provenance into the Release Decision native Python view in
+  `streamlit_render_contract_only` mode (the retained render-contract alias;
+  the report does not import Streamlit)
 - `tools/data_connector_view_surface_report.py --compact` verifies the
   connector-aware Release Decision panels for state/provenance, health
   boundary, import/export provenance, and external artifact traceability in
@@ -1583,7 +1584,7 @@ Current shipped baseline:
   connector-derived provenance as JSON+HTML preview evidence
 - `tools/data_connector_live_ui_report.py --compact` validates
   `agilab.data_connector_live_ui.v1` and wires connector state plus
-  connector-derived provenance into the Release Decision Streamlit page without
+  connector-derived provenance into the Release Decision native Python view without
   opening connector networks
 - `tools/data_connector_view_surface_report.py --compact` validates
   `agilab.data_connector_view_surface.v1` and checks the Release Decision
@@ -1621,7 +1622,8 @@ Current shipped baseline:
   state/provenance, connector health/status boundary, import/export
   provenance, and external artifact traceability
 - the evidence reads local page source plus the connector live-UI render
-  contract, uses the existing Streamlit recorder, and keeps command execution
+  contract, uses the existing `StreamlitCallRecorder` test adapter without importing
+  Streamlit, and keeps command execution
   and network probes at zero
 - the KPI evidence bundle includes this as
   `data_connector_view_surface_report_contract`

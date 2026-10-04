@@ -254,7 +254,7 @@ agilab export hf-space \
   --output hf_space/
 ```
 
-Prefer Docker Spaces over a Streamlit SDK-only path.
+Use Docker Spaces to serve the native React host and its Python views.
 
 Generated structure:
 

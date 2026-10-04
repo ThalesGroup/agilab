@@ -356,6 +356,16 @@ def test_readme_first_proof_snippet_uses_console_script_without_manual_venv() ->
     assert "The PyPI package is the thinnest public entry point" not in readme
 
 
+def test_source_checkout_readmes_launch_the_native_module() -> None:
+    native_launch = (
+        "uv --preview-features extra-build-dependencies run --extra ui python -m agilab"
+    )
+    for path in (README, PYPI_README):
+        readme = path.read_text(encoding="utf-8")
+        assert native_launch in readme, path
+        assert "streamlit run" not in readme, path
+
+
 def test_quick_start_package_route_uses_tool_console_script_without_activation() -> None:
     quick_start = Path("docs/source/quick-start.rst").read_text(encoding="utf-8")
     ui_route = quick_start.split(

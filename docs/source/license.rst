@@ -5,11 +5,16 @@ There are three distinct license scopes to keep in mind when reading this docume
 
 - **AGILab source code license**: defined by the repository root ``LICENSE`` and attributions in ``NOTICE``.
 - **Vendored third-party assets**: copied source or assets carry attribution under ``LICENSES/`` when required.
-- **Python dependency inventories**: the generated pages below list package metadata resolved from the public package split.
+- **Historical Python dependency snapshots**: retained metadata reports; these are not current native dependency graphs.
 
-The dependency inventories are generated with ``tools/generate_docs_license_inventories.py`` from
-``tools/package_split_contract.py`` and the relevant ``pyproject.toml`` files. They are audit aids, not
-a substitute for legal review before changing redistribution scope.
+The dependency metadata snapshots were retained on 2026-10-04 with
+``tools/generate_docs_license_inventories.py --preserve-existing-snapshot 2026-10-04``.
+Original acquisition dates and manifest revisions were not recorded; snapshots may include legacy environments.
+Their package manifest locations come from reports based on ``tools/package_split_contract.py``;
+they do not establish the original manifest revisions or describe current native source dependencies.
+A current resolved license inventory for the native source is not available here.
+Consult the current source manifests for declared dependencies; these snapshots remain audit aids,
+not a substitute for legal review before changing redistribution scope.
 
 Review notes
 ------------
@@ -95,3 +100,13 @@ App packages
    agi-app-uav-relay-queue <agi-app-uav-relay-queue-licenses>
    agi-app-tescia-diagnostic <agi-app-tescia-diagnostic-licenses>
    agi-apps <agi-apps-licenses>
+
+Additional historical snapshots
+-------------------------------
+
+These reports are retained even though their packages are absent from the current package split.
+
+.. toctree::
+   :maxdepth: 1
+
+   agi-page-inference-report-licenses

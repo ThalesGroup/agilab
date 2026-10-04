@@ -165,8 +165,8 @@ agilab
 
 In this source checkout, `agi-web` serves the React interface and renders retained
 Python pipeline, geographic and administration views through its own Python UI
-API. Streamlit is no longer a runtime dependency. Maps and analysis curves use
-the same React components in the web interface and Jupyter. Updated package
+API. Maps and analysis curves use the same React components in the web
+interface and Jupyter. Updated package
 publication and hosted deployment are separate from this source migration;
 previously published wheels retain the dependencies of their release.
 
@@ -424,7 +424,7 @@ CHECKOUT="${AGILAB_CHECKOUT:-$HOME/agilab-src}"
 git clone https://github.com/ThalesGroup/agilab.git "$CHECKOUT"
 cd "$CHECKOUT"
 ./install.sh --install-apps
-uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py
+uv --preview-features extra-build-dependencies run --extra ui python -m agilab
 ```
 
 On native Windows, prefer the published package route below. The source checkout
