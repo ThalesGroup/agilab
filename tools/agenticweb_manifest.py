@@ -321,8 +321,8 @@ def build_discovery(manifest_path: Path = DEFAULT_CAPABILITIES) -> dict[str, Any
             ),
             _capability(
                 kind="ui",
-                capability_id="streamlit-demo",
-                description="Hosted AGILAB Streamlit demo for the public workbench path.",
+                capability_id="native-react-demo",
+                description="Hosted AGILAB native React demo for the public workbench path.",
                 url=HF_SPACE_URL,
                 status="beta",
                 permissions=_permissions(executable=True),

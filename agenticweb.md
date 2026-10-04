@@ -1,7 +1,7 @@
 ---
 agenticweb: "1"
 description: "AGILAB is an open-source AI/ML workbench for reproducible experiments, notebook-to-app workflows, run evidence, proof capsules, and local agent evidence review."
-updated: "2026-10-03"
+updated: "2026-10-04"
 organization:
   name: "AGILAB"
   website: "https://thalesgroup.github.io/agilab"
@@ -224,8 +224,8 @@ capabilities:
       cache: true
       execute: true
   - kind: "ui"
-    id: "streamlit-demo"
-    description: "Hosted AGILAB Streamlit demo for the public workbench path."
+    id: "native-react-demo"
+    description: "Hosted AGILAB native React demo for the public workbench path."
     url: "https://huggingface.co/spaces/jpmorard/agilab"
     status: "beta"
     pricing_model: "free"
@@ -243,7 +243,7 @@ x_generated_by:
   command: "python3 tools/agenticweb_manifest.py --apply"
   source_manifest: "agilab-capabilities.json"
   source_schema: "agilab.capabilities.v1"
-  source_version: "2026.09.21.2"
+  source_version: "2026.10.04"
   boundary: "Discovery only: this file does not prove runtime success, external service reachability, security certification, or production readiness."
 ---
 
