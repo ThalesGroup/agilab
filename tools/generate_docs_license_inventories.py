@@ -36,9 +36,13 @@ if not hasattr(LicenseWithExceptionSymbol, "key"):
         lambda self: f"{self.license_symbol.key} WITH {self.exception_symbol.key}"
     )
 
-from licensecheck.cli import cli
+from importlib.metadata import distribution
 
-raise SystemExit(cli())
+command = next(
+    entry for entry in distribution("licensecheck").entry_points
+    if entry.group == "console_scripts" and entry.name == "licensecheck"
+)
+raise SystemExit(command.load()())
 """
 
 

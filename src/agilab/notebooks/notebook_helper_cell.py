@@ -1280,7 +1280,19 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     raise FileNotFoundError(f"Missing page script for analysis page {{page}}")
                 from agi_web.notebook_python_view import render_python_view
 
-                result = render_python_view(script_path, active_app=resolve_active_app_root())
+                active_app = resolve_active_app_root()
+                session_state = {{}}
+                # Generic exported Python projects need no SDK application context.
+                if Path(active_app).name.endswith(("_project", "_worker")):
+                    from agi_env import AgiEnv
+
+                    app_env = AgiEnv.session(active_app=active_app)
+                    session_state.update({{"_env": app_env, "env": app_env}})
+                result = render_python_view(
+                    script_path,
+                    active_app=active_app,
+                    session_state=session_state,
+                )
                 return _display_inline_result(result)
             return None
 

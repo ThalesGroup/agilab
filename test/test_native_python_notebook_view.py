@@ -173,6 +173,7 @@ def test_exported_specialized_view_uses_notebook_widget_without_subprocess(tmp_p
     displayed = []
     monkeypatch.setattr("IPython.display.display", displayed.append)
     monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: pytest.fail("Notebook rendering launched a process"))
+    monkeypatch.setattr("agi_env.AgiEnv.session", lambda *args, **kwargs: pytest.fail("Generic view constructed an SDK environment"))
     widget = namespace["render_analysis_page"]("specialized")
     try:
         assert displayed == [widget]
@@ -225,3 +226,70 @@ def test_notebook_script_cannot_leave_replaced_process_lists(tmp_path):
         assert (sys.path, sys.argv) == values
     finally:
         widget.close()
+
+
+def test_notebook_host_state_is_copied_before_first_render(tmp_path):
+    host_state = {"runs": 4}
+    widget = render_python_view(_app(tmp_path / "project"), session_state=host_state)
+    try:
+        assert _nodes(widget, "metric")[0]["props"]["value"] == "4"
+        widget.view_session.state["runs"] = 5
+        assert host_state == {"runs": 4}
+    finally:
+        widget.close()
+
+
+def test_exported_app_form_has_isolated_sdk_context_and_saves_changes(tmp_path, monkeypatch):
+    from agi_env import AgiEnv
+
+    _deny_streamlit(monkeypatch)
+    monkeypatch.setattr("IPython.display.display", lambda value: None)
+    monkeypatch.setattr("subprocess.Popen", lambda *args, **kwargs: pytest.fail("Notebook rendering launched a process"))
+    widgets = []
+    try:
+        for name in ("first_project", "second_project"):
+            project = tmp_path / name
+            script = _app(project)
+            (project / "src").mkdir()
+            (project / "src/app_settings.toml").write_text("[args]\ndemands = 3\n", encoding="utf-8")
+            script.write_text(
+                "from pathlib import Path\n"
+                "from agi_web import python_ui as st\n"
+                "env = st.session_state.get('_env')\n"
+                "if env is None:\n    st.stop()\n"
+                "st.number_input('Demand count', value=3, key='demands')\n"
+                "def save():\n"
+                "    Path(env.app_settings_file).write_text('[args]\\ndemands = ' + str(st.session_state['demands']) + '\\n')\n"
+                "st.button('Save parameters', key='save', on_click=save)\n",
+                encoding="utf-8",
+            )
+            namespace = {}
+            exec(_helper_cell({
+                "project_name": name, "module_path": str(project),
+                "active_app": str(project), "artifact_dir": str(project), "stages": [],
+                "related_pages": [{"name": "parameters", "module": "parameters", "script_path": str(script)}],
+            }), namespace)
+            widget = namespace["render_analysis_page"]("parameters")
+            widgets.append(widget)
+            assert widget.payload["error"] == "", widget.payload
+            assert _nodes(widget, "number_input")[0]["props"]["label"] == "Demand count"
+            env = widget.view_session.state["_env"]
+            assert isinstance(env, AgiEnv)
+            assert env is widget.view_session.state["env"]
+            assert Path(env.active_app).resolve() == project.resolve()
+
+        first, second = widgets
+        assert first.view_session.state["_env"] is not second.view_session.state["_env"]
+        for request_id, (key, value) in enumerate((("demands", 11), ("save", True)), 1):
+            control = next(control for control in first.view_session.widgets.values() if control.key == key)
+            first._receive(first, {"kind": "action", "request_id": request_id, "value": {
+                "id": control.id, "revision": first.payload["revision"], "value": value,
+                "csrf_token": first.payload["csrf_token"],
+            }}, [])
+            assert first.payload["error"] == "", first.payload
+        assert "demands = 11" in Path(first.view_session.state["_env"].app_settings_file).read_text()
+        assert "demands = 3" in Path(second.view_session.state["_env"].app_settings_file).read_text()
+        assert second.view_session.state["demands"] == 3
+    finally:
+        for widget in widgets:
+            widget.close()

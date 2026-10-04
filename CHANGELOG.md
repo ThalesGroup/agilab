@@ -25,6 +25,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ### Changed
 
+- Keep native hosted demo profiles installable after source pruning: exclude the source-only UI test group and resolve excluded view/app providers from their complete release wheels. Refresh the capability catalog and the two new app license inventories.
+
 - Use the native React interface and Python view adapter throughout the UI,
   without a Streamlit runtime dependency. Keep Python application authoring
   and notebook exports with the shared React/AnyWidget views.

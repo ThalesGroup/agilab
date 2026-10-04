@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import tomllib
+import tempfile
 from pathlib import Path
 
 
@@ -51,6 +52,25 @@ def test_docs_conf_skips_generated_root_project_workspaces() -> None:
         )
         is False
     )
+
+
+
+def test_docs_conf_does_not_import_staged_frameworks_from_reports(monkeypatch) -> None:
+    reports = ROOT / "reports"
+    reports.mkdir(exist_ok=True)
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    with tempfile.TemporaryDirectory(
+        prefix="agilab_docs_staged_framework_source_path_regression_", dir=reports
+    ) as directory:
+        staged_src = (
+            Path(directory) / "src/agilab/apps/builtin/staged_demo_project/src"
+        )
+        staged_src.mkdir(parents=True)
+        conf = _load_conf_module()
+        assert str(staged_src) not in sys.path
+        assert conf._is_generated_root_project_src(staged_src) is True
+        builtin_src = ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src"
+        assert str(builtin_src) in sys.path
 
 
 def test_docs_conf_ignores_installed_agilab_path_fallback() -> None:

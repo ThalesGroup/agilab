@@ -128,9 +128,12 @@ project_root = repo_root
 
 
 def _is_generated_root_project_src(src: Path, root: Path | None = None) -> bool:
-    """Skip local generated project workspaces accidentally left at a repo root."""
+    """Skip generated workspaces at the repo root and staged report artifacts."""
+    source_root = root or project_root
+    if src.is_relative_to(source_root / "reports"):
+        return True
     project_dir = src.parent
-    return project_dir.parent == (root or project_root) and project_dir.name.endswith(
+    return project_dir.parent == source_root and project_dir.name.endswith(
         "_project"
     )
 
