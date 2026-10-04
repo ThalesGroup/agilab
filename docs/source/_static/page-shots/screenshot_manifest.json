@@ -26,24 +26,30 @@
       "width_px": 1440
     },
     {
-      "alt": "",
+      "alt": "Native AGILAB HOME with the project selector and guided prepare, run and explore demo steps.",
       "app": "",
-      "created_at": "2026-06-02T14:01:51Z",
-      "height_px": 850,
+      "created_at": "2026-10-04T21:19:46.702726Z",
+      "height_px": 1080,
       "image_path": "core-pages-overview.png",
       "page": "core-pages-overview",
-      "project": "",
-      "sha256": "c864b5b14e3bf92f0af764df2defa2f017305a0889998aa26f7f7be4eac21936",
-      "size_bytes": 435662,
+      "project": "flight_telemetry_project",
+      "sha256": "770e2936564bc1b2862ff7f4d9e46cfddd78fe8709eb2bee8125141e7b24db10",
+      "size_bytes": 116090,
       "source_command": [
-        "targeted-playwright-doc-project-page-capture 1440x850-project-sidebar-minimalism"
+        ".venv/bin/python",
+        "reports/agilab_guided_native_ux_browser_validation_20261004/agilab_guided_native_ux_playwright_phase_runner_20261004.py",
+        "agilab_guided_native_home_browser_interactions_sources_20261004.js",
+        "agilab_guided_native_home_browser_phase_validation_20261004",
+        "agilab-guided-native-home-20261004"
       ],
-      "svg_summary_kind": "screenshot-derived-vector-summary",
+      "svg_summary_kind": "screenshot-embedded-raster",
       "svg_summary_path": "core-pages-overview.svg",
-      "svg_summary_sha256": "69a51ee01767519283b033df9387c78ffcc0b96559a4f7f4e4f9a8c3b7ab3e3c",
-      "svg_summary_size_bytes": 8349,
-      "url": "",
-      "width_px": 1440
+      "svg_summary_sha256": "fe882034e7b9d3224f684664e86ebc4273d7da3ef96d25b3210f9d4ca654a058",
+      "svg_summary_size_bytes": 155585,
+      "url": "http://127.0.0.1:59274/",
+      "width_px": 1440,
+      "source_capture_path": "../native-ui/agilab_native_react_main_home.png",
+      "source_capture_sha256": "770e2936564bc1b2862ff7f4d9e46cfddd78fe8709eb2bee8125141e7b24db10"
     },
     {
       "alt": "",

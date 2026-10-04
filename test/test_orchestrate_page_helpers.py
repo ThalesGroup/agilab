@@ -1587,7 +1587,8 @@ def test_install_status_workerless_labels_skip_worker_staleness():
     )
 
 
-def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_path):
+@pytest.mark.parametrize("prepare_succeeds", [True, False])
+def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_path, prepare_succeeds):
     module = _load_orchestrate_module()
 
     class _State(dict):
@@ -1699,7 +1700,10 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
 
     async def _fake_install_worker_action(*_args, **_kwargs):
         install_calls.append("install")
-        return SimpleNamespace(status="success", data={"install_log": ["installed"]})
+        return SimpleNamespace(
+            status="success" if prepare_succeeds else "error",
+            data={"install_log": ["installed" if prepare_succeeds else "prepare failed"]},
+        )
 
     monkeypatch.setattr(module, "st", fake_st)
     monkeypatch.setattr(module, "render_cluster_settings_ui", lambda *_args, **_kwargs: None)
@@ -1724,17 +1728,18 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
     )
 
     assert verbose == 1
-    assert returned_status is refreshed_status
+    assert returned_status is (refreshed_status if prepare_succeeds else initial_status)
     assert install_calls == ["install"]
     assert fake_st.buttons["install_btn"]["disabled"] is False
     assert "SET ARGS" not in fake_st.session_state
-    assert fake_st.session_state["show_run"] is True
+    assert bool(fake_st.session_state.get("show_run")) is prepare_succeeds
+    assert "_orchestrate_pending_action" not in fake_st.session_state
     install_warning_slot = fake_st.placeholders[0]
     assert install_warning_slot.warnings == [
         "Environment deployment is incomplete or stale. Run Deploy scheduler & workers before RUN / LOAD / EXPORT. "
         "missing modules: pathspec, psutil | missing modules: pathspec"
     ]
-    assert install_warning_slot.empty_calls == 1
+    assert install_warning_slot.empty_calls == int(prepare_succeeds)
 
 
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
@@ -1764,6 +1769,8 @@ def test_first_proof_orchestrate_query_seed_queues_install_and_cleans_url():
     assert action == "install"
     assert session_state["_orchestrate_pending_install_action"] == "install"
     assert session_state["show_install"] is True
+    assert "_orchestrate_pending_action" not in session_state
+    assert "show_run" not in session_state
     assert query_params == {"active_app": "flight_telemetry_project"}
 
 

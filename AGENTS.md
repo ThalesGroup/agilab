@@ -40,6 +40,10 @@ Use this runbook whenever you:
   The main ANALYSIS overview uses React controls for discovered views and notebooks;
   selections persist through the existing Python settings path. Child views retain
   their Python launchers. Notebook export routes to the existing WORKFLOW controls.
+  Home recommends explicit Prepare demo, Run demo and Explore results actions;
+  notebook paths and workspace shortcuts remain in collapsed sections. Template
+  parameter edits use labelled fields and opt-in complete JSON under Advanced
+  parameters; preserve saved literals, missing values and unsaved drafts.
 
 - **Where apps live**: `*_project` apps are maintained in the external apps
   repository, not in this checkout. `APPS_REPOSITORY` in

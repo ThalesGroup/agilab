@@ -228,6 +228,7 @@ def build_report(
             _contains_any(
                 [*markdown, *captions, *buttons],
                 [
+                    "Try the flight telemetry demo",
                     "First proof: verify AGILAB end-to-end",
                     "First run: use the built-in flight-telemetry project",
                     "First proof",

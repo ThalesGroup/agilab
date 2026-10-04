@@ -430,21 +430,18 @@ def _first_proof_wizard_steps(state: Dict[str, Any]) -> List[Dict[str, str]]:
     return [
         {
             "id": "install",
-            "button": "1. DEPLOY demo",
-            "hint": (
-                "Runs ORCHESTRATE `Deploy scheduler & workers` for "
-                "`flight_telemetry_project`."
-            ),
+            "button": "1. Prepare demo",
+            "hint": "Set up the demo's local environment. This does not run it.",
         },
         {
             "id": "run",
-            "button": "2. RUN demo",
-            "hint": "Runs ORCHESTRATE `RUN` for the same demo.",
+            "button": "2. Run demo",
+            "hint": "After preparation succeeds, run the demo to create results.",
         },
         {
             "id": "analysis",
-            "button": "3. OPEN ANALYSIS",
-            "hint": "Opens ANALYSIS on `view_maps` for the generated evidence.",
+            "button": "3. Explore results",
+            "hint": "After the run finishes, open its map and analysis views.",
         },
     ]
 
@@ -918,18 +915,22 @@ def _render_first_proof_wizard_actions(
     page_routes: Dict[str, Any] | None,
 ) -> None:
     """Render executable wizard actions for the first-proof pipeline."""
-    st.markdown("**First proof: built-in demo**")
+    st.markdown("**Try the flight telemetry demo**")
     st.caption(
-        "Recommended path: run the built-in flight telemetry demo, then inspect the generated "
-        "evidence. Notebook-first paths are below: use AGILAB's included notebook first; upload "
-        "your own notebook from PROJECT Create when you are ready."
+        "Recommended first run: prepare, run, then explore a demo with included data. "
+        "Each step starts only when you click it."
     )
+    if not state["current_app_matches"] and state.get("active_app_name"):
+        st.caption(
+            f"Your selected project is `{state['active_app_name']}`. "
+            "The buttons below explicitly open `flight_telemetry_project`."
+        )
     proof_actions = [
         {
             "id": str(step["id"]),
             "button": str(step["button"]),
             "hint": str(step["hint"]),
-            "type": "secondary",
+            "type": "primary" if step["id"] == "install" else "secondary",
         }
         for step in _first_proof_wizard_steps(state)
     ]
@@ -944,6 +945,12 @@ def _render_first_proof_wizard_actions(
             )
             st.caption(action["hint"])
 
+    with st.expander("Notebook and other ways to start", expanded=False):
+        _render_first_proof_alternative_paths(env, state)
+
+
+def _render_first_proof_alternative_paths(env: Any, state: Dict[str, Any]) -> None:
+    """Keep existing notebook and expert entry paths behind one optional choice."""
     with st.expander("Create from included notebook", expanded=False):
         st.caption(FIRST_PROOF_NOTEBOOK_LANE_LABEL)
         _first_proof_link_button(

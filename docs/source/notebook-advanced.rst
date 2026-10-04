@@ -43,7 +43,7 @@ notebooks locally, or add an external container/VM boundary before using
 untrusted notebooks.
 
 Import, recovery and reviewed source edits
------------------------------------------
+------------------------------------------
 
 The WORKFLOW notebook upload path preserves a complete, hash-verified source
 document in ``notebook_import_contract.json``. The original source remains

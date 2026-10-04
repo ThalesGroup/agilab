@@ -4,8 +4,9 @@ Newcomer Guide
 If you are new to AGILab, optimize for one outcome only: one successful local
 proof from the web UI. The default lane is the built-in
 ``flight_telemetry_project`` from the web UI landing page: click
-``1. DEPLOY demo`` -> ``2. RUN demo`` -> ``3. OPEN ANALYSIS``. If you
-want to prove notebook import first, use the landing page's
+``1. Prepare demo`` -> ``2. Run demo`` -> ``3. Explore results``. If you
+want to prove notebook import first, open **Notebook and other ways to start**
+and use the
 ``Create from built-in notebook`` button for AGILAB's packaged sample; there is
 no file to find or upload. Use PROJECT -> ``Create`` -> ``From notebook`` later
 when the notebook is on your machine.

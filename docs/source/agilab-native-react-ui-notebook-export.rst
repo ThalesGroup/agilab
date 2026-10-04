@@ -158,7 +158,12 @@ Workflow stage ownership and branch replay
 ------------------------------------------
 
 Open **Versioned stage templates** in WORKFLOW to create a structured stage,
-review its parameters or resolve version and renderer drift. **Refresh from
+review its parameters or resolve version and renderer drift. App, input/output
+paths, execution mode, action and reset values use labelled fields when their
+registered literal types are supported. Open **Advanced parameters** and select
+**Edit complete parameters as JSON** for the complete document. Unknown, nested,
+missing and null values remain available without being silently changed. Apply
+reviewed edits with **Apply template parameters**. **Refresh from
 template** is explicit; **Keep as custom Python** retains the exact code.
 Editing Python in the stage editor, HISTORY or an imported notebook relinquishes
 template ownership. Both notebook export modes reject stale templates.
@@ -223,18 +228,21 @@ the source notebook.
 
 See :doc:`notebook-advanced` for the import and recovery boundary.
 
-Installed interface examples
-----------------------------
+Native interface examples
+-------------------------
 
-These captures use the installed UI and notebook wheels with the actual
-built-in flight telemetry project. They illustrate the local migration; they
-do not claim that a public release or hosted Space has been updated.
+Home and WORKFLOW captures show the current source interface in an isolated
+local workspace. PROJECT and ANALYSIS captures use installed UI and notebook
+wheels with the built-in flight telemetry project. These local captures do not
+claim that a public release or hosted Space has been updated.
 
 .. figure:: _static/native-ui/agilab_native_react_main_home.png
    :alt: Native home screen with project selection and workflow navigation.
    :width: 100%
 
-   Home links the selected project to execution, analysis and notebook export.
+   Home offers one explicit **Prepare demo** -> **Run demo** -> **Explore results**
+   journey. **Continue this project** retains a selected custom project. Notebook
+   entry paths and other starts remain in collapsed sections.
 
 .. figure:: _static/native-ui/agilab_native_react_main_project.png
    :alt: Installed native PROJECT view for the flight telemetry project.

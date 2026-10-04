@@ -198,7 +198,7 @@ def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
         "test/test_agilab_widget_robot.py::"
         "test_visible_combobox_semantics_collector_filters_hidden_controls"
     ) in text
-    assert "Validate Streamlit frontend smoke" in text
+    assert "Validate native React frontend smoke" in text
     assert (
         'uv --preview-features extra-build-dependencies run --with "playwright==${{ steps.playwright-version.outputs.version }}" '
         "python -m playwright install --with-deps chromium"

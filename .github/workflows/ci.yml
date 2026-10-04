@@ -218,7 +218,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-py3.13-${{ steps.playwright-version.outputs.version }}-chromium
 
-      - name: Validate Streamlit frontend smoke
+      - name: Validate native React frontend smoke
         env:
           AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
           OPENAI_API_KEY: "sk-test-frontend-smoke-000000000000"

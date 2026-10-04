@@ -26,6 +26,10 @@
 .agilab-main-interface button, .agilab-main-interface select, .agilab-main-interface summary { font:inherit; }
 .agilab-main-interface button { cursor:pointer; color:inherit; background:var(--st-background-color, #fff); border:1px solid var(--st-border-color, #dce2eb); border-radius:9px; padding:9px 14px; }
 .agilab-main-interface button:hover { border-color:var(--st-primary-color, #2563eb); }
+.agilab-main-interface .agilab-primary-action { border-color:var(--st-primary-color, #2563eb); color:var(--st-primary-color, #2563eb); font-weight:600; }
+.agilab-home-shortcuts { margin:16px 0; }
+.agilab-home-shortcuts > summary { cursor:pointer; padding:10px 0; font-weight:600; }
+.agilab-home-shortcuts[open] > summary { margin-bottom:12px; }
 .agilab-main-interface :is(button,select,summary):focus-visible { outline:3px solid var(--st-primary-color, #2563eb); outline-offset:3px; }
 .agilab-main-interface button:disabled { cursor:default; opacity:.5; }
 .agilab-workspace-header { display:flex; align-items:center; flex-wrap:wrap; gap:18px; padding:8px 0 16px; }

@@ -20,6 +20,8 @@ SCHEMA = "agilab.ui_robot_action_contract.v1"
 DEFAULT_SOURCE_ROOTS = (REPO_ROOT / "src/agilab",)
 SHARED_ACTION_LABELS_SOURCE = REPO_ROOT / "src/agilab/orchestrate/orchestrate_page_support.py"
 ACTION_CALL_NAMES = {"button", "form_submit_button", "download_button"}
+# The parameter editor owns the form; callers provide its primary action label.
+ACTION_WRAPPER_LABELS = {"render_template_parameter_draft": "submit_label"}
 EXCLUDED_PATH_PARTS = {
     ".git",
     ".mypy_cache",
@@ -420,9 +422,20 @@ def scan_action_occurrences(
                 if not isinstance(node, ast.Call):
                     continue
                 name = _call_name(node)
-                if name not in ACTION_CALL_NAMES:
+                if name in ACTION_WRAPPER_LABELS:
+                    label = next(
+                        (
+                            _literal_string(keyword.value, constants, string_maps)
+                            for keyword in node.keywords
+                            if keyword.arg == ACTION_WRAPPER_LABELS[name]
+                        ),
+                        None,
+                    )
+                    name = "form_submit_button"
+                elif name in ACTION_CALL_NAMES:
+                    label = _call_label(node, constants, string_maps)
+                else:
                     continue
-                label = _call_label(node, constants, string_maps)
                 if not label:
                     continue
                 try:

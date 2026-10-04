@@ -11,6 +11,8 @@ import time
 import types
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path("tools/agilab_web_robot.py").resolve()
 
@@ -1576,7 +1578,7 @@ class _FakeBrowserPage:
         elif "PROJECT" in url:
             self.body_text = "PROJECT AGILAB's included notebook is selected"
         else:
-            self.body_text = "First proof Explore more proof routes Create from included notebook"
+            self.body_text = "Try the flight telemetry demo Notebook and other ways to start Create from included notebook"
 
     def wait_for_selector(self, selector: str, *, timeout: float) -> None:
         if (
@@ -1892,9 +1894,20 @@ def test_run_browser_robot_returns_after_page_health_failures(monkeypatch) -> No
         assert steps[-1].success is False
 
 
-def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
+@pytest.mark.parametrize("rendered_demo", [True, False])
+def test_run_frontend_smoke_covers_browser_hydration(monkeypatch, rendered_demo) -> None:
     module = _load_module()
     page = _FakeBrowserPage()
+    if not rendered_demo:
+        def load_shell(url, **_kwargs):
+            page.url = url
+            page.body_text = "Run a project, explore its results"
+
+        monkeypatch.setattr(page, "goto", load_shell)
+        monkeypatch.setattr(
+            page, "wait_for_timeout", lambda milliseconds: time.sleep(milliseconds / 1000),
+            raising=False,
+        )
     _install_fake_playwright(monkeypatch, module, page)
     monkeypatch.setattr(
         module,
@@ -1913,7 +1926,7 @@ def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
         active_app_query="flight",
         browser_name="firefox",
         headless=False,
-        timeout=1.0,
+        timeout=0.1,
     )
 
     assert [step.label for step in steps] == [
@@ -1921,7 +1934,9 @@ def test_run_frontend_smoke_covers_browser_hydration(monkeypatch) -> None:
         "frontend browser navigation",
         "frontend landing hydration",
     ]
-    assert all(step.success for step in steps)
+    assert all(step.success for step in steps) is rendered_demo
+    if not rendered_demo:
+        assert "missing expected text" in steps[-1].detail
     assert page.launch_headless is False
 
 

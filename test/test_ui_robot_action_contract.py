@@ -108,6 +108,28 @@ def test_action_inventory_excludes_split_package_test_fixtures(tmp_path: Path) -
     assert [item.label for item in occurrences] == ["Reset project"]
 
 
+def test_action_inventory_keeps_parameter_editor_submit_actions(tmp_path: Path) -> None:
+    module = _load_module()
+    _write_page(
+        tmp_path,
+        '''
+APPLY_LABEL = "Apply template parameters"
+render_template_parameter_draft(ui, submit_label="Add template stage")
+render_template_parameter_draft(ui, submit_label=APPLY_LABEL)
+render_template_parameter_draft(ui, submit_label=runtime_label)
+render_template_parameter_draft(ui)
+unrelated_helper(ui, submit_label="Delete unrelated")
+''',
+    )
+
+    occurrences = module.scan_action_occurrences([tmp_path], widget_robot=_FakeWidgetRobot())
+
+    assert [(item.label, item.kind) for item in occurrences] == [
+        ("Add template stage", "form_submit_button"),
+        ("Apply template parameters", "form_submit_button"),
+    ]
+
+
 def test_ui_robot_action_contract_scanner_handles_ast_edge_cases(tmp_path: Path) -> None:
     module = _load_module()
     _write_page(

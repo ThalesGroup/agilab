@@ -157,6 +157,13 @@ class _FakeStreamlit:
         self.messages.append(("expander", str(expanded)))
         return _Ctx(self)
 
+    def form(self, key, **_kwargs):
+        self.messages.append(("form", str(key)))
+        return _Ctx(self)
+
+    def form_submit_button(self, label, key=None, **kwargs):
+        return self.button(label, key=key, **kwargs)
+
     def columns(self, specs, gap=None):
         count = len(specs) if isinstance(specs, (list, tuple)) else int(specs)
         return [_Ctx(self) for _ in range(count)]

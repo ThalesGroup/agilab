@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build_agilab_react_analysis.mjs"
+    "build": "node build_agilab_react_analysis.mjs",
+    "test:home": "node --test agilab_react_home_journey.test.mjs",
+    "test:links": "node --test agilab_python_link_action.test.mjs"
   },
   "dependencies": {
     "@viz-js/viz": "3.31.0",

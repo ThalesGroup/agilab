@@ -25,6 +25,7 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ### Changed
 
+- Simplify the native home journey and retain notebook entry points in secondary sections. Edit Workflow template parameters through labelled fields, with lossless draft state and an explicit advanced JSON editor.
 - Add explicit versioned pipeline templates, visible drift, guarded execution and notebook export, and reviewed legacy conversion with source backups.
 - Prepare targeted retry and partial rerun of multi-app DAG branches through the durable runner, preserving unrelated results and recovery controls.
 - Preserve complete imported notebook sources and expose original or reviewed edited re-exports, with cumulative explicit setup conversion and recoverable runtime diagnostics.

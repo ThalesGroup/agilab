@@ -67,7 +67,7 @@ def test_settings_page_has_stable_robot_expectations() -> None:
 
     assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == ("SETTINGS", "Settings", "README")
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["SETTINGS"] == ("SETTINGS", "README")
-    assert module.PAGE_EXPECTED_TEXT[""] == ("Turn experiments", "First proof: built-in demo")
+    assert module.PAGE_EXPECTED_TEXT[""] == ("Turn experiments", "Try the flight telemetry demo")
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
     assert module.PAGE_MIN_WIDGETS[""] == 1
 

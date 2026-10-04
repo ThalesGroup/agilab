@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import copy
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +10,7 @@ from typing import Any
 
 from agilab.pipeline.pipeline_editor import apply_pipeline_stage_conversion, preview_pipeline_stage_conversion
 from agilab.pipeline.pipeline_page_state import hydrate_pipeline_editor_values, prepare_pipeline_editor_updates
+from agilab.pipeline.pipeline_template_parameters import render_template_parameter_draft
 from agilab.pipeline.pipeline_stage_templates import (
     DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY,
     PipelineStageTemplateStatus,
@@ -89,7 +90,10 @@ class PipelineTemplateEditor:
         if prepare_pipeline_editor_updates(ui.session_state, self.key_prefix, stage):
             self.rerun_editor()
         hydrate_pipeline_editor_values(ui.session_state, self.key_prefix, stage, entry)
-        updated = render_pipeline_template_controls(ui, entry, key=f"{self.key_prefix}_template_{stage}")
+        updated = render_pipeline_template_controls(
+            ui, entry, key=f"{self.key_prefix}_template_{stage}",
+            draft_scope=f"{self.module_path.resolve()}:{self.stages_file.resolve()}",
+        )
         if updated is not None and self._save_entry(updated, stage):
             q_key, code_key, _, revision_key, *_ = self.stage_widget_keys(stage)
             ui.session_state.pop(q_key, None)
@@ -105,7 +109,10 @@ class PipelineTemplateEditor:
 
 def render_new_pipeline_template(ui: Any, *, key: str, app: str = "", apps_path: str = ".") -> dict[str, Any] | None:
     registry = DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY
-    template_id = ui.selectbox("Stage template", registry.ids(), key=f"{key}_template_id")
+    template_id = ui.selectbox(
+        "Stage template", registry.ids(), key=f"{key}_template_id",
+        format_func=lambda value: registry.require(value).title,
+    )
     template = registry.require(template_id)
     payload = template.default_payload()
     parameters = payload["parameters"]
@@ -114,22 +121,26 @@ def render_new_pipeline_template(ui: Any, *, key: str, app: str = "", apps_path:
             parameters[name] = app
     if "apps_path" in parameters:
         parameters["apps_path"] = apps_path
-    parameter_text = ui.text_area(
-        "Template parameters (JSON)", value=json.dumps(parameters, ensure_ascii=False, indent=2),
-        key=f"{key}_{template_id}_parameters",
-    )
     ui.caption(template.description)
-    if not ui.button("Add template stage", key=f"{key}_add_template"):
+    parameters, parameter_error, submitted = render_template_parameter_draft(
+        ui, template, parameters, key=key, scope=f"{app}:{apps_path}",
+        submit_label="Add template stage", submit_key=f"{key}_add_template",
+    )
+    if not submitted:
         return None
     try:
-        payload["parameters"] = json.loads(parameter_text)
+        if parameter_error:
+            raise ValueError(parameter_error)
+        payload["parameters"] = parameters
         return template.saved_stage(template_payload=payload)
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+    except (TypeError, ValueError) as exc:
         ui.error(f"Unable to add template stage: {exc}")
         return None
 
 
-def render_pipeline_template_controls(ui: Any, entry: Mapping[str, Any], *, key: str) -> dict[str, Any] | None:
+def render_pipeline_template_controls(
+    ui: Any, entry: Mapping[str, Any], *, key: str, draft_scope: str = "",
+) -> dict[str, Any] | None:
     classification = classify_pipeline_stage_template(entry)
     if classification.status is PipelineStageTemplateStatus.RAW_PYTHON:
         ui.caption("Custom Python: saved and executed without template regeneration.")
@@ -137,7 +148,6 @@ def render_pipeline_template_controls(ui: Any, entry: Mapping[str, Any], *, key:
     if entry.get("kind") != "template":
         ui.caption("Legacy template metadata. Use the conversion preview to classify this saved Python.")
         return None
-    ui.caption(f"Template `{classification.template_id}` · version {classification.saved_version}")
     stale = classification.status is PipelineStageTemplateStatus.STALE
     if stale:
         ui.warning(f"Template drift: {classification.reason}. Execution and export are blocked until reviewed.")
@@ -146,21 +156,25 @@ def render_pipeline_template_controls(ui: Any, entry: Mapping[str, Any], *, key:
     template = DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY.get(classification.template_id)
     if template is None:
         return None
+    ui.caption(f"{template.title} · version {classification.saved_version}")
     payload = entry.get("template_payload", {})
-    parameters = payload.get("parameters", {}) if isinstance(payload, Mapping) else {}
-    parameter_text = ui.text_area(
-        "Template parameters (JSON)", value=json.dumps(parameters, ensure_ascii=False, indent=2),
-        key=f"{key}_{entry.get('payload_fingerprint', '')}_parameters",
-    )
+    parameters = payload.get("parameters") if isinstance(payload, Mapping) else payload
     if stale:
         ui.caption("Refreshing replaces the rendered Python with the current template and the reviewed parameters.")
     label = "Refresh from template" if stale else "Apply template parameters"
-    if not ui.button(label, key=f"{key}_refresh_template"):
+    parameters, parameter_error, submitted = render_template_parameter_draft(
+        ui, template, parameters, key=key, scope=draft_scope,
+        submit_label=label, submit_key=f"{key}_refresh_template",
+    )
+    if not submitted:
         return None
     try:
-        fresh_payload = template.default_payload()
-        fresh_payload["parameters"] = json.loads(parameter_text)
+        if parameter_error:
+            raise ValueError(parameter_error)
+        fresh_payload = copy.deepcopy(dict(payload)) if isinstance(payload, Mapping) else template.default_payload()
+        fresh_payload["schema"] = template.default_payload()["schema"]
+        fresh_payload["parameters"] = parameters
         return refresh_pipeline_stage_template(entry, payload=fresh_payload)
-    except (TypeError, ValueError, KeyError, json.JSONDecodeError) as exc:
+    except (TypeError, ValueError, KeyError) as exc:
         ui.error(f"Unable to refresh template stage: {exc}")
         return None

@@ -34,23 +34,28 @@ export function MainInterface({ data, onAction }) {
     </nav>
     {data.route === "home" && <div className="agilab-workspace-home">
       <div className="agilab-home-intro">
-        <p className="agilab-eyebrow">Experiment workspace</p>
+        <p className="agilab-eyebrow">Your workspace</p>
         <h1>{data.welcome_title}</h1>
-        <p>Choose your project, run its pipeline, then explore and export the evidence.</p>
+        <p>Start with the guided demo below, or continue your selected project.</p>
       </div>
       <div className="agilab-project-summary">
         <div><small>Active project</small><h2>{data.project || "No project selected"}</h2>
-          <p>{data.projects.length} available project{data.projects.length === 1 ? "" : "s"}</p></div>
-        <button type="button" disabled={!data.project} onClick={() => navigate("project")}>Open project</button>
+          <p>Change projects using the selector above.</p></div>
+        {data.project && data.project !== "flight_telemetry_project" &&
+          data.routes.some(route => route.id === "workflow") &&
+          <button className="agilab-primary-action" type="button" onClick={() => navigate("workflow")}>Continue this project</button>}
       </div>
-      <div className="agilab-home-cards">
-        {data.routes.filter(route => route.description).map(route => <button type="button" key={route.id}
-          onClick={() => navigate(route.id)}>
-          <span className="agilab-card-title">{route.label}</span><span>{route.description}</span>
-          <span className="agilab-card-link">Open workspace →</span>
-        </button>)}
-      </div>
-      <p className="agilab-notebook-note">Export your app from Workflow to use its supported analysis charts and coordinate views in Jupyter.</p>
+      <details className="agilab-home-shortcuts">
+        <summary>Workspace shortcuts and notebook export</summary>
+        <div className="agilab-home-cards">
+          {data.routes.filter(route => route.description).map(route => <button type="button" key={route.id}
+            onClick={() => navigate(route.id)}>
+            <span className="agilab-card-title">{route.label}</span><span>{route.description}</span>
+            <span className="agilab-card-link">Open workspace →</span>
+          </button>)}
+        </div>
+        <p className="agilab-notebook-note">Export your app from Workflow to use its supported maps and charts in Jupyter.</p>
+      </details>
     </div>}
   </section>;
 }

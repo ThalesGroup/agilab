@@ -1,10 +1,10 @@
 import React, {createContext, useContext, useEffect, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {markdownHTML, mathHTML, sanitizeHTML} from "./agilab_python_view_markup.js";
+import {PythonLinkAction, safeURL} from "./agilab_python_link_action.jsx";
 import "./agilab_react_python_host.css";
 
 const View = createContext(null);
-const safeURL = value => /^(https?:|mailto:|blob:|data:image\/|\/[^/]|#)/i.test(value ?? "") ? value : "#";
 
 function Markup({body}) {
   return <div dangerouslySetInnerHTML={{__html: sanitizeHTML(body)}}/>;
@@ -181,7 +181,7 @@ function Node({node}) {
   if (node.kind === "altair_chart") return <Vega node={node}/>;
   if (node.kind === "html_frame") return <iframe className="py-frame" sandbox="allow-scripts allow-downloads" srcDoc={p.body} style={{height: p.height || 450}} title="Embedded view"/>;
   if (node.kind === "iframe") return <iframe className="py-frame" src={safeURL(p.src)} style={{height: p.height || 450}} title="Embedded view"/>;
-  if (["download_button", "link_button", "page_link"].includes(node.kind)) return <a className="py-link-button" data-widget-kind={node.kind} data-widget-key={p.key} href={safeURL(p.url)} download={p.filename} onClick={node.kind === "page_link" && p.url.startsWith("/") ? event => {event.preventDefault(); view.navigate(p.url);} : undefined}>{p.label}</a>;
+  if (["download_button", "link_button", "page_link"].includes(node.kind)) return <PythonLinkAction node={node} view={view}/>;
   return <div role="alert">Unsupported view element: {node.kind}</div>;
 }
 

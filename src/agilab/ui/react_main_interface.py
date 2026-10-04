@@ -31,7 +31,7 @@ def interface_data(streamlit: Any, env: Any, routes: Mapping[str, Any], page: An
     route = next((key for key in _ROUTE_CONTENT if routes.get(key) is page), "home")
     return {
         "brand": "AGILAB",
-        "welcome_title": "From a project to replayable results",
+        "welcome_title": "Run a project, explore its results",
         "project": project,
         "projects": projects,
         "route": route,
