@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-05T11:38:28Z",
+  "generated_at_utc": "2026-10-05T12:43:10Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 299,
+    "evidence_schema_count": 300,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2126,6 +2126,15 @@
         "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
         "src/agilab/demos/resources/text_notebook_demo_rtx/result.json",
         "tools/demos/verify_agilab_native_notebook_demo_artifacts.py"
+      ]
+    },
+    {
+      "schema": "agilab.native_text_scientific_verification.v1",
+      "sources": [
+        "src/agilab/demos/resources/text_notebook_demo/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
+        "src/agilab/demos/resources/text_notebook_demo_rtx/result.json",
+        "tools/demos/export_text_notebook_demo.py"
       ]
     },
     {
