@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import fnmatch
+import io
 import hashlib
 import json
 import shutil
@@ -229,6 +231,7 @@ def test_set_space_visibility_falls_back_to_legacy_hf_api(monkeypatch) -> None:
 
 def test_upload_space_updates_existing_repo_without_create(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
     calls: list[dict[str, object]] = []
     visibility: list[tuple[str, str, bool]] = []
 
@@ -249,6 +252,11 @@ def test_upload_space_updates_existing_repo_without_create(monkeypatch, tmp_path
         module,
         "set_space_visibility",
         lambda space_id, *, token, private: visibility.append((space_id, token, private)),
+    )
+    monkeypatch.setattr(
+        module.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: io.BytesIO((module.GRAPHVIZ_LFS_RULE + "\n").encode()),
     )
 
     commit = module.upload_space(
@@ -276,6 +284,7 @@ def test_upload_space_updates_existing_repo_without_create(monkeypatch, tmp_path
                 "src/**/.coverage*",
             ],
             "ignore_patterns": [
+                ".gitattributes",
                 "**/.venv/**",
                 "**/__pycache__/**",
                 "**/*.pyc",
@@ -284,6 +293,129 @@ def test_upload_space_updates_existing_repo_without_create(monkeypatch, tmp_path
     ]
     assert str(calls[0]["commit_message"]).startswith("chore: deploy AGILAB release Space (")
     assert visibility == [("jpmorard/agilab", "hf-token", False)]
+
+
+@pytest.mark.parametrize("existing", [b"", b"*.bin filter=lfs diff=lfs merge=lfs -text\n", b"# Custom rule\r\n*.png binary"])
+def test_graphviz_lfs_registration_preserves_existing_attributes(monkeypatch, tmp_path: Path, existing: bytes) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
+    operations = []
+
+    class _Api:
+        def upload_file(self, **kwargs):
+            operations.append(("attributes", kwargs))
+
+        def upload_folder(self, **kwargs):
+            assert operations[0][0] == "attributes"
+            assert (tmp_path / ".gitattributes").read_bytes() == operations[0][1]["path_or_fileobj"]
+            operations.append(("folder", kwargs))
+            return types.SimpleNamespace(oid="a" * 40)
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda: _Api()))
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *_args, **_kwargs: io.BytesIO(existing))
+    monkeypatch.setattr(module, "set_space_visibility", lambda *_args, **_kwargs: None)
+    assert module.upload_space(tmp_path, space_id="owner/space", token="test-token", private=False) == "a" * 40
+    separator = b"\n" if existing and not existing.endswith(b"\n") else b""
+    expected = existing + separator + module.GRAPHVIZ_LFS_RULE.encode() + b"\n"
+    assert (tmp_path / ".gitattributes").read_bytes() == expected
+    assert [name for name, _kwargs in operations] == ["attributes", "folder"]
+    assert operations[0][1]["path_in_repo"] == ".gitattributes"
+    assert operations[0][1]["parent_commit"] == "b" * 40
+    assert ".gitattributes" in operations[1][1]["ignore_patterns"]
+
+
+def test_graphviz_lfs_registration_does_not_rewrite_an_existing_rule(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
+    existing = b"# Custom leading rule\r\n" + module.GRAPHVIZ_LFS_RULE.encode() + b"\r\n# Custom trailing rule"
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *_args, **_kwargs: io.BytesIO(existing))
+    module.prepare_space_gitattributes(tmp_path, api=object(), space_id="owner/space", token="test-token")
+    assert (tmp_path / ".gitattributes").read_bytes() == existing
+
+
+def test_graphviz_lfs_registration_handles_a_space_without_attributes(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
+    calls = []
+
+    def missing(*_args, **_kwargs):
+        raise module.urllib.error.HTTPError("https://huggingface.co/space", 404, "missing", None, None)
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", missing)
+    api = types.SimpleNamespace(upload_file=lambda **kwargs: calls.append(kwargs))
+    module.prepare_space_gitattributes(tmp_path, api=api, space_id="owner/space", token="test-token")
+    assert calls[0]["path_or_fileobj"] == (module.GRAPHVIZ_LFS_RULE + "\n").encode()
+    assert (tmp_path / ".gitattributes").read_bytes() == calls[0]["path_or_fileobj"]
+
+
+@pytest.mark.parametrize("status", [401, 403, 500])
+def test_graphviz_lfs_registration_fails_closed_on_remote_errors(monkeypatch, tmp_path: Path, status: int) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
+
+    def fail(*_args, **_kwargs):
+        raise module.urllib.error.HTTPError("https://huggingface.co/space", status, "failed", None, None)
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", fail)
+    with pytest.raises(module.urllib.error.HTTPError):
+        module.prepare_space_gitattributes(tmp_path, api=object(), space_id="owner/space", token="test-token")
+    assert not (tmp_path / ".gitattributes").exists()
+
+
+def test_graphviz_registration_aborts_if_attributes_change_after_the_snapshot(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    remote = {"sha": "b" * 40, "attributes": b"# Original rule\n"}
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: remote["sha"])
+
+    def read_snapshot(request, **_kwargs):
+        assert f"/resolve/{'b' * 40}/.gitattributes" in request.full_url
+        original = remote["attributes"]
+        remote.update(sha="c" * 40, attributes=original + b"*.custom filter=lfs\n")
+        return io.BytesIO(original)
+
+    class _Api:
+        def upload_file(self, **kwargs):
+            assert kwargs["parent_commit"] == "b" * 40
+            assert kwargs["parent_commit"] != remote["sha"]
+            raise module.urllib.error.HTTPError("https://huggingface.co/commit", 409, "conflict", None, None)
+
+        def upload_folder(self, **_kwargs):
+            pytest.fail("A failed attributes registration must prevent the folder upload")
+
+    monkeypatch.setattr(module.urllib.request, "urlopen", read_snapshot)
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda: _Api()))
+    with pytest.raises(module.urllib.error.HTTPError, match="409"):
+        module.upload_space(tmp_path, space_id="owner/space", token="test-token", private=False)
+    assert remote["attributes"] == b"# Original rule\n*.custom filter=lfs\n"
+
+
+def test_folder_upload_preserves_attributes_edited_after_registration(monkeypatch, tmp_path: Path) -> None:
+    module = _load_module()
+    remote = {".gitattributes": b"# Original rule\n"}
+    monkeypatch.setattr(module, "current_space_sha", lambda *_args, **_kwargs: "b" * 40)
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *_args, **_kwargs: io.BytesIO(remote[".gitattributes"]))
+    monkeypatch.setattr(module, "set_space_visibility", lambda *_args, **_kwargs: None)
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested/.gitattributes").write_bytes(b"# Nested app rule\n")
+
+    class _Api:
+        def upload_file(self, **kwargs):
+            assert kwargs["parent_commit"] == "b" * 40
+            remote[".gitattributes"] = kwargs["path_or_fileobj"]
+            remote[".gitattributes"] += b"*.custom filter=lfs\n"
+
+        def upload_folder(self, **kwargs):
+            for path in tmp_path.rglob("*"):
+                if path.is_file():
+                    relative = path.relative_to(tmp_path).as_posix()
+                    if not any(fnmatch.fnmatchcase(relative, pattern) for pattern in kwargs["ignore_patterns"]):
+                        remote[relative] = path.read_bytes()
+            return types.SimpleNamespace(oid="a" * 40)
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(HfApi=lambda: _Api()))
+    assert module.upload_space(tmp_path, space_id="owner/space", token="test-token", private=False) == "a" * 40
+    assert remote[".gitattributes"] == b"# Original rule\n" + module.GRAPHVIZ_LFS_RULE.encode() + b"\n*.custom filter=lfs\n"
+    assert remote["nested/.gitattributes"] == b"# Nested app rule\n"
 
 
 def test_generated_space_readme_uses_valid_hf_emoji_metadata() -> None:
@@ -319,6 +451,19 @@ def test_generated_dockerfile_verifies_demo_before_starting_server() -> None:
     assert "RUN cd /app/src/agilab/demos/resources/notebook_agent_demo &&" in dockerfile
     assert dockerfile.index("--extra notebook-agent") < dockerfile.index(verification)
     assert dockerfile.index(verification) < dockerfile.index('CMD [')
+
+
+def test_generated_dockerfile_installs_declared_notebook_app_dependencies() -> None:
+    dockerfile = _load_module().DOCKERFILE_TEMPLATE
+    dependency_install = dockerfile.index("uv pip install --python /app/.venv/bin/python")
+    for demo in ("free_threading_demo", "milp_energy_demo"):
+        project = Path("src/agilab/demos/resources") / demo / "pyproject.toml"
+        metadata = tomllib.loads((REPO_ROOT / project).read_text())
+        assert any(dependency.startswith("altair") for dependency in metadata["project"]["dependencies"])
+        requirement = f"--requirements /app/{project.as_posix()}"
+        assert requirement in dockerfile
+        verification = f"RUN cd /app/src/agilab/demos/resources/{demo} &&"
+        assert dependency_install < dockerfile.index(requirement) < dockerfile.index(verification)
 
 
 def test_free_threaded_benchmark_is_isolated_and_verified_before_serving() -> None:
