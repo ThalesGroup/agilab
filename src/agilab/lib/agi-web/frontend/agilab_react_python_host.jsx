@@ -1,4 +1,4 @@
-import React, {createContext, useContext, useEffect, useRef, useState} from "react";
+import React, {createContext, useCallback, useContext, useEffect, useId, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {markdownHTML, mathHTML, sanitizeHTML} from "./agilab_python_view_markup.js";
 import {PythonLinkAction, safeURL} from "./agilab_python_link_action.jsx";
@@ -15,13 +15,13 @@ function Markdown({body}) {
 }
 
 function Island({node}) {
-  const {send} = useContext(View), element = useRef(null), module = useRef(null), dispose = useRef(null), latest = useRef(null);
-  latest.current = node;
+  const {send, toolsPanel} = useContext(View), element = useRef(null), module = useRef(null), dispose = useRef(null), latest = useRef(null);
+  latest.current = {node, toolsPanel};
   const paint = () => {
-    const current = latest.current;
+    const {node: current, toolsPanel: controls} = latest.current;
     if (!module.current) return;
     dispose.current = module.current.default({
-      parentElement: element.current._parent, data: current.props.data,
+      parentElement: element.current._parent, data: current.props.data, toolsPanel: controls,
       setStateValue: (field, value) => send(current, value, {field}),
       setTriggerValue: (field, value) => send(current, value, {field, trigger: true}),
     });
@@ -34,7 +34,7 @@ function Island({node}) {
     import(node.props.js).then(value => {if (!cancelled) {module.current = value; paint();}});
     return () => {cancelled = true; dispose.current?.(); module.current = null;};
   }, [node.props.js, node.props.css]);
-  useEffect(paint, [node.props.data]);
+  useEffect(paint, [node.props.data, toolsPanel.available, toolsPanel.open]);
   return <div className="py-island" ref={element}/>;
 }
 
@@ -192,6 +192,16 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
   const [payload, setPayload] = useState(initialPayload), [error, setError] = useState(""), [busy, setBusy] = useState(false), [forms, setForms] = useState({}), [showSidebar, setShowSidebar] = useState(false);
   const current = useRef(initialPayload), working = useRef(false), operations = useRef(Promise.resolve()), pending = useRef(0), operationEpoch = useRef(0);
   const [busyKind, setBusyKind] = useState(null);
+  const toolsId = useId(), toolsTrigger = useRef(null);
+  const setToolsOpen = useCallback((open, trigger = null) => {
+    if (trigger) toolsTrigger.current = trigger;
+    setShowSidebar(open);
+    if (!open) toolsTrigger.current?.focus();
+  }, []);
+  const toggleTools = useCallback(trigger => {
+    toolsTrigger.current = trigger;
+    setShowSidebar(open => !open);
+  }, []);
   const runOperation = (kind, job) => {
     const epoch = operationEpoch.current;
     pending.current += 1;
@@ -208,6 +218,7 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     return next;
   };
   const accept = (next, replace = false) => {
+    if (current.current?.path !== next.path) setShowSidebar(false);
     current.current = next; setPayload(next); setError("");
     if (transport) return;
     document.title = next.config.page_title || "AGILAB";
@@ -273,11 +284,27 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
   }, [payload?.auto_refresh, forms]);
   if (!payload) return <main className="py-loading">{error || "Opening AGILAB…"}</main>;
   const hasSidebar = payload.nodes.sidebar.length > 0;
-  const value = {send, navigate: load, busy, buttonsReady: ["text_input", "text_area", "number_input"].includes(busyKind), forms, setForms, widgets: widgetMap([...payload.nodes.main, ...payload.nodes.sidebar])};
-  return <View.Provider value={value}><div className={`py-app ${hasSidebar ? "py-with-sidebar" : ""}`} aria-busy={busy} data-operation={busyKind}>
+  const sidebarOpen = hasSidebar && showSidebar;
+  const widgets = widgetMap([...payload.nodes.main, ...payload.nodes.sidebar]);
+  const hasWorkspaceTools = Object.values(widgets).some(node =>
+    node.kind === "component" && node.props.name === "agilab_react_main_interface" && Array.isArray(node.props.data?.routes));
+  const toolsPanel = {available: hasSidebar, open: sidebarOpen, setOpen: setToolsOpen};
+  const value = {send, navigate: load, busy, buttonsReady: ["text_input", "text_area", "number_input"].includes(busyKind), forms, setForms, widgets, toolsPanel};
+  return <View.Provider value={value}><div className={`py-app ${sidebarOpen ? "py-with-sidebar" : ""}`} aria-busy={busy} data-operation={busyKind}
+    onKeyDown={event => {
+      if (event.key === "Escape" && sidebarOpen && !event.defaultPrevented) {
+        event.preventDefault(); setToolsOpen(false);
+      }
+    }}>
     {busy && <div className="py-working" role="status">Working…</div>}
-    {hasSidebar && <><button className="py-sidebar-toggle" onClick={() => setShowSidebar(!showSidebar)} aria-expanded={showSidebar}>Menu</button><aside data-region="sidebar" className={showSidebar ? "py-sidebar-open" : ""}><Nodes nodes={payload.nodes.sidebar}/></aside></>}
-    <main>{error && <div role="alert" className="py-alert py-error">{error}</div>}<Nodes nodes={payload.nodes.main}/></main>
+    {hasSidebar && <aside id={toolsId} data-region="sidebar" aria-label="Contextual tools" hidden={!sidebarOpen}>
+      <div className="py-tools-heading"><h2>Tools</h2>
+        <button type="button" onClick={() => setToolsOpen(false)}>Close tools</button></div>
+      <Nodes nodes={payload.nodes.sidebar}/>
+    </aside>}
+    <main>{hasSidebar && !hasWorkspaceTools && <button type="button" className="py-sidebar-toggle"
+      onClick={event => toggleTools(event.currentTarget)} aria-expanded={sidebarOpen} aria-controls={toolsId}>Tools</button>}
+      {error && <div role="alert" className="py-alert py-error">{error}</div>}<Nodes nodes={payload.nodes.main}/></main>
   </div></View.Provider>;
 }
 

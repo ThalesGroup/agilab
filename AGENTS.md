@@ -44,6 +44,10 @@ Use this runbook whenever you:
   notebook paths and workspace shortcuts remain in collapsed sections. Template
   parameter edits use labelled fields and opt-in complete JSON under Advanced
   parameters; preserve saved literals, missing values and unsaved drafts.
+  Contextual Python controls open from the existing Tools disclosure and start
+  collapsed on desktop and mobile. Standalone Python pages use one Tools button.
+  Hide the panel without unmounting its controls so editor drafts and form state
+  survive; retain project CRUD, dataframe, pipeline and environment actions.
 
 - **Where apps live**: `*_project` apps are maintained in the external apps
   repository, not in this checkout. `APPS_REPOSITORY` in

@@ -1,15 +1,21 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-export function MainInterface({ data, onAction }) {
-  const projectId = useId();
+export function MainInterface({ data, onAction, toolsPanel = null }) {
+  const projectId = useId(), toolsSummary = useRef(null);
+  const contextualTools = toolsPanel?.available ? toolsPanel : null;
   const emit = (kind, value) => onAction({ kind, value, project: data.project, route: data.route });
   const navigate = id => emit("navigate", id);
   const routeButton = route => <button key={route.id} type="button"
     aria-current={data.route === route.id ? "page" : undefined}
     onClick={() => navigate(route.id)}>{route.label}</button>;
   return <section className="agilab-main-interface" aria-label="AGILAB workspace"
-    onKeyDown={event => event.stopPropagation()}>
+    onKeyDown={event => {
+      if (event.key === "Escape" && contextualTools?.open && !event.defaultPrevented) {
+        event.preventDefault(); contextualTools.setOpen(false, toolsSummary.current);
+      }
+      event.stopPropagation();
+    }}>
     <header className="agilab-workspace-header">
       <button className="agilab-brand" type="button" onClick={() => navigate("home")} aria-label="AGILAB home">
         <span className="agilab-brand-symbol" aria-hidden="true">A</span><strong>{data.brand}</strong>
@@ -27,8 +33,9 @@ export function MainInterface({ data, onAction }) {
     </header>
     <nav className="agilab-workspace-navigation" aria-label="Workspace navigation">
       {data.routes.filter(route => route.primary).map(routeButton)}
-      <details className="agilab-workspace-tools">
-        <summary>Tools</summary>
+      <details className="agilab-workspace-tools" open={contextualTools?.open}
+        onToggle={contextualTools ? event => contextualTools.setOpen(event.currentTarget.open, toolsSummary.current) : undefined}>
+        <summary ref={toolsSummary} aria-expanded={contextualTools?.open}>Tools</summary>
         <div>{data.routes.filter(route => !route.primary).map(routeButton)}</div>
       </details>
     </nav>
@@ -141,7 +148,7 @@ export function AnalysisWorkspace({ data, onAction }) {
 }
 
 const roots = new WeakMap();
-export default function({ parentElement, data, setTriggerValue }) {
+export default function({ parentElement, data, setTriggerValue, toolsPanel = null }) {
   let entry = roots.get(parentElement);
   if (!entry) {
     const element = document.createElement("div");
@@ -151,6 +158,6 @@ export default function({ parentElement, data, setTriggerValue }) {
   }
   const View = data.view === "project_workspace" ? ProjectWorkspace
     : data.view === "analysis_workspace" ? AnalysisWorkspace : MainInterface;
-  entry.root.render(<View data={data} onAction={action => setTriggerValue("action", action)}/>);
+  entry.root.render(<View data={data} toolsPanel={toolsPanel} onAction={action => setTriggerValue("action", action)}/>);
   return () => { entry.root.unmount(); entry.element.remove(); roots.delete(parentElement); };
 }

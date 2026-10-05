@@ -199,7 +199,7 @@ def test_docs_page_shot_svg_summaries_do_not_reintroduce_stale_sidebar_labels() 
     manifest = json.loads((DOCS_PAGE_SHOTS / "screenshot_manifest.json").read_text(encoding="utf-8"))
     assert manifest["root"] == "docs/source/_static/page-shots"
     assert not manifest["root"].startswith("..")
-    stale_sidebar_labels = ("Quick actions", "Reviewed")
+    stale_sidebar_labels = ("Reviewed",)
 
     checked = []
     for record in manifest["screenshots"]:
@@ -213,5 +213,14 @@ def test_docs_page_shot_svg_summaries_do_not_reintroduce_stale_sidebar_labels() 
 
         forbidden = [label for label in stale_sidebar_labels if label in text]
         assert forbidden == [], f"{svg_name} contains stale sidebar labels: {forbidden}"
+
+        # Quick actions remains a valid Python control inside opened Tools.
+        # Closed workspace overviews must not describe a permanent sidebar.
+        if "Quick actions" in text:
+            assert record["page"] == "project-create-page"
+            assert record["capture_kind"] == "real-browser-png"
+            assert record["svg_summary_kind"] == "screenshot-embedded-raster"
+            assert "Tools" in record["alt"] and "Create" in record["alt"]
+            assert any(word in record["alt"].lower() for word in ("expanded", "open"))
 
     assert checked, "expected at least one docs page-shot SVG summary"
