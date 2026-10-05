@@ -7,6 +7,7 @@ import argparse
 from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import shutil
@@ -25,6 +26,7 @@ DEMOS = (
 )
 SCIENTIFIC_SECTIONS = ("workflow", "text", "forecast", "free_threading", "milp_energy")
 INTERFACE_FILES = {"app.py", "pyproject.toml", "requirements.txt", "README.md"}
+TEXT_DEMOS = {"text_notebook_demo", "text_notebook_demo_astra", "text_notebook_demo_rtx"}
 
 
 def hashes(project: Path, names) -> dict[str, str]:
@@ -117,6 +119,27 @@ def restore_scientific_proofs(project: Path) -> dict:
     return {"project": project.name, "status": "passed", "retained_scientific_sections": retained.get("sections", [])}
 
 
+def reverify_text_science(checkout: Path, report: dict, current: dict) -> dict:
+    """Changed text artifacts need current evidence, never a resealed historical result."""
+    original = report.get("native_ui_migration", {}).get("original_verification", report["verification"])
+    sections = {name for name in SCIENTIFIC_SECTIONS if name in original}
+    if checkout.name not in TEXT_DEMOS or "text" not in sections or sections - {"text", "workflow"}:
+        raise ValueError("No independent verifier is available for the changed scientific artifacts.")
+    if any(not isinstance(original[name], dict) or original[name].get("status") != "passed"
+           for name in sections):
+        raise ValueError("Historical text verification was not passed.")
+    path = ROOT / "tools/demos/export_text_notebook_demo.py"
+    spec = importlib.util.spec_from_file_location("independent_text_science", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    proof = module.verify_current_project(checkout, current, workflow="workflow" in sections)
+    if (proof.get("status") != "passed" or proof.get("files_sha256") != current
+            or set(proof.get("sections", {})) != sections
+            or any(proof["sections"][name].get("status") != "passed" for name in sections)):
+        raise ValueError("Current independent text verification was incomplete.")
+    return proof
+
+
 def verify_and_refresh(project: Path) -> dict:
     receipt = project / "result.json"
     if receipt.is_symlink() or not receipt.is_file():
@@ -132,7 +155,7 @@ def verify_and_refresh(project: Path) -> dict:
     metadata_fixture = False
     test_verification = deepcopy(report.get("native_ui_migration", {}).get("interface_test_verification", {}))
     with tempfile.TemporaryDirectory(prefix="agilab-native-demo-validation-") as temporary:
-        checkout = Path(temporary) / "project"
+        checkout = Path(temporary) / project.name
         shutil.copytree(project, checkout, ignore=shutil.ignore_patterns("__pycache__", ".venv", ".pytest_cache"))
         if verifier_module == "notebook_execution_verifier" and not (checkout / "pyproject.toml").exists():
             metadata_fixture = True
@@ -163,6 +186,27 @@ def verify_and_refresh(project: Path) -> dict:
         if result.returncode:
             detail = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else result.stderr.strip()
             raise ValueError(f"Native demo verification failed for {project.name}: {detail}")
+        verification = json.loads(result.stdout.strip().splitlines()[-1])
+        if verification.get("status") != "passed":
+            raise ValueError("Native notebook verification did not pass.")
+        scientific = None
+        try:
+            combined, retained = retain_scientific_proofs(
+                project, report, verification, before, test_verification)
+        except ValueError as error:
+            if not str(error).startswith("Scientific artifact changed;"):
+                raise
+            scientific = reverify_text_science(checkout, report, before)
+            combined = deepcopy(verification)
+            combined.update(deepcopy(scientific["sections"]))
+            retained = {
+                "scope": "historical science archived; changed text artifacts independently reverified",
+                "sections": [], "reverified_sections": sorted(scientific["sections"]),
+                "original_artifacts_sha256": {
+                    name: digest for name, digest in baseline.items() if name not in INTERFACE_FILES},
+                "current_artifacts_sha256": {
+                    name: before[name] for name in baseline if name not in INTERFACE_FILES},
+            }
     verification = json.loads(result.stdout.strip().splitlines()[-1])
     if verification.get("status") != "passed":
         raise ValueError("Native notebook verification did not pass.")
@@ -182,7 +226,8 @@ def verify_and_refresh(project: Path) -> dict:
         "native_verification": deepcopy(verification),
         "interface_test_verification": test_verification,
     }
-    combined, retained = retain_scientific_proofs(project, report, verification, before, test_verification)
+    if scientific is not None:
+        migration["current_scientific_verification"] = scientific
     migration["scientific_proof_retention"] = retained
     # The original run identity, source credit and build timing stay historical.
     # The current executable artifact seal and the separate native acceptance

@@ -72,11 +72,11 @@
     "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
     "README.md": "81f898cff607d7b4b7d035b2681698ad133f88d0f9cc1eafbed49ec9000eef2d",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "c7bdf76c6fa594dc3d81c9102bb618acf3f559e3a59a77e3a5107d55cdd02740",
+    "app.py": "72bc69f9722b8a6d191e7c7da7696d1e8ca41731ddfda274d8bd9484c9d8c257",
     "energy_core.py": "9da08b716b348493d440e89870ed444b6258bd8d8fd52d06c55e47e3dcfdde13",
     "energy_runner.py": "a1e9dcbb2b683f64cb47ad68d51078840b081e1af082023cbc4a0283d707a5db",
     "lab_stages.toml": "2cc460db5aec7a19eb4096f6b32fbad6050b41d8c854472f1662b5ab26c63214",
-    "pyproject.toml": "e8b0ae33c20b2eb25b3b923f66f68a20c1c52140e716ddb1f0bda74ed0cda363",
+    "pyproject.toml": "222fa4c0b0f1c24a7d12907fd1d41eb799171c989ec998f113d5311591cb509d",
     "requirements.txt": "904b73360f8870fc1206d2c6b180c353a71ad56450749e42ee06d245fab451ec",
     "solution.ipynb": "dcbd031ab7543617e3c6b63a3f5e9c6868bb97a44b3cdd7c7fbaf68861eeb620",
     "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
@@ -154,7 +154,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T18:15:56.631377+00:00",
+    "verified_at_utc": "2026-10-05T11:55:52.964425+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -236,6 +236,7 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [
@@ -274,13 +275,6 @@
         "requirements.txt"
       ],
       "independently_reverified_test_files": []
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "81f898cff607d7b4b7d035b2681698ad133f88d0f9cc1eafbed49ec9000eef2d"
-      },
-      "refreshed_at_utc": "2026-10-03T20:16:04.879727+00:00"
     }
   }
 }

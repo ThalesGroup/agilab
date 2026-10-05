@@ -5,7 +5,7 @@ chapter 6 of Aurélien Géron's "Hands-On Machine Learning with Scikit-Learn,
 Keras & TensorFlow" (3rd edition, Apache-2.0):
 https://github.com/ageron/handson-ml3/blob/e707c2d659abafb9b1f9fd927907619a128db8d7/06_decision_trees.ipynb
 
-Run with: streamlit run app.py
+Run with: python -m agi_web.react_python_host app.py
 """
 from __future__ import annotations
 
@@ -220,7 +220,7 @@ if st.button("Classify", type="primary"):
     st.metric("Consensus", f"Iris {consensus}", delta=f"{agree} of {len(votes)} models agree")
 
 st.caption(
-    "Built with native Streamlit. Source: Hands-On Machine Learning (3e), "
+    "Built with native React. Source: Hands-On Machine Learning (3e), "
     f"chapter 6 — {SOURCE_URL} (Apache-2.0, © Aurélien Géron). "
     "This lab adapts its Iris example to a small comparison; no data left this machine."
 )

@@ -1,4 +1,4 @@
-"""Streamlit UI: modular expansion with unit commitment (MILP) analysis.
+"""React UI: modular expansion with unit commitment (MILP) analysis.
 
 Adapted from the PyPSA example notebook "Modular Expansion with Unit
 Commitment" (PyPSA contributors, CC-BY-4.0). Built on the validated public

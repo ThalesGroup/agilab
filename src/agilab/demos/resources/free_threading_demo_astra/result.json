@@ -129,7 +129,7 @@
     "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
     "README.md": "951736a98b7c19353f75c4d7c348bcdc42caa7480ac3f49f8e7ea11126ba1f9c",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "b20a00506fe46e01fa005811123cbdce9e0a2c20dc52de18bdf8dec742706f68",
+    "app.py": "81ec19211d846c47c4b9506c3426da44fded92610025862f771ba6356ebe85f3",
     "benchmark.py": "090e1e0a08d39b7804ee95af30cf6fef95e09becfdfcefefea22b06ab63d7dbe",
     "free_threading_core.py": "dfb8e7f8fe60d38da2ad4b080c55143f552275c0078371931d07fde17671e228",
     "lab_stages.toml": "586f5d3e0ed189bca7bd2e44e26103de4867b5e76b0aa8c53f0bf4c2b8ab8e52",
@@ -141,7 +141,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T17:52:40.037768+00:00",
+    "verified_at_utc": "2026-10-05T11:54:41.252232+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -277,11 +277,12 @@
       "result_names": [
         "local_cpu_scaling"
       ],
-      "result_sha256": "7441ab917b0b066a5712208f74cc9234d6ededcee33835bcef82a848b96a53f7",
+      "result_sha256": "e28caed3d526d34bb13de3b6087b1b148c86c1951fcc73609d6c1719d75f149e",
       "scientific_correctness_verified": false,
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [
@@ -314,13 +315,6 @@
         "requirements.txt"
       ],
       "independently_reverified_test_files": []
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "951736a98b7c19353f75c4d7c348bcdc42caa7480ac3f49f8e7ea11126ba1f9c"
-      },
-      "refreshed_at_utc": "2026-10-03T20:16:04.883247+00:00"
     }
   }
 }

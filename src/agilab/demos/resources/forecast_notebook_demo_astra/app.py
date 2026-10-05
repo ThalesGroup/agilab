@@ -1,4 +1,4 @@
-"""Native Streamlit lab; all displayed sales data are synthetic."""
+"""Native React lab; all displayed sales data are synthetic."""
 
 import json
 

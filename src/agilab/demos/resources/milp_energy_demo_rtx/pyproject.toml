@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "milp-modular-unit-commitment"
 version = "0.1.0"
-description = "Modular expansion with unit commitment (MILP) analysis with PyPSA/HiGHS and a Streamlit UI"
+description = "Modular expansion with unit commitment (MILP) analysis with PyPSA/HiGHS and a React UI"
 requires-python = ">=3.12"
 license = { text = "CC-BY-4.0" }
 dependencies = [

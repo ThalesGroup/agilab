@@ -72,7 +72,7 @@
     "LICENSE": "babebd629f0a2b73f04422a0e3fd026edeba2b74d07fb8608275b659d097c984",
     "README.md": "0aaa2ad75a4d1935def97cf7ad210bff93491ee0975bce35bbccab3d273cb258",
     "agilab_pool.py": "305ba174348e92376b08be149b488fc41983de04c5b2564695493769fc21f066",
-    "app.py": "f13a965c9d9a681e8e729284c946743df272e7fdd8ed72c1c1a8ce3a0af5c5a7",
+    "app.py": "b34788b274379b786981267741ba7e8fbe7ad18432fe71e1c4e411b83554a05c",
     "energy_core.py": "256b264c6fb5246a04063d0b792e6ed0cfff9ed79bbb8ce9df224c52497e3215",
     "energy_runner.py": "27507dc898bd2947f3148b2ce3984d708e44eec06fa7e64c36ca72c3bb9617e7",
     "lab_stages.toml": "6cdd703df6d0cb5d01ebc27c0cbbf4e15bd6c47a51e73ddef2f0e9eb23626235",
@@ -86,7 +86,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T18:44:50.862471+00:00",
+    "verified_at_utc": "2026-10-05T11:55:49.848820+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -168,7 +168,7 @@
         "installed_modules",
         "reference_check"
       ],
-      "result_sha256": "e28dfb77c6d94cfceb9d07de7a2044bacaacb98788e111acebc1c32c8152942a",
+      "result_sha256": "d25bd3de05c77bc61e3f0328de1a3ef38dce34ad97b3e975c4c99703ae46b6ea",
       "scientific_correctness_verified": false,
       "status": "passed",
       "verification_scope": "execution_and_interface"
@@ -229,13 +229,6 @@
       "independently_reverified_test_files": [
         "tests.py"
       ]
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "0aaa2ad75a4d1935def97cf7ad210bff93491ee0975bce35bbccab3d273cb258"
-      },
-      "refreshed_at_utc": "2026-10-03T20:16:04.882081+00:00"
     }
   }
 }

@@ -35,7 +35,7 @@ Modifications made for this adaptation:
 - **Deterministic document order and fixed seed.** The corpus is loaded in its
   original row order and all random stages use a fixed seed so results are
   reproducible.
-- **Streamlit app + notebook.** A native Streamlit `app.py` and a `solution.ipynb`
+- **React app + notebook.** A native React `app.py` and a `solution.ipynb`
   are added. Both reuse the same `text_core.py` implementation, and the
   notebook writes a fresh `results.json` to the current directory.
 

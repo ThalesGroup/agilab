@@ -70,14 +70,14 @@
     "status": "passed"
   },
   "files": {
-    "app.py": "2b8ea6262544b23afc0737c5283cf5e27e39cddf5ed8044e0fda012e52a486af",
+    "app.py": "240945418525adddf5ac9202d438894ddc1a7a776680ace60984237990f8b401",
     "models.py": "f592dd7caec6c17bd80151163b13422a45af22a0a2323fadbefce2010b8530f1",
-    "solution.ipynb": "d319ad56ce7b7cf3dd87733c5c68c24a47be261ae14946985a82d121b07f2df8",
+    "solution.ipynb": "3b0c12d79392fc5735754ef747645414af3aae0679f5d1cb0d0dcb63f53dfe6f",
     "lab_stages.toml": "2a72dca5a3133363acb6d8bee152ba17d8739c5c46a413cd03bfa808305ff0df"
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T16:28:21.318142+00:00",
+    "verified_at_utc": "2026-10-05T12:00:30.845190+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "app.py": "69139fa1ca8921dba945ac6b510e7b512752b5b1fa88715823abc2b5122df279",
@@ -142,6 +142,8 @@
       "status": "passed"
     },
     "verifier_sha256": "fea17908738b958631bbd6c4ca3321255f1f03146eff2b8afaa8aa82ca784e52",
+    "verification_checkout": "fresh temporary copy; canonical project unchanged",
+    "temporary_project_metadata": false,
     "native_verification": {
       "checks": [
         "held_out_models",
@@ -200,6 +202,7 @@
       ],
       "status": "passed"
     },
+    "interface_test_verification": {},
     "scientific_proof_retention": {}
   }
 }

@@ -135,7 +135,7 @@
   "files": {
     "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
     "MODEL_LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
-    "app.py": "bfe3cad104f1d0c9667b0643626cd696525b0af3984602793cbcacdb6449ca70",
+    "app.py": "5bb4118eb9935251f47a1a47a48de8e523a53a6b377790056850a02276f74cf1",
     "forecast_core.py": "08f913f4112efe95f742ab935a373f240ec99e806bbf293bf4f5ed93c1f731ff",
     "lab_stages.toml": "7c6131cb7bae88abc8841fcd131bb73b7422a305577f77659bb0f4558691748f",
     "solution.ipynb": "0d2fd5fb1e3c8f5700e949519160c41d4457f8384065c417005c0dc5374e384a",
@@ -199,7 +199,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T17:50:03.196373+00:00",
+    "verified_at_utc": "2026-10-05T11:59:16.180251+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
@@ -345,6 +345,7 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [

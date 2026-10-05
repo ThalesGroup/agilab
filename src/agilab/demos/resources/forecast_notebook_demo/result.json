@@ -275,7 +275,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T17:49:57.700696+00:00",
+    "verified_at_utc": "2026-10-05T11:59:09.121388+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "LICENSE": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
@@ -438,6 +438,7 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [
@@ -472,13 +473,6 @@
         "requirements.txt"
       ],
       "independently_reverified_test_files": []
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "c973cd3e9f381ead37bafb037ddafb55e245a2798116b69e3597cea69246ee24"
-      },
-      "refreshed_at_utc": "2026-10-03T18:11:13.176419+00:00"
     }
   }
 }

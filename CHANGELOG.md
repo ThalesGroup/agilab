@@ -54,6 +54,28 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   validation profile.
 
 
+### Planned corrective release 2026.10.5
+
+Planned tag: `v2026.10.05`. Publication evidence remains bound to the last
+successful release until the new publishing workflow completes.
+
+Fixes:
+
+- Format prospective Windows dataset share mappings without probing the SMB
+  share, avoiding stalls before the guarded mapping operation.
+- Install the declared dependencies of the hosted notebook demos before their
+  startup and notebook checks, including Altair for the analysis views.
+- Preserve existing Hugging Face storage rules while registering the bundled
+  Graphviz JavaScript asset for Git LFS before uploading a fresh Space.
+
+Release scope:
+
+- Update only `agi-node`, `agi-cluster`, `agi-core`, `agi-apps` and
+  `agilab` to `2026.10.5`; retain the other 30 published packages at
+  `2026.10.4` and preserve all earlier release versions and tags.
+- Keep the native React interface, Python views and notebook exports on their
+  existing application contracts.
+
 ## [2026.09.21.2] - 2026-09-23
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2

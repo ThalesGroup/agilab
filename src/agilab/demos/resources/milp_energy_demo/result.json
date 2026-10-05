@@ -96,7 +96,7 @@
     "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
     "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
     "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
-    "tests.py": "ada27cf69e4a5a311a4639bc78fc6245ecb7b060b81b5c23cce9ace807a43960"
+    "tests.py": "e49e1d959b96bba398fa9fb2a1ddac40bfb089e675db9809e9a1fa79634b0db7"
   },
   "build_model": {
     "cloud_codegen_fallback": false,
@@ -118,7 +118,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T18:13:47.808371+00:00",
+    "verified_at_utc": "2026-10-05T11:55:02.183725+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "AGILAB_LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -216,6 +216,18 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {
+      "tests.py": {
+        "status": "passed",
+        "sha256": "e49e1d959b96bba398fa9fb2a1ddac40bfb089e675db9809e9a1fa79634b0db7",
+        "command": "python tests.py",
+        "checkout": "fresh temporary project copy",
+        "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "seconds": 0.4,
+        "summary": []
+      }
+    },
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [
@@ -246,7 +258,7 @@
         "source/LICENSE": "d557539df68e771cc1eedcc91d13f70fca930e508d11eedcafa4b15db49e3744",
         "source/original.ipynb": "f7ea554af73cb21b3eb8c0569c7c21eac0b327e0ce35c29cf23806d74af926b8",
         "source/provenance.json": "5a142f1195399b3efb5b6f8713500d72c81efcd7b68fc27c9102ff4bc19566ff",
-        "tests.py": "ada27cf69e4a5a311a4639bc78fc6245ecb7b060b81b5c23cce9ace807a43960"
+        "tests.py": "e49e1d959b96bba398fa9fb2a1ddac40bfb089e675db9809e9a1fa79634b0db7"
       },
       "excluded_interface_and_dependency_files": [
         "README.md",
@@ -254,7 +266,9 @@
         "pyproject.toml",
         "requirements.txt"
       ],
-      "independently_reverified_test_files": []
+      "independently_reverified_test_files": [
+        "tests.py"
+      ]
     }
   }
 }
