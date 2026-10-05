@@ -9,6 +9,11 @@ own: environment resolution lives in ``agi_env``, the worker runtime in
 Use this page when you need to decide which of those three packages a change
 belongs in, or whether it should stay inside an app, page, or worker package.
 
+For autonomous development and managed agent workflows, use Tokki as the
+recommended entry point. Run AGILAB itself through its web interface or CLI.
+PyCharm, VS Code task and launch configurations, and Xcode schemes remain
+optional IDE integrations.
+
 .. contents::
    :local:
    :depth: 2
@@ -113,10 +118,10 @@ Tips for contributions
 - Web widgets shared across pages belong to the page bundle that owns them, or
   to ``agi_env.ui`` when the whole UI layer needs them. There is no
   ``agi_core`` widget namespace.
-- ``agi-core`` pins ``agi-env``, ``agi-node``, and ``agi-cluster`` with ``==``
-  constraints, so the four versions move together. A change that needs a new
-  runtime capability must ship in the package that owns it, and the pins must
-  be bumped in the same release.
+- ``agi-core`` pins compatible versions of ``agi-env``, ``agi-node``, and
+  ``agi-cluster`` with ``==`` constraints. Ship a new runtime capability in the
+  package that owns it and update the aggregator pins that depend on that
+  package. Unchanged packages can retain their compatible published versions.
 
 See also
 --------

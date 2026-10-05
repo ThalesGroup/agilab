@@ -8,25 +8,25 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/workflow-page.svg
-   :alt: Screenshot of the WORKFLOW page with assistant controls, lab directory selectors, and dataframe selection.
+   :alt: Native React WORKFLOW workspace with the Python-backed pipeline editor, stage controls, and dataframe selection.
    :align: center
    :class: diagram-panel diagram-wide
 
    WORKFLOW combines lab-stage editing, execution context, dataframe selection, and notebook export in the same workspace.
 
-Sidebar
--------
-- ``Read Documentation`` opens this guide in the hosted public docs when
-  reachable, and falls back to the locally generated docs build when available.
-- ``Lab Directory``: choose the module whose lab artefacts you want to work on.
-  The selection points at ``${AGILAB_EXPORT_ABS}/<module>`` and initialises
-  ``lab_stages.toml`` if it does not exist yet.
-- ``Stages``: pick the ``lab_stages`` file relative to the export directory. When
-  you change the selection the assistant reloads the stored conversation.
-- ``DataFrame``: select which CSV (or parquet) is mounted for the assistant. The
-  resolved absolute path lives under ``${AGILAB_EXPORT_ABS}``.
-- ``MLflow``: shows whether the local tracking UI is running and exposes an
-  ``Open UI`` link. The UI is a tracker view, not another execution button.
+Workspace and workflow controls
+-------------------------------
+Choose the active project with the React header's **Project** selector.
+WORKFLOW resolves that project's lab directory under ``AGILAB_EXPORT_ABS``
+and loads its stage definitions and available dataframes.
+
+- The stage definition lives in the project's ``lab_stages.toml``. The retained
+  Python-backed pipeline editor controls its stages; the collapsed **Stages
+  file summary** exposes the resolved file when you need to inspect context.
+- **DataFrame** selects an available input file for the assistant. Its resolved
+  path stays under the project's export root.
+- When the local tracking UI has been started, the **MLflow** link and status
+  let you open that tracker. The tracker shows execution evidence.
 
 Main Content Area
 -----------------
@@ -264,9 +264,10 @@ and execution history for the plan.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The shipped portfolio sample explains why the inspected forecast stage is
-   waiting and links to its input producer. This documentation capture uses
-   the WORKFLOW graph component in a preview fixture with real execution disabled.
+   Four synthetic stages modeled on the shipped portfolio sample explain why the
+   inspected forecast stage is waiting and link to its input producer. This
+   documentation capture uses the WORKFLOW graph component in a preview fixture
+   with real execution disabled.
 
 .. figure:: _static/page-shots/workflow-dag-neighbor-groups.png
    :alt: WORKFLOW inspector showing three of forty neighboring stages and the selected stage trace.
@@ -274,8 +275,8 @@ and execution history for the plan.
    :class: diagram-panel diagram-wide
 
    A synthetic forty-branch preview demonstrates bounded graph navigation and
-   stage-specific trace inspection. Its events and output records are fixture data,
-   not evidence of a real application run.
+   stage-specific trace inspection. Its synthetic events and planned outputs
+   illustrate the inspector; they are not evidence of a real application run.
 
 To edit a plan, enable ``Edit plan``. The normal editing path stays away from
 raw JSON:
@@ -451,8 +452,8 @@ WORKFLOW execution and MLflow tracking now share the same runtime contract:
   artefacts are logged to the same tracking store when they exist.
 
 This means MLflow is no longer just a nearby dashboard. It is the execution
-trace for WORKFLOW runs, while the sidebar remains the place where you inspect
-that trace.
+trace for WORKFLOW runs. Use the MLflow link in the workflow controls to
+inspect that trace.
 
 AGILAB does not define a separate experiment tracker, model registry, run
 format, or metrics schema. The AGILAB runtime talks through a small tracker

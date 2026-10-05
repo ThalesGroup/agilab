@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1240" height="640" viewBox="0 0 1240 640" role="img" aria-labelledby="title desc">
   <title id="title">AGI core orchestration</title>
-  <desc id="desc">Diagram showing web and CLI entrypoints running in an agi-core install, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
+  <desc id="desc">Diagram showing the web interface, Tokki-managed agent workflows, CLI entrypoints, and optional IDE integrations using an agi-core install, then agi_env, agi_cluster, agi_node workers, and artifacts with a clear orchestration flow.</desc>
   <defs>
     <style>
       text {
@@ -93,19 +93,19 @@
   <g transform="translate(150,108)">
     <rect class="card" width="320" height="126" fill="#d9f0ff" />
     <text class="card-title" x="160" y="34" text-anchor="middle">Web interface</text>
-    <text class="card-body" x="160" y="62" text-anchor="middle">agilab.py navigation pages</text>
+    <text class="card-body" x="160" y="62" text-anchor="middle">Native React navigation</text>
     <text class="card-note" x="160" y="86" text-anchor="middle">
-      <tspan x="160" dy="0">LANDING · SETTINGS · PROJECT</tspan>
+      <tspan x="160" dy="0">HOME · SETTINGS · PROJECT</tspan>
       <tspan x="160" dy="18">ORCHESTRATE · WORKFLOW · ANALYSIS</tspan>
     </text>
   </g>
 
   <g transform="translate(150,252)">
     <rect class="card" width="320" height="110" fill="#d9f0ff" />
-    <text class="card-title" x="160" y="34" text-anchor="middle">CLI and PyCharm</text>
+    <text class="card-title" x="160" y="34" text-anchor="middle">Tokki and CLI</text>
     <text class="card-body" x="160" y="60" text-anchor="middle">
-      <tspan x="160" dy="0">AGI_run scripts · run configs</tspan>
-      <tspan x="160" dy="20">uv launchers</tspan>
+      <tspan x="160" dy="0">Managed agent workflows</tspan>
+      <tspan x="160" dy="20">Optional IDE integrations</tspan>
     </text>
   </g>
 
@@ -116,7 +116,7 @@
     <text class="card-body" x="24" y="96">Pins the three runtime packages</text>
     <text class="card-note" x="24" y="128">
       <tspan x="24" dy="0">Installs agi-env, agi-node and</tspan>
-      <tspan x="24" dy="18">agi-cluster at one version</tspan>
+      <tspan x="24" dy="18">agi-cluster at their pinned versions</tspan>
     </text>
   </g>
 
@@ -183,8 +183,8 @@
   <line class="arrow" x1="470" y1="166" x2="484" y2="210" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="470" y1="302" x2="484" y2="254" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="648" y1="324" x2="648" y2="350" marker-end="url(#arrowhead-core)" />
-  <line class="arrow" x1="792" y1="236" x2="864" y2="198" marker-end="url(#arrowhead-core)" />
+  <path class="arrow" d="M 1184 483 H 1210 V 198 H 1184" fill="none" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="796" y1="396" x2="864" y2="331" marker-end="url(#arrowhead-core)" />
   <line class="arrow" x1="1024" y1="388" x2="1024" y2="420" marker-end="url(#arrowhead-core)" />
-  <line class="arrow-soft" x1="792" y1="210" x2="864" y2="210" marker-end="url(#arrowhead-soft-core)" />
+  <line class="arrow-soft" x1="1024" y1="284" x2="1024" y2="244" marker-end="url(#arrowhead-soft-core)" />
 </svg>

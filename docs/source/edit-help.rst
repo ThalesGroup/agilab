@@ -8,28 +8,34 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/project-page.svg
-   :alt: Screenshot of the PROJECT page with the project selector and source-file expanders.
+   :alt: Native React PROJECT workspace with the header project selector, environment summary, and project actions.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The PROJECT page keeps project selection in the sidebar and exposes the editable source/config sections in the main panel.
+   PROJECT presents the active project's environment and data readiness. Use the header's Edit project action to open the Python-backed source and configuration editor.
 
 .. figure:: _static/page-shots/project-create-page.svg
-   :alt: Screenshot of the PROJECT Create action with starting point, environment strategy, and new project name controls.
+   :alt: Project editor Create project panel with starting point, environment strategy, and new project name controls.
    :align: center
    :class: diagram-panel diagram-wide
 
-   The Create action groups project creation inputs in the sidebar: choose a starting point, pick the environment strategy, then enter the new project name.
+   The project editor's Create action groups the starting point, environment strategy, and project name controls. These retained Python-backed controls render in the native React host.
 
-Sidebar
--------
+Project selection and editor actions
+------------------------------------
+
+Choose the active project with the React header's **Project** selector.
+**PROJECT** shows its status and next actions; **Edit project** opens the
+source/configuration editor. The editor retains a **Quick actions** control
+for project management. Open its **Action** selector when you need Create,
+Import, Export, Rename, or Delete.
+
 
 - ``Read Documentation`` opens this guide in the hosted public docs when
   reachable, and falls back to the locally generated docs build when available.
-- ``Select`` loads the chosen project and exposes an ``Export`` button that writes
-  ``<project>.zip`` to ``${EXPORT_APPS}`` using the active ``export-app-filter``.
-  The rest of the page (expanders described below) becomes available from this
-  view.
+- The default ``Edit`` view exposes the source and configuration sections
+  described below. ``Export`` is a separate Quick action that writes
+  ``<project>.zip`` to ``${EXPORT_APPS}`` using the active export filter.
 - ``Create`` lets you clone either the current project or one of the templates
   discovered on disk. The helper normalises the name (adds the ``_project``
   suffix) and rejects duplicates before cloning. You now choose an
@@ -58,8 +64,8 @@ Tutorial: create a project
 Use this when you want to duplicate an existing project before editing code or
 settings.
 
-1. Open **PROJECT**.
-2. In the sidebar, choose **Create**.
+1. Select the source project in the React header and open **Edit project**.
+2. In **Quick actions**, set **Action** to **Create**.
 3. Select the source project or template you want to duplicate.
 4. Enter the new project name. AGILab adds the ``_project`` suffix if needed.
 5. Choose the environment strategy:
@@ -68,7 +74,7 @@ settings.
    - ``Working clone (no shared .venv)`` for real development work.
 
 6. Confirm the clone action.
-7. Select the new cloned project in the sidebar.
+7. Select the new cloned project in the header's **Project** selector.
 
 What to do next:
 
@@ -77,37 +83,39 @@ What to do next:
 - If you chose ``Working clone``, go to :doc:`execute-help`, run ``Deploy scheduler & workers``,
   then run ``RUN`` before expecting the clone to behave like the source
   project.
-- If the clone should expose optional analysis bundles, open ``APP-SETTINGS``
+- If the clone should expose optional analysis bundles, open ``Configuration / app settings``
   and check the ``[pages]`` section.
 
 Main Content Area
 -----------------
-- When ``Select`` is active the page reveals a stack of expanders backed by the
+- The default ``Edit`` view reveals a stack of expanders backed by the
   in-browser code editor. Each expander streams syntax-highlighted content and
   writes any saved changes straight back to disk:
 
-  - ``PYTHON-ENV`` edits the project ``pyproject.toml`` so you can manage
+  - ``Runtime / manager environment`` edits the project ``pyproject.toml`` so you can manage
     dependencies without leaving the browser.
-  - ``PYTHON-ENV-EXTRA`` surfaces ``uv_config.toml`` for supplemental dependency
+  - ``Runtime / worker environment`` edits the worker's declared Python
+    environment.
+  - ``Runtime / uv overrides`` surfaces ``uv_config.toml`` for supplemental dependency
     constraints.
-  - ``MANAGER`` and ``WORKER`` expose the main orchestration modules. The editor
+  - ``Code / manager`` and ``Code / worker`` expose the main orchestration modules. The editor
     offers class/function/attribute pickers so you can focus on specific
     sections before saving.
-  - ``EXPORT-APP-FILTER`` controls the ``.gitignore`` rules that the export flow
+  - ``Runtime / export filter`` controls the ``.gitignore`` rules that the export flow
     applies when producing the archive.
-  - ``APP-SETTINGS`` opens the per-user workspace
+  - ``Configuration / app settings`` opens the per-user workspace
     ``~/.agilab/apps/<project>/app_settings.toml``. AGILab keeps the ``[args]``
     and ``[pages]`` sections in sync with the Orchestrate and Analysis pages.
     The file is seeded from the app's versioned source ``app_settings.toml``
     (``<project>/app_settings.toml`` or ``<project>/src/app_settings.toml``)
     when the app is first loaded.
-  - ``README`` allows quick edits to the project ``README.md``.
-  - ``APP-ARGS`` targets ``app_args.py`` in the app package. Use it to
+  - ``Documentation / README`` allows quick edits to the project ``README.md``.
+  - ``Configuration / arguments model`` targets ``app_args.py`` in the app package. Use it to
     synchronise default arguments with the Orchestrate page.
-  - ``APP-ARGS-FORM`` displays (and creates if missing) the optional
+  - ``Configuration / arguments UI`` displays (and creates if missing) the optional
     ``app_args_form.py`` web snippet used to render a custom parameter UI
     in Orchestrate.
-  - ``PRE-PROMPT`` serialises ``pre_prompt.json`` so you can tailor the prompt
+  - ``AI / pre-prompt`` serialises ``pre_prompt.json`` so you can tailor the prompt
     used by the WORKFLOW assistant.
 
 Troubleshooting and checks
