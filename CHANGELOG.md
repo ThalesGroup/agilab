@@ -23,8 +23,15 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.05] - 2026-10-05
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
+
 ### Changed
 
+- Published AGILAB `2026.10.05` to PyPI for `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 - Simplify the native home journey and retain notebook entry points in secondary sections. Edit Workflow template parameters through labelled fields, with lossless draft state and an explicit advanced JSON editor.
 - Add explicit versioned pipeline templates, visible drift, guarded execution and notebook export, and reviewed legacy conversion with source backups.
 - Prepare targeted retry and partial rerun of multi-app DAG branches through the durable runner, preserving unrelated results and recovery controls.
@@ -1109,3 +1116,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.21]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21
 [2026.09.21.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
 [2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
+[2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
