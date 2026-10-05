@@ -42,27 +42,17 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/analysis-page.svg
-   :alt: Screenshot of the ANALYSIS page showing discovered views and per-project selection.
+   :alt: Native React ANALYSIS workspace with Analysis views, Notebooks, Save selection, and notebook export controls.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ANALYSIS exposes the available page bundles, stores the selected views per project, and launches them as sidecar dashboards.
+   ANALYSIS groups the project's views and notebooks into two selection panels, with explicit save, open, and notebook export actions.
 
-Sidebar
--------
-- ``Read Documentation`` opens this guide in the hosted public docs when
-  reachable, and falls back to the locally generated docs build when available.
-- Project selector that keeps the current application in sync with the rest of
-  the suite.
-- ``Analysis views`` lists compact launch links for the selected views. If no
-  view has been selected yet, it lists every discovered view so you can launch
-  one without first editing the project configuration.
-- ``Notebooks`` lists compact launch links for selected project notebooks. If
-  notebooks exist but none are selected yet, you can add them from the main page
-  selector.
-- The currently selected project determines which views are stored inside its
-  workspace ``app_settings.toml`` file under ``~/.agilab/apps/<project>/``
-  in the ``[pages]`` section.
+Workspace header
+----------------
+The React header contains the **Project** selector and workspace navigation.
+Choose the active project there before configuring its views or notebooks.
+The catalogue, saved selections, and notebook routes follow that project.
 
 Main Content Area
 -----------------
@@ -70,66 +60,73 @@ Main Content Area
 
    .. tab-item:: Discover
 
-      AGILab scans ``${AGILAB_PAGES_ABS}`` for installed page bundles and
-      Python files that expose an entrypoint such as ``src/<module>/<module>.py``
-      (or ``main.py`` / ``app.py``). The page grid lists every discovered bundle
-      so you can preview what is available on disk.
+      **Analysis views** lists the installed page bundles discovered under
+      ``AGILAB_PAGES_ABS``. A bundle provides a ``pyproject.toml`` and a Python
+      entry point such as ``src/<module>/<module>.py``, ``main.py``, or ``app.py``.
+      **Notebooks** lists ``.ipynb`` files discovered in the active project's
+      ``notebooks`` directory. The summary above the panels shows the available
+      and selected items.
 
    .. tab-item:: Configure
 
-      Use **Choose analysis views** to choose which pages are shown as
-      sidebar shortcuts for analyzing the selected project. The selection
-      is written to ``~/.agilab/apps/<project>/app_settings.toml`` in the
-      ``[pages]`` section under ``view_module``. Only the names you choose are
-      persisted for the active project; every project keeps its own list. The
-      workspace file is seeded from the app's ``app_settings.toml`` source file
-      (for example ``<project>/app_settings.toml`` or
-      ``<project>/src/app_settings.toml``) the first time the app is loaded.
+      Tick the checkboxes in **Analysis views** and **Notebooks**, then click
+      **Save selection**. **Discard changes** restores the saved choices when
+      edits are pending. The status beside these controls reports unsaved
+      changes, a successful save, or a save error.
 
-      You can also create a complete starter bundle directly from this page using
-      **Create analysis view**. It creates a minimal pyproject and runnable
-      native React UI module so the page is immediately usable and ready to be
-      customized. Use **Starting point** when you want to begin from a blank
-      template or duplicate an existing app page before clicking **Create**.
+      Views are saved in ``[pages].view_module`` and notebooks in
+      ``[notebooks].selected`` inside
+      ``~/.agilab/apps/<project>/app_settings.toml``. Each project keeps its
+      own selections. The workspace file is seeded from the app's source
+      ``app_settings.toml`` the first time that app is loaded.
 
-      Use **Choose notebooks** to choose which ``.ipynb`` files are shown as
-      sidebar shortcuts for the selected project. The selection is written to
-      ``~/.agilab/apps/<project>/app_settings.toml`` in the ``[notebooks]``
-      section under ``selected``.
+      **Create analysis view** remains available for Python authors. Choose
+      **Starting point** to create a blank starter bundle or duplicate an
+      existing page, then click **Create**. The generated bundle contains a
+      minimal ``pyproject.toml`` and a runnable Python page module rendered by
+      the native UI host.
 
-   .. tab-item:: Launch
+   .. tab-item:: Open
 
-      Each selected view appears as a compact sidebar link. Opening it launches
-      the bundle in a dedicated web process (one port per view, per session)
-      using the nearest virtual environment (``.venv``/``venv`` in the bundle or the
-      directories pointed to ``${AGILAB_VENVS_ABS}`` and
-      ``${AGILAB_PAGES_VENVS_ABS}``). The child app is then embedded via iframe
-      and a ``Back to Analysis`` control keeps navigation lightweight.
-      Current page bundles use the visible label ``Back to ANALYSIS`` so the
-      return target matches the main navigation. Generic map pages keep the
-      selected project visible in the header while full runtime and filesystem
-      paths stay in collapsed context expanders.
+      Click **Open** beside a saved, selected item. The button becomes
+      available when the selection is saved and the item has a launchable
+      route; save or discard pending edits before opening an item.
 
-      Each selected notebook appears as a compact sidebar link. Opening it from
-      ANALYSIS starts a project-rooted JupyterLab sidecar and embeds the
-      notebook. Exported notebooks and AGI snippets remain reusable outside this
-      embedded route when the AGI runtime and dependencies are available. Hosted
-      end-user deployments should normally use AGI pages for the primary
-      analysis surface because they avoid exposing an editable notebook runtime.
+      An analysis view opens inside ANALYSIS through its existing Python-backed
+      renderer. A page bundle can run in a dedicated web sidecar using its
+      nearest ``.venv`` or ``venv``, or an interpreter under
+      ``AGILAB_VENVS_ABS`` or ``AGILAB_PAGES_VENVS_ABS``, and appear in an
+      embedded frame. Use **Back to Analysis** to return to the catalogue.
+
+      In a local AGILAB runtime, opening a notebook starts a project-rooted
+      JupyterLab sidecar and embeds that notebook. Hosted ANALYSIS runtimes
+      report that notebook sidecars are available locally only. Notebook
+      files and AGI snippets remain reusable separately in an appropriate
+      Python/Jupyter environment with their declared dependencies.
+
+   .. tab-item:: Export app to notebook
+
+      **Export app to notebook** opens WORKFLOW for the active project, where
+      the pipeline can be exported as a readable, executable ``.ipynb`` file.
+      The export keeps Python cells editable and reusable in Jupyter.
+      Supported maps and analysis curves render directly in the notebook.
+
+      This action is a link to the export workflow. Save or discard pending
+      selection changes before navigating away.
 
 Tips & Notes
 ------------
 - Views are ordinary web projects. Bundles that expose a ``pyproject.toml``
   and a ``src/<module>/<module>.py`` entry point are automatically picked up.
-- Built-in IDE pages (PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS) always remain
+- Core workspace pages (PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS) always remain
   available; page bundles simply add extra entries to the Analysis catalogue when
   the project opts into them.
 - ``UAV Relay Queue`` is a good reference setup (install id
   ``uav_relay_queue_project``): select both ``view_relay_resilience`` and
   ``view_maps_network`` to inspect the same run through a dedicated queue
   dashboard and the generic topology map.
-- AGILab caches the list per project, so the Analysis grid reflects the exact
-  configuration stored in ``app_settings.toml``.
+- AGILAB discovers available bundles and restores saved choices for each
+  project from ``app_settings.toml``.
 - If a view needs its own Python environment, place it alongside the page
   bundle (``.venv`` or ``venv``) or in the shared directories referenced by the
   ``AGILAB_VENVS_ABS`` / ``AGILAB_PAGES_VENVS_ABS`` environment variables.
@@ -146,8 +143,8 @@ If analysis view discovery is unexpected, use these checks:
 - If a bundle is not launchable, verify that no syntax error blocks startup and
   that the bundle has either ``.venv``/``venv`` or a valid shared interpreter
   under ``${AGILAB_VENVS_ABS}`` / ``${AGILAB_PAGES_VENVS_ABS}``.
-- If a launch opens a blank frame, confirm the web process starts on the expected port and
-  that your browser blocks mixed local/remote content.
+- If a launch opens a blank frame, inspect the sidecar startup logs and the
+  browser's frame or network errors; confirm the expected local endpoint is reachable.
 - If the selected bundle list is not saved, check write permission on
   ``~/.agilab/apps/<project>/app_settings.toml``.
 - If ``view_maps_network`` opens but shows no UAV queue data, point the data

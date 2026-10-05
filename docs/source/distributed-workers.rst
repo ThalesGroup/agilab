@@ -103,11 +103,11 @@ multiple operators. Generated snippets remain under the local ``AGI_LOG_DIR``
 workspace.
 
 .. figure:: _static/page-shots/orchestrate-page.svg
-   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and generated setup code.
+   :alt: Native React ORCHESTRATE workspace with project runtime, deployment, and execution controls.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE is where you define worker settings and generate the snippets used for install, distribution, and run.
+   The ORCHESTRATE workspace retains Python-backed worker settings and generated deployment, distribution, and execution snippets under the shared React header.
 
 Stage 2: Let ORCHESTRATE Generate the Snippet
 ---------------------------------------------
@@ -293,7 +293,7 @@ execution flags, or app arguments in ORCHESTRATE, regenerate or re-import the
 snippet before running it again in WORKFLOW.
 
 .. figure:: _static/page-shots/workflow-page.svg
-   :alt: Screenshot of the WORKFLOW page showing the lab-stage workspace where generated snippets are imported and rerun.
+   :alt: Native React WORKFLOW workspace with the Python-backed pipeline editor used to import and rerun generated snippets.
    :align: center
    :class: diagram-panel diagram-wide
 

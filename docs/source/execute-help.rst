@@ -17,19 +17,18 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/orchestrate-page.svg
-   :alt: Screenshot of the ORCHESTRATE page showing deployment toggles and the generated install snippet.
+   :alt: Native React ORCHESTRATE workspace with project runtime, resources, deployment, and execution controls.
    :align: center
    :class: diagram-panel diagram-wide
 
-   ORCHESTRATE centralises deployment settings and generated snippets before install, distribution, and run actions.
+   ORCHESTRATE presents the active project's runtime state and Python-backed controls for resources, deployment, distribution, and execution.
 
-Sidebar
--------
-- ``Read Documentation`` opens this guide in the hosted public docs when
-  reachable, and falls back to the locally generated docs build when available.
-- Project selector that keeps the page in lockstep with the active app.
-- ``Verbosity level`` changes the ``verbose`` flag injected into every generated
-  snippet (0–3) and is persisted under ``[cluster].verbose``.
+Workspace header and diagnostics
+--------------------------------
+Choose the active project with the React header's **Project** selector.
+The orchestration controls and generated snippets use that project's settings.
+The page's verbosity control changes the ``verbose`` flag injected into generated
+snippets (0–3) and persists it under ``[cluster].verbose``.
 
 Main Content Area
 -----------------
@@ -38,26 +37,26 @@ Main Content Area
   data-share size, and last project change without filling the page with long
   absolute paths. Use the collapsed ``Runtime details`` expander when you need
   the full project, environment, or data-share path for support or copy/paste.
-- ``System settings`` groups the cluster configuration. Toggle support for
+- ``Resources and deployment`` groups the cluster configuration. Toggle support for
   ``pool``, ``cython`` and ``rapids``, enable the Dask scheduler and provide IP
   definitions for workers. The calculated mode hint clarifies how the chosen
   combination will execute and the settings are written back to
   ``~/.agilab/apps/<app>/app_settings.toml``.
-- ``Install`` renders the install snippet that provisions the project's virtual
+- ``Resources and deployment`` includes the snippet that provisions the project's virtual
   environments. ``Deploy scheduler & workers`` streams stdout/stderr into
   ``Deployment logs`` so you
   know when the worker is ready. A successful install automatically enables the
   ``Run`` section.
-- ``Distribute`` is split into two parts:
+- Arguments and distribution are grouped into two sections:
 
-    * ``<module> args``: edit the run arguments managed in ``app_args.py``. You
+    * ``Configure run arguments for <module>``: edit the run arguments managed in ``app_args.py``. You
       can toggle between the generated form UI and the optional custom snippet
       saved in ``app_args_form.py``. Saved values update ``[args]`` in
       ``~/.agilab/apps/<app>/app_settings.toml``. Custom forms may also surface derived preview
       metrics computed from the current inputs and the latest generated summary
       artefacts. When they do, the preview should match the metric written back
       by the app after ``RUN`` so the UI and exported reports stay aligned.
-    * ``Distribute details``: generates the ``AGI.get_distrib`` snippet and the
+    * ``Preview distribution workplan``: generates the ``AGI.get_distrib`` snippet and the
       ``CHECK DISTRIBUTE`` action. When the command succeeds the ``Distribution
       tree`` expander plots the resulting work plan (DAG or tree) and ``Workplan``
       lets you reassign partitions to different workers before saving the
@@ -88,7 +87,7 @@ Execution Mode Values
 ---------------------
 
 The generated snippets use two closely related parameters that come from
-``System settings``:
+``Resources and deployment``:
 
 .. list-table::
    :header-rows: 1
@@ -163,7 +162,7 @@ through ``RunRequest``. One snippet prepares runtime capabilities through
 shape through ``AGI.run(app_env, request=request)``.
 
 In normal usage, you do not type bitmasks manually. You set the toggles in
-``System settings`` and AGILAB generates the matching snippet.
+``Resources and deployment`` and AGILAB generates the matching snippet.
 
 From UI to Snippet Fields
 -------------------------
@@ -212,7 +211,7 @@ Distributed Workflow
 For distributed runs, ORCHESTRATE is the control point. The intended workflow
 is:
 
-1. Configure scheduler, workers, and execution flags in ``System settings``.
+1. Configure scheduler, workers, and execution flags in ``Resources and deployment``.
 2. Let ORCHESTRATE generate the current ``AGI.install(...)``,
    ``AGI.get_distrib(...)``, and ``AGI.run(...)`` snippets.
 3. Reuse the generated run snippet in :doc:`experiment-help` when the
@@ -224,7 +223,7 @@ the full step-by-step deployment guide.
 
 For a first pass through the UI, follow this sequence exactly:
 
-1. Open ``System settings`` and configure the scheduler host and worker map.
+1. Open ``Resources and deployment`` and configure the scheduler host and worker map.
 2. Run ``Deploy scheduler & workers`` so the worker runtime is staged on the configured machines.
 3. Run ``CHECK DISTRIBUTE`` to inspect the generated distribution tree and
    confirm the work plan matches the selected workers.

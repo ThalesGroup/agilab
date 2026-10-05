@@ -34,12 +34,12 @@ from the fact that the same UI flow can drive two different worker families
 without changing the orchestration path.
 
 .. figure:: _static/page-shots/orchestrate-page.svg
-   :alt: ORCHESTRATE page showing deployment toggles and generated execution setup
+   :alt: Native React ORCHESTRATE workspace showing project runtime, deployment, and execution controls
    :align: center
    :class: page-shot
 
-   The benchmark setup uses the normal PROJECT -> ORCHESTRATE flow rather than
-   a separate one-off demo script.
+   The benchmark setup uses the normal PROJECT -> ORCHESTRATE workspace flow;
+   select the project in the shared React header before configuring execution.
 
 Why this example matters
 ------------------------

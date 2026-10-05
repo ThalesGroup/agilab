@@ -121,18 +121,18 @@
     <rect class="box" width="828" height="96" fill="#d8efff" />
     <text class="box-title" x="414" y="40" text-anchor="middle">User surfaces</text>
     <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">Native React UI pages, CLI mirrors, and PyCharm run configurations</tspan>
+      <tspan x="36" dy="0">Native React UI, CLI commands, and Tokki-managed agent workflows</tspan>
     </text>
   </g>
 
   <g transform="translate(238,300)">
     <rect class="box" width="828" height="132" fill="#dfdcff" />
-    <text class="box-title" x="414" y="40" text-anchor="middle">agi_core</text>
+    <text class="box-title" x="414" y="40" text-anchor="middle">agi-core</text>
     <text class="box-body" x="36" y="70">
-      <tspan x="36" dy="0">App loaders, widgets, telemetry, history, and reusable AGI services</tspan>
+      <tspan x="36" dy="0">Meta-package: pins agi-env, agi-node, and agi-cluster at release versions.</tspan>
     </text>
     <text class="box-note" x="36" y="106">
-      <tspan x="36" dy="0">Builds manifests, routes actions, and keeps the control plane coherent.</tspan>
+      <tspan x="36" dy="0">No framework logic or public API; responsibilities stay in runtime packages.</tspan>
     </text>
   </g>
 

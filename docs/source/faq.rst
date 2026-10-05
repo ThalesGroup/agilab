@@ -253,9 +253,10 @@ Runtime and cluster behavior
 Do I need PyCharm?
 ~~~~~~~~~~~~~~~~~~
 
-No. PyCharm run configurations are contributor conveniences for debugging. The
-product path is the web UI and CLI commands. Shell-only users can use the
-checked-in wrappers under ``tools/run_configs``.
+PyCharm, VS Code task and launch configurations, and Xcode schemes are optional
+IDE integrations. Use Tokki as the recommended entry point for autonomous
+development and managed agent workflows. Run AGILAB through the web UI or CLI;
+shell users can also use the checked-in wrappers under ``tools/run_configs``.
 
 Typical usage::
 
