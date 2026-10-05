@@ -736,6 +736,46 @@ def test_baseworker_normalize_dataset_path_windows_unc(monkeypatch):
     assert result.endswith("dataset")
 
 
+@pytest.mark.parametrize("normalizer", ("expand_and_join", "normalize_dataset_path"))
+def test_baseworker_windows_mapping_formats_unc_without_network_resolution(
+    monkeypatch, tmp_path, normalizer
+):
+    path_cls = type(tmp_path)
+    dataset = tmp_path / "dataset"
+    dataset.mkdir()
+    original_resolve = path_cls.resolve
+    resolved_paths = []
+    net_paths = []
+
+    def _resolve_local_path(self, *args, **kwargs):
+        if str(self).startswith(("\\\\", "//")):
+            raise AssertionError("Windows mapping must not resolve an SMB share")
+        resolved_paths.append(self)
+        return original_resolve(self, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(path_cls, "resolve", _resolve_local_path)
+        patch.setattr(base_worker_mod.os, "name", "nt")
+        patch.setattr(base_worker_mod, "Path", path_cls)
+        patch.setattr(BaseWorker, "_is_managed_pc", False)
+        patch.setattr(BaseWorker, "_try_windows_net_use", staticmethod(net_paths.append))
+        if normalizer == "expand_and_join":
+            result = BaseWorker.expand_and_join(str(dataset), "child.txt")
+        else:
+            result = BaseWorker.normalize_dataset_path(dataset)
+
+    mapped = dataset
+    if "Users" in dataset.parts:
+        mapped = path_cls(*dataset.parts[dataset.parts.index("Users") + 2 :])
+    expected_mapping = str(
+        base_worker_mod.PureWindowsPath("\\\\127.0.0.1\\" + str(mapped))
+    )
+    assert net_paths == [expected_mapping]
+    assert dataset in resolved_paths
+    expected_suffix = "/dataset/child.txt" if normalizer == "expand_and_join" else "/dataset"
+    assert result.replace("\\", "/").endswith(expected_suffix)
+
+
 def test_baseworker_normalize_dataset_path_windows_relative_resolve_and_mount_fallback(
     monkeypatch,
 ):

@@ -783,7 +783,8 @@ class BaseWorker(ArtifactContract, abc.ABC):
             if "Users" in parts:
                 index = parts.index("Users") + 2
                 path = Path(*parts[index:])
-            net_path = normalize_path("\\\\127.0.0.1\\" + str(path))
+            # Format the prospective mapping without probing an SMB share.
+            net_path = str(PureWindowsPath("\\\\127.0.0.1\\" + str(path)))
             BaseWorker._try_windows_net_use(net_path)
         return BaseWorker._join(BaseWorker.expand(path1), path2)
 
@@ -889,7 +890,8 @@ class BaseWorker(ArtifactContract, abc.ABC):
                     mapped = Path(*parts[parts.index("Users") + 2 :])
                 else:
                     mapped = Path(resolved_str)
-                net_path = normalize_path(f"\\\\127.0.0.1\\{mapped}")
+                # Local dataset resolution above retains filesystem semantics.
+                net_path = str(PureWindowsPath(f"\\\\127.0.0.1\\{mapped}"))
                 BaseWorker._try_windows_net_use(net_path)
             return resolved_str
 
