@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-05T12:43:10Z",
+  "generated_at_utc": "2026-10-05T20:21:36Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.10.05"
+    "version": "2026.10.05.1"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -317,7 +317,7 @@
       "name": "agi-gui",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.10.04",
+      "version": "2026.10.05.1",
       "description": "AGILAB native React UI dependency bundle and Python view helpers",
       "project": "src/agilab/lib/agi-gui",
       "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
@@ -328,7 +328,7 @@
       "name": "agi-web",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.10.04",
+      "version": "2026.10.05.1",
       "description": "AGILAB portable web components with native React Python views and shared analysis components for Jupyter",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
@@ -504,7 +504,7 @@
       "name": "agi-pages",
       "role": "page-umbrella",
       "status": "PyPI package",
-      "version": "2026.10.04",
+      "version": "2026.10.05.1",
       "description": "AGILAB public analysis page umbrella and provider package",
       "project": "src/agilab/lib/agi-pages",
       "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
@@ -724,7 +724,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.10.05",
+      "version": "2026.10.05.1",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
