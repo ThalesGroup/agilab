@@ -1,4 +1,4 @@
-"""Text Atlas \u2013 Streamlit application."""
+"""Text Atlas \u2013 React application."""
 
 from agi_web import python_ui as st
 import altair as alt

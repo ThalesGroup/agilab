@@ -1,4 +1,4 @@
-"""AGILAB – Iris Decision Lab (Streamlit UI).
+"""AGILAB – Iris Decision Lab (React UI).
 
 Adapted from Aurélien Géron, *Hands-On Machine Learning with Scikit-Learn,
 Keras & TensorFlow*, 3rd ed., Chapter 6.

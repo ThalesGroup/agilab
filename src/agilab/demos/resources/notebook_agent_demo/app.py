@@ -1,4 +1,4 @@
-"""Interactive, local Iris decision lab. Run with: streamlit run app.py."""
+"""Interactive, local Iris decision lab. Run with: python -m agi_web.react_python_host app.py."""
 
 import matplotlib.pyplot as plt
 import pandas as pd

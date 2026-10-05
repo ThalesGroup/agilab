@@ -45,21 +45,6 @@
     "scientific_correctness_verified": false,
     "status": "passed",
     "verification_scope": "execution_and_interface",
-    "workflow": {
-      "checks": [
-        "fresh_workflow_execution",
-        "fresh_result_artifact",
-        "notebook_result_agreement"
-      ],
-      "result_file": "results.json",
-      "result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
-      "schema": "agilab.notebook_workflow_verification.v1",
-      "scientific_correctness_verified": false,
-      "stage_count": 1,
-      "stages_sha256": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
-      "status": "passed",
-      "verification_scope": "local_workflow_result_agreement"
-    },
     "text": {
       "status": "passed",
       "checks": [
@@ -71,6 +56,17 @@
         "categories_excluded_from_fitting",
         "parameter_extremes_and_invalid_inputs",
         "notebook_core_agreement"
+      ],
+      "notebook_agreement_schema": "full_vectors",
+      "notebook_agreement_fields": [
+        "coordinates",
+        "displayed_variance",
+        "labels",
+        "parameters",
+        "retained_variance",
+        "silhouette",
+        "top_terms",
+        "vocabulary"
       ],
       "measurements": {
         "articles": 1250,
@@ -91,22 +87,37 @@
           }
         ]
       }
+    },
+    "workflow": {
+      "schema": "agilab.notebook_workflow_verification.v1",
+      "status": "passed",
+      "verification_scope": "local_workflow_result_agreement",
+      "checks": [
+        "fresh_workflow_execution",
+        "fresh_result_artifact",
+        "notebook_result_agreement"
+      ],
+      "stages_sha256": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
+      "stage_count": 1,
+      "result_file": "results.json",
+      "result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
+      "scientific_correctness_verified": false
     }
   },
   "files": {
     "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
     "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
     "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
-    "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
+    "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
     "README.md": "4e772dba6b9c62f49f58c3e6e0f9d32b3317bf5e6f0fe53798a69048568596d7",
-    "app.py": "3fac0b1ab0d3f8373011c4c67bb344cff245b8eb7f9313ad39db6a90c3c7e958",
+    "app.py": "3cfad38372a139afb9e4b165a237020d08a3b238fc177db09ec90db631dd0e15",
     "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
     "lab_stages.toml": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
     "pyproject.toml": "dcea863bfa74812e5b06252075b1433104cda143a10f804ebf5acc87995ff43d",
     "requirements.txt": "ffdd1f82ff08284bb12fe24db072a610b4d2702a26d2408bbc6e706ed79a1814",
     "solution.ipynb": "cb1065aa35ed6d73175c17e3c76edc75a033579ea4e7bae6b03b84a1ccd62b60",
     "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
-    "text_core.py": "62d2828e9f9fc8ec94ea6078247ee68ce7240e8d48b0f5deb57043b6fd915b65"
+    "text_core.py": "2af5c22ebbf85170d0bda70deb997b5687c6462207e6e4e119d4464894d9f848"
   },
   "build_model": {
     "id": "ddalcu/Qwen3.8-27B-MLX-Serve-4bit",
@@ -127,7 +138,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T17:54:08.687972+00:00",
+    "verified_at_utc": "2026-10-05T11:58:48.460779+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
@@ -240,11 +251,104 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
+    "current_scientific_verification": {
+      "schema": "agilab.native_text_scientific_verification.v1",
+      "status": "passed",
+      "verification_scope": "fresh_notebook_kernel_and_original_independent_text_oracle",
+      "verified_at_utc": "2026-10-05T11:58:48.457087+00:00",
+      "files_sha256": {
+        "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+        "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+        "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+        "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
+        "README.md": "4e772dba6b9c62f49f58c3e6e0f9d32b3317bf5e6f0fe53798a69048568596d7",
+        "app.py": "3cfad38372a139afb9e4b165a237020d08a3b238fc177db09ec90db631dd0e15",
+        "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+        "lab_stages.toml": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
+        "pyproject.toml": "dcea863bfa74812e5b06252075b1433104cda143a10f804ebf5acc87995ff43d",
+        "requirements.txt": "ffdd1f82ff08284bb12fe24db072a610b4d2702a26d2408bbc6e706ed79a1814",
+        "solution.ipynb": "cb1065aa35ed6d73175c17e3c76edc75a033579ea4e7bae6b03b84a1ccd62b60",
+        "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+        "text_core.py": "2af5c22ebbf85170d0bda70deb997b5687c6462207e6e4e119d4464894d9f848"
+      },
+      "verifiers_sha256": {
+        "tools/demos/export_text_notebook_demo.py": "be6e7855e71c6eb5b3211c48525de360d6dcb28f588b913771f066348ae987b3",
+        "src/agilab/agent_runtime/notebook_workflow_verifier.py": "7b3371ce440cf7ca63a0f3c70fd8ba3fc1af4f252307bd908e402425bc789e1d"
+      },
+      "kernel": {
+        "command": "python -m ipykernel_launcher",
+        "python_version": "3.13.14",
+        "isolation": "explicit interpreter and temporary kernel, IPython and Jupyter directories"
+      },
+      "notebook_result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
+      "sections": {
+        "text": {
+          "status": "passed",
+          "checks": [
+            "pinned_source_and_corpus",
+            "centered_pca_and_original_variance",
+            "cluster_terms_from_original_tfidf",
+            "retained_space_silhouette",
+            "uncached_seed_reproducibility",
+            "categories_excluded_from_fitting",
+            "parameter_extremes_and_invalid_inputs",
+            "notebook_core_agreement"
+          ],
+          "notebook_agreement_schema": "full_vectors",
+          "notebook_agreement_fields": [
+            "coordinates",
+            "displayed_variance",
+            "labels",
+            "parameters",
+            "retained_variance",
+            "silhouette",
+            "top_terms",
+            "vocabulary"
+          ],
+          "measurements": {
+            "articles": 1250,
+            "vocabulary": 6404,
+            "displayed_variance": 0.020760885632496517,
+            "retained_variance": 0.19257807260169862,
+            "silhouette": 0.05084475129842758,
+            "cases": [
+              {
+                "clusters": 2,
+                "vocabulary": 13473,
+                "silhouette": 0.1875905841588974
+              },
+              {
+                "clusters": 8,
+                "vocabulary": 3080,
+                "silhouette": 0.07450724393129349
+              }
+            ]
+          }
+        },
+        "workflow": {
+          "schema": "agilab.notebook_workflow_verification.v1",
+          "status": "passed",
+          "verification_scope": "local_workflow_result_agreement",
+          "checks": [
+            "fresh_workflow_execution",
+            "fresh_result_artifact",
+            "notebook_result_agreement"
+          ],
+          "stages_sha256": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
+          "stage_count": 1,
+          "result_file": "results.json",
+          "result_sha256": "47e73102be9bc3f99a967e4a3cbd14f4faf607dafe1655d3a62d2d1d07897755",
+          "scientific_correctness_verified": false
+        }
+      }
+    },
     "scientific_proof_retention": {
-      "scope": "historical independent scientific verification; unchanged scientific sources and data",
-      "sections": [
-        "workflow",
-        "text"
+      "scope": "historical science archived; changed text artifacts independently reverified",
+      "sections": [],
+      "reverified_sections": [
+        "text",
+        "workflow"
       ],
       "original_artifacts_sha256": {
         "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
@@ -261,27 +365,13 @@
         "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
         "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
         "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
-        "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
+        "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
         "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
         "lab_stages.toml": "c7fda57b2ee972e7acee9b1b08838d3e28d76520995888c1c6e3dc607b798b91",
         "solution.ipynb": "cb1065aa35ed6d73175c17e3c76edc75a033579ea4e7bae6b03b84a1ccd62b60",
         "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
-        "text_core.py": "62d2828e9f9fc8ec94ea6078247ee68ce7240e8d48b0f5deb57043b6fd915b65"
-      },
-      "excluded_interface_and_dependency_files": [
-        "README.md",
-        "app.py",
-        "pyproject.toml",
-        "requirements.txt"
-      ],
-      "independently_reverified_test_files": []
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "4e772dba6b9c62f49f58c3e6e0f9d32b3317bf5e6f0fe53798a69048568596d7"
-      },
-      "refreshed_at_utc": "2026-10-03T20:16:04.878670+00:00"
+        "text_core.py": "2af5c22ebbf85170d0bda70deb997b5687c6462207e6e4e119d4464894d9f848"
+      }
     }
   }
 }

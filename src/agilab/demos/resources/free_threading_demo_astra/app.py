@@ -1,4 +1,4 @@
-"""Native Streamlit interface; timed execution lives only in benchmark children."""
+"""Native React interface; timed execution lives only in benchmark children."""
 import io
 import json
 

@@ -1,4 +1,4 @@
-"""Native Streamlit explorer for the historical Wikinews corpus."""
+"""Native React explorer for the historical Wikinews corpus."""
 
 import altair as alt
 import numpy as np

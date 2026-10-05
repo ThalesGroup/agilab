@@ -1,7 +1,7 @@
 [project]
 name = "inria-text-atlas"
 version = "0.1.0"
-description = "A bounded, native Streamlit atlas of INRIA's historical Wikinews corpus"
+description = "A bounded, native React atlas of INRIA's historical Wikinews corpus"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "numpy>=2,<3",

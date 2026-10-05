@@ -1,4 +1,4 @@
-"""Native Streamlit interface for MILP Energy Lab. See LICENSE for attribution."""
+"""Native React interface for MILP Energy Lab. See LICENSE for attribution."""
 
 from __future__ import annotations
 

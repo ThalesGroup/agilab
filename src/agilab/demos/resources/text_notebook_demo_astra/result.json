@@ -30,6 +30,7 @@
       "app_startup",
       "app_run_analysis_interaction"
     ],
+    "result_file": "results.json",
     "result_names": [
       "articles",
       "cluster_document_counts",
@@ -43,6 +44,7 @@
       "vocabulary",
       "vocabulary_size"
     ],
+    "result_sha256": "a6727b7abb8ab1815c04ccd7b10d5eec67dba1a181679b5c30cf66539417fd5f",
     "scientific_correctness_verified": false,
     "status": "passed",
     "verification_scope": "execution_and_interface",
@@ -57,6 +59,20 @@
         "categories_excluded_from_fitting",
         "parameter_extremes_and_invalid_inputs",
         "notebook_core_agreement"
+      ],
+      "notebook_agreement_schema": "full_vectors",
+      "notebook_agreement_fields": [
+        "articles",
+        "cluster_document_counts",
+        "coordinates",
+        "displayed_variance",
+        "labels",
+        "parameters",
+        "retained_variance",
+        "silhouette",
+        "top_terms",
+        "vocabulary",
+        "vocabulary_size"
       ],
       "measurements": {
         "articles": 1250,
@@ -83,20 +99,20 @@
     "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
     "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
     "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
-    "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
+    "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
     "README.md": "1cb5e5cb27d1d6b8225e6bfac3f00fc6719bb6ecb966e3b22e7ed90afec02f18",
-    "app.py": "3117dba29659acac879893babb6454e1336be1f5586c99005b5af65ec7920b42",
+    "app.py": "4c901511e5518ccb0089b45d157d4b7531e88ea214554e45439a0e038807be6b",
     "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
     "lab_stages.toml": "9747ca98ff8962c9b21595d50900c95d721d94e082da81467443807aee2cbb52",
-    "pyproject.toml": "25d068b7e96c2d9ab50de411da6c2e367a6eca3437b9840123e340f3c8114da2",
+    "pyproject.toml": "ff70dc15ebf642271ed478b182f2bd6d8c1969ceab92a43190541f931582c7c0",
     "requirements.txt": "ffdd1f82ff08284bb12fe24db072a610b4d2702a26d2408bbc6e706ed79a1814",
-    "solution.ipynb": "50eb14b4c9dd756a83d94ef8fe8367a611e4b26f6beab756c0d205beda1a2207",
+    "solution.ipynb": "e36b88e69d42c0268431baf80d9da7b2c658a26e03a728bff6e9dfda79b2d9d2",
     "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
     "text_core.py": "17a4c01c9a22dbb61f32d21482c4de04d686d7ba72ebd9a3a3b7d7c9460f7e0f"
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-03T17:54:10.097962+00:00",
+    "verified_at_utc": "2026-10-05T11:58:52.779163+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
@@ -198,9 +214,90 @@
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
+    "interface_test_verification": {},
+    "current_scientific_verification": {
+      "schema": "agilab.native_text_scientific_verification.v1",
+      "status": "passed",
+      "verification_scope": "fresh_notebook_kernel_and_original_independent_text_oracle",
+      "verified_at_utc": "2026-10-05T11:58:52.775360+00:00",
+      "files_sha256": {
+        "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
+        "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
+        "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
+        "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
+        "README.md": "1cb5e5cb27d1d6b8225e6bfac3f00fc6719bb6ecb966e3b22e7ed90afec02f18",
+        "app.py": "4c901511e5518ccb0089b45d157d4b7531e88ea214554e45439a0e038807be6b",
+        "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
+        "lab_stages.toml": "9747ca98ff8962c9b21595d50900c95d721d94e082da81467443807aee2cbb52",
+        "pyproject.toml": "ff70dc15ebf642271ed478b182f2bd6d8c1969ceab92a43190541f931582c7c0",
+        "requirements.txt": "ffdd1f82ff08284bb12fe24db072a610b4d2702a26d2408bbc6e706ed79a1814",
+        "solution.ipynb": "e36b88e69d42c0268431baf80d9da7b2c658a26e03a728bff6e9dfda79b2d9d2",
+        "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
+        "text_core.py": "17a4c01c9a22dbb61f32d21482c4de04d686d7ba72ebd9a3a3b7d7c9460f7e0f"
+      },
+      "verifiers_sha256": {
+        "tools/demos/export_text_notebook_demo.py": "be6e7855e71c6eb5b3211c48525de360d6dcb28f588b913771f066348ae987b3",
+        "src/agilab/agent_runtime/notebook_workflow_verifier.py": "7b3371ce440cf7ca63a0f3c70fd8ba3fc1af4f252307bd908e402425bc789e1d"
+      },
+      "kernel": {
+        "command": "python -m ipykernel_launcher",
+        "python_version": "3.13.14",
+        "isolation": "explicit interpreter and temporary kernel, IPython and Jupyter directories"
+      },
+      "notebook_result_sha256": "a6727b7abb8ab1815c04ccd7b10d5eec67dba1a181679b5c30cf66539417fd5f",
+      "sections": {
+        "text": {
+          "status": "passed",
+          "checks": [
+            "pinned_source_and_corpus",
+            "centered_pca_and_original_variance",
+            "cluster_terms_from_original_tfidf",
+            "retained_space_silhouette",
+            "uncached_seed_reproducibility",
+            "categories_excluded_from_fitting",
+            "parameter_extremes_and_invalid_inputs",
+            "notebook_core_agreement"
+          ],
+          "notebook_agreement_schema": "full_vectors",
+          "notebook_agreement_fields": [
+            "articles",
+            "cluster_document_counts",
+            "coordinates",
+            "displayed_variance",
+            "labels",
+            "parameters",
+            "retained_variance",
+            "silhouette",
+            "top_terms",
+            "vocabulary",
+            "vocabulary_size"
+          ],
+          "measurements": {
+            "articles": 1250,
+            "vocabulary": 6404,
+            "displayed_variance": 0.02076089382171631,
+            "retained_variance": 0.19257812201976776,
+            "silhouette": 0.05084475129842758,
+            "cases": [
+              {
+                "clusters": 2,
+                "vocabulary": 13473,
+                "silhouette": 0.1875905841588974
+              },
+              {
+                "clusters": 8,
+                "vocabulary": 3080,
+                "silhouette": 0.07450724393129349
+              }
+            ]
+          }
+        }
+      }
+    },
     "scientific_proof_retention": {
-      "scope": "historical independent scientific verification; unchanged scientific sources and data",
-      "sections": [
+      "scope": "historical science archived; changed text artifacts independently reverified",
+      "sections": [],
+      "reverified_sections": [
         "text"
       ],
       "original_artifacts_sha256": {
@@ -218,27 +315,13 @@
         "DATA_LICENSE": "7cb630e4dffd73bd1a4e9c7bc35c4718d89a73dbdf8a6377921a74a0ba03be18",
         "DATA_SOURCES.md": "ac0a6d6a65af486561bb7648786b9598886ed17f10d74d4341ed062ea75dea1a",
         "LICENSE": "f5b745ef98087f531e719ee8ca6a96809444573ecc7173c6fa68eaad39b3cc3f",
-        "NOTICE": "41ae0a30615d35222a2e6003df8e3bbfb517b8a01268fcebbd23b92d98d587fa",
+        "NOTICE": "0cd0a11ed17aeb2c8d1f7ca27a2a6eaf6091125ff5aa53bdd11ed2d8eb1ca963",
         "data/wiki_news.csv": "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818",
         "lab_stages.toml": "9747ca98ff8962c9b21595d50900c95d721d94e082da81467443807aee2cbb52",
-        "solution.ipynb": "50eb14b4c9dd756a83d94ef8fe8367a611e4b26f6beab756c0d205beda1a2207",
+        "solution.ipynb": "e36b88e69d42c0268431baf80d9da7b2c658a26e03a728bff6e9dfda79b2d9d2",
         "source/original.ipynb": "f0c28461d6efd5b15a60337b4cff6973922addd90cc36e5e093a6a603df5cef2",
         "text_core.py": "17a4c01c9a22dbb61f32d21482c4de04d686d7ba72ebd9a3a3b7d7c9460f7e0f"
-      },
-      "excluded_interface_and_dependency_files": [
-        "README.md",
-        "app.py",
-        "pyproject.toml",
-        "requirements.txt"
-      ],
-      "independently_reverified_test_files": []
-    },
-    "documentation_refresh": {
-      "scope": "documentation only; executable artifacts retain the completed native verification",
-      "files_sha256": {
-        "README.md": "1cb5e5cb27d1d6b8225e6bfac3f00fc6719bb6ecb966e3b22e7ed90afec02f18"
-      },
-      "refreshed_at_utc": "2026-10-03T20:16:04.884898+00:00"
+      }
     }
   }
 }

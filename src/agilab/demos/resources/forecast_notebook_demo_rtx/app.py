@@ -1,4 +1,4 @@
-"""Promotion forecast lab - native Streamlit app.
+"""Promotion forecast lab - native React app.
 
 An authorized adaptation of the official Chronos-2 quickstart notebook:
 

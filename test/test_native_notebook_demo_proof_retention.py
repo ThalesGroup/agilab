@@ -94,3 +94,75 @@ def test_ui_harness_import_can_retain_science_but_other_changes_need_test_proof(
     test_proof["tests.py"]["sha256"] = "outdated test seal"
     with pytest.raises(ValueError, match="Scientific artifact changed;.*tests.py"):
         verifier.retain_scientific_proofs(tmp_path, report, report["verification"], report["files"], test_proof)
+
+def _text_science_fixture(tmp_path, monkeypatch, proof):
+    project = tmp_path / "text_notebook_demo"
+    project.mkdir()
+    report = _receipt(project)
+    root = tmp_path / "verifier_root"
+    tool = root / "tools/demos/export_text_notebook_demo.py"
+    tool.parent.mkdir(parents=True)
+    tool.write_text("def verify_current_project(project, files, *, workflow):\n"
+                    "    return " + repr(proof) + "\n")
+    monkeypatch.setattr(verifier, "ROOT", root)
+    return project, report
+
+
+def test_text_reverification_rejects_a_proof_for_old_artifact_bytes(tmp_path, monkeypatch):
+    project, report = _text_science_fixture(
+        tmp_path, monkeypatch,
+        {"status": "passed", "files_sha256": {"core.py": "old seal"},
+         "sections": {"text": {"status": "passed"}}})
+    with pytest.raises(ValueError, match="incomplete"):
+        verifier.reverify_text_science(project, report, verifier.hashes(project, report["files"]))
+
+
+def test_text_reverification_requires_every_original_scientific_section(tmp_path, monkeypatch):
+    project, report = _text_science_fixture(tmp_path, monkeypatch, {})
+    current = verifier.hashes(project, report["files"])
+    report["native_ui_migration"]["original_verification"]["workflow"] = {"status": "passed"}
+    tool = verifier.ROOT / "tools/demos/export_text_notebook_demo.py"
+    tool.write_text("def verify_current_project(project, files, *, workflow):\n"
+                    "    return " + repr({"status": "passed", "files_sha256": current,
+                                         "sections": {"text": {"status": "passed"}}}) + "\n")
+    with pytest.raises(ValueError, match="incomplete"):
+        verifier.reverify_text_science(project, report, current)
+
+
+def test_unavailable_scientific_verifier_cannot_reseal_a_different_demo(tmp_path):
+    report = _receipt(tmp_path)
+    with pytest.raises(ValueError, match="No independent verifier"):
+        verifier.reverify_text_science(tmp_path, report, report["files"])
+
+
+def test_fresh_text_science_is_distinct_from_the_original_build(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    project = tmp_path / "text_notebook_demo"
+    project.mkdir()
+    original = _receipt(project)
+    original["schema"] = "agilab.notebook_agent.public_demo.v1"
+    (project / "result.json").write_text(json.dumps(original))
+    (project / "core.py").write_text("answer = 99\n")
+    current = verifier.hashes(project, original["files"])
+    native = {"status": "passed", "checks": ["fresh_notebook_execution", "app_startup"]}
+    fresh = {"status": "passed", "files_sha256": current,
+             "sections": {"text": {"status": "passed", "measurement": 99}}}
+    monkeypatch.setattr(verifier.subprocess, "run",
+                        lambda *args, **kwargs: SimpleNamespace(
+                            returncode=0, stdout=json.dumps(native), stderr=""))
+    monkeypatch.setattr(verifier, "reverify_text_science", lambda *args: fresh)
+    runtime = tmp_path / "src/agilab/agent_runtime/notebook_execution_verifier.py"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text("fresh_native_verifier = True\n")
+    monkeypatch.setattr(verifier, "ROOT", tmp_path)
+    verifier.verify_and_refresh(project)
+    report = json.loads((project / "result.json").read_text())
+    migration = report["native_ui_migration"]
+    assert migration["original_verification"] == original["native_ui_migration"]["original_verification"]
+    assert migration["original_files"] == original["native_ui_migration"]["original_files"]
+    assert report["verification"]["text"]["measurement"] == 99
+    assert migration["original_verification"]["text"]["measurement"] == 42
+    assert migration["current_scientific_verification"] == fresh
+    assert migration["scientific_proof_retention"]["sections"] == []
+    assert migration["scientific_proof_retention"]["reverified_sections"] == ["text"]
+    assert report["seconds"] == 17 and report["source"] == original["source"]

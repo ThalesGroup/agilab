@@ -1,4 +1,4 @@
-"""Free-threading lab — Streamlit app.
+"""Free-threading lab — React app.
 
 Runs the real six-case AGILAB benchmark (3 execution modes x {1, N} workers)
 in separate free-threaded CPython child processes and renders the measured

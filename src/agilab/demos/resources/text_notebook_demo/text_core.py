@@ -1,6 +1,6 @@
 """Core analysis functions for the Text Atlas project.
 
-Provides load_corpus() and analyze() used by both the Streamlit app
+Provides load_corpus() and analyze() used by both the React app
 and the solution notebook.
 """
 

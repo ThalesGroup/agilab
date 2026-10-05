@@ -6,7 +6,7 @@ https://github.com/INRIA/scikit-learn-mooc/blob/3d1e8cdf7df6675d8a47d352d66b29df
 Lesson introduced 2026-08-05; pinned notebook updated 2026-09-02.
 
 Adaptation modifications:
-- Shared text_core.py implementation for the Streamlit app and three-stage notebook.
+- Shared text_core.py implementation for the React app and three-stage notebook.
 - The lesson's English stop-word TF-IDF variant is used throughout.
 - Centered randomized PCA retains at most 50 components in place of the lesson's
   broader experiments (including 300-component clustering and 900-component

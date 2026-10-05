@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import platform
+import sys
+import tempfile
+import tomllib
 
 from agilab.demos.text_showcase import PUBLIC_FILES
 
@@ -15,7 +20,84 @@ CORPUS_HASH = "b4546c2bfaa4499c6a079e9379e825dd4695d4382355c0ac9dd8da1a6da42818"
 CORE_FILES = {"app.py", "text_core.py", "solution.ipynb", "lab_stages.toml", "pyproject.toml"}
 
 
-def validate_analysis(project: Path) -> dict:
+def verify_current_project(project: Path, files: dict[str, str], *, workflow: bool) -> dict:
+    """Re-run the original numerical oracle against a fresh, explicit notebook kernel."""
+    import nbformat
+    from nbclient import NotebookClient
+    from jupyter_client import AsyncKernelManager
+    from jupyter_client.kernelspec import KernelSpecManager
+    from agilab.agent_runtime.notebook_workflow_verifier import result_digest, verify
+
+    project = project.resolve()
+    root = Path(__file__).resolve().parents[2]
+    for name, expected in files.items():
+        path = project / name
+        if Path(name).is_absolute() or ".." in Path(name).parts or path.is_symlink() or not path.is_file():
+            raise ValueError("Expected a regular, bounded text artifact.")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise ValueError(f"Text artifact changed before independent verification: {name}")
+    if (files.get("source/original.ipynb") != SOURCE_HASH
+            or files.get("data/wiki_news.csv") != CORPUS_HASH):
+        raise ValueError("Pinned text notebook source or corpus changed.")
+    output = project / "results.json"
+    if output.exists() or output.is_symlink():
+        raise ValueError("Independent text verification requires a fresh result artifact.")
+    notebook = nbformat.reads((project / "solution.ipynb").read_text(), as_version=4)
+    nbformat.validate(notebook)
+    with tempfile.TemporaryDirectory(prefix="agilab-text-kernel-verification-") as temporary:
+        scratch = Path(temporary)
+        kernels = scratch / "kernels"
+        spec = kernels / "agilab-text-independent-verifier"
+        spec.mkdir(parents=True)
+        (spec / "kernel.json").write_text(json.dumps({
+            "argv": [sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+            "display_name": "AGILAB independent text verification",
+            "language": "python",
+            "env": {"IPYTHONDIR": str(scratch / "ipython"),
+                    "JUPYTER_CONFIG_DIR": str(scratch / "config"),
+                    "JUPYTER_RUNTIME_DIR": str(scratch / "runtime")},
+        }))
+        manager = AsyncKernelManager(
+            kernel_name="agilab-text-independent-verifier",
+            kernel_spec_manager=KernelSpecManager(kernel_dirs=[str(kernels)], ensure_native_kernel=False),
+        )
+        client = NotebookClient(notebook, km=manager, timeout=300, allow_errors=False,
+                                kernel_name="agilab-text-independent-verifier",
+                                shutdown_kernel="immediate",
+                                resources={"metadata": {"path": str(project)}})
+        client.execute(cleanup_kc=True)
+    if output.is_symlink() or not output.is_file():
+        raise ValueError("Fresh text notebook did not write results.json.")
+    result = json.loads(output.read_text())
+    sections = {"text": validate_analysis(
+        project, summary_notebook=project.name == "text_notebook_demo_rtx")}
+    if workflow:
+        contract = tomllib.loads((project / "lab_stages.toml").read_text())
+        modules = [name for name, stages in contract.items() if isinstance(stages, list) and stages]
+        if len(modules) != 1:
+            raise ValueError("Expected one explicit text workflow module.")
+        sections["workflow"] = verify(project, module=modules[0], result_file="results.json",
+                                      expected_sha256=result_digest(result))
+    for name, expected in files.items():
+        if hashlib.sha256((project / name).read_bytes()).hexdigest() != expected:
+            raise ValueError(f"Text artifact changed during independent verification: {name}")
+    verifier_names = ("tools/demos/export_text_notebook_demo.py",
+                      "src/agilab/agent_runtime/notebook_workflow_verifier.py")
+    return {
+        "schema": "agilab.native_text_scientific_verification.v1", "status": "passed",
+        "verification_scope": "fresh_notebook_kernel_and_original_independent_text_oracle",
+        "verified_at_utc": datetime.now(timezone.utc).isoformat(),
+        "files_sha256": dict(files),
+        "verifiers_sha256": {name: hashlib.sha256((root / name).read_bytes()).hexdigest()
+                            for name in verifier_names},
+        "kernel": {"command": "python -m ipykernel_launcher",
+                   "python_version": platform.python_version(),
+                   "isolation": "explicit interpreter and temporary kernel, IPython and Jupyter directories"},
+        "notebook_result_sha256": result_digest(result), "sections": sections,
+    }
+
+
+def validate_analysis(project: Path, *, summary_notebook: bool = False) -> dict:
     """Check the adaptation numerically, including two common projection mistakes."""
     import numpy as np
     from sklearn.cluster import KMeans
@@ -82,15 +164,30 @@ def validate_analysis(project: Path) -> dict:
             continue
         raise AssertionError(f"Invalid inputs accepted: {kwargs}")
     notebook = json.loads((project / "results.json").read_text())["results"]
-    for key in ("labels", "coordinates", "displayed_variance", "retained_variance", "silhouette"):
-        np.testing.assert_allclose(notebook[key], result[key], atol=1e-6)
+    if summary_notebook:
+        expected = {
+            "n_articles": len(corpus), "vocabulary_size": len(result["vocabulary"]),
+            "silhouette": result["silhouette"], "displayed_variance": result["displayed_variance"],
+            "retained_variance": result["retained_variance"], "n_pca_components": 50,
+            "cluster_sizes": [int((labels == cluster).sum()) for cluster in range(5)],
+            "top_terms": result["top_terms"],
+        }
+        if set(notebook) != set(expected):
+            raise ValueError("The RTX notebook must report every field in its explicit summary contract.")
+        for key in expected.keys() - {"top_terms"}:
+            np.testing.assert_allclose(notebook[key], expected[key], atol=1e-6)
+    else:
+        for key in ("labels", "coordinates", "displayed_variance", "retained_variance", "silhouette"):
+            np.testing.assert_allclose(notebook[key], result[key], atol=1e-6)
     assert notebook["top_terms"] == result["top_terms"]
     return {"status": "passed", "checks": [
         "pinned_source_and_corpus", "centered_pca_and_original_variance",
         "cluster_terms_from_original_tfidf", "retained_space_silhouette",
         "uncached_seed_reproducibility", "categories_excluded_from_fitting",
         "parameter_extremes_and_invalid_inputs", "notebook_core_agreement",
-    ], "measurements": {"articles": len(corpus), "vocabulary": len(result["vocabulary"]),
+    ], "notebook_agreement_schema": "bounded_summary" if summary_notebook else "full_vectors",
+       "notebook_agreement_fields": sorted(notebook),
+       "measurements": {"articles": len(corpus), "vocabulary": len(result["vocabulary"]),
                          "displayed_variance": result["displayed_variance"],
                          "retained_variance": result["retained_variance"],
                          "silhouette": result["silhouette"], "cases": cases}}

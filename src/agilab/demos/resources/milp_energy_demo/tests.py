@@ -231,7 +231,7 @@ def test_runner_row_tampering_rejected():
         runner._validate_physics(tampered, core.default_settings())
 
 
-# ─── Streamlit AppTest ───────────────────────────────────────────────────────
+# ─── React AppTest ───────────────────────────────────────────────────────
 
 def test_app_opens_cleanly():
     from agi_web.testing import AppTest

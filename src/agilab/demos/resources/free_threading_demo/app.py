@@ -1,4 +1,4 @@
-"""Free-threading Mandelbrot lab – Streamlit application."""
+"""Free-threading Mandelbrot lab – React application."""
 
 import hashlib
 import json
