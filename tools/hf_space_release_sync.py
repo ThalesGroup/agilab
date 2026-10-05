@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Sequence
@@ -25,6 +26,10 @@ DEFAULT_SPACE_ID = "jpmorard/agilab"
 DEFAULT_PROFILE = "first-proof"
 DEFAULT_TIMEOUT_SECONDS = 900.0
 DEFAULT_POLL_SECONDS = 10.0
+GRAPHVIZ_LFS_RULE = (
+    "src/agilab/lib/agi-web/src/agi_web/react_python_host_assets/agilab_react_graphviz.js "
+    "filter=lfs diff=lfs merge=lfs -text"
+)
 
 FIRST_PROOF_APPS = ("flight_telemetry_project", "weather_forecast_project", "pytorch_playground_project")
 FIRST_PROOF_PAGES = ("view_maps", "view_forecast_analysis", "view_release_decision")
@@ -225,6 +230,9 @@ RUN if [ -d /home/user/localshare ]; then \\
     fi
 
 RUN uv sync --project /app --extra ui --extra notebook-agent && \\
+    uv pip install --python /app/.venv/bin/python \\
+      --requirements /app/src/agilab/demos/resources/free_threading_demo/pyproject.toml \\
+      --requirements /app/src/agilab/demos/resources/milp_energy_demo/pyproject.toml && \\
     rm -rf /tmp/uv-cache /home/user/.cache/uv
 
 # Only the bounded CPU benchmark uses this interpreter. The web application and
@@ -486,6 +494,7 @@ def write_profile_assets(stage_dir: Path, profile: str, apps: Sequence[str], pag
         encoding="utf-8",
     )
     (stage_dir / ".dockerignore").write_text(DOCKERIGNORE, encoding="utf-8")
+    (stage_dir / ".gitattributes").write_text(GRAPHVIZ_LFS_RULE + "\n", encoding="utf-8")
     (stage_dir / "seed_hf_app_settings.py").write_text(SEED_HF_APP_SETTINGS, encoding="utf-8")
     # The staged host script explicitly delegates routing to AGILAB's main interface.
     (stage_dir / "hf_app.py").write_text(
@@ -611,10 +620,47 @@ def set_space_visibility(space_id: str, *, token: str, private: bool) -> None:
     api.update_repo_visibility(repo_id=space_id, private=private, repo_type="space", token=token)
 
 
+def prepare_space_gitattributes(stage_dir: Path, *, api: Any, space_id: str, token: str) -> None:
+    """Register the binary JS bundle before upload while retaining every Space rule."""
+    parent_sha = current_space_sha(space_id, token=token)
+    if not re.fullmatch(r"[0-9a-f]{40}", parent_sha):
+        raise RuntimeError("HF Space attributes require an immutable parent commit")
+    quoted_space = "/".join(urllib.parse.quote(part, safe="") for part in space_id.split("/"))
+    request = urllib.request.Request(
+        f"https://huggingface.co/spaces/{quoted_space}/resolve/{parent_sha}/.gitattributes",
+        headers=hf_headers(token),
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30.0) as response:
+            existing = response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code != 404:
+            raise
+        existing = b""
+    rule = GRAPHVIZ_LFS_RULE.encode("utf-8")
+    updated = existing
+    if rule not in existing.splitlines():
+        separator = b"\n" if existing and not existing.endswith(b"\n") else b""
+        updated = existing + separator + rule + b"\n"
+    (stage_dir / ".gitattributes").write_bytes(updated)
+    if updated != existing:
+        api.upload_file(
+            repo_id=space_id,
+            repo_type="space",
+            token=token,
+            path_in_repo=".gitattributes",
+            path_or_fileobj=updated,
+            parent_commit=parent_sha,
+            commit_message="chore: track the AGILAB Graphviz binary bundle with LFS",
+        )
+
+
 def upload_space(stage_dir: Path, *, space_id: str, token: str, private: bool) -> str:
     from huggingface_hub import HfApi
 
-    commit = HfApi().upload_folder(
+    api = HfApi()
+    prepare_space_gitattributes(stage_dir, api=api, space_id=space_id, token=token)
+    commit = api.upload_folder(
         repo_id=space_id,
         folder_path=stage_dir,
         repo_type="space",
@@ -633,6 +679,7 @@ def upload_space(stage_dir: Path, *, space_id: str, token: str, private: bool) -
             "src/**/.coverage*",
         ],
         ignore_patterns=[
+            ".gitattributes",
             "**/.venv/**",
             "**/__pycache__/**",
             "**/*.pyc",
