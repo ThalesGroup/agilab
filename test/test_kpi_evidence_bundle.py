@@ -332,17 +332,23 @@ def test_render_readme_summary_uses_kpi_bundle_scores() -> None:
     assert f"rounded category average: `{snapshot['supported_score']}`" in summary
 
 
-def test_reevaluated_summary_keeps_native_release_rating_provisional() -> None:
+def test_reevaluated_summary_records_aligned_release_with_unchanged_scores() -> None:
     module = _load_module()
     snapshot = module.build_score_snapshot()
 
     summary = module.render_readme_summary(snapshot)
 
-    assert "Reevaluated on `2026-10-04`" in summary
+    assert "Reevaluated on `2026-10-06`" in summary
     assert "Category scores remain unchanged" in summary
-    assert "Provisional for the native React release" in summary
-    assert "until GitHub, PyPI, documentation, and hosted-demo release proofs align" in summary
-    assert "external replication, cloud deployment, and production operating evidence" in summary
+    assert "Release alignment verified for native React 2026.10.05.1" in summary
+    assert "the external 4.5 threshold remains unmet" in summary
+    assert "JupyterLab 4.6.4 debugger extension disabled in the isolated server" in summary
+    assert "independent external replication" in summary
+    assert "production operating evidence" in summary
+    assert snapshot["supported_score"] == "3.8 / 5"
+    assert snapshot["summary"]["strategic_potential_score"] == "4.3 / 5"
+    assert snapshot["summary"]["score_components"]["Production readiness"] == "3.2 / 5"
+    assert "Provisional for the native React release" not in summary
 
 
 def test_summary_remains_compatible_with_legacy_score_snapshots() -> None:

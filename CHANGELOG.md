@@ -23,11 +23,17 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Release publication
+
+- Require a pre-existing release tag bound to the exact publication commit before
+  PyPI publishing and GitHub release-asset attachment. Missing or mismatched tags
+  stop the workflow before uploads; release creation verifies the existing tag.
+
 ## [2026.10.05.1] - 2026-10-06
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
 
-### Contextual tools — planned hotfix `2026.10.05.1`
+### Contextual tools — hotfix `2026.10.05.1`
 
 - Start the Python tools panel closed on desktop and mobile. Open it from the
   React header's Tools menu, or the Tools button on a standalone Python page.

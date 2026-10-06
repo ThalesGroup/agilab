@@ -351,22 +351,50 @@ between research experiments and engineering validation:
 - a roadmap ordered around run evidence, promotion decisions, compatibility
   automation, and cross-app orchestration
 
-The ``Strategic potential`` benchmark remains ``4.3 / 5``, provisional for the
-native React release. Its release gate, packaged-example maturity contract,
-release proof, and live Hugging Face smoke must align the public GitHub, PyPI,
-docs, and demo state before that threshold is confirmed for the new version.
-The previous publication proof remains historical. It is not scored at
-``4.5 / 5`` because that level still
-requires two attached external fresh-machine proofs, live multi-app operator UI
-evidence, and credentialed operator-gated connector validation. The public
-scorecard in :doc:`strategic-potential` keeps those boundaries explicit.
+The ``Strategic potential`` benchmark remains ``4.3 / 5``. Publication alignment
+for native React ``2026.10.05.1`` was verified on October 6, 2026 across GitHub,
+PyPI, public documentation and the hosted demo. The release and packaged-example
+gates remain the basis of this workbench rating. It is not scored at ``4.5 / 5``:
+two independent external fresh-machine operator proofs, a live multi-app DAG
+operator UI flow, and credentialed operator-gated connector validation are still
+required. The public scorecard in :doc:`strategic-potential` keeps those boundaries
+explicit.
 
 Together, the current public category scores round to an overall public
 evaluation of ``3.8 / 5``. This is a compact experimentation-workbench snapshot,
 not a production MLOps certification.
 
-October 4, 2026 reevaluation
-----------------------------
+October 6, 2026 publication verification
+----------------------------------------
+
+The
+`2026.10.05.1 release <https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1>`_
+records source ``63c4e1ab8827769cfea071441ad605b704b6627d`` and eight verified PyPI
+attestations for ``agi-web``, ``agi-gui``, ``agi-pages`` and ``agilab``. The other
+framework packages retain their existing pins. Publication workflow
+``37429339591`` uploaded the files in attempt 1; attempt 2 completed the release
+assets, hosted demo and :doc:`release-proof` without republishing them. The live
+demo runs commit ``ba584a0fcb2f9edf04d1db2d430717243772db51``.
+
+Clean CI installs and first proofs pass on Linux, macOS and Windows. A fresh
+installation contains 35 framework packages and 158 packages in total, with the
+17 React assets verified against the published distributions. A synthetic
+notebook exercises the map, analysis curves and retained Python view in a real
+Jupyter browser; a view interaction reaches the same Python kernel.
+The dedicated JupyterLab 4.6.4 acceptance server disables the debugger extension
+after its idle-session errors were recorded. Rendering and widget callbacks are
+covered; debugger use remains unqualified. Independent external operator
+replication remains unverified.
+
+The hosted demo passes eight route checks, desktop/mobile Tools interactions and
+three real ZIP downloads. ZIP validation covers bytes, archive contents, Python
+syntax, TOML and notebook structure; it does not execute every exported solution.
+The historical Free-threading input notebook still emits a missing-cell-ID
+compatibility warning with the current notebook validator. Its solution notebook
+contains cell IDs. These limits remain separate from release integrity.
+
+October 4, 2026 migration baseline
+----------------------------------
 
 The native React migration adds verified desktop/mobile browser flows, retained
 Python forms, fresh-kernel notebook rendering and callbacks, and functional
@@ -384,8 +412,9 @@ readiness. The arithmetic mean remains ``3.8 / 5``; strategic potential is
 evaluated separately. Broader external replication, cloud deployment proofs,
 and production operating evidence are still needed to raise the categories.
 Private application validation does not count as new public replication.
-The native release's ``4.3 / 5`` strategic benchmark stays provisional until
-the publication and hosted-demo proofs align.
+At this October 4 checkpoint, the native release's ``4.3 / 5`` strategic
+benchmark remained provisional pending publication alignment. The October 6
+verification above records the later release evidence.
 
 Where AGILab helps
 ------------------

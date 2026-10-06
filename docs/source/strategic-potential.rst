@@ -27,22 +27,34 @@ Current score
 -------------
 
 The public scorecard retains a ``Strategic potential`` benchmark of ``4.3 / 5``.
-The October 4, 2026 native React reevaluation marks that rating as provisional
-for the new release until its publication evidence is aligned.
+The October 6, 2026 verification confirms publication alignment for the native
+React hotfix ``2026.10.05.1``. Category scores remain unchanged.
 
 That score reflects bridge-layer value: reducing friction between exploratory
 AI work and engineering-grade validation. Future score updates should be based
 on new public evidence, not stronger wording.
 
-The ``4.3 / 5`` threshold requires a passing release gate and
-packaged-example maturity contract, plus release proof that aligns GitHub,
-PyPI, the public docs, and the live Hugging Face demo. Local native installation,
-browser and fresh-kernel notebook proofs strengthen the workbench evidence;
-they do not establish that the new public release and hosted demo are aligned.
-The previous release proof remains historical. The score remains below
-``4.5 / 5`` because two attached external fresh-machine proofs, live multi-app
-operator UI evidence, and credentialed operator-gated connector validation are
-not all established yet.
+The ``4.3 / 5`` threshold requires a passing release gate and packaged-example
+maturity contract, plus aligned GitHub, PyPI, public documentation and live
+Hugging Face evidence. The
+`2026.10.05.1 release <https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1>`_
+binds publication source ``63c4e1ab8827769cfea071441ad605b704b6627d`` to four UI
+packages, eight verified PyPI attestations and hosted commit
+``ba584a0fcb2f9edf04d1db2d430717243772db51``. Publication occurred in
+`workflow 37429339591 <https://github.com/ThalesGroup/agilab/actions/runs/37429339591>`_
+attempt 1; attempt 2 completed the GitHub assets, demo and proof without
+republishing those eight files. The public :doc:`release-proof` records that
+alignment.
+
+Fresh CI installations and first proofs pass on Linux, macOS and Windows.
+A synthetic notebook fixture verifies the published map, analysis curves,
+retained Python view and real browser-to-Python callback in Jupyter.
+The isolated JupyterLab 4.6.4 acceptance server disables the debugger extension
+after recording its idle-session errors; debugger use remains unqualified.
+Those are verified package and runtime checks; the three CI platforms do not establish
+two independent external operator proofs. The score remains below ``4.5 / 5``:
+external fresh-machine operator evidence, a live multi-app DAG operator flow,
+and credentialed operator-gated connector validation are still required.
 
 Score movement rule
 -------------------

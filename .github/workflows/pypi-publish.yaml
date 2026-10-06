@@ -399,6 +399,15 @@ jobs:
             exit 2
           fi
 
+      - name: Validate immutable publication tag before package publication
+        if: steps.release-plan.outputs.pypi_publish_selected == 'true'
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
+        run: |
+          python tools/release/release_tag_guard.py \
+            --tag "$RELEASE_TAG" \
+            --expected-commit "$GITHUB_SHA"
+
       - name: Validate managed docs release tag before publication
         if: steps.release-plan.outputs.pypi_publish_selected == 'true'
         env:
@@ -826,7 +835,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
+          fetch-tags: true
           persist-credentials: false
+
+      - name: Validate immutable release asset tag
+        run: |
+          python tools/release/release_tag_guard.py \
+            --tag "$RELEASE_TAG" \
+            --expected-commit "$GITHUB_SHA"
 
       - name: Download release distribution artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -881,6 +898,7 @@ jobs:
           if ! gh release view "$release_tag" >/dev/null 2>&1; then
             notes=$'AGILAB release artifacts and supply-chain evidence.\n\nDataset payloads are published in separate datasets-* GitHub releases when present and linked from the release proof.'
             gh release create "$release_tag" \
+              --verify-tag \
               --title "AGILAB ${release_tag#v}" \
               --notes "$notes"
           fi

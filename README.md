@@ -773,6 +773,12 @@ role:
 For development, use `main`. For reproducible release validation, use the
 release tag or the PyPI package version recorded in the release proof.
 
+Maintainers create the release tag on the intended publication commit with an
+authorized GitHub account before starting publication. The publisher checks
+that existing tag against its source commit before uploading packages and
+refuses to create or move a release tag. A retry of failed completion jobs
+preserves the files and attestations from the original PyPI publication.
+
 AGILAB uses date-based public versions. The dense `.postN` history in
 April-May 2026 records public-beta packaging hardening, provenance refreshes,
 and dependency-pin alignment across the split package set. It is kept visible
@@ -873,9 +879,9 @@ Current public evaluation summary, refreshed from the public KPI bundle:
 - `4.3 / 5` for strategic potential.
 - Overall public evaluation, rounded category average: `3.8 / 5`.
 
-Reevaluated on `2026-10-04`: Native React, retained Python views, all 14 builtin app payloads, and fresh-kernel notebook interactions strengthen the verified source and local installed-package evidence. Category scores remain unchanged: external replication, cloud deployment, and production operating evidence have not met the next documented thresholds.
+Reevaluated on `2026-10-06`: Native React 2026.10.05.1 has aligned GitHub, PyPI, public documentation, and hosted-demo release proof. CI clean installations and first proofs pass on Linux, macOS, and Windows. A synthetic notebook fixture, with the JupyterLab 4.6.4 debugger extension disabled in the isolated server, exercises the published map, analysis curves, retained Python view, and a real browser-to-Python callback. Category scores remain unchanged: independent external replication, live multi-app operator workflows, credentialed connectors, and production operating evidence have not met the next documented thresholds.
 
-Strategic rating status: Provisional for the native React release until GitHub, PyPI, documentation, and hosted-demo release proofs align.
+Strategic rating status: Release alignment verified for native React 2026.10.05.1 across GitHub, PyPI, public documentation, and the hosted demo; the external 4.5 threshold remains unmet.
 <!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->
 
 These are public experimentation-workbench scores, not production MLOps claims.
