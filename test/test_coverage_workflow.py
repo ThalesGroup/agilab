@@ -274,6 +274,27 @@ def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
     ), "source UI coverage chunks require the optional test-ui dependency group"
 
 
+def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None:
+    general_branch = re.search(
+        r'(?ms)^\s*if\s+\[\s*"\$label"\s*=\s*general\s*\];\s*then(.*?)^\s*fi\b',
+        _agi_gui_run_block(),
+    )
+    assert general_branch is not None
+    uv_command = re.search(
+        r"(?ms)^\s*timeout\s+\S+\s+uv\s+(.*?)\bpython\s+-m\s+tools\.testing\.root_test_runner\b",
+        general_branch.group(1),
+    )
+    assert uv_command is not None
+    uv_args = shlex.split(uv_command.group(1).replace("\\\n", " "), comments=True)
+    assert "--group=test-ui" in uv_args or ("--group", "test-ui") in zip(
+        uv_args, uv_args[1:]
+    ), "general coverage runs source UI tests and requires the test-ui dependency group"
+    assert re.search(
+        r"\btools\.testing\.root_test_runner\s+--unclassified\b",
+        general_branch.group(1),
+    )
+
+
 def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
     workflow_text = _workflow_text()
 

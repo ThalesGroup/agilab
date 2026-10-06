@@ -368,7 +368,7 @@ jobs:
             exit 0
           fi
           if [ "$label" = general ]; then
-            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
+            timeout 16m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
               python -m tools.testing.root_test_runner --unclassified \
               --coverage-data-file=test-results/coverage-agi-gui-general.db \
               --junit-dir=test-results
