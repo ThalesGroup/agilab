@@ -1695,3 +1695,143 @@ def test_view_release_decision_replaces_env_after_active_app_switch(
     assert not at.exception
     assert at.session_state["env"] is not stale_env
     assert Path(at.session_state["env"].active_app) == project_dir
+
+
+def test_release_metadata_packaged_import_matches_standalone_title(monkeypatch):
+    module = _load_release_helpers()
+    package = ModuleType("view_release_decision")
+    package.__path__ = [str(Path(PAGE_PATH).parent)]
+    monkeypatch.setattr(module, "__package__", "view_release_decision")
+    with patch.dict(sys.modules, {"view_release_decision": package}):
+        sys.modules.pop("view_release_decision.page_meta", None)
+        assert module._load_page_meta() == (module.PAGE_LOGO, module.PAGE_TITLE)
+
+
+@pytest.mark.parametrize("metadata_spec", [None, SimpleNamespace(loader=None)])
+def test_release_metadata_missing_loader_has_explicit_diagnostic(monkeypatch, metadata_spec):
+    module = _load_release_helpers()
+    original = module.importlib.util.spec_from_file_location
+    monkeypatch.setattr(
+        module.importlib.util, "spec_from_file_location",
+        lambda name, *args, **kwargs: (
+            metadata_spec if name == "view_release_decision_page_meta"
+            else original(name, *args, **kwargs)
+        ),
+    )
+    with pytest.raises(RuntimeError, match="Unable to load page metadata"):
+        module._load_page_meta()
+
+
+def test_release_manifest_loader_rejects_unpackaged_source_tree(tmp_path, monkeypatch):
+    module = _load_release_helpers()
+    monkeypatch.setattr(module, "__file__", str(tmp_path / "standalone" / "view.py"))
+    with pytest.raises(ModuleNotFoundError, match="Unable to load agilab/run_manifest.py"):
+        module._load_run_manifest_module()
+
+
+def test_release_settings_without_active_project_keep_empty_defaults():
+    module = _load_release_helpers()
+    assert module._release_page_settings(SimpleNamespace()) == {}
+
+
+@pytest.mark.parametrize("legacy_root_settings", [False, True])
+def test_release_settings_ignore_non_table_sections_and_try_legacy_location(
+    tmp_path, legacy_root_settings
+):
+    module = _load_release_helpers()
+    app = tmp_path / "app"
+    (app / "src").mkdir(parents=True)
+    (app / "src" / "app_settings.toml").write_text(
+        'pages = ["invalid page table"]\nview_release_decision = ["invalid settings table"]\n',
+        encoding="utf-8",
+    )
+    if legacy_root_settings:
+        (app / "app_settings.toml").write_text(
+            '[pages.view_release_decision]\nmetrics_glob = "*.json"\n',
+            encoding="utf-8",
+        )
+    settings = module._release_page_settings(SimpleNamespace(active_app=app))
+    assert settings == ({"metrics_glob": "*.json"} if legacy_root_settings else {})
+
+
+def test_release_harvest_import_ignores_unrelated_positional_arguments(tmp_path):
+    module = _load_release_helpers()
+    harvest = tmp_path / "ci_artifact_harvest.json"
+    paths, errors = module._parse_ci_artifact_harvest_import_args(
+        f"notes.txt --unknown --harvest={harvest}"
+    )
+    assert paths == [harvest]
+    assert errors == []
+
+
+def test_release_distinct_validated_runs_with_equal_duration_are_stable():
+    module = _load_release_helpers()
+    current = {"evidence_status": "validated", "run_id": "current", "duration_seconds": 2.0}
+    prior = {"evidence_status": "validated", "run_id": "prior", "duration_seconds": 2.0}
+    status, explanation = module._classify_manifest_comparison(current, prior)
+    assert status == "stable"
+    assert "matches the prior indexed evidence status" in explanation
+
+
+def test_release_manifest_index_ignores_non_record_entries():
+    module = _load_release_helpers()
+    assert module._build_manifest_index_comparison_rows(
+        {"releases": {}},
+        {"release_id": "current", "manifests": [None, "invalid record"]},
+    ) == []
+
+
+def test_release_cockpit_missing_manifest_withholds_export_commands():
+    from contextlib import nullcontext
+
+    module = _load_release_helpers()
+    metrics = []
+    code_blocks = []
+    column = SimpleNamespace(
+        metric=lambda label, value, **kwargs: metrics.append((label, value))
+    )
+    st_api = SimpleNamespace(
+        subheader=lambda message: None,
+        caption=lambda message: None,
+        columns=lambda count: [column] * count,
+        markdown=lambda message: None,
+        expander=lambda label, **kwargs: nullcontext(),
+        code=lambda message, **kwargs: code_blocks.append(message),
+    )
+    summary = {
+        "status_label": "Needs review", "explicit_blocking_gate_count": 0,
+        "indexed_release_count": 0, "export_ready": False,
+        "next_action": "Add passing evidence before promotion.",
+        "baseline_bundle_root": "baseline", "candidate_bundle_root": "candidate",
+        "metrics_file_count": 0, "valid_reduce_artifact_count": 0,
+        "run_manifest_loaded": False,
+    }
+    module._render_evidence_cockpit_summary(st_api, summary)
+    assert ("Export", "not ready") in metrics
+    assert code_blocks == [
+        "# Add a passing run_manifest.json before exporting proof-pack handoffs."
+    ]
+    assert not any("agilab export" in command for command in code_blocks)
+
+
+def test_release_settings_invalid_nested_section_falls_back_to_legacy_settings(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_release_helpers()
+    app_root = tmp_path / "release_app"
+    settings_path = app_root / "src" / "app_settings.toml"
+    settings_path.parent.mkdir(parents=True)
+    settings_path.write_text("# Parsed by the existing settings-loader seam.\n", encoding="utf-8")
+    legacy_settings = {"metrics_glob": "legacy-release-*.json"}
+    monkeypatch.setattr(
+        module,
+        "load_app_settings",
+        lambda _path: {
+            "pages": {module.PAGE_SETTINGS_SECTION: ["invalid nested settings"]},
+            module.PAGE_SETTINGS_SECTION: legacy_settings,
+        },
+    )
+
+    assert module._release_page_settings(
+        SimpleNamespace(active_app=app_root)
+    ) == legacy_settings

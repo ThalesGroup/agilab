@@ -125,8 +125,16 @@ function Control({node}) {
       onChange={event => {const next = Number(event.target.value); change(p.range ? values.map((v, i) => i === index ? next : v) : next, false);}}
       onPointerUp={() => commit(value)} onKeyUp={() => commit(value)}/>)}<output>{values.join(" – ")}</output></div>;
   } else if (node.kind === "date_input") {
-    const values = p.range ? value : [value];
-    control = <div>{values.map((item, index) => <input {...common} key={index} type="date" value={item || ""} min={p.min_value} max={p.max_value} onChange={event => change(p.range ? values.map((v, i) => i === index ? event.target.value : v) : event.target.value)}/>)}</div>;
+    const values = p.range ? [value?.[0] || "", value?.[1] || ""] : [value];
+    control = <div>{values.map((item, index) => <input {...common} key={index} type="date" value={item || ""}
+      id={p.range ? `${node.id}-${index}` : node.id}
+      aria-label={p.range ? `${p.label} ${index === 0 ? "start" : "end"}` : p.label}
+      disabled={disabled || (p.range && index === 1 && !values[0])}
+      min={p.min_value} max={p.max_value} onChange={event => {
+        if (!p.range) {change(event.target.value); return;}
+        const next = values.map((previous, position) => position === index ? event.target.value : previous);
+        change(!next[0] ? [] : next[1] ? next : [next[0]]);
+      }}/>)}</div>;
   } else if (node.kind === "file_uploader") control = <input {...common} type="file" multiple={p.multiple} accept={p.extensions.map(extension => `.${extension.replace(/^\./, "")}`).join(",")} onChange={async event => {
     const files = await Promise.all([...event.target.files].map(file => new Promise((resolve, reject) => {
       const reader = new FileReader(); reader.onload = () => resolve({name: file.name, type: file.type, data: reader.result.split(",")[1]}); reader.onerror = reject; reader.readAsDataURL(file);
@@ -253,10 +261,11 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     if (context !== JSON.stringify([current.current.path, current.current.query])) throw new Error("The view changed while this action was waiting. Try again.");
     const registered = widgetMap([...current.current.nodes.main, ...current.current.nodes.sidebar])[node.id];
     if (!registered || registered.kind !== node.kind) throw new Error("This control is no longer registered. Refresh the view.");
+    let actionActive = true;
     const progress = transport ? null : setInterval(async () => {
       try {
         const response = await fetch("/api/progress");
-        if (response.ok) {const snapshot = await response.json(); if (working.current && snapshot.running) setPayload(snapshot);}
+        if (response.ok) {const snapshot = await response.json(); if (actionActive && working.current && snapshot.running) setPayload(snapshot);}
       } catch { /* The action response reports any transport failure. */ }
     }, 350);
     try {
@@ -269,7 +278,7 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
       }
       if (node.kind === "form_submit_button") setForms(previous => Object.fromEntries(Object.entries(previous).filter(([id]) => widgetMap([...current.current.nodes.main, ...current.current.nodes.sidebar])[id]?.props.form !== node.props.form)));
       accept(next);
-    } finally {clearInterval(progress);}
+    } finally {actionActive = false; clearInterval(progress);}
     });
   };
   useEffect(() => {

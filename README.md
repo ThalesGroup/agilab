@@ -225,6 +225,15 @@ surfaces. It is not whole-repository coverage: the GUI measurement intentionally
 omits the UI entrypoints and <code>src/agilab/pages/*.py</code>; the exact
 scope is declared in <a href=".coveragerc.agi-gui"><code>.coveragerc.agi-gui</code></a>.</sub>
 
+<sub>Each of the six components has a 95% Codecov gate with no tolerance; a
+missing report fails. Codecov counts lines with untested branches as partially
+covered, so its percentages can differ from static badges derived from
+Cobertura line counts. Use the component project checks for acceptance;
+totals from an upload shared by multiple flags can combine components.
+The flag scopes are declared in
+<a href="codecov.yml"><code>codecov.yml</code></a>; see the
+<a href="https://docs.codecov.com/docs/about-code-coverage">Codecov calculation</a>.</sub>
+
 <details>
 <summary>More project badges</summary>
 

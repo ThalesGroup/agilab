@@ -7,7 +7,8 @@
     "build": "node build_agilab_react_analysis.mjs",
     "test:home": "node --test agilab_react_home_journey.test.mjs agilab_react_contextual_tools.test.mjs",
     "test:links": "node --test agilab_python_link_action.test.mjs",
-    "test:tools": "node --test agilab_react_contextual_tools.test.mjs"
+    "test:tools": "node --test agilab_react_contextual_tools.test.mjs",
+    "test:controls": "node --test agilab_react_native_controls_and_progress.test.mjs"
   },
   "dependencies": {
     "@viz-js/viz": "3.31.0",
@@ -21,6 +22,7 @@
     "vega-lite": "6.4.3"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "jsdom": "30.1.2"
   }
 }

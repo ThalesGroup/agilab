@@ -884,6 +884,8 @@ def _agi_gui_coverage_chunk(
             "ui",
             "--extra",
             "viz",
+            "--extra",
+            "notebook",
             "python",
             "-c",
             _agi_gui_coverage_chunk_code(label, data_file, junit_path, manifest_path),

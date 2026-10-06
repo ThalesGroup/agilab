@@ -182,6 +182,33 @@ jobs:
           print(f"app contracts: {report['summary']['passed']}/{report['summary']['check_count']} passed")
           PY
 
+      - name: Materialize first-launch flight dataset
+        run: |
+          set -euo pipefail
+          dataset_path="src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z"
+          git lfs pull --include="$dataset_path" --exclude="" origin
+          python - <<'PY'
+          from pathlib import Path
+          from tools.dataset_release_assets import _file_sha256, looks_like_lfs_pointer
+
+          def verify_first_launch_dataset(path, expected_sha256, expected_size):
+              if not path.is_file():
+                  raise SystemExit("First-launch flight dataset is not available.")
+              if looks_like_lfs_pointer(path):
+                  raise SystemExit("First-launch flight dataset is still a Git LFS pointer.")
+              if path.stat().st_size != expected_size:
+                  raise SystemExit("First-launch flight dataset size mismatch.")
+              if _file_sha256(path) != expected_sha256:
+                  raise SystemExit("First-launch flight dataset SHA256 mismatch.")
+              print(f"First-launch flight dataset verified: {expected_size} bytes")
+
+          verify_first_launch_dataset(
+              Path("src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z"),
+              "593536ccdc4889b79a7ccd5ab1056a8e6d6f132d760e499d5233ec0c62a08de0",
+              1630280,
+          )
+          PY
+
       - name: Validate first-launch robot
         env:
           AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
@@ -217,6 +244,19 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-py3.13-${{ steps.playwright-version.outputs.version }}-chromium
+
+      - name: Set up Node for native React interaction contracts
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          check-latest: true
+
+      - name: Validate native React controls and progress
+        working-directory: src/agilab/lib/agi-web/frontend
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --engine-strict
+          npm run test:controls
 
       - name: Validate native React frontend smoke
         env:

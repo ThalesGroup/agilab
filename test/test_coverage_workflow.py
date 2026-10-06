@@ -199,7 +199,7 @@ def test_agi_web_has_dedicated_coverage_job_and_badge_input() -> None:
     archive_block = _step_block("Archive agi-web coverage XML")
 
     assert "  agi-web:" in workflow_text
-    assert "--with-editable ./src/agilab/lib/agi-web" in run_block
+    assert '--with-editable "./src/agilab/lib/agi-web[notebook]"' in run_block
     assert "--cov=agi_web" in run_block
     assert "coverage-agi-web.xml" in run_block
     assert "src/agilab/lib/agi-web/test" in run_block
@@ -252,7 +252,7 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     assert "retention-days: 14" in timing_upload
 
 
-def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
+def test_agi_gui_coverage_installs_ui_viz_and_notebook_extras_in_clean_ci_env() -> None:
     run_block = _agi_gui_run_block() + _step_block("Write agi-gui coverage XML")
 
     assert run_block.count("--extra ui") >= 2
@@ -272,6 +272,9 @@ def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
     assert "--group=test-ui" in uv_args or ("--group", "test-ui") in zip(
         uv_args, uv_args[1:]
     ), "source UI coverage chunks require the optional test-ui dependency group"
+    assert "--extra=notebook" in uv_args or ("--extra", "notebook") in zip(
+        uv_args, uv_args[1:]
+    ), "source GUI chunks execute real notebook widget tests and require the notebook extra"
 
 
 def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None:
@@ -289,6 +292,9 @@ def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None
     assert "--group=test-ui" in uv_args or ("--group", "test-ui") in zip(
         uv_args, uv_args[1:]
     ), "general coverage runs source UI tests and requires the test-ui dependency group"
+    assert "--extra=notebook" in uv_args or ("--extra", "notebook") in zip(
+        uv_args, uv_args[1:]
+    ), "general source tests include notebook workflows and require the notebook extra"
     assert re.search(
         r"\btools\.testing\.root_test_runner\s+--unclassified\b",
         general_branch.group(1),
@@ -530,21 +536,21 @@ def test_codecov_uploads_import_verification_key_before_blocking_upload() -> Non
 
 
 def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
-    config_text = CODECOV_CONFIG_PATH.read_text(encoding="utf-8")
+    import yaml
 
-    assert re.search(
-        r"coverage:\n"
-        r"  status:\n"
-        r"    project:\n"
-        r"      default:\n"
-        r"        target: 95%\n"
-        r"        threshold: 1%\n"
-        r"    patch:\n"
-        r"      default:\n"
-        r"        target: 75%\n"
-        r"        threshold: 5%",
-        config_text,
-    )
+    config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
+    status = config["coverage"]["status"]
+    assert status["project"]["default"] == {"target": "95%", "threshold": "1%"}
+    assert status["patch"]["default"] == {"target": "75%", "threshold": "5%"}
+    for flag in ("agi-env", "agi-node", "agi-cluster", "agi-core", "agi-gui", "agi-web"):
+        check = status["project"][flag]
+        assert check["target"] == "95%"
+        assert check["threshold"] == "0%"
+        assert check["flags"] == [flag]
+        assert check["informational"] is False
+        assert check["if_not_found"] == "failure"
+        assert flag in config["flags"]
+    assert config["flags"]["agi-web"]["paths"] == ["src/agilab/lib/agi-web"]
 
 
 def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:

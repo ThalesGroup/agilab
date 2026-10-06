@@ -171,8 +171,9 @@ def test_first_launch_robot_marks_env_missing_when_session_state_probe_fails(
         def from_file(_path, *, default_timeout):
             return FakeApp()
 
-    import agi_web.testing
-    monkeypatch.setattr(agi_web.testing, "AppTest", FakeAppTest)
+    testing = importlib.import_module("agi_web.testing")
+    monkeypatch.delattr(importlib.import_module("agi_web"), "testing", raising=False)
+    monkeypatch.setattr(testing, "AppTest", FakeAppTest)
     monkeypatch.setattr(module, "_docs_menu_items", lambda: {})
 
     report = module.build_report(timeout=1.0, target_seconds=999.0)
@@ -279,8 +280,8 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
             assert default_timeout == 1.0
             return FakeApp()
 
-    import agi_web.testing
-    monkeypatch.setattr(agi_web.testing, "AppTest", FakeAppTest)
+    testing = importlib.import_module("agi_web.testing")
+    monkeypatch.setattr(testing, "AppTest", FakeAppTest)
     monkeypatch.setattr(
         sys,
         "argv",

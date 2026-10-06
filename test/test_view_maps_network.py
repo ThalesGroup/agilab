@@ -3513,3 +3513,76 @@ def test_view_maps_network_metadata_import_failure_is_explicit(monkeypatch, tmp_
     )
     with pytest.raises(RuntimeError, match="Unable to load page metadata"):
         module._load_page_meta()
+
+
+def test_view_maps_network_heatmap_missing_cells_keep_unknown_stats(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    points = np.array([0.0])
+    unknown = module._cloud_heatmap_stats_kernel_py(
+        points, points, np.full((2, 2), np.nan), 0.0, 0.0, 1.0, 0.0, 0.0, 1
+    )
+    assert all(np.isnan(values).all() for values in unknown)
+
+    raw, proxy, mean, maximum = module._cloud_heatmap_stats_kernel_py(
+        points, points, np.array([[4.0, 2.0], [3.0, 1.0]]),
+        0.0, 0.0, 1.0, 0.0, 0.0, 1,
+    )
+    assert raw.tolist() == [4.0]
+    assert proxy.tolist() == maximum.tolist() == [4.0]
+    assert mean.tolist() == [2.5]
+
+
+def test_view_maps_network_unassigned_track_retains_default_color(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        module, "st", SimpleNamespace(session_state={"show_trajectory_traces": True})
+    )
+    points = pd.DataFrame(
+        {"id_col": ["A", "A", "B", "B"],
+         "long": [1.0, 2.0, 3.0, 4.0], "lat": [10.0, 11.0, 12.0, 13.0]}
+    )
+    layers = module._trajectory_trace_layers(points, color_lookup={"A": [1, 2, 3, 4]})
+    assert len(layers) == 1
+    tracks = {row["id_col"]: row for row in layers[0].data}
+    assert tracks["A"]["color"] == [1, 2, 3, 4]
+    assert tracks["B"]["color"] == [90, 90, 90, 170]
+    assert tracks["B"]["path"] == [[3.0, 12.0], [4.0, 13.0]]
+
+
+def test_view_maps_network_unknown_metric_payload_keeps_unweighted_edges(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    frame = pd.DataFrame(
+        {"flight_id": ["A"], "satcom_link": [[("A", "B")]],
+         "capacity": [{"satcom_link": [float("nan"), "unavailable"]}]}
+    )
+    assert module.extract_metrics(frame, "capacity") == {}
+    figure = module.create_network_graph(
+        frame, {"A": (0.0, 0.0), "B": (1.0, 1.0)}, True, True,
+        ["satcom_link"], "capacity",
+    )
+    assert figure.data[0].line.width == 5.0
+    assert "Normalized capacity: 5" in figure.data[0].text[0]
+
+
+def test_view_maps_network_unrecognized_allocation_bearer_still_renders_route(
+    monkeypatch, tmp_path: Path
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    positions = pd.DataFrame(
+        {"flight_id": ["1001", "2002"], "id_col": ["1001", "2002"], "long": [2.0, 3.0],
+         "lat": [48.0, 49.0], "alt": [1000.0, 1100.0]}
+    )
+    allocation = pd.DataFrame(
+        {"source": [1001], "destination": [2002], "path": ["[[1001, 2002]]"],
+         "bearers": ["unknown-bearer"], "routed": [True]}
+    )
+    layers = module.build_allocation_layers(allocation, positions)
+    assert layers
+    assert layers[0].data[0]["source"] == [2.0, 48.0, 1000.0]
+    assert layers[0].data[0]["target"] == [3.0, 49.0, 1100.0]

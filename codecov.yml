@@ -11,13 +11,49 @@ coverage:
       default:
         target: 95%
         threshold: 1%
+      agi-env:
+        target: 95%
+        threshold: 0%
+        flags: [agi-env]
+        informational: false
+        if_not_found: failure
+      agi-node:
+        target: 95%
+        threshold: 0%
+        flags: [agi-node]
+        informational: false
+        if_not_found: failure
+      agi-cluster:
+        target: 95%
+        threshold: 0%
+        flags: [agi-cluster]
+        informational: false
+        if_not_found: failure
+      agi-core:
+        target: 95%
+        threshold: 0%
+        flags: [agi-core]
+        informational: false
+        if_not_found: failure
+      agi-gui:
+        target: 95%
+        threshold: 0%
+        flags: [agi-gui]
+        informational: false
+        if_not_found: failure
+      agi-web:
+        target: 95%
+        threshold: 0%
+        flags: [agi-web]
+        informational: false
+        if_not_found: failure
     patch:
       default:
         target: 75%
         threshold: 5%
 flags:
   agi-gui:
-    # App-layer surface only: Streamlit pages, apps-pages bundles, and orchestration/pipeline helpers.
+    # App-layer surface: Python pages, app bundles, and orchestration/pipeline helpers.
     # The README "agilab" badge is the repo-wide aggregate; this flag isolates the GUI/app layer.
     paths:
       - src/agilab/pages
@@ -35,6 +71,9 @@ flags:
       - src/agilab/pipeline_sidebar.py
       - src/agilab/pipeline_steps.py
       - src/agilab/pipeline_views.py
+  agi-web:
+    paths:
+      - src/agilab/lib/agi-web
   agi-env:
     paths:
       - src/agilab/core/agi-env
