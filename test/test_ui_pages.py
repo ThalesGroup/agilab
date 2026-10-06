@@ -103,7 +103,7 @@ def _assert_sidebar_active_view(markdown: str, label: str, view_name: str) -> No
         assert any(fragment in markdown for fragment in fragments)
 
 
-def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
+def test_native_ui_page_config_is_owned_by_bootstrap() -> None:
     allowed = {
         Path("src/agilab/ui/page_bootstrap.py"),
         Path("src/agilab/bridge_cli.py"),
@@ -123,7 +123,10 @@ def test_streamlit_page_config_is_owned_by_bootstrap() -> None:
         Path("src/agilab/demos/resources/free_threading_demo_rtx/app.py"),
         Path("src/agilab/demos/resources/milp_energy_demo_rtx/app.py"),
     }
+    # Behavioral tests exercise the configuration API; ownership applies to product modules.
     ignored_parts = {
+        "test",
+        "tests",
         ".mypy_cache",
         ".pytest_cache",
         ".ruff_cache",

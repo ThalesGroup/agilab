@@ -432,7 +432,7 @@ jobs:
           set -e
           rm -f .coverage.agi-web coverage-agi-web.xml
           COVERAGE_FILE=.coverage.agi-web uv run --no-project \
-            --with-editable ./src/agilab/lib/agi-web \
+            --with-editable "./src/agilab/lib/agi-web[notebook]" \
             --with pytest \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \

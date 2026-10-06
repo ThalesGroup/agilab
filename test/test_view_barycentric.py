@@ -1068,3 +1068,19 @@ def test_barycentric_choice_repair_preserves_valid_selection(monkeypatch, option
     monkeypatch.setattr(module, "st", SimpleNamespace(session_state=state))
     assert module._ensure_choice_state("selected", options, default) == expected
     assert state["selected"] == (current if not options else expected)
+
+
+def test_modified_simplex_preserves_explicit_points_labels_colors_and_color_limits():
+    module = _load_module()
+    points = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+    labels = ["first", "second", "third"]
+    colors = [7, 8, 9]
+    simplex = module.ModifiedSimplex(
+        points=points, name="custom", labels=labels, colors=colors,
+        attrs={"markers_colormap": {"cmax": 40}, "lines_colormap": {"cmax": 50}},
+    )
+    np.testing.assert_array_equal(simplex.points, points)
+    assert simplex.labels == labels
+    assert simplex.colors == colors
+    assert simplex.attrs.markers_colormap["cmax"] == 40
+    assert simplex.attrs.lines_colormap["cmax"] == 50
