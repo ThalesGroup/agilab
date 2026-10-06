@@ -132,13 +132,17 @@ def _prepare_minimal_tagged_release_main(
     return docs_repo
 
 
-def _write_wheel_metadata(path: Path, *, requires_dist: list[str]) -> None:
+def _write_wheel_metadata(
+    path: Path, *, requires_dist: list[str], name: str | None = "agilab",
+    provides_extra: list[str] | None = None,
+) -> None:
     metadata = "\n".join(
         [
             "Metadata-Version: 2.1",
-            "Name: agilab",
+            *([f"Name: {name}"] if name is not None else []),
             "Version: 2026.5.5",
             *(f"Requires-Dist: {requirement}" for requirement in requires_dist),
+            *(f"Provides-Extra: {extra}" for extra in provides_extra or []),
             "",
         ]
     )
@@ -789,6 +793,143 @@ def test_pre_upload_external_install_guard_dry_runs_release_wheel_matrix(tmp_pat
         "x86_64-unknown-linux-gnu",
     ]
     assert all(str(wheel) in call for call in calls)
+
+
+def test_external_install_platforms_cover_both_macos_architectures_without_duplicates() -> None:
+    module = _load_pypi_publish()
+
+    assert set(module.EXTERNAL_INSTALL_PLATFORMS) == {
+        "x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu",
+        "x86_64-apple-darwin", "aarch64-apple-darwin",
+    }
+    assert len(module.EXTERNAL_INSTALL_PLATFORMS) == len(set(module.EXTERNAL_INSTALL_PLATFORMS))
+
+
+def test_pre_upload_external_install_guard_resolves_root_extras_with_local_library_wheels(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    library = tmp_path / "agi_web-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=['missing-ui-package==0; extra == "ui"'],
+                          name="AgIlAb", provides_extra=["notebook", "offline", "ui", "core"])
+    _write_wheel_metadata(library, requires_dist=[], name="agi-web", provides_extra=["notebook"])
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+
+    module.run_pre_upload_external_install_guard(
+        _base_cfg(module, repo="pypi"), [str(wheel), str(library)],
+    )
+
+    assert len(calls) == 2 * len(module.EXTERNAL_INSTALL_PLATFORMS)
+    targets = [call[call.index("--target") + 1] for call in calls]
+    assert len(set(targets)) == len(targets)
+    for platform in module.EXTERNAL_INSTALL_PLATFORMS:
+        platform_calls = [call for call in calls if call[call.index("--python-platform") + 1] == platform]
+        assert len(platform_calls) == 2
+        base, combined = platform_calls
+        assert str(wheel) in base and f"{wheel}[core,ui,notebook]" in combined
+        assert str(library) in base and str(library) in combined
+        assert Path(base[base.index("--target") + 1]).parts[-2:] == (platform, "base")
+        assert Path(combined[combined.index("--target") + 1]).parts[-2:] == (platform, "root-core-ui-notebook")
+        assert all("--no-build" not in call for call in platform_calls)
+
+
+@pytest.mark.parametrize(
+    ("name", "extras"),
+    [("agilab", []), ("agilab", ["notebook-agent"]), ("agi-web", ["core", "ui", "notebook"])],
+)
+def test_pre_upload_external_install_guard_retains_bare_matrix_without_root_standard_extras(
+    tmp_path, monkeypatch, name, extras,
+) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "package-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=[], name=name, provides_extra=extras)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+
+    module.run_pre_upload_external_install_guard(_base_cfg(module, repo="pypi"), [str(wheel)])
+
+    assert len(calls) == len(module.EXTERNAL_INSTALL_PLATFORMS)
+    assert all(call[-1] == str(wheel) for call in calls)
+
+
+def test_pre_upload_external_install_guard_propagates_extra_only_resolver_failure(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=['missing-ui-package==0; extra == "ui"'], provides_extra=["ui"])
+    calls: list[list[str]] = []
+
+    def resolver(cmd, **_kwargs):
+        calls.append(cmd)
+        if cmd[-1] == f"{wheel}[ui]":
+            raise SystemExit("synthetic UI dependency resolution failure")
+
+    monkeypatch.setattr(module, "run", resolver)
+
+    with pytest.raises(SystemExit, match="synthetic UI dependency resolution failure"):
+        module.run_pre_upload_external_install_guard(_base_cfg(module, repo="pypi"), [str(wheel)])
+
+    assert len(calls) == 2
+    assert calls[0][-1] == str(wheel)
+    assert calls[1][-1] == f"{wheel}[ui]"
+
+
+@pytest.mark.parametrize(
+    ("name", "extras", "error"),
+    [(None, [], "one valid Name"), ("invalid/name", [], "one valid Name"),
+     ("agilab", ["ui", "UI"], "duplicate Provides-Extra"),
+     ("agilab", ["not a valid extra"], "invalid Provides-Extra")],
+)
+def test_pre_upload_external_install_guard_rejects_invalid_profile_metadata_before_resolving(
+    tmp_path, monkeypatch, name, extras, error,
+) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    _write_wheel_metadata(wheel, requires_dist=[], name=name, provides_extra=extras)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+
+    with pytest.raises(SystemExit, match=error):
+        module.run_pre_upload_external_install_guard(_base_cfg(module, repo="pypi"), [str(wheel)])
+
+    assert calls == []
+
+
+def test_pre_upload_external_install_guard_rejects_ambiguous_root_wheels(tmp_path, monkeypatch) -> None:
+    module = _load_pypi_publish()
+    wheels = [tmp_path / "agilab-2026.5.5-py3-none-any.whl", tmp_path / "agilab-2026.5.6-py3-none-any.whl"]
+    for wheel in wheels:
+        _write_wheel_metadata(wheel, requires_dist=[], provides_extra=["ui"])
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+
+    with pytest.raises(SystemExit, match="at most one root agilab wheel"):
+        module.run_pre_upload_external_install_guard(_base_cfg(module, repo="pypi"), [str(wheel) for wheel in wheels])
+
+    assert calls == []
+
+
+@pytest.mark.parametrize("ambiguity", ["duplicate-name", "duplicate-metadata"])
+def test_pre_upload_external_install_guard_rejects_ambiguous_wheel_identity(
+    tmp_path, monkeypatch, ambiguity,
+) -> None:
+    module = _load_pypi_publish()
+    wheel = tmp_path / "agilab-2026.5.5-py3-none-any.whl"
+    metadata = "Metadata-Version: 2.1\nName: agilab\nVersion: 2026.5.5\nProvides-Extra: ui\n"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        if ambiguity == "duplicate-name":
+            metadata += "Name: agi-web\n"
+        archive.writestr("agilab-2026.5.5.dist-info/METADATA", metadata)
+        if ambiguity == "duplicate-metadata":
+            archive.writestr("other-2026.5.5.dist-info/METADATA", metadata)
+    calls: list[list[str]] = []
+    monkeypatch.setattr(module, "run", lambda cmd, **_kwargs: calls.append(cmd))
+    error = "one valid Name" if ambiguity == "duplicate-name" else "exactly one dist-info/METADATA"
+
+    with pytest.raises(SystemExit, match=error):
+        module.run_pre_upload_external_install_guard(_base_cfg(module, repo="pypi"), [str(wheel)])
+
+    assert calls == []
 
 
 def test_compute_unified_version_rejects_auto_post_when_latest_release_is_newer_on_pypi(monkeypatch) -> None:

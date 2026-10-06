@@ -162,6 +162,21 @@ def _ui_robot_matrix_parity_contracts() -> dict[str, dict[str, object]]:
     return contracts
 
 
+def test_ci_enforces_native_react_interaction_regressions_with_a_locked_compatible_node() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["local-only-policy"]["steps"]
+    setup = next(step for step in steps if str(step.get("uses", "")).startswith("actions/setup-node@"))
+    assert setup["uses"] == "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+    assert setup["with"] == {"node-version": "24", "check-latest": True}
+    regressions = next(step for step in steps if "npm run test:controls" in step.get("run", ""))
+    assert regressions["working-directory"] == "src/agilab/lib/agi-web/frontend"
+    commands = [line.strip() for line in regressions["run"].splitlines() if line.strip()]
+    assert commands == ["set -euo pipefail", "npm ci --ignore-scripts --engine-strict", "npm run test:controls"]
+    assert "if" not in regressions and "continue-on-error" not in regressions
+    smoke = next(step for step in steps if step.get("name") == "Validate native React frontend smoke")
+    assert steps.index(setup) < steps.index(regressions) < steps.index(smoke)
+
+
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     push_block = text.split("pull_request:", 1)[0]

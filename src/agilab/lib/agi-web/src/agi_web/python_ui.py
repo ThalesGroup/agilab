@@ -292,11 +292,13 @@ def date_input(label, value="today", min_value=None, max_value=None, **kwargs):
     if isinstance(value, dt.datetime): value = value.date()
     multiple = isinstance(value, (tuple, list))
     def decode(raw):
+        if multiple and not isinstance(raw, list):
+            raise UIError("Expected a date range array.")
         try:
             values = [dt.date.fromisoformat(item) for item in raw] if multiple else [dt.date.fromisoformat(raw)]
         except (ValueError, TypeError) as exc:
             raise UIError("Expected a date.") from exc
-        if (multiple and len(values) not in {1, 2}) or any((min_value and item < min_value) or (max_value and item > max_value) for item in values):
+        if (multiple and len(values) not in {0, 1, 2}) or any((min_value and item < min_value) or (max_value and item > max_value) for item in values):
             raise UIError("The date is outside the control's range.")
         return tuple(values) if multiple else values[0]
     return _widget("date_input", label, value, range=multiple, min_value=min_value, max_value=max_value, decoder=decode, **kwargs)

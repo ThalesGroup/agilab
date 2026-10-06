@@ -14,6 +14,7 @@ NODE24_COMPATIBLE_ACTIONS = {
     "actions/cache/save": {"v5"},
     "actions/checkout": {"v5", "v6", "v7"},
     "actions/setup-python": {"v7"},
+    "actions/setup-node": {"v6"},
     "actions/upload-artifact": {"v6", "v7"},
     "actions/download-artifact": {"v7", "v8"},
     "actions/configure-pages": {"v6"},

@@ -49,6 +49,7 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.message import Message
 from email.parser import Parser
 from typing import Callable, Dict, List, Tuple
 from html.parser import HTMLParser
@@ -862,6 +863,7 @@ EXTERNAL_INSTALL_PLATFORMS: tuple[str, ...] = (
     "x86_64-pc-windows-msvc",
     "x86_64-unknown-linux-gnu",
     "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
 )
 
 NON_APPLE_SILICON_MARKER_ENVS: dict[str, dict[str, str]] = {
@@ -891,7 +893,7 @@ def _wheel_files(files: List[str]) -> list[pathlib.Path]:
     return sorted(pathlib.Path(file) for file in files if str(file).endswith(".whl"))
 
 
-def _wheel_requires_dist(wheel_path: pathlib.Path) -> list[str]:
+def _wheel_metadata(wheel_path: pathlib.Path) -> Message:
     with zipfile.ZipFile(wheel_path) as archive:
         metadata_paths = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
         if len(metadata_paths) != 1:
@@ -899,8 +901,44 @@ def _wheel_requires_dist(wheel_path: pathlib.Path) -> list[str]:
                 f"ERROR: {wheel_path.name} must contain exactly one dist-info/METADATA file "
                 f"for release dependency validation; found {len(metadata_paths)}."
             )
-        metadata = Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8", "replace"))
-    return list(metadata.get_all("Requires-Dist") or [])
+        return Parser().parsestr(archive.read(metadata_paths[0]).decode("utf-8", "replace"))
+
+
+def _wheel_requires_dist(wheel_path: pathlib.Path) -> list[str]:
+    return list(_wheel_metadata(wheel_path).get_all("Requires-Dist") or [])
+
+
+def _external_install_profiles(wheels: list[pathlib.Path]) -> list[tuple[str, list[str]]]:
+    """Keep the base matrix and activate advertised standard root-wheel extras."""
+    base_arguments = [str(wheel) for wheel in wheels]
+    profiles = [("base", base_arguments)]
+    root_wheels: list[tuple[int, pathlib.Path, list[str]]] = []
+    name_pattern = r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?"
+    for index, wheel in enumerate(wheels):
+        metadata = _wheel_metadata(wheel)
+        names = metadata.get_all("Name") or []
+        if len(names) != 1 or re.fullmatch(name_pattern, names[0].strip()) is None:
+            raise SystemExit(f"ERROR: {wheel.name} must contain one valid Name for external install profile validation.")
+        if canonicalize_name(names[0].strip()) != "agilab":
+            continue
+        advertised_extras: set[str] = set()
+        for extra in metadata.get_all("Provides-Extra") or []:
+            if re.fullmatch(name_pattern, extra.strip()) is None:
+                raise SystemExit(f"ERROR: {wheel.name} contains an invalid Provides-Extra value {extra!r}.")
+            normalized = canonicalize_name(extra.strip())
+            if normalized in advertised_extras:
+                raise SystemExit(f"ERROR: {wheel.name} contains duplicate Provides-Extra values for {normalized!r}.")
+            advertised_extras.add(normalized)
+        extras = [extra for extra in ("core", "ui", "notebook") if extra in advertised_extras]
+        root_wheels.append((index, wheel, extras))
+    if len(root_wheels) > 1:
+        raise SystemExit("ERROR: External install profile validation requires at most one root agilab wheel.")
+    if root_wheels and root_wheels[0][2]:
+        index, wheel, extras = root_wheels[0]
+        profile_arguments = base_arguments.copy()
+        profile_arguments[index] = f"{wheel}[{','.join(extras)}]"
+        profiles.append(("root-" + "-".join(extras), profile_arguments))
+    return profiles
 
 
 def _marker_env(overrides: dict[str, str]) -> dict[str, str]:
@@ -945,29 +983,31 @@ def run_pre_upload_external_install_guard(cfg: Cfg, files: List[str]) -> None:
         raise SystemExit("ERROR: Real PyPI release requires wheel artifacts for external install matrix validation.")
 
     validate_wheel_external_machine_metadata(files)
+    profiles = _external_install_profiles(wheels)
 
     with tempfile.TemporaryDirectory(prefix="agilab-release-install-matrix-") as tmp_dir:
         tmp_root = pathlib.Path(tmp_dir)
         for platform in EXTERNAL_INSTALL_PLATFORMS:
-            target = tmp_root / platform
-            print(f"[preflight] External install matrix guard: {platform}")
-            run(
-                [
-                    "uv",
-                    "pip",
-                    "install",
-                    "--dry-run",
-                    "--target",
-                    str(target),
-                    "--python-version",
-                    "3.13",
-                    "--python-platform",
-                    platform,
-                    *(str(path) for path in wheels),
-                ],
-                cwd=REPO_ROOT,
-                timeout=300,
-            )
+            for profile, wheel_arguments in profiles:
+                target = tmp_root / platform / profile
+                print(f"[preflight] External install matrix guard: {platform} ({profile})")
+                run(
+                    [
+                        "uv",
+                        "pip",
+                        "install",
+                        "--dry-run",
+                        "--target",
+                        str(target),
+                        "--python-version",
+                        "3.13",
+                        "--python-platform",
+                        platform,
+                        *wheel_arguments,
+                    ],
+                    cwd=REPO_ROOT,
+                    timeout=300,
+                )
 
 
 def split_base_and_post(ver: str) -> Tuple[str, int | None]:

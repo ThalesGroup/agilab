@@ -123,9 +123,13 @@ class ReactPythonRequestHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/assets/"):
             session, _ = self._session()
             key = path.removeprefix("/api/assets/")
-            if session is None or key not in session.assets:
+            if session is None:
                 return self._json(404, {"error": "Asset unavailable."})
-            content, mime, filename = session.assets[key]
+            with session.snapshot_lock:
+                record = session.assets.get(key)
+            if record is None:
+                return self._json(404, {"error": "Asset unavailable."})
+            content, mime, filename = record
             return self._reply(200, content, mime, filename=filename or None)
         if path in {"/assets/agilab_react_python_host.js", "/assets/agilab_react_python_host.css"}:
             asset = files("agi_web").joinpath("react_python_host_assets", path.rsplit("/", 1)[-1])

@@ -218,6 +218,19 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-py3.13-${{ steps.playwright-version.outputs.version }}-chromium
 
+      - name: Set up Node for native React interaction contracts
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: "24"
+          check-latest: true
+
+      - name: Validate native React controls and progress
+        working-directory: src/agilab/lib/agi-web/frontend
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --engine-strict
+          npm run test:controls
+
       - name: Validate native React frontend smoke
         env:
           AGILAB_DISABLE_BACKGROUND_SERVICES: "1"

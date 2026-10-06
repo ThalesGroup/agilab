@@ -1,0 +1,214 @@
+import assert from "node:assert/strict";
+import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import path from "node:path";
+import { after, afterEach, before, test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { act } from "react";
+import { build } from "esbuild";
+import { JSDOM } from "jsdom";
+
+const [nodeMajor, nodeMinor, nodePatch] = process.versions.node.split(".").map(Number);
+assert.ok(nodeMajor >= 26 || (nodeMajor === 24 && nodeMinor >= 15)
+  || (nodeMajor === 22 && (nodeMinor > 22 || (nodeMinor === 22 && nodePatch >= 2))),
+"Native DOM tests require Node 22.22.2+, Node 24.15.0+, or Node 26+.");
+
+const directory = path.dirname(fileURLToPath(import.meta.url));
+let scratch, dom, mountPythonView, cleanup;
+const globals = new Map();
+const node = (id, kind, props = {}) => ({ id, kind, props, children: [] });
+const payload = (revision, nodes) => ({
+  revision, csrf_token: "owned-synthetic-token", path: "/", query: {},
+  config: { page_title: "Native control regression" }, nodes: { main: nodes, sidebar: [] },
+});
+function expose(name, value) {
+  if (!globals.has(name)) globals.set(name, Object.getOwnPropertyDescriptor(globalThis, name));
+  Object.defineProperty(globalThis, name, { configurable: true, writable: true, value });
+}
+function deferred() {
+  let resolve;
+  const promise = new Promise(done => { resolve = done; });
+  return { promise, resolve };
+}
+before(async () => {
+  dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "https://agilab-native-test.invalid/" });
+  for (const name of ["window", "document", "navigator", "location", "history", "HTMLElement", "HTMLInputElement", "Event", "FocusEvent"])
+    expose(name, name === "window" ? dom.window : dom.window[name]);
+  expose("IS_REACT_ACT_ENVIRONMENT", true);
+  scratch = await mkdtemp(path.join(directory, ".agilab-native-controls-test-"));
+  const outfile = path.join(scratch, "agilab_native_controls_host_test_module.mjs");
+  await build({ entryPoints: [path.join(directory, "agilab_react_python_host.jsx")],
+    outfile, bundle: true, format: "esm", platform: "node",
+    external: ["react", "react-dom/*"], loader: { ".css": "empty" } });
+  ({ mountPythonView } = await import(pathToFileURL(outfile).href));
+});
+afterEach(async () => {
+  if (cleanup) { await act(() => cleanup()); cleanup = null; }
+  document.body.replaceChildren();
+  for (const name of ["fetch", "setInterval", "clearInterval"]) {
+    if (!globals.has(name)) continue;
+    const descriptor = globals.get(name);
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+    globals.delete(name);
+  }
+});
+after(async () => {
+  dom?.window.close();
+  if (scratch) await rm(scratch, { recursive: true, force: true });
+  for (const [name, descriptor] of globals) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name];
+  }
+});
+async function mount(initialPayload, transport = null) {
+  const element = document.createElement("div"); document.body.append(element);
+  await act(() => { cleanup = mountPythonView(element, { initialPayload, transport }); });
+  return element;
+}
+async function changeInput(input, value, event = "change") {
+  await act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
+    input.dispatchEvent(new Event(event, { bubbles: true }));
+  });
+}
+
+test("a delayed poll cannot replace the accepted view while the next queued action runs", async () => {
+  const controls = [node("edit", "text_input", { label: "Edit", key: "edit", value: "" }),
+    node("apply", "button", { label: "Apply", key: "apply" })];
+  const initial = payload(1, [...controls, node("body", "text", { body: "Initial view" })]);
+  const completed = revision => payload(revision,
+    [...controls.map(item => item.id === "edit" ? { ...item, props: { ...item.props, value: "draft" } } : item),
+      node("body", "text", { body: `Accepted view ${revision}` })]);
+  const actions = [], actionReplies = [deferred(), deferred()], progressReply = deferred(), intervals = [];
+  expose("fetch", async (url, options) => {
+    if (url === "/api/progress") return progressReply.promise;
+    assert.equal(url, "/api/action"); actions.push(JSON.parse(options.body));
+    return actionReplies[actions.length - 1].promise;
+  });
+  expose("setInterval", callback => { intervals.push(callback); return intervals.length; });
+  expose("clearInterval", () => {});
+  const element = await mount(initial);
+  const input = element.querySelector('input[type="text"]');
+  await changeInput(input, "draft", "input");
+  await act(() => { input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })); });
+  assert.equal(actions.length, 1);
+  assert.equal(element.querySelector("button").disabled, false);
+  await act(() => { element.querySelector("button").click(); });
+  let latePoll;
+  act(() => { latePoll = intervals[0](); });
+  await act(async () => { actionReplies[0].resolve({ ok: true, json: async () => completed(2) }); });
+  assert.equal(actions.length, 2);
+  assert.equal(actions[1].revision, 2);
+  assert.match(element.textContent, /Accepted view 2/);
+  await act(async () => {
+    progressReply.resolve({ ok: true, json: async () => ({
+      ...initial, running: true, nodes: { main: [...controls, node("body", "text", { body: "Obsolete progress" })], sidebar: [] },
+    }) });
+    await latePoll;
+  });
+  assert.match(element.textContent, /Accepted view 2/);
+  assert.doesNotMatch(element.textContent, /Obsolete progress/);
+  await act(async () => { actionReplies[1].resolve({ ok: true, json: async () => completed(3) }); });
+  assert.match(element.textContent, /Accepted view 3/);
+  assert.equal(element.querySelector('[aria-busy]').getAttribute("aria-busy"), "false");
+});
+
+test("an active poll still displays progress before its owning action completes", async () => {
+  const button = node("apply", "button", { label: "Apply", key: "apply" });
+  const actionReply = deferred(), intervals = [];
+  expose("fetch", async url => url === "/api/action" ? actionReply.promise : {
+    ok: true, json: async () => ({ ...payload(1, [button, node("progress", "text", { body: "Current progress" })]), running: true }),
+  });
+  expose("setInterval", callback => { intervals.push(callback); return intervals.length; });
+  expose("clearInterval", () => {});
+  const element = await mount(payload(1, [button]));
+  await act(() => { element.querySelector("button").click(); });
+  await act(async () => { await intervals[0](); });
+  assert.match(element.textContent, /Current progress/);
+  await act(async () => { actionReply.resolve({ ok: true, json: async () => payload(2, [button, node("result", "text", { body: "Final result" })]) }); });
+  assert.match(element.textContent, /Final result/);
+  assert.doesNotMatch(element.textContent, /Current progress/);
+});
+
+function datePayload(revision, value, range = true) {
+  return payload(revision, [node("period", "date_input", { label: "Period", key: "period", value, range,
+    min_value: "2026-01-01", max_value: "2026-12-31" })]);
+}
+async function dateView(value, range = true) {
+  const actions = []; let revision = 1;
+  const element = await mount(datePayload(revision, value, range), {
+    action: async action => { actions.push(action); return datePayload(++revision, action.value, range); },
+  });
+  return { element, actions, inputs: () => [...element.querySelectorAll('input[type="date"]')] };
+}
+
+test("an empty date range can be completed and either bound can be cleared", async () => {
+  const view = await dateView([]);
+  assert.equal(view.inputs().length, 2);
+  assert.equal(view.inputs()[0].getAttribute("aria-label"), "Period start");
+  assert.equal(view.inputs()[1].getAttribute("aria-label"), "Period end");
+  assert.notEqual(view.inputs()[0].id, view.inputs()[1].id);
+  assert.equal(view.inputs()[1].disabled, true);
+  await changeInput(view.inputs()[0], "2026-10-06");
+  assert.deepEqual(view.actions.at(-1).value, ["2026-10-06"]);
+  assert.equal(view.inputs()[1].disabled, false);
+  await changeInput(view.inputs()[1], "2026-10-07");
+  assert.deepEqual(view.actions.at(-1).value, ["2026-10-06", "2026-10-07"]);
+  await changeInput(view.inputs()[1], "");
+  assert.deepEqual(view.actions.at(-1).value, ["2026-10-06"]);
+  await changeInput(view.inputs()[0], "");
+  assert.deepEqual(view.actions.at(-1).value, []);
+  assert.deepEqual(view.inputs().map(input => input.value), ["", ""]);
+  assert.equal(view.inputs()[1].disabled, true);
+  assert.equal(view.actions.length, 4);
+});
+
+test("a one-date range exposes an end input and clearing its start never shifts the end", async () => {
+  const view = await dateView(["2026-10-06"]);
+  assert.equal(view.inputs().length, 2);
+  assert.equal(view.inputs()[1].disabled, false);
+  await changeInput(view.inputs()[1], "2026-10-07");
+  assert.deepEqual(view.actions.at(-1).value, ["2026-10-06", "2026-10-07"]);
+  await changeInput(view.inputs()[0], "");
+  assert.deepEqual(view.actions.at(-1).value, []);
+  assert.deepEqual(view.inputs().map(input => input.value), ["", ""]);
+});
+
+test("editing a full range preserves its other bound and scalar dates remain one input", async () => {
+  const view = await dateView(["2026-10-06", "2026-10-07"]);
+  assert.equal(view.inputs().length, 2);
+  await changeInput(view.inputs()[0], "2026-10-05");
+  assert.deepEqual(view.actions.at(-1).value, ["2026-10-05", "2026-10-07"]);
+  assert.deepEqual(view.inputs().map(input => input.value), ["2026-10-05", "2026-10-07"]);
+  await act(() => cleanup()); cleanup = null;
+  const scalar = await dateView("2026-10-06", false);
+  assert.equal(scalar.inputs().length, 1);
+  await changeInput(scalar.inputs()[0], "2026-10-07");
+  assert.equal(scalar.actions.at(-1).value, "2026-10-07");
+});
+
+test("the packaged production bundle completes an initially empty date range", async () => {
+  const packaged = new URL("../src/agi_web/react_python_host_assets/agilab_react_python_host.js", import.meta.url);
+  const module = path.join(scratch, "agilab_native_packaged_production_host_exact_bytes.mjs");
+  await copyFile(packaged, module);
+  assert.deepEqual(await readFile(module), await readFile(packaged));
+  const { mountPythonView: mountPackaged } = await import(pathToFileURL(module).href);
+  const element = document.createElement("div"); document.body.append(element);
+  const actions = []; let revision = 1;
+  const waitFor = async predicate => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+    assert.fail("The packaged React host did not render its expected date controls.");
+  };
+  const inputs = () => [...element.querySelectorAll('input[type="date"]')];
+  cleanup = mountPackaged(element, { initialPayload: datePayload(revision, []), transport: {
+    action: async action => { actions.push(action); return datePayload(++revision, action.value); },
+  } });
+  await waitFor(() => inputs().length === 2);
+  assert.equal(inputs()[1].disabled, true);
+  await changeInput(inputs()[0], "2026-10-06");
+  await waitFor(() => actions.length === 1 && !inputs()[1].disabled);
+  await changeInput(inputs()[1], "2026-10-07");
+  await waitFor(() => actions.length === 2 && inputs()[1].value === "2026-10-07");
+  assert.deepEqual(actions.map(action => action.value), [["2026-10-06"], ["2026-10-06", "2026-10-07"]]);
+});

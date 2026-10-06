@@ -113,7 +113,8 @@ def test_date_control_round_trips_python_dates(session, default):
 
 
 @pytest.mark.parametrize("raw", [["2026-01-01", "2026-01-02", "2026-01-03"],
-                                  ["2025-12-31"], ["2026-01-04"], [None]])
+                                  ["2025-12-31"], ["2026-01-04"], [None],
+                                  [""], ["2026-01-02", ""]])
 def test_date_ranges_reject_invalid_or_out_of_bounds_values(session, raw):
     ui.date_input("Range", value=(date(2026, 1, 1), date(2026, 1, 3)),
                   min_value=date(2026, 1, 1), max_value=date(2026, 1, 3))
@@ -121,6 +122,40 @@ def test_date_ranges_reject_invalid_or_out_of_bounds_values(session, raw):
     assert widget.validate(["2026-01-02"]) == (date(2026, 1, 2),)
     with pytest.raises(UIError):
         widget.validate(raw)
+
+
+@pytest.mark.parametrize("initial", [(), (date(2026, 1, 1),),
+                                     (date(2026, 1, 1), date(2026, 1, 3))])
+def test_date_range_dispatch_preserves_empty_partial_and_complete_python_values(initial):
+    observed = []
+    session = ViewSession(lambda: observed.append(ui.date_input(
+        "Period", value=initial, key="period", min_value=date(2026, 1, 1),
+        max_value=date(2026, 1, 3),
+    )))
+    payload = session.render()
+    assert payload["error"] == ""
+    assert observed[-1] == initial
+    for raw in (["2026-01-02"], ["2026-01-02", "2026-01-03"], ["2026-01-02"], []):
+        widget = next(iter(session.widgets.values()))
+        payload = session.dispatch({"revision": payload["revision"], "id": widget.id, "value": raw})
+        expected = tuple(date.fromisoformat(value) for value in raw)
+        assert payload["error"] == ""
+        assert observed[-1] == expected
+        assert session.state["period"] == expected
+        assert payload["nodes"]["main"][0]["props"]["value"] == raw
+
+
+@pytest.mark.parametrize("raw", ["", {}, (), None, False, 0, "2026-01-02",
+                                  {"start": "2026-01-02"}])
+def test_date_range_dispatch_rejects_non_array_wire_values_without_erasing_selection(raw):
+    selected = (date(2026, 1, 1), date(2026, 1, 3))
+    session = ViewSession(lambda: ui.date_input("Period", value=selected, key="period"))
+    payload = session.render()
+    widget = next(iter(session.widgets.values()))
+    with pytest.raises(UIError):
+        session.dispatch({"revision": payload["revision"], "id": widget.id, "value": raw})
+    assert session.state["period"] == selected
+    assert session.payload() == payload
 
 
 @pytest.mark.parametrize("raw", [None, [{}, {}], [None], [{"name": 4, "data": ""}],

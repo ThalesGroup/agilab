@@ -13,6 +13,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+import re
 import runpy
 import secrets
 import sys
@@ -206,6 +207,7 @@ class ViewSession:
         self.component_state: dict[str, dict[str, Any]] = {}
         self.triggers: dict[str, Any] = {}
         self.assets: dict[str, tuple[bytes, str, str]] = {}
+        self._published_asset_ids: set[str] = set()
         self.last_error: str = ""
         self.last_traceback: str = ""
         self.last_nodes: dict[str, list[dict[str, Any]]] = self.roots
@@ -224,8 +226,50 @@ class ViewSession:
 
     def add_asset(self, data: bytes, mime: str, filename: str = "") -> str:
         digest = hashlib.sha256(data).hexdigest()
-        self.assets[digest] = (data, mime, filename)
+        with self.snapshot_lock:
+            self.assets[digest] = (data, mime, filename)
         return f"/api/assets/{digest}"
+
+    def _publish_nodes(self) -> None:
+        """Retain assets referenced by this payload and the preceding payload.
+
+        Scan embedded HTML as well as direct control URLs so cached fragments
+        can keep using a registered asset. A URL stored only in application
+        state does not extend its lifetime beyond these published generations.
+        """
+        def references(value):
+            if isinstance(value, str):
+                if "/api/assets/" in value:
+                    yield from re.findall(r"/api/assets/([0-9a-f]{64})", value)
+            elif isinstance(value, dict):
+                for item in value.values():
+                    yield from references(item)
+            elif isinstance(value, (list, tuple)):
+                for item in value:
+                    yield from references(item)
+
+        with self.snapshot_lock:
+            if not self.assets:
+                self._published_asset_ids.clear()
+                self.last_nodes = self.roots
+                return
+            current = set(references(self.roots))
+            pending = list(current)
+            while pending:
+                record = self.assets.get(pending.pop())
+                if record is None or record[1].split(";", 1)[0] not in {
+                    "text/html", "text/css", "text/javascript", "application/javascript", "image/svg+xml"
+                } or b"/api/assets/" not in record[0]:
+                    continue
+                for encoded in re.findall(rb"/api/assets/([0-9a-f]{64})", record[0]):
+                    key = encoded.decode("ascii")
+                    if key not in current:
+                        current.add(key)
+                        pending.append(key)
+            retained = current | self._published_asset_ids
+            self.assets = {key: record for key, record in self.assets.items() if key in retained}
+            self._published_asset_ids = current
+            self.last_nodes = self.roots
 
     def set_location(self, path: str, query: Mapping[str, Any]) -> None:
         if not path.startswith("/") or path.startswith("//"):
@@ -238,11 +282,15 @@ class ViewSession:
         if callable(self.source):
             self.source()
         else:
-            previous = sys.argv
+            script = Path(self.source).resolve()
+            previous, previous_path, path_values = sys.argv, sys.path, sys.path[:]
             try:
-                sys.argv = [str(Path(self.source).resolve()), *self.argv]
+                sys.path.insert(0, str(script.parent))
+                sys.argv = [str(script), *self.argv]
                 runpy.run_path(sys.argv[0], run_name="__main__")
             finally:
+                sys.path = previous_path
+                sys.path[:] = path_values
                 sys.argv = previous
 
     def render(self) -> dict[str, Any]:
@@ -283,7 +331,7 @@ class ViewSession:
                 self.last_error = "The view exceeded its rerun limit."
                 self.add_node("exception", {"message": self.last_error})
             self.triggers.clear()
-            self.last_nodes = self.roots
+            self._publish_nodes()
             self.revision += 1
             return self.payload()
 
@@ -370,7 +418,7 @@ class ViewSession:
                 self.last_traceback = traceback.format_exc()
                 self.add_node("exception", {"message": self.last_error})
                 self.triggers.clear()
-                self.last_nodes = self.roots
+                self._publish_nodes()
                 self.revision += 1
                 return self.payload()
             return self.render()
