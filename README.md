@@ -228,7 +228,9 @@ scope is declared in <a href=".coveragerc.agi-gui"><code>.coveragerc.agi-gui</co
 <sub>Each of the six components has a 95% Codecov gate with no tolerance; a
 missing report fails. Codecov counts lines with untested branches as partially
 covered, so its percentages can differ from static badges derived from
-Cobertura line counts. The flag scopes are declared in
+Cobertura line counts. Use the component project checks for acceptance;
+totals from an upload shared by multiple flags can combine components.
+The flag scopes are declared in
 <a href="codecov.yml"><code>codecov.yml</code></a>; see the
 <a href="https://docs.codecov.com/docs/about-code-coverage">Codecov calculation</a>.</sub>
 

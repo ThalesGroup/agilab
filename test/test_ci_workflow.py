@@ -197,7 +197,8 @@ def _first_launch_flight_dataset_guard():
     return namespace["verify_first_launch_dataset"], module
 
 
-def test_ci_first_launch_flight_dataset_materialization_is_scoped_verified_and_required() -> None:
+def test_ci_first_launch_flight_dataset_materialization_is_scoped_verified_and_required(monkeypatch) -> None:
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]))
     steps, preparation = _first_launch_flight_dataset_step()
     robot = next(step for step in steps if step.get("name") == "Validate first-launch robot")
     assert steps.index(preparation) < steps.index(robot)
@@ -226,9 +227,10 @@ def test_ci_first_launch_flight_dataset_materialization_is_scoped_verified_and_r
 @pytest.mark.parametrize("case,message", [("missing", "not available"), ("pointer", "Git LFS pointer"),
                                          ("short", "size mismatch"), ("wrong_hash", "SHA256 mismatch"),
                                          ("valid", None)])
-def test_first_launch_flight_dataset_guard_rejects_unavailable_or_unreviewed_bytes(tmp_path, case, message):
+def test_first_launch_flight_dataset_guard_rejects_unavailable_or_unreviewed_bytes(tmp_path, monkeypatch, case, message):
     import hashlib
 
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1]))
     from tools.dataset_release_assets import LFS_POINTER_PREFIX
 
     verify, _module = _first_launch_flight_dataset_guard()
