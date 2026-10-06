@@ -346,11 +346,19 @@ def restore_session(raw: bytes, bank: Mapping[str, Any]) -> dict[str, Any]:
         "practical_reviews",
         "sources_verified",
     }
+    collections = ("attempts", "reviews", "practical_reviews", "sources_verified")
     if set(session) != expected_fields or any(
-        not isinstance(session[k], list)
-        for k in ("attempts", "reviews", "practical_reviews", "sources_verified")
+        not isinstance(session[k], list) for k in collections
     ):
         raise ValueError("Structure du dossier invalide.")
+    if any(
+        not isinstance(record, dict)
+        for collection in collections
+        for record in session[collection]
+    ):
+        raise ValueError(
+            "Chaque tentative, revue ou vérification de source doit être un objet."
+        )
     cases = {c["case_id"]: c for c in normalized["cases"]}
     seen: set[str] = set()
     previous: dict[str, list[str]] = {}

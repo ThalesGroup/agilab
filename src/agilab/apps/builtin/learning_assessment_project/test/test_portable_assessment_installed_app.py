@@ -44,3 +44,15 @@ def test_installed_bank_supports_review_and_portable_resume():
     forged["sha256"] = sessions.fingerprint(forged["payload"])
     with pytest.raises(ValueError, match="incohérente"):
         sessions.restore_session(sessions.canonical_bytes(forged), bank)
+
+
+def test_installed_app_rejects_non_object_attempt_on_resume():
+    bank = read_bank_bytes(
+        files("learning_assessment")
+        .joinpath("sample_data/tescia_diagnostic_cases.json")
+        .read_bytes()
+    )
+    session = sessions.new_session(bank, "installed_app_learner")
+    session["attempts"] = [None]
+    with pytest.raises(ValueError, match="doit être un objet"):
+        sessions.restore_session(sessions.export_session(session), bank)

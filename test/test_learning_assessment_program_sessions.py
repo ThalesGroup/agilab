@@ -239,6 +239,19 @@ def test_modified_bank_or_forged_evaluation_cannot_resume(domain, bank):
         domain.restore_session(domain.export_session(session), bank)
 
 
+@pytest.mark.parametrize(
+    "collection", ["attempts", "reviews", "practical_reviews", "sources_verified"]
+)
+@pytest.mark.parametrize("record", [None, [], "invalid", 1, True])
+def test_resume_rejects_non_object_records(domain, bank, collection, record):
+    session = domain.new_session(bank, "learner_01")
+    session[collection] = [record]
+    before = deepcopy(session)
+    with pytest.raises(ValueError, match="doit être un objet"):
+        domain.restore_session(domain.export_session(session), bank)
+    assert session == before
+
+
 def test_transfer_requires_a_distinct_changed_scenario(domain, bank):
     session = domain.new_session(bank, "learner_01")
     with pytest.raises(ValueError, match="variante"):
@@ -469,6 +482,51 @@ def test_external_program_uses_real_ui_and_records_blank_then_submitted_answer(
     assert session["attempts"][0]["context"]["program_version"] == "1"
     assert any("en attente de revue" in message.value for message in app.info)
     assert domain.restore_session(domain.export_session(session), bank) == session
+
+
+def test_program_resume_rejects_malformed_attempt_without_replacing_progress(
+    domain, bank
+):
+    from agi_web.testing import AppTest
+
+    script = (
+        "from learning_assessment.ui.program_learning import render_program\nrender_program("
+        + repr(bank)
+        + ")"
+    )
+    app = AppTest.from_string(script, default_timeout=30).run()
+    assert not app.exception
+    next(t for t in app.text_area if t.label == "Votre raisonnement").set_value(
+        "My existing reasoning"
+    )
+    next(b for b in app.button if b.label == "Enregistrer ma réponse").click().run()
+    assert not app.exception
+    session_key = (
+        "learning_program_"
+        + domain.bank_fingerprint(bank)[:16]
+        + "_session_"
+        + domain.fingerprint("apprenant_01")[:16]
+    )
+    before = deepcopy(app.session_state[session_key])
+    assert len(before["attempts"]) == 1
+    malformed = domain.new_session(bank, "apprenant_01")
+    malformed["attempts"] = [None]
+    next(
+        upload
+        for upload in app.file_uploader
+        if upload.label == "Dossier de progression JSON"
+    ).upload(
+        "learning_assessment_malformed_progression_fr.json",
+        domain.export_session(malformed),
+        "application/json",
+    ).run()
+    next(b for b in app.button if b.label == "Reprendre ce dossier").click().run()
+    assert not app.exception
+    assert any(
+        "Reprise refusée" in message.value and "doit être un objet" in message.value
+        for message in app.error
+    )
+    assert app.session_state[session_key] == before
 
 
 def test_bundled_default_is_blank_and_example_is_an_explicit_choice(
