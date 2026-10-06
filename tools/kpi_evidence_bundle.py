@@ -31,21 +31,25 @@ OVERALL_SCORE_RAW = sum(KPI_COMPONENT_SCORES.values(), Decimal("0")) / Decimal(l
 SUPPORTED_OVERALL_SCORE = f"{OVERALL_SCORE_RAW.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)} / 5"
 STRATEGIC_POTENTIAL_SCORE = "4.3 / 5"
 STRATEGIC_POTENTIAL_SCORE_BASIS = (
-    "The 4.3 threshold requires passing release and packaged-example gates "
-    "plus aligned GitHub, PyPI, docs, and Hugging Face release evidence. For the "
-    "native React release it remains provisional until that alignment is verified. The 4.5 "
-    "external fresh-machine and credentialed-connector threshold is not yet met."
+    'The retained 4.3 benchmark requires passing release and packaged-example gates plus aligned '
+    'GitHub, PyPI, public docs, and Hugging Face proof. Publication alignment for native React '
+    '2026.10.05.1 is verified. The 4.5 threshold still requires two independent external '
+    'fresh-machine first proofs, a live multi-app operator UI flow, and credentialed '
+    'operator-gated connector validation.'
 )
-SCORE_REEVALUATION_DATE = "2026-10-04"
+SCORE_REEVALUATION_DATE = '2026-10-06'
 SCORE_REEVALUATION_BASIS = (
-    "Native React, retained Python views, all 14 builtin app payloads, and fresh-kernel "
-    "notebook interactions strengthen the verified source and local installed-package "
-    "evidence. Category scores remain unchanged: external replication, cloud deployment, "
-    "and production operating evidence have not met the next documented thresholds."
+    'Native React 2026.10.05.1 has aligned GitHub, PyPI, public documentation, and hosted-demo '
+    'release proof. CI clean installations and first proofs pass on Linux, macOS, and Windows. A '
+    'synthetic notebook fixture, with the JupyterLab 4.6.4 debugger extension disabled in the '
+    'isolated server, exercises the published map, analysis curves, retained Python view, and a '
+    'real browser-to-Python callback. Category scores remain unchanged: independent external '
+    'replication, live multi-app operator workflows, credentialed connectors, and production '
+    'operating evidence have not met the next documented thresholds.'
 )
 STRATEGIC_POTENTIAL_SCORE_STATUS = (
-    "Provisional for the native React release until GitHub, PyPI, documentation, "
-    "and hosted-demo release proofs align."
+    'Release alignment verified for native React 2026.10.05.1 across GitHub, PyPI, public '
+    'documentation, and the hosted demo; the external 4.5 threshold remains unmet.'
 )
 README_SUMMARY_START = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_START -->"
 README_SUMMARY_END = "<!-- AGILAB_PUBLIC_KPI_SUMMARY_END -->"

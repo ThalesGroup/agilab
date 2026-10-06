@@ -720,3 +720,22 @@ def test_invalid_proof_repair_is_rejected_before_release_planning() -> None:
         )
         assert result.returncode == (2 if overrides else 0), result.stderr
     assert "release-plan" in jobs["release-approval"]["needs"]
+
+
+def test_pypi_publication_requires_a_preexisting_tag_on_the_exact_workflow_source() -> None:
+    jobs = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]
+    plan_guards = [
+        step for step in jobs["release-plan"]["steps"]
+        if "tools/release_tag_guard.py" in step.get("run", "")
+    ]
+    assert len(plan_guards) == 1
+    assert plan_guards[0]["if"] == "steps.release-plan.outputs.pypi_publish_selected == 'true'"
+    assert '--expected-commit "$GITHUB_SHA"' in plan_guards[0]["run"]
+    assert '--tag "$RELEASE_TAG"' in plan_guards[0]["run"]
+    asset_steps = jobs["publish-release-assets"]["steps"]
+    assert asset_steps[0]["with"]["fetch-tags"] is True
+    assert asset_steps[0]["with"]["fetch-depth"] == 0
+    assert "tools/release_tag_guard.py" in asset_steps[1]["run"]
+    assert '--expected-commit "$GITHUB_SHA"' in asset_steps[1]["run"]
+    upload = next(step for step in asset_steps if step["name"] == "Upload supply-chain assets to GitHub Release")
+    assert "--verify-tag" in upload["run"]
