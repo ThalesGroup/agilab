@@ -726,7 +726,7 @@ def test_pypi_publication_requires_a_preexisting_tag_on_the_exact_workflow_sourc
     jobs = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))["jobs"]
     plan_guards = [
         step for step in jobs["release-plan"]["steps"]
-        if "tools/release_tag_guard.py" in step.get("run", "")
+        if "tools/release/release_tag_guard.py" in step.get("run", "")
     ]
     assert len(plan_guards) == 1
     assert plan_guards[0]["if"] == "steps.release-plan.outputs.pypi_publish_selected == 'true'"
@@ -735,7 +735,7 @@ def test_pypi_publication_requires_a_preexisting_tag_on_the_exact_workflow_sourc
     asset_steps = jobs["publish-release-assets"]["steps"]
     assert asset_steps[0]["with"]["fetch-tags"] is True
     assert asset_steps[0]["with"]["fetch-depth"] == 0
-    assert "tools/release_tag_guard.py" in asset_steps[1]["run"]
+    assert "tools/release/release_tag_guard.py" in asset_steps[1]["run"]
     assert '--expected-commit "$GITHUB_SHA"' in asset_steps[1]["run"]
     upload = next(step for step in asset_steps if step["name"] == "Upload supply-chain assets to GitHub Release")
     assert "--verify-tag" in upload["run"]

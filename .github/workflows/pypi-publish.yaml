@@ -404,7 +404,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.inputs.release_tag || github.ref_name }}
         run: |
-          python tools/release_tag_guard.py \
+          python tools/release/release_tag_guard.py \
             --tag "$RELEASE_TAG" \
             --expected-commit "$GITHUB_SHA"
 
@@ -841,7 +841,7 @@ jobs:
 
       - name: Validate immutable release asset tag
         run: |
-          python tools/release_tag_guard.py \
+          python tools/release/release_tag_guard.py \
             --tag "$RELEASE_TAG" \
             --expected-commit "$GITHUB_SHA"
 

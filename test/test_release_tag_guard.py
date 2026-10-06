@@ -10,7 +10,7 @@ import pytest
 
 
 _SPEC = importlib.util.spec_from_file_location(
-    "release_tag_guard", Path(__file__).resolve().parents[1] / "tools" / "release_tag_guard.py"
+    "release_tag_guard", Path(__file__).resolve().parents[1] / "tools" / "release" / "release_tag_guard.py"
 )
 assert _SPEC is not None and _SPEC.loader is not None
 _MODULE = importlib.util.module_from_spec(_SPEC)
