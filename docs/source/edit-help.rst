@@ -26,9 +26,14 @@ Project selection and editor actions
 
 Choose the active project with the React header's **Project** selector.
 **PROJECT** shows its status and next actions; **Edit project** opens the
-source/configuration editor. The editor retains a **Quick actions** control
-for project management. Open its **Action** selector when you need Create,
-Import, Export, Rename, or Delete.
+source/configuration editor. Open **Tools** in the header to reach the
+editor's **Quick actions** control, then use its **Action** selector for
+Create, Import, Export, Rename, or Delete.
+
+The contextual Tools panel starts closed on desktop and mobile. Hiding and
+reopening it preserves editor drafts and form entries. Project selection and
+the main workspace navigation stay in the header. Standalone Python pages
+expose the same panel through a **Tools** button.
 
 
 - ``Read Documentation`` opens this guide in the hosted public docs when
@@ -65,7 +70,7 @@ Use this when you want to duplicate an existing project before editing code or
 settings.
 
 1. Select the source project in the React header and open **Edit project**.
-2. In **Quick actions**, set **Action** to **Create**.
+2. Open **Tools** in the header; in **Quick actions**, set **Action** to **Create**.
 3. Select the source project or template you want to duplicate.
 4. Enter the new project name. AGILab adds the ``_project`` suffix if needed.
 5. Choose the environment strategy:

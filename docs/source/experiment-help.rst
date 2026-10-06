@@ -8,17 +8,23 @@ Page snapshot
 -------------
 
 .. figure:: _static/page-shots/workflow-page.svg
-   :alt: Native React WORKFLOW workspace with the Python-backed pipeline editor, stage controls, and dataframe selection.
+   :alt: Native React WORKFLOW workspace with notebook and pipeline controls and the contextual Tools panel closed.
    :align: center
    :class: diagram-panel diagram-wide
 
-   WORKFLOW combines lab-stage editing, execution context, dataframe selection, and notebook export in the same workspace.
+   WORKFLOW keeps notebook and pipeline controls in the workspace. Open Tools in the header to reach DataFrame selection and MLflow.
 
 Workspace and workflow controls
 -------------------------------
 Choose the active project with the React header's **Project** selector.
 WORKFLOW resolves that project's lab directory under ``AGILAB_EXPORT_ABS``
 and loads its stage definitions and available dataframes.
+
+Open **Tools** in the header to choose a **DataFrame** or reach **MLflow**.
+This contextual panel starts closed on desktop and mobile. Hiding and
+reopening it preserves editor drafts and form entries; project selection and
+the main workspace navigation stay in the header. Standalone Python pages
+use a **Tools** button to open the same panel.
 
 - The stage definition lives in the project's ``lab_stages.toml``. The retained
   Python-backed pipeline editor controls its stages; the collapsed **Stages

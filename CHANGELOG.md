@@ -12,8 +12,8 @@ succession to refresh package metadata, supply-chain evidence, provenance, and
 multi-package dependency pins from committed release snapshots. Those post
 releases are preserved for auditability; they are not the intended steady-state
 delivery rhythm. Normal feature or behavior changes should use a deliberate new
-date-based release, while `.postN` remains reserved for bounded packaging,
-publication, or evidence refreshes on an already published date version.
+date-based release. Same-day fixes use `YYYY.MM.DD.N` package versions and a
+`vYYYY.MM.DD_N` tag; `.postN` is no longer accepted by the release policy.
 
 ## Release Link Note
 
@@ -22,6 +22,17 @@ Older package entries remain listed for auditability after the public history
 cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
+
+### Contextual tools — planned hotfix `2026.10.05.1`
+
+- Start the Python tools panel closed on desktop and mobile. Open it from the
+  React header's Tools menu, or the Tools button on a standalone Python page.
+- Keep controls mounted when the panel closes, preserving drafts, forms and
+  selected tabs. Escape and Close tools return focus to the opening control.
+- Retain project, dataframe, workflow and environment tools alongside native
+  React navigation, analysis views and executable notebook exports.
+- Update `agi-web`, `agi-gui`, `agi-pages` and `agilab` together; retain the
+  existing versions of the other framework packages.
 
 ## [2026.10.05] - 2026-10-05
 
