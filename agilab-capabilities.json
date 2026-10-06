@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-05T20:21:36Z",
+  "generated_at_utc": "2026-10-06T14:38:13Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.10.05.1"
+    "version": "2026.10.06"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -724,7 +724,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.10.05.1",
+      "version": "2026.10.06",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",

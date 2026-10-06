@@ -44,7 +44,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.7"
           prune-cache: true
@@ -123,7 +123,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.7"
           prune-cache: true
@@ -276,7 +276,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.7"
           prune-cache: true
@@ -319,7 +319,7 @@ jobs:
           run_gui_chunk() {
             local label="$1"
             shift
-            timeout 8m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz \
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz \
               python -m coverage run \
               --rcfile=.coveragerc.agi-gui \
               --data-file="test-results/coverage-agi-gui-${label}.db" \
@@ -368,7 +368,7 @@ jobs:
             exit 0
           fi
           if [ "$label" = general ]; then
-            timeout 16m uv --preview-features extra-build-dependencies run --group dev --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
+            timeout 16m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz --extra notebook --with 'tiktoken==0.14.0' \
               python -m tools.testing.root_test_runner --unclassified \
               --coverage-data-file=test-results/coverage-agi-gui-general.db \
               --junit-dir=test-results
@@ -422,7 +422,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.7"
           prune-cache: true
@@ -481,7 +481,7 @@ jobs:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: "0.10.7"
           prune-cache: true

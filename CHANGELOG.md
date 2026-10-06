@@ -23,6 +23,20 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Security
+
+- Reject embedded credentials in connector URI user information, query fields,
+  and raw authentication references. Persist and print safe catalog evidence for
+  invalid definitions while retaining validation failures and secret counts.
+  Credential references remain unresolved during contract-only validation.
+
+### GitHub maintenance
+
+- Enable weekly CodeQL default setup for Actions, JavaScript/TypeScript, and Python.
+- Align workflows and the locked-tools composite action on the verified
+  `setup-uv` 10.2.0 commit and preserve cache pruning.
+- Select the existing `test-ui` dependency group for GUI coverage chunks.
+
 ### Release publication
 
 - Require a pre-existing release tag bound to the exact publication commit before

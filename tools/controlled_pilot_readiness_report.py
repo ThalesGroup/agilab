@@ -52,21 +52,21 @@ def _check_result(
     }
 
 
-def _missing_required_tokens(
+def _missing_required_markers(
     repo_root: Path,
     required: Mapping[str, Sequence[str]],
 ) -> dict[str, list[str]]:
     missing: dict[str, list[str]] = {}
-    for relative_path, tokens in required.items():
+    for relative_path, markers in required.items():
         path = repo_root / relative_path
         try:
             text = _read_text(path)
         except Exception as exc:
             missing[relative_path] = [f"<unable to read: {exc}>"]
             continue
-        missing_tokens = [token for token in tokens if token not in text]
-        if missing_tokens:
-            missing[relative_path] = missing_tokens
+        missing_markers = [marker for marker in markers if marker not in text]
+        if missing_markers:
+            missing[relative_path] = missing_markers
     return missing
 
 
@@ -107,7 +107,7 @@ def _check_service_health_execution(repo_root: Path) -> dict[str, Any]:
             "agilab_service_restart_rate",
             'state="running"} 1',
         ]
-        missing_prometheus = [token for token in required_prometheus if token not in prometheus]
+        missing_prometheus = [marker for marker in required_prometheus if marker not in prometheus]
         ok = exit_code == 0 and not missing_prometheus
         details_payload = {
             "exit_code": exit_code,
@@ -217,7 +217,7 @@ def _check_persisted_artifact_contract(repo_root: Path) -> dict[str, Any]:
             "redacted",
         ],
     }
-    missing = _missing_required_tokens(repo_root, required)
+    missing = _missing_required_markers(repo_root, required)
     ok = not missing
     return _check_result(
         "persisted_artifact_contract",
@@ -258,7 +258,7 @@ def _check_public_bind_and_secret_boundary(repo_root: Path) -> dict[str, Any]:
             "redact secret-like keys",
         ],
     }
-    missing = _missing_required_tokens(repo_root, required)
+    missing = _missing_required_markers(repo_root, required)
     ok = not missing
     return _check_result(
         "public_bind_and_secret_boundary",

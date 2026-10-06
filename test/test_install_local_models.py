@@ -119,18 +119,23 @@ GREEN=''
 RED=''
 NC=''
 declare -a curl_calls=()
+declare -a curl_arguments=()
 curl() {{
   curl_calls+=("$*")
-  case "$*" in
-    *"https://files.pythonhosted.org/"*) return 0 ;;
-    *) return 22 ;;
-  esac
+  curl_arguments+=("$@")
+  for argument in "$@"; do
+    if [[ "$argument" == "https://files.pythonhosted.org/" ]]; then
+      return 0
+    fi
+  done
+  return 22
 }}
 {function_body}
 check_internet
 printf 'AGI_INTERNET_ON=%s\\n' "$AGI_INTERNET_ON"
 printf 'curl_calls=%s\\n' "${{#curl_calls[@]}}"
 printf '%s\\n' "${{curl_calls[@]}}"
+printf 'curl_arg=%s\\n' "${{curl_arguments[@]}}"
 """
     completed = subprocess.run(
         ["bash", "-c", bash_script],
@@ -140,8 +145,12 @@ printf '%s\\n' "${{curl_calls[@]}}"
     )
 
     assert "AGI_INTERNET_ON=1" in completed.stdout
-    assert "https://pypi.org/simple/pip/" in completed.stdout
-    assert "https://files.pythonhosted.org/" in completed.stdout
+    curl_arguments = {
+        line.removeprefix("curl_arg=")
+        for line in completed.stdout.splitlines()
+        if line.startswith("curl_arg=")
+    }
+    assert {"https://pypi.org/simple/pip/", "https://files.pythonhosted.org/"} <= curl_arguments
 
 
 def test_root_installer_internet_check_preserves_restricted_mode() -> None:
@@ -173,9 +182,18 @@ printf 'AGI_INTERNET_ON=%s\\n' "$AGI_INTERNET_ON"
 def test_windows_installer_internet_check_uses_packaging_endpoints() -> None:
     ps1_text = INSTALL_PS1.read_text(encoding="utf-8")
 
-    assert "https://pypi.org/simple/pip/" in ps1_text
-    assert "https://files.pythonhosted.org/" in ps1_text
-    assert "https://api.github.com/zen" in ps1_text
+    endpoint_literals = {
+        match.group("url")
+        for match in re.finditer(
+            r"""(?P<quote>["'])(?P<url>https?://[^"'\s]+)(?P=quote)""",
+            ps1_text,
+        )
+    }
+    assert {
+        "https://pypi.org/simple/pip/",
+        "https://files.pythonhosted.org/",
+        "https://api.github.com/zen",
+    } <= endpoint_literals
 
 
 def test_windows_root_installer_propagates_test_apps_to_app_installer() -> None:

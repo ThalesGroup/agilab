@@ -228,6 +228,17 @@ def test_root_requires_python_matches_published_classifiers() -> None:
     assert "Programming Language :: Python :: 3.14" in classifiers
 
 
+def test_root_extra_self_aliases_accept_declared_project_version() -> None:
+    project = _load_pyproject(REPO_ROOT / "pyproject.toml")["project"]
+    for extra, specifications in project.get("optional-dependencies", {}).items():
+        for specification in specifications:
+            requirement = Requirement(specification)
+            if is_self_extra_alias(requirement, project_name=project["name"]):
+                assert requirement.specifier.contains(project["version"], prereleases=True), (
+                    f"{extra}: {requirement} excludes the declared project version {project['version']}"
+                )
+
+
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 

@@ -195,6 +195,11 @@ Use this runbook whenever you:
   polluted-environment regression rather than only testing the clean path. The
   regression should prove AGILAB ignores, isolates, repairs, or reports the
   polluted state intentionally.
+- **Worktree validation source identity**: When reusing another checkout's
+  Python environment to validate an isolated worktree, put the target worktree's
+  `src` directory first on `PYTHONPATH` and verify the imported AGILAB module's
+  resolved `__file__` and source hash before running tests. Adding `src/agilab`
+  alone does not override an editable package installed from another checkout.
 - **Pre-push guard pollution triage**: If a pre-push guard fails on projects,
   app catalogs, docs rows, or generated artifacts that are not part of the
   pushed diff, first classify whether the failure comes from the current diff,

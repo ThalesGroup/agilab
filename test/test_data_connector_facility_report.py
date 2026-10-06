@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
+import socket
+import subprocess
 import sys
 from pathlib import Path
 
@@ -427,3 +431,337 @@ auth_ref = "env:AWS_PROFILE"
 
     assert proof["ok"] is True
     assert proof["catalog_path"] == str(catalog_path)
+
+
+_CREDENTIAL_SENTINEL = "synthetic-catalog-credential-20261006"
+
+
+def _credential_test_catalog(core_module):
+    return core_module.load_connector_catalog(
+        Path.cwd() / core_module.DEFAULT_CONNECTORS_RELATIVE_PATH
+    )
+
+
+def _write_credential_catalog_fixture(path, catalog):
+    def value(item):
+        if isinstance(item, dict):
+            return "{" + ", ".join(f"{json.dumps(key)} = {value(child)}" for key, child in item.items()) + "}"
+        return json.dumps(item)
+
+    path.write_text(
+        "\n".join(
+            "[[connectors]]\n" + "\n".join(f"{key} = {value(item)}" for key, item in row.items())
+            for row in catalog["connectors"]
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _forbid_credential_resolution_and_network(monkeypatch):
+    from agilab.security import secret_uri
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("evidence collection must not resolve credentials or connect")
+
+    monkeypatch.setattr(secret_uri, "resolve_secret_uri", forbidden)
+    monkeypatch.setattr(secret_uri, "_default_keyring_getter", forbidden)
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+    monkeypatch.setenv("OPENSEARCH_TOKEN", _CREDENTIAL_SENTINEL)
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["pretty", "compact"])
+@pytest.mark.parametrize(
+    ("kind", "field", "value"),
+    [
+        ("sql", "uri", f"postgresql://fixture:{_CREDENTIAL_SENTINEL}@db.invalid/data"),
+        ("sql", "uri", f"postgresql://db.invalid/data?password={_CREDENTIAL_SENTINEL}"),
+        ("sql", "uri", f"postgresql://db.invalid/data?%70ass%77ord={_CREDENTIAL_SENTINEL}"),
+        ("opensearch", "auth_ref", _CREDENTIAL_SENTINEL),
+        ("opensearch", "auth_ref", f"secret://fixture:{_CREDENTIAL_SENTINEL}@store/token"),
+        ("opensearch", "auth_ref", f"vault://fixture/token?password={_CREDENTIAL_SENTINEL}"),
+        ("object_storage", "endpoint_url", f"https://fixture:{_CREDENTIAL_SENTINEL}@store.invalid"),
+        ("object_storage", "provider", f"token={_CREDENTIAL_SENTINEL}"),
+        ("sql", "description", f"connection token={_CREDENTIAL_SENTINEL}"),
+        ("sql", "description", f"Bearer {_CREDENTIAL_SENTINEL}"),
+        ("sql", "id", f"password={_CREDENTIAL_SENTINEL}"),
+    ],
+    ids=["uri-userinfo", "uri-query", "uri-encoded-query", "raw-auth-ref", "reference_userinfo", "reference_query", "optional-endpoint", "invalid-provider", "description", "bearer-description", "issue-location"],
+)
+def test_connector_cli_rejects_inline_credentials_without_output_leaks(
+    kind, field, value, compact, tmp_path, monkeypatch, capsys
+):
+    core = _load_module(CORE_PATH, "data_connector_credential_cli_core_test_module")
+    report_module = _load_module(REPORT_PATH, "data_connector_credential_cli_report_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    next(row for row in catalog["connectors"] if row["kind"] == kind)[field] = value
+    catalog_path = tmp_path / "inline-credential-catalog.toml"
+    _write_credential_catalog_fixture(catalog_path, catalog)
+    output_path = tmp_path / "credential-safe-connector-state.json"
+    argv = ["--catalog", str(catalog_path), "--output", str(output_path)]
+    if compact:
+        argv.append("--compact")
+
+    exit_code = report_module.main(argv)
+    captured = capsys.readouterr()
+    state = json.loads(output_path.read_text(encoding="utf-8"))
+    report = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert report["status"] == "fail"
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["raw_secret_count"] >= 1
+    assert report["summary"]["raw_secret_count"] >= 1
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["provenance"]["executes_network_probe"] is False
+    assert _CREDENTIAL_SENTINEL not in json.dumps(state)
+    assert _CREDENTIAL_SENTINEL not in json.dumps(report)
+    assert _CREDENTIAL_SENTINEL not in captured.out + captured.err
+    assert ("\n" not in captured.out.strip()) is compact
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["pretty", "compact"])
+@pytest.mark.parametrize("context", ["assignment", "reference-and-assignment"])
+@pytest.mark.parametrize("field", ["label", "description"])
+@pytest.mark.parametrize("key", ["MY_SECRET_KEY", "MY_PASSWORD", "API_TOKEN"])
+def test_connector_canonical_assignments_never_reach_public_evidence(
+    key, field, context, compact, tmp_path, monkeypatch, capsys
+):
+    from agilab.security.secret_uri import redact_text
+
+    sentinel = "SYNTHETIC_KEY_CANARY_SHORT"
+    assignment = f"{key}={sentinel}"
+    assert redact_text(assignment) != assignment
+    value = assignment
+    if context == "reference-and-assignment":
+        value = f"secret://fixture/token?authorization_scope=read {assignment}"
+    core = _load_module(CORE_PATH, "data_connector_assignment_core_test_module")
+    report_module = _load_module(REPORT_PATH, "data_connector_assignment_report_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    next(row for row in catalog["connectors"] if row["kind"] == "sql")[field] = value
+    catalog_path = tmp_path / "synthetic-assignment-connector-catalog.toml"
+    _write_credential_catalog_fixture(catalog_path, catalog)
+    output_path = tmp_path / "credential-safe-assignment-connector-state.json"
+    argv = ["--catalog", str(catalog_path), "--output", str(output_path)]
+    if compact:
+        argv.append("--compact")
+
+    exit_code = report_module.main(argv)
+    captured = capsys.readouterr()
+    saved_bytes = output_path.read_bytes()
+    state = json.loads(saved_bytes)
+    report = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert report["status"] == "fail"
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["raw_secret_count"] >= 1
+    assert report["summary"]["raw_secret_count"] >= 1
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["provenance"]["executes_network_probe"] is False
+    assert sentinel.encode() not in saved_bytes
+    assert sentinel not in json.dumps(state) + json.dumps(report)
+    assert sentinel not in captured.out + captured.err
+    assert ("\n" not in captured.out.strip()) is compact
+    assert all(
+        row["auth_ref"] == original["auth_ref"]
+        for row, original in zip(state["connectors"], catalog["connectors"])
+        if original.get("auth_ref")
+    )
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["pretty", "compact"])
+def test_connector_inline_credential_reference_prose_keeps_historical_contract(
+    compact, tmp_path, monkeypatch, capsys
+):
+    core = _load_module(CORE_PATH, "data_connector_inline_reference_core_test_module")
+    canonical_path = Path("src/agilab/data_connectors/data_connector_facility.py").resolve()
+    assert Path(core.build_data_connector_facility.__code__.co_filename).resolve() == canonical_path
+    report_module = _load_module(REPORT_PATH, "data_connector_inline_reference_report_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    description = "Reference only: secret://fixture/token"
+    catalog["connectors"][0]["description"] = description
+    catalog_path = tmp_path / "inline-credential-reference-description-catalog.toml"
+    _write_credential_catalog_fixture(catalog_path, catalog)
+    output_path = tmp_path / "preserved-inline-credential-reference-state.json"
+    argv = ["--catalog", str(catalog_path), "--output", str(output_path)]
+    if compact:
+        argv.append("--compact")
+
+    exit_code = report_module.main(argv)
+    captured = capsys.readouterr()
+    state = json.loads(output_path.read_bytes())
+    report = json.loads(captured.out)
+
+    assert exit_code == 0
+    assert report["status"] == "pass"
+    assert state["run_status"] == "validated"
+    assert state["summary"]["raw_secret_count"] == 0
+    assert report["summary"]["raw_secret_count"] == 0
+    assert state["connectors"][0]["description"] == description
+    assert state["summary"]["network_probe_count"] == 0
+    assert state["provenance"]["executes_network_probe"] is False
+    assert ("\n" not in captured.out.strip()) is compact
+
+
+@pytest.mark.parametrize("reference", ["env:OPENSEARCH_TOKEN", "env://OPENSEARCH_TOKEN", "secret://fixture/token", "vault://fixture/token"])
+def test_connector_evidence_keeps_credential_references_without_resolution(
+    reference, tmp_path, monkeypatch
+):
+    core = _load_module(CORE_PATH, "data_connector_safe_reference_core_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    for row in catalog["connectors"]:
+        if row.get("auth_ref"):
+            row["auth_ref"] = reference
+
+    state = core.build_data_connector_facility(catalog, source_path="synthetic-reference-catalog.toml")
+    path = core.write_data_connector_facility(tmp_path / "safe-reference-state.json", state)
+
+    assert state["run_status"] == "validated"
+    assert state["summary"]["raw_secret_count"] == 0
+    assert all(row["auth_ref"] == reference for row in state["connectors"] if row["auth_ref"])
+    assert core.load_data_connector_facility(path) == state
+    assert _CREDENTIAL_SENTINEL not in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["pretty", "compact"])
+@pytest.mark.parametrize(
+    ("kind", "field", "duplicate"),
+    [("sql", "id", False), ("sql", "kind", False), ("object_storage", "provider", False),
+     ("opensearch", "provider", False), ("sql", "id", True)],
+    ids=["malformed-id", "malformed-kind", "malformed-storage-provider", "malformed-search-provider", "duplicate-malformed-id"],
+)
+def test_connector_malformed_diagnostic_fields_never_expose_credentials(
+    kind, field, duplicate, compact, tmp_path, monkeypatch, capsys
+):
+    core = _load_module(CORE_PATH, "data_connector_malformed_diagnostics_core_test_module")
+    report_module = _load_module(REPORT_PATH, "data_connector_malformed_diagnostics_report_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    row = next(row for row in catalog["connectors"] if row["kind"] == kind)
+    row[field] = {"password": _CREDENTIAL_SENTINEL}
+    if duplicate:
+        catalog["connectors"].append(dict(row))
+    catalog_path = tmp_path / "malformed-diagnostic-catalog.toml"
+    _write_credential_catalog_fixture(catalog_path, catalog)
+    state = core.build_data_connector_facility(catalog, source_path="malformed-diagnostic-catalog.toml")
+    state_path = core.write_data_connector_facility(tmp_path / "safe-diagnostic-state.json", state)
+    output_path = tmp_path / "safe-diagnostic-cli-state.json"
+    argv = ["--catalog", str(catalog_path), "--output", str(output_path)]
+    if compact:
+        argv.append("--compact")
+
+    exit_code = report_module.main(argv)
+    captured = capsys.readouterr()
+    report = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["raw_secret_count"] >= 1
+    assert report["status"] == "fail"
+    assert _CREDENTIAL_SENTINEL not in json.dumps(state)
+    assert _CREDENTIAL_SENTINEL not in state_path.read_text(encoding="utf-8")
+    assert _CREDENTIAL_SENTINEL not in output_path.read_text(encoding="utf-8")
+    assert _CREDENTIAL_SENTINEL not in captured.out + captured.err
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["pretty", "compact"])
+@pytest.mark.parametrize(
+    ("provider", "query"),
+    [("azure_blob", f"sv=2026-10-06&sig={_CREDENTIAL_SENTINEL}"),
+     ("s3", f"X-Amz-Signature={_CREDENTIAL_SENTINEL}"),
+     ("gcs", f"X-Goog-Signature={_CREDENTIAL_SENTINEL}")],
+    ids=["azure-sas", "aws-signed-url", "gcs-signed-url"],
+)
+def test_connector_signed_storage_query_is_not_persisted_or_printed(
+    provider, query, compact, tmp_path, monkeypatch, capsys
+):
+    core = _load_module(CORE_PATH, "data_connector_signed_storage_core_test_module")
+    report_module = _load_module(REPORT_PATH, "data_connector_signed_storage_report_test_module")
+    _forbid_credential_resolution_and_network(monkeypatch)
+    catalog = _credential_test_catalog(core)
+    row = next(row for row in catalog["connectors"] if row.get("provider") == provider)
+    row["endpoint_url"] = f"https://storage.invalid/objects?{query}"
+    catalog_path = tmp_path / "signed-storage-catalog.toml"
+    _write_credential_catalog_fixture(catalog_path, catalog)
+    output_path = tmp_path / "credential-safe-storage-state.json"
+    argv = ["--catalog", str(catalog_path), "--output", str(output_path)]
+    if compact:
+        argv.append("--compact")
+
+    exit_code = report_module.main(argv)
+    captured = capsys.readouterr()
+    state = json.loads(output_path.read_text(encoding="utf-8"))
+    report = json.loads(captured.out)
+
+    assert exit_code == 1
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["raw_secret_count"] >= 1
+    assert report["status"] == "fail"
+    assert row["auth_ref"].startswith("env:")
+    assert _CREDENTIAL_SENTINEL not in json.dumps(state)
+    assert _CREDENTIAL_SENTINEL not in json.dumps(report)
+    assert _CREDENTIAL_SENTINEL not in captured.out + captured.err
+
+
+def test_connector_benign_query_names_are_not_credentials():
+    core = _load_module(CORE_PATH, "data_connector_benign_query_core_test_module")
+    catalog = _credential_test_catalog(core)
+    uri = "https://storage.invalid/objects?design=diagram&signal=ready&signature_version=2026&authorization_scope=read"
+    row = next(row for row in catalog["connectors"] if row.get("provider") == "azure_blob")
+    row["endpoint_url"] = uri
+
+    state = core.build_data_connector_facility(catalog, source_path="benign-query-catalog.toml")
+
+    assert state["run_status"] == "validated"
+    assert state["summary"]["raw_secret_count"] == 0
+    assert next(row for row in state["connectors"] if row.get("provider") == "azure_blob")["endpoint_url"] == uri
+
+
+def test_connector_evidence_is_identical_across_python_hash_seeds():
+    repo_root = Path.cwd()
+    catalog = {"connectors": [{
+        "id": 42, "kind": "sql", "label": False, "uri": {"password": _CREDENTIAL_SENTINEL},
+        "driver": False, "query_mode": None, "description": [], "auth_ref": [_CREDENTIAL_SENTINEL],
+    }]}
+    code = (
+        "import json\n"
+        "from pathlib import Path\n"
+        "from agilab.data_connectors import data_connector_facility as core\n"
+        f"assert Path(core.__file__).resolve() == Path({str(repo_root / 'src/agilab/data_connectors/data_connector_facility.py')!r}).resolve()\n"
+        f"catalog = json.loads({json.dumps(catalog)!r})\n"
+        "state = core.build_data_connector_facility(catalog, source_path='synthetic-hash-seed-catalog.toml')\n"
+        "assert state['run_status'] == 'invalid'\n"
+        "print(json.dumps(state, sort_keys=True, separators=(',', ':')))\n"
+    )
+    output = []
+    for seed in (1, 2, 3, 7, 13, 23, 42, 73):
+        environment = {key: os.environ[key] for key in ("SYSTEMROOT", "WINDIR", "TMP", "TEMP") if key in os.environ}
+        environment.update(PYTHONHASHSEED=str(seed), PYTHONPATH=str(repo_root / "src"), PYTHONDONTWRITEBYTECODE="1")
+        completed = subprocess.run(
+            [sys.executable, "-c", code], cwd=repo_root, env=environment,
+            check=True, capture_output=True, text=True, timeout=15,
+        )
+        assert _CREDENTIAL_SENTINEL not in completed.stdout + completed.stderr
+        output.append(completed.stdout)
+
+    assert len(set(output)) == 1, "evidence must not depend on Python's hash seed"
+
+
+def test_connector_malformed_value_does_not_survive_into_evidence(tmp_path):
+    core = _load_module(CORE_PATH, "data_connector_malformed_evidence_core_test_module")
+    catalog = _credential_test_catalog(core)
+    next(row for row in catalog["connectors"] if row["kind"] == "sql")["uri"] = {
+        "password": _CREDENTIAL_SENTINEL,
+    }
+
+    state = core.build_data_connector_facility(catalog, source_path="synthetic-malformed-catalog.toml")
+    path = core.write_data_connector_facility(tmp_path / "safe-malformed-state.json", state)
+
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["raw_secret_count"] >= 1
+    assert _CREDENTIAL_SENTINEL not in json.dumps(state)
+    assert _CREDENTIAL_SENTINEL not in path.read_text(encoding="utf-8")

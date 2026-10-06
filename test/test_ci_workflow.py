@@ -348,7 +348,7 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     )
     assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7" in text
     assert (
-        "astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0"
+        "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0"
         in text
     )
     assert "prune-cache: true" in text
@@ -700,7 +700,17 @@ def test_ubuntu_apt_ignores_malformed_third_party_source_with_real_apt(tmp_path:
     assert _configure_ubuntu_apt(apt_dir).returncode == 0
     after = planned_downloads(apt_dir / 'apt.conf.d/99-agilab-ubuntu-sources')
     assert after.returncode == 0, after.stderr
-    assert 'archive.ubuntu.com' in after.stdout
+    import shlex
+    from urllib.parse import urlsplit
+
+    planned_uris = [
+        urlsplit(shlex.split(line)[0])
+        for line in after.stdout.splitlines()
+        if line.startswith("'")
+    ]
+    assert planned_uris
+    assert {uri.hostname for uri in planned_uris} == {'archive.ubuntu.com'}
+    assert all(uri.scheme == 'http' and uri.path.startswith('/ubuntu/') for uri in planned_uris)
     assert 'google-chrome' not in after.stdout + after.stderr
 
     # Isolating vendor sources must still reject a broken Ubuntu source.
