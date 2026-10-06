@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.05.1] - 2026-10-06
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
+
 ### Contextual tools — planned hotfix `2026.10.05.1`
 
 - Start the Python tools panel closed on desktop and mobile. Open it from the
@@ -33,6 +37,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   React navigation, analysis views and executable notebook exports.
 - Update `agi-web`, `agi-gui`, `agi-pages` and `agilab` together; retain the
   existing versions of the other framework packages.
+
+### Changed
+
+- Published AGILAB `2026.10.05.1` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.05] - 2026-10-05
 
@@ -1128,3 +1138,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.21.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_1
 [2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
 [2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
+[2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
