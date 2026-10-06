@@ -177,6 +177,77 @@ def test_ci_enforces_native_react_interaction_regressions_with_a_locked_compatib
     assert steps.index(setup) < steps.index(regressions) < steps.index(smoke)
 
 
+def _first_launch_flight_dataset_step():
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["local-only-policy"]["steps"]
+    step = next((step for step in steps if step.get("name") == "Materialize first-launch flight dataset"), None)
+    assert step is not None, "The first-launch robot needs its materialized builtin flight dataset."
+    return steps, step
+
+
+def _first_launch_flight_dataset_guard():
+    _steps, step = _first_launch_flight_dataset_step()
+    code = step["run"].split("python - <<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+    module = ast.parse(code)
+    definitions = ast.Module(body=[node for node in module.body if isinstance(
+        node, (ast.Import, ast.ImportFrom, ast.FunctionDef),
+    )], type_ignores=[])
+    namespace = {}
+    exec(compile(definitions, str(WORKFLOW_PATH), "exec"), namespace)
+    return namespace["verify_first_launch_dataset"], module
+
+
+def test_ci_first_launch_flight_dataset_materialization_is_scoped_verified_and_required() -> None:
+    steps, preparation = _first_launch_flight_dataset_step()
+    robot = next(step for step in steps if step.get("name") == "Validate first-launch robot")
+    assert steps.index(preparation) < steps.index(robot)
+    assert "if" not in preparation and "continue-on-error" not in preparation
+    commands = [line.strip() for line in preparation["run"].splitlines() if line.strip()]
+    assert commands[:3] == [
+        "set -euo pipefail",
+        'dataset_path="src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z"',
+        'git lfs pull --include="$dataset_path" --exclude="" origin',
+    ]
+    assert "--all" not in preparation["run"]
+    assert "git lfs install" not in preparation["run"]
+    assert "git config" not in preparation["run"]
+    checkout = next(step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@"))
+    assert not checkout.get("with", {}).get("lfs", False)
+    _guard, module = _first_launch_flight_dataset_guard()
+    call = module.body[-1].value
+    assert isinstance(call, ast.Call) and call.func.id == "verify_first_launch_dataset"
+    assert call.args[0].args[0].value == (
+        "src/agilab/apps/builtin/flight_telemetry_project/src/flight_telemetry_worker/dataset.7z"
+    )
+    assert call.args[1].value == "593536ccdc4889b79a7ccd5ab1056a8e6d6f132d760e499d5233ec0c62a08de0"
+    assert call.args[2].value == 1630280
+
+
+@pytest.mark.parametrize("case,message", [("missing", "not available"), ("pointer", "Git LFS pointer"),
+                                         ("short", "size mismatch"), ("wrong_hash", "SHA256 mismatch"),
+                                         ("valid", None)])
+def test_first_launch_flight_dataset_guard_rejects_unavailable_or_unreviewed_bytes(tmp_path, case, message):
+    import hashlib
+
+    from tools.dataset_release_assets import LFS_POINTER_PREFIX
+
+    verify, _module = _first_launch_flight_dataset_guard()
+    dataset = tmp_path / "owned_first_launch_flight_dataset_fixture.7z"
+    approved = b"owned reviewed dataset bytes"
+    candidate = {"pointer": LFS_POINTER_PREFIX + b"oid sha256:unmaterialized\n",
+                 "short": b"short", "wrong_hash": b"X" * len(approved), "valid": approved}
+    if case != "missing":
+        dataset.write_bytes(candidate[case])
+    expected_sha256 = hashlib.sha256(approved).hexdigest()
+    if message:
+        with pytest.raises(SystemExit, match=message):
+            verify(dataset, expected_sha256, len(approved))
+    else:
+        verify(dataset, expected_sha256, len(approved))
+    if case != "missing":
+        assert dataset.read_bytes() == candidate[case]
+
+
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     push_block = text.split("pull_request:", 1)[0]

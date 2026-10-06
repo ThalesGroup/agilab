@@ -319,7 +319,7 @@ jobs:
           run_gui_chunk() {
             local label="$1"
             shift
-            timeout 8m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz \
+            timeout 8m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz --extra notebook \
               python -m coverage run \
               --rcfile=.coveragerc.agi-gui \
               --data-file="test-results/coverage-agi-gui-${label}.db" \

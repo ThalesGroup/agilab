@@ -139,6 +139,17 @@ def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
         )
 
 
+def test_agi_gui_test_chunks_select_real_notebook_dependency_profile() -> None:
+    module = _load_module()
+    chunks = [command for command in module._agi_gui_profile()
+              if command.label.startswith("agi-gui coverage (")]
+    assert len(chunks) == len(module.AGI_GUI_COVERAGE_CHUNKS)
+    for command in chunks:
+        assert {"ui", "viz", "notebook"} <= set(_option_values(command.argv, "--extra")), (
+            f"{command.label} executes source notebook widget tests and needs the notebook extra"
+        )
+
+
 def test_expand_repo_globs_preserves_unmatched_patterns() -> None:
     module = _load_module()
 

@@ -252,7 +252,7 @@ def test_agi_gui_coverage_uses_parallel_chunk_matrix_profile() -> None:
     assert "retention-days: 14" in timing_upload
 
 
-def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
+def test_agi_gui_coverage_installs_ui_viz_and_notebook_extras_in_clean_ci_env() -> None:
     run_block = _agi_gui_run_block() + _step_block("Write agi-gui coverage XML")
 
     assert run_block.count("--extra ui") >= 2
@@ -272,6 +272,9 @@ def test_agi_gui_coverage_installs_ui_and_viz_extras_in_clean_ci_env() -> None:
     assert "--group=test-ui" in uv_args or ("--group", "test-ui") in zip(
         uv_args, uv_args[1:]
     ), "source UI coverage chunks require the optional test-ui dependency group"
+    assert "--extra=notebook" in uv_args or ("--extra", "notebook") in zip(
+        uv_args, uv_args[1:]
+    ), "source GUI chunks execute real notebook widget tests and require the notebook extra"
 
 
 def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None:
@@ -289,6 +292,9 @@ def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None
     assert "--group=test-ui" in uv_args or ("--group", "test-ui") in zip(
         uv_args, uv_args[1:]
     ), "general coverage runs source UI tests and requires the test-ui dependency group"
+    assert "--extra=notebook" in uv_args or ("--extra", "notebook") in zip(
+        uv_args, uv_args[1:]
+    ), "general source tests include notebook workflows and require the notebook extra"
     assert re.search(
         r"\btools\.testing\.root_test_runner\s+--unclassified\b",
         general_branch.group(1),
