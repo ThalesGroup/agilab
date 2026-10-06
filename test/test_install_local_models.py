@@ -150,8 +150,7 @@ printf 'curl_arg=%s\\n' "${{curl_arguments[@]}}"
         for line in completed.stdout.splitlines()
         if line.startswith("curl_arg=")
     }
-    assert "https://pypi.org/simple/pip/" in curl_arguments
-    assert "https://files.pythonhosted.org/" in curl_arguments
+    assert {"https://pypi.org/simple/pip/", "https://files.pythonhosted.org/"} <= curl_arguments
 
 
 def test_root_installer_internet_check_preserves_restricted_mode() -> None:
@@ -190,9 +189,11 @@ def test_windows_installer_internet_check_uses_packaging_endpoints() -> None:
             ps1_text,
         )
     }
-    assert "https://pypi.org/simple/pip/" in endpoint_literals
-    assert "https://files.pythonhosted.org/" in endpoint_literals
-    assert "https://api.github.com/zen" in endpoint_literals
+    assert {
+        "https://pypi.org/simple/pip/",
+        "https://files.pythonhosted.org/",
+        "https://api.github.com/zen",
+    } <= endpoint_literals
 
 
 def test_windows_root_installer_propagates_test_apps_to_app_installer() -> None:
