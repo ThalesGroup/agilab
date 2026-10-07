@@ -27,15 +27,17 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
 
-### Prepared release — `2026.10.07`
+### Published packages
 
-The release candidate includes `agi-web`, `agi-gui`, `agi-pages`,
-`agi-app-learning-assessment`, `agi-apps`, and `agilab` at `2026.10.07`.
-Their exact dependency pins are updated together. Unchanged core, environment,
-node, cluster, and other app packages retain their current versions.
-Publication, the hosted demo, and the release-bound documentation proof remain
-pending until the new release workflow completes; the published release below
-remains the current public evidence.
+This release publishes `agi-web`, `agi-gui`, `agi-pages`,
+`agi-app-learning-assessment`, `agi-apps`, and `agilab` at `2026.10.07`
+(`2026.10.7` on PyPI). Their exact dependency pins are updated together.
+Unchanged core, environment, node, cluster, and other app packages retain their
+current versions. Publication completed in the
+[release workflow](https://github.com/ThalesGroup/agilab/actions/runs/37613918980).
+The [hosted demo](https://jpmorard-agilab.hf.space/) runs this release, and its
+publication attempt and deployed commit are recorded in the
+[release proof](docs/source/release-proof.rst).
 
 ### Web layout, accessibility, and responsiveness
 

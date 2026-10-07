@@ -22,8 +22,8 @@ Package route legend:
 - ``PyPI app package``: selected by the current release plan for standalone
   ``agi-app-*`` distribution. Installation requires a published package;
   entries awaiting their first publication are marked below.
-- ``Release artifact``: built as an app payload artifact, but not currently
-  promoted to PyPI by the release plan.
+- ``Release artifact``: selected by the release plan without standalone PyPI
+  promotion. Published payload locations are listed below.
 - ``Source built-in``: present in the public source checkout for development,
   examples, or compatibility, without a separate promoted payload package.
 
@@ -98,8 +98,8 @@ Package route legend:
    * - ``learning_assessment_project``
      - ``agi-app-learning-assessment``
      - PyPI app package
-     - **Not yet published on PyPI.** Use this app from the source checkout
-       until its first package release. Learning & Assessment provides
+     - **Available on PyPI** at version ``2026.10.7``. Learning & Assessment
+       provides
        evidence-scored diagnostic and self-evaluation
        cases, including the original TeSciA collection, with 2026 math
        coverage, a 12-case 2026 data-scientist interview evaluation spanning
@@ -120,18 +120,20 @@ Package route legend:
      - ``agi-app-minimal``
      - Release artifact
      - Minimal app structure reference for adapting manager, worker, settings,
-       and app argument form code.
+       and app argument form code. Included in the published ``agi-apps`` package.
    * - ``r_runtime_bridge_project``
      - ``agi-app-r-runtime-bridge``
      - Release artifact
      - Python manager and worker adapter for external R computations. Requires
-       an installed ``Rscript`` runtime; the app wheel does not bundle R.
+       an installed external ``Rscript`` runtime.
 
-All fourteen built-in projects have installable payloads. Eleven are promoted
-to PyPI through ``agilab[examples]``. The Minimal App, R Runtime Bridge and
-legacy UAV Queue payloads are distributed as wheels and source archives in
-the matching GitHub Release distribution archive. Install their wheels into
-the same AGILAB environment to make them available without a source checkout.
+All fourteen built-in projects are available from the published release.
+Eleven are promoted to PyPI through ``agilab[examples]``. The Minimal App is
+included in ``agi-apps``. The R Runtime Bridge and legacy UAV Queue source
+payloads are available in the
+`archive of the signed v2026.10.07 tag <https://github.com/ThalesGroup/agilab/archive/refs/tags/v2026.10.07.tar.gz>`_.
+Their Python and scientific dependencies, and the bridge's external
+``Rscript`` runtime, must be installed separately.
 
 Recommended first choices
 -------------------------
