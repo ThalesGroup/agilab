@@ -111,14 +111,28 @@ function Control({node}) {
   }}>{p.label}</button>;
   if (["text_input", "text_area", "number_input"].includes(node.kind)) {
     const numeric = node.kind === "number_input";
+    let inputType = p.type === "password" ? "password" : "text";
+    if (node.kind === "text_input" && p.type_dependency) {
+      const dependency = p.type_dependency;
+      const valid = typeof dependency.key === "string" && dependency.key.length > 0 && typeof dependency.pattern === "string" && dependency.pattern.length > 0;
+      const source = valid ? Object.values(view.widgets).find(widget => widget.kind === "text_input" && widget.props.key === dependency.key && widget.props.form === p.form) : undefined;
+      const sourceValue = source && Object.hasOwn(view.forms, source.id) ? view.forms[source.id] : source?.props.value;
+      // Form edits stay local until submission; derive masking from that draft.
+      // An invalid or missing dependency remains masked rather than exposing it.
+      try {inputType = !source || new RegExp(dependency.pattern, dependency.flags || "").test(String(sourceValue ?? "")) ? "password" : "text";}
+      catch {inputType = "password";}
+    }
     const properties = {...common, value: value ?? "", placeholder: p.placeholder, maxLength: p.max_chars,
       onChange: event => change(numeric && event.target.value !== "" ? Number(event.target.value) : event.target.value, false),
       onBlur: () => {if (value !== "" || !numeric) commit(value);},
       onKeyDown: event => {if (event.key === "Enter" && node.kind !== "text_area" && !p.form) {event.preventDefault(); commit(value);}}};
-    control = node.kind === "text_area" ? <textarea {...properties} style={{height: p.height || 120}}/> : <input {...properties} type={numeric ? "number" : p.type === "password" ? "password" : "text"} min={p.min_value} max={p.max_value} step={p.step}/>;
+    control = node.kind === "text_area" ? <textarea {...properties} style={{height: p.height || 120}}/> : <input {...properties} type={numeric ? "number" : inputType} min={p.min_value} max={p.max_value} step={p.step}/>;
   } else if (["selectbox", "radio", "pills", "segmented_control", "select_slider", "multiselect"].includes(node.kind)) {
     const multiple = node.kind === "multiselect" || p.selection_mode === "multi";
-    if (["radio", "pills", "segmented_control"].includes(node.kind)) control = <div className="py-options">{p.options.map((option, index) => <label key={option}><input {...common} id={`${node.id}-${option}`} type={multiple ? "checkbox" : "radio"} name={node.id} checked={multiple ? (value || []).includes(option) : value === option} onChange={event => change(multiple ? event.target.checked ? [...value, option] : value.filter(item => item !== option) : option)}/>{p.option_labels[index]}</label>)}</div>;
+    if (["radio", "pills", "segmented_control"].includes(node.kind)) return <div className="py-control py-option-group" role={multiple ? "group" : "radiogroup"} aria-label={p.label} aria-describedby={p.help ? `${node.id}-help` : undefined}>
+      {label}<div className="py-options">{p.options.map((option, index) => <label key={option}><input {...common} id={`${node.id}-${index}`} aria-label={p.option_labels[index]} type={multiple ? "checkbox" : "radio"} name={node.id} checked={multiple ? (value || []).includes(option) : value === option} onChange={event => change(multiple ? event.target.checked ? [...(value || []), option] : (value || []).filter(item => item !== option) : option)}/><span>{p.option_labels[index]}</span></label>)}</div>
+      {p.help && <small id={`${node.id}-help`}>{p.help}</small>}
+    </div>;
     else control = <select {...common} multiple={multiple} value={multiple ? (value || []).map(String) : value ?? ""} onChange={event => change(multiple ? [...event.target.selectedOptions].map(option => Number(option.value)) : event.target.value === "" ? null : Number(event.target.value))}>
       {!multiple && <option value="" disabled={!p.allow_none}>Choose an option</option>}
       {p.options.map((option, index) => <option key={option} value={option}>{p.option_labels[index]}</option>)}
@@ -201,7 +215,7 @@ const Node = memo(function Node({node}) {
   if (node.kind === "metric") return <div className="py-metric"><span>{p.label}</span><strong>{p.value}</strong>{p.delta && <small>{p.delta}</small>}</div>;
   if (node.kind === "divider") return <hr/>;
   if (node.kind === "dataframe") return <DataTable node={node}/>;
-  if (node.kind === "image") return <figure>{p.urls.map((url, index) => <img key={index} src={safeURL(url)} style={{maxWidth: "100%"}}/>)}{p.caption && <figcaption>{p.caption}</figcaption>}</figure>;
+  if (node.kind === "image") return <figure>{p.urls.map((url, index) => <img key={index} src={safeURL(url)} alt={(Array.isArray(p.alt) ? p.alt[index] : p.alt) ?? ((Array.isArray(p.caption) ? p.caption[index] : p.caption) || undefined)} style={{maxWidth: "100%", height: "auto", width: p.width === "stretch" || p.use_container_width ? "100%" : typeof p.width === "number" ? p.width : undefined}}/>)}{p.caption && <figcaption>{Array.isArray(p.caption) ? p.caption.join(" · ") : p.caption}</figcaption>}</figure>;
   if (node.kind === "progress") return <div data-widget-kind="progress" data-widget-key={p.key}><progress value={p.value} max="1"/>{p.text && <span>{p.text}</span>}</div>;
   if (node.kind === "plotly_chart") return <Plot node={node}/>;
   if (node.kind === "graphviz_chart") return <Graph node={node}/>;

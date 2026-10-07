@@ -51,6 +51,30 @@ def test_real_health_model_keeps_api_credentials_out_of_frontend_payload(tmp_pat
     assert [c["label"] for c in data["cards"]] == [c.label for c in health.cards]
 
 
+@pytest.mark.parametrize("card,display_state,status_label", [
+    (EnvironmentHealthCard("API keys", "Optional", "no online provider key found", "incomplete"),
+     "neutral", "Optional"),
+    (EnvironmentHealthCard("Runs", "0", "no run logs yet", "incomplete"),
+     "neutral", "No runs yet"),
+    (EnvironmentHealthCard("Runs", "0", "run log directory unavailable", "incomplete"),
+     "incomplete", "Needs attention"),
+    (EnvironmentHealthCard("Manager env", "missing", "Install the environment", "incomplete"),
+     "incomplete", "Needs attention"),
+    (EnvironmentHealthCard("Runs", "2", "latest run yesterday", "ready"), "ready", "Ready"),
+])
+def test_card_presentation_distinguishes_onboarding_without_changing_diagnostics(
+    workspace, card, display_state, status_label,
+):
+    env, routes, _, _, _ = workspace
+    data = ui.project_workspace_data(env, EnvironmentHealth(cards=(card,), details=()), routes)
+    serialized = data["cards"][0]
+    assert (serialized["label"], serialized["value"], serialized["caption"], serialized["state"]) == (
+        card.label, card.value, card.caption, card.state,
+    )
+    assert serialized["display_state"] == display_state
+    assert serialized["status_label"] == status_label
+
+
 def test_workspace_uses_distinct_component_key_and_returns_details_for_python(workspace):
     env, _, st, health, mount = workspace
     assert ui.render_project_workspace(st, env) is health

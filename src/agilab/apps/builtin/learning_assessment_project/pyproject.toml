@@ -1,6 +1,6 @@
 [project]
 name = "learning_assessment_project"
-version = "2026.10.04"
+version = "2026.10.07"
 description = "Built-in AGILAB learning and assessment workflow"
 readme = "README.md"
 requires-python = ">=3.13"

@@ -23,6 +23,39 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Prepared release — `2026.10.07`
+
+The release candidate includes `agi-web`, `agi-gui`, `agi-pages`,
+`agi-app-learning-assessment`, `agi-apps`, and `agilab` at `2026.10.07`.
+Their exact dependency pins are updated together. Unchanged core, environment,
+node, cluster, and other app packages retain their current versions.
+Publication, the hosted demo, and the release-bound documentation proof remain
+pending until the new release workflow completes; the published release below
+remains the current public evidence.
+
+### Web layout, accessibility, and responsiveness
+
+- Wrap long project names and native option labels on narrow screens; keep
+  analysis and settings content within the viewport.
+- Bring the project actions into the mobile workspace and preserve a visible
+  workspace loading state while Python views update.
+- Give radio options distinct accessible names, add keyboard navigation and
+  tab/panel associations, and return focus when dialogs and contextual tools close.
+- Mask newly entered sensitive settings values and describe the Iris demo plots
+  with meaningful alternative text.
+- Select a headless Matplotlib backend for the threaded native HTTP host so
+  opening a plot does not start the macOS GUI from a worker thread.
+- Reuse unchanged native-host nodes and map/curve geometry during local
+  interactions. The synthetic CPU-throttled browser measurements cover retained
+  controls, all plotted points, and notebook assets; they do not establish timings
+  on a particular low-power machine or include Python/network execution.
+
+### Builtin application robustness
+
+- Reject malformed Learning Assessment dossier collections before restoring a
+  session. Attempts, reviews, practical reviews, and source checks must contain
+  objects, so invalid imported data fails with a clear validation error.
+
 ### Security
 
 - Reject embedded credentials in connector URI user information, query fields,

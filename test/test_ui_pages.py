@@ -1884,7 +1884,7 @@ def test_execute_page_cluster_settings(mock_ui_env):
     expander_labels = [str(item.label) for item in at.expander]
     assert "Environment details" in expander_labels
     assert expander_labels.index("Environment details") < expander_labels.index(
-        "1. Resources and deployment"
+        "Resources and deployment"
     )
     assert "Evidence drawer" not in expander_labels
     assert "Deployment logs" not in expander_labels

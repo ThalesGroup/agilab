@@ -71,7 +71,7 @@ export function ProjectWorkspace({ data, onAction }) {
   const navigate = value => onAction({ kind: "navigate", value, project: data.project,
     project_path: data.project_path, route: data.route });
   return <section className="agilab-main-interface agilab-project-workspace" aria-label="Project workspace"
-    onKeyDown={event => event.stopPropagation()}>
+    onKeyDown={keepWorkspaceKeysLocal}>
     <div className="agilab-home-intro">
       <p className="agilab-eyebrow">Project workspace</p>
       <h1>{data.project || "No project selected"}</h1>
@@ -79,13 +79,13 @@ export function ProjectWorkspace({ data, onAction }) {
     </div>
     <div className="agilab-project-health" aria-label="Environment health">
       {data.cards.map(card => <article key={card.label}
-        className={`agilab-health-card agilab-health-card--${card.state}`}>
+        className={`agilab-health-card agilab-health-card--${card.display_state || card.state}`}>
         <h2>{card.label}</h2><p className="agilab-health-value">{card.value}</p>
         <p className="agilab-health-caption">{card.caption}</p>
-        <small>{card.state === "incomplete" ? "Needs attention" : "Ready"}</small>
+        <small>{card.status_label || (card.state === "incomplete" ? "Needs attention" : "Ready")}</small>
       </article>)}
     </div>
-    <nav className="agilab-home-cards" aria-label="Project actions">
+    <nav className="agilab-home-cards agilab-project-actions" aria-label="Project actions">
       {data.actions.map(action => <button type="button" key={action.id} disabled={!data.project}
         onClick={() => navigate(action.id)}>
         <span className="agilab-card-title">{action.label}</span><span>{action.description}</span>
@@ -94,6 +94,11 @@ export function ProjectWorkspace({ data, onAction }) {
     </nav>
     <p className="agilab-notebook-note">Open Analysis to explore results and access the notebook export in Workflow.</p>
   </section>;
+}
+
+function keepWorkspaceKeysLocal(event) {
+  // Escape belongs to the native host so contextual Tools can close and restore focus.
+  if (event.key !== "Escape") event.stopPropagation();
 }
 
 export function AnalysisWorkspace({ data, onAction }) {
@@ -116,7 +121,7 @@ export function AnalysisWorkspace({ data, onAction }) {
     </div>)}
   </fieldset>;
   return <section className="agilab-main-interface agilab-analysis-workspace" aria-label="Analysis workspace"
-    onKeyDown={event => event.stopPropagation()}>
+    onKeyDown={keepWorkspaceKeysLocal}>
     <div className="agilab-home-intro"><p className="agilab-eyebrow">Analysis workspace</p>
       <h1>Explore {data.project || "your project"}</h1>
       <p>Choose your result views and notebooks. Save the selection, then open a view to explore it.</p></div>

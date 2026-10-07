@@ -1143,12 +1143,12 @@ def settings_page(env: Any) -> None:
     st.caption(
         "Persistent environment variables and global runtime diagnostics for AGILAB actions."
     )
-    st.markdown("#### Runtime diagnostics")
-    _render_global_runtime_diagnostics(env, container=st)
-    st.divider()
     st.markdown("#### Environment variables")
-    st.caption(f"Stored in `{ENV_FILE_PATH.expanduser()}`.")
     _render_env_editor(env)
+    st.divider()
+    with st.expander("Runtime diagnostics", expanded=False):
+        st.caption(f"Stored in `{ENV_FILE_PATH.expanduser()}`.")
+        _render_global_runtime_diagnostics(env, container=st)
     _sync_layout_module()
     _about_layout.render_footer()
     _seed_session_runtime_defaults(env)

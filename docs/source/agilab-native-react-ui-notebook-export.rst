@@ -13,14 +13,34 @@ administration remain Python views, rendered by the same native host.
    of its recorded release. Local validation does not publish a new wheel or
    update a hosted Space; consult :doc:`release-proof` for published evidence.
 
+Workspace layout and accessibility
+----------------------------------
+
+On a narrow screen, PROJECT places its actions before the compact health
+cards. ORCHESTRATE places execution controls before the collapsed environment,
+deployment and argument sections. A disabled execution keeps its blocking
+reason visible beside the controls. WORKFLOW keeps run controls before graph
+inspection; status details, graph preview and the new-stage editor start
+collapsed.
+
+SETTINGS places **Save .env** above categorized sections. Collapsing a section
+preserves its values and edits. Existing saved secrets remain blank and are
+retained when left blank; naming a new secret masks its value before submission.
+Python variable conventions and runtime diagnostics remain available in
+collapsed sections.
+
+Open **Tools** from the workspace header. Press **Escape** to close it and
+return focus to its disclosure. Option groups expose each option's own name,
+and long project titles and analysis filenames wrap on mobile.
+
 Install and launch from source
 ------------------------------
 
-The native release target is ``2026.10.04`` (normalised by PyPI to
-``2026.10.4``). Once its publication is recorded in :doc:`release-proof`, a
+The prepared native release target is ``2026.10.07`` (normalised by PyPI to
+``2026.10.7``). Once its publication is recorded in :doc:`release-proof`, a
 new environment can install the UI, notebooks and promoted built-ins with::
 
-   python -m pip install 'agilab[ui,notebook,examples]==2026.10.4'
+   python -m pip install 'agilab[ui,notebook,examples]==2026.10.7'
    agilab --no-browser
 
 Run the installed CLI outside the source checkout. The Minimal App, R Runtime

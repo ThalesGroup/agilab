@@ -2003,6 +2003,7 @@ def _render_orchestrate_readiness_panel(
         env,
         app_settings=app_settings,
         install_status=install_status,
+        panel_label="Environment health",
         render_details=False,
     )
 
@@ -2038,7 +2039,7 @@ async def _render_deployment_panel(
     """Render the deployment expander and return the effective verbose level."""
     verbose = initial_verbose
     workerless = bool(install_status.get("workerless"))
-    with st.expander("1. Resources and deployment", expanded=True):
+    with st.expander("Resources and deployment", expanded=False):
         if workerless:
             st.caption("Prepare the manager environment for this workerless local app.")
         else:
@@ -2231,7 +2232,7 @@ async def _render_distribution_panel(
 
     module = env.target
 
-    with st.expander(f"2. Configure run arguments for {module}", expanded=True):
+    with st.expander(f"Configure run arguments for {module}", expanded=False):
         st.caption(
             "Set the input, output, and app-specific parameters passed to Deploy scheduler & workers, "
             "CHECK distribute, RUN, or service mode."
@@ -2327,7 +2328,7 @@ async def _render_distribution_panel(
         st.session_state.pop("preview_tree", None)
         return
 
-    with st.expander("3. Preview distribution workplan", expanded=False):
+    with st.expander("Preview distribution workplan", expanded=False):
         st.caption(
             "Preview how the current arguments will be partitioned across available workers."
         )
@@ -2586,11 +2587,11 @@ async def _render_run_panels(
     workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
     if show_run_panel:
-        st.markdown("#### 4. Run or serve")
+        st.markdown("#### Run or serve")
         st.caption(
             "Use the selected execution view, then keep benchmark and generated-code details available on demand."
         )
-        with st.expander("Run options", expanded=True):
+        with st.expander("Run options", expanded=False):
             cluster_params = st.session_state.app_settings["cluster"]
             try:
                 local_share_path = env.share_root_path()
@@ -2815,6 +2816,10 @@ async def page() -> None:
         docs_html_file="execute-help.html",
         render_page_context=_skip_orchestrate_project_cockpit,
     )
+    st.title("Configure and run your project")
+    # Fill this slot after configuration and readiness have been resolved below.
+    # The visible command order changes without changing execution prerequisites.
+    orchestrate_execution_slot = st.container()
     orchestrate_banner_slot = st.container()
 
     if background_services_enabled() and not st.session_state.get("server_started"):
@@ -2979,12 +2984,13 @@ async def page() -> None:
         project_path=project_path,
         show_distribute=show_distribute,
     )
-    show_run_panel, show_submit_panel, cmd = await _render_run_panels(
-        env,
-        project_path=project_path,
-        show_run=show_run,
-        verbose=verbose,
-    )
+    with orchestrate_execution_slot:
+        show_run_panel, show_submit_panel, cmd = await _render_run_panels(
+            env,
+            project_path=project_path,
+            show_run=show_run,
+            verbose=verbose,
+        )
     worker_required_for_run = _run_mode_requires_worker_environment(
         st.session_state.get("mode", 0)
     )
@@ -3013,18 +3019,19 @@ async def page() -> None:
         live_log_min_height=LIVE_LOG_MIN_HEIGHT,
         install_log_height=INSTALL_LOG_HEIGHT,
     )
-    await render_execute_section(
-        env=env,
-        project_path=project_path,
-        app_state_name=app_state_name,
-        controls_visible=show_run,
-        show_run_panel=show_run_panel,
-        cmd=cmd,
-        deps=execute_deps,
-        install_ready=installed,
-        install_disabled_reason=install_block_reason,
-        worker_env_required=worker_required_for_run,
-    )
+    with orchestrate_execution_slot:
+        await render_execute_section(
+            env=env,
+            project_path=project_path,
+            app_state_name=app_state_name,
+            controls_visible=show_run,
+            show_run_panel=show_run_panel,
+            cmd=cmd,
+            deps=execute_deps,
+            install_ready=installed,
+            install_disabled_reason=install_block_reason,
+            worker_env_required=worker_required_for_run,
+        )
 
 
 # ===========================

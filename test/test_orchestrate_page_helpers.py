@@ -1742,6 +1742,91 @@ def test_execute_page_install_refreshes_status_before_run_gate(monkeypatch, tmp_
     assert install_warning_slot.empty_calls == int(prepare_succeeds)
 
 
+@pytest.mark.parametrize("ready", [False, True])
+def test_orchestrate_primary_command_precedes_details_with_original_prerequisites(
+    monkeypatch, tmp_path, ready,
+):
+    from agi_web import python_ui
+
+    module = _load_orchestrate_module()
+    project = tmp_path / "owned_project"
+    project.mkdir()
+    env = SimpleNamespace(
+        app=project.name, projects=[project.name], active_app=project, target="owned",
+        AGILAB_EXPORT_ABS=tmp_path / "export", TABLE_MAX_ROWS=100, envars={},
+    )
+    install_status = {
+        "workerless": True, "manager_ready": ready, "manager_exists": ready,
+        "manager_problem": "" if ready else "Manager environment missing.",
+    }
+    settings = {"args": {"input_file": "preserved-input.csv"}, "cluster": {"verbose": 0}}
+    order = []
+    execution = []
+
+    async def deployment(_env, *, initial_verbose, install_status, **_kwargs):
+        order.append("deployment")
+        with python_ui.expander("Resources fixture", expanded=False):
+            python_ui.caption("Resource controls remain available")
+        return initial_verbose, install_status
+
+    async def distribution(*_args, **_kwargs):
+        order.append("arguments")
+        with python_ui.expander("Arguments fixture", expanded=False):
+            python_ui.caption(settings["args"]["input_file"])
+
+    async def run_panels(*_args, **_kwargs):
+        order.append("run options")
+        return True, False, "owned-run-command"
+
+    async def execute(**kwargs):
+        order.append("execute")
+        execution.append(kwargs)
+        python_ui.button("RUN", key="owned_run", disabled=not kwargs["install_ready"])
+
+    monkeypatch.setattr(module, "st", python_ui)
+    monkeypatch.setattr(module, "_ensure_page_env", lambda *_args, **_kwargs: env)
+    monkeypatch.setattr(module, "resolve_active_app", lambda _env: (env.app, False))
+    monkeypatch.setattr(module, "_realign_session_env_with_page_root", lambda *_args: False)
+    monkeypatch.setattr(module, "render_page_chrome", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "background_services_enabled", lambda: False)
+    monkeypatch.setattr(module, "_consume_first_proof_action_query_seed", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_app_install_status", lambda _env: install_status)
+    monkeypatch.setattr(module, "global_diagnostics_verbose", lambda **_kwargs: 0)
+    monkeypatch.setattr(module, "_render_deployment_panel", deployment)
+    monkeypatch.setattr(module, "_render_distribution_panel", distribution)
+    monkeypatch.setattr(module, "_render_run_panels", run_panels)
+    monkeypatch.setattr(module, "render_execute_section", execute)
+    app = AppTest.from_function(lambda: module.asyncio.run(module.page()))
+    app.session_state["app_settings"] = settings
+    app.run()
+    assert not app.exception
+    assert len(app.title) == 1
+    assert app.title[0].value == "Configure and run your project"
+    assert order == ["deployment", "arguments", "run options", "execute"]
+    assert execution[0]["cmd"] == "owned-run-command"
+    assert execution[0]["install_ready"] is ready
+    assert execution[0]["worker_env_required"] is False
+    assert bool(execution[0]["install_disabled_reason"]) is not ready
+    assert app.session_state["app_settings"] == settings
+
+    def walk(nodes):
+        for node in nodes:
+            yield node
+            yield from walk(node["children"])
+
+    nodes = list(walk(app._session.last_nodes["main"]))
+    command_index = next(index for index, node in enumerate(nodes)
+                         if node["kind"] == "button" and node["props"]["label"] == "RUN")
+    health_index = next(index for index, node in enumerate(nodes)
+                        if node["kind"] == "expander" and node["props"]["label"] == "Environment health")
+    resource_index = next(index for index, node in enumerate(nodes)
+                          if node["kind"] == "expander" and node["props"]["label"] == "Resources fixture")
+    assert command_index < health_index < resource_index
+    assert nodes[health_index]["props"]["expanded"] is False
+    assert bool(nodes[command_index]["props"]["disabled"]) is not ready
+    assert any(node["kind"] == "expander" and node["props"]["label"] == "Notebook" for node in nodes)
+
+
 def test_set_active_app_query_param_ignores_streamlit_api_errors(monkeypatch):
     module = _load_orchestrate_module()
 

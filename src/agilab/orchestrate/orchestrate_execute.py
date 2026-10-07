@@ -854,6 +854,8 @@ async def render_execute_section(
                 if not approval_ready
                 else ""
             )
+            run_enabled = execute_state.run_action.enabled and approval_ready
+            run_disabled_reason = approval_disabled_reason or execute_state.run_action.disabled_reason
             run_label = (
                 ORCHESTRATE_ACTION_LABELS["run_workflow"]
                 if dag_based_app
@@ -866,8 +868,8 @@ async def render_execute_section(
             readiness_actions = [
                 (
                     run_label,
-                    execute_state.run_action.enabled and approval_ready,
-                    approval_disabled_reason or execute_state.run_action.disabled_reason,
+                    run_enabled,
+                    run_disabled_reason,
                 )
             ]
             if not dag_based_app:
@@ -887,13 +889,15 @@ async def render_execute_section(
                 run_label,
                 key="run_btn",
                 type="primary",
-                disabled=not (execute_state.run_action.enabled and approval_ready),
-                help=approval_disabled_reason
-                or execute_state.run_action.disabled_reason
+                disabled=not run_enabled,
+                help=run_disabled_reason
                 or ("Run the selected DAG workflow." if dag_based_app else "Run the configured AGILAB command."),
                 width="stretch",
             ):
                 _queue_execute_action("run")
+            if not run_enabled and run_disabled_reason:
+                with run_col:
+                    st.caption(run_disabled_reason)
 
             if not dag_based_app and load_col is not None and load_col.button(
                 ORCHESTRATE_ACTION_LABELS["load_output"],
@@ -1006,7 +1010,7 @@ async def render_execute_section(
             st.session_state.pop(delete_confirm_key, None)
 
     if controls_visible:
-        st.markdown("## 5. Run and inspect outputs")
+        st.markdown("## Run and inspect outputs")
         if dag_based_app:
             st.caption("Run the selected DAG workflow. Inspect stage artifacts and run evidence from WORKFLOW.")
         else:

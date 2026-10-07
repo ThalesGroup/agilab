@@ -168,6 +168,9 @@ class _FakeStreamlit:
         count = len(specs) if isinstance(specs, (list, tuple)) else int(specs)
         return [_Ctx(self) for _ in range(count)]
 
+    def container(self, **_kwargs):
+        return _Ctx(self)
+
     def multiselect(self, _label, options, key=None, format_func=None, help=None):
         self.multiselect_calls.append((str(_label), list(options), key))
         value = self._multiselects.get(key, self.session_state.get(key, list(options)))
@@ -3191,6 +3194,60 @@ def test_dag_action_guidance_uses_execution_order_not_inspected_stage(monkeypatc
     assert ("caption", "Next run: `A`.") in fake_st.messages
     assert ("caption", "Batch run (2): `A`, `B`.") in fake_st.messages
     assert ("caption", "Next preview: `B`.") in fake_st.messages
+    assert json.dumps(state) == original
+
+
+@pytest.mark.parametrize("distributed", [False, True])
+def test_dag_run_actions_precede_optional_graph_and_keep_readiness_targets(
+    monkeypatch, tmp_path, distributed,
+):
+    from agi_web import python_ui
+    from agi_web.testing import AppTest
+
+    state = {"units": [
+        {"id": "A", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "ready_input"}]},
+        {"id": "B", "dispatch_status": "runnable"},
+    ], "artifacts": [{"artifact": "ready_input", "status": "available"}]}
+    original = json.dumps(state)
+    monkeypatch.setattr(pipeline_lab, "st", python_ui)
+    engine = SimpleNamespace(
+        real_run_support=lambda _state: SimpleNamespace(
+            supported=True, status="Executable", message="", adapter="controlled_contract_dag",
+        ),
+        distributed_stage_supported=lambda: distributed,
+    )
+    app = AppTest.from_function(lambda: pipeline_lab._render_global_runner_state_view(
+        state=state, state_path=tmp_path / "state.json", dag_path=None,
+        dag_engine=engine, repo_root=tmp_path, index_page_str="demo",
+    ))
+    app.session_state["demo_global_runner_graph_stage"] = "B"
+    if distributed:
+        app.session_state["demo_global_runner_stage_backend"] = pipeline_lab.GLOBAL_DAG_STAGE_BACKEND_DISTRIBUTED
+    app.run()
+    assert not app.exception
+
+    def walk(nodes, ancestors=()):
+        for node in nodes:
+            yield node, ancestors
+            yield from walk(node["children"], (*ancestors, node))
+
+    nodes = list(walk(app._session.last_nodes["main"]))
+    run_index, (run_button, ancestors) = next((index, entry) for index, entry in enumerate(nodes)
+                                            if entry[0]["kind"] == "button" and entry[0]["props"]["label"] == "Run next stage")
+    inspect_index = next(index for index, (node, _) in enumerate(nodes)
+                         if node["kind"] == "selectbox" and node["props"]["label"] == "Inspect stage")
+    graph_index, (_, graph_ancestors) = next((index, entry) for index, entry in enumerate(nodes)
+                                            if entry[0]["kind"] == "graphviz_chart")
+    assert run_index < inspect_index < graph_index
+    assert not any(node["kind"] == "expander" and not node["props"]["expanded"] for node in ancestors)
+    assert any(node["kind"] == "expander" and node["props"]["label"] == "Graph preview"
+               and not node["props"]["expanded"] for node in graph_ancestors)
+    assert bool(run_button["props"].get("disabled")) is distributed
+    assert app.session_state["demo_global_runner_graph_stage"] == "B"
+    captions = [node["props"].get("body", "") for node, _ in nodes if node["kind"] == "caption"]
+    if not distributed:
+        assert "Next run: `A`." in captions
+    assert "Batch run (2): `A`, `B`." in captions
     assert json.dumps(state) == original
 
 

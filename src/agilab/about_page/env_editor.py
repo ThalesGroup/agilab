@@ -322,6 +322,33 @@ def _visible_env_editor_keys(
     return list(dict.fromkeys(str(entry["key"]).strip() for entry in existing_entries if entry.get("type") == "entry"))
 
 
+def _env_editor_groups(keys: List[str]) -> Dict[str, List[str]]:
+    """Group the existing editable keys without changing their save contract."""
+    groups: Dict[str, List[str]] = {
+        "Workspace and data": [],
+        "Python runtime": [],
+        "Cluster and execution": [],
+        "Credentials and services": [],
+        "Other settings": [],
+    }
+    for key in keys:
+        normalized = key.upper()
+        if _is_sensitive_env_key(key):
+            group = "Credentials and services"
+        elif any(part in normalized for part in ("PYTHON", "RUNTIME", "VENV", "UV_")):
+            group = "Python runtime"
+        elif any(part in normalized for part in ("PATH", "SHARE", "ROOT", "REPOSITORY", "DATA_DIR")):
+            group = "Workspace and data"
+        elif any(part in normalized for part in ("CLUSTER", "WORKER", "SSH", "SCHEDUL", "CMD_PREFIX")):
+            group = "Cluster and execution"
+        elif any(part in normalized for part in ("SERVICE", "INTERNET", "PROVIDER", "MODEL", "API_")):
+            group = "Credentials and services"
+        else:
+            group = "Other settings"
+        groups[group].append(key)
+    return {label: group_keys for label, group_keys in groups.items() if group_keys}
+
+
 def _write_env_file(
     path: Path,
     entries: List[Dict[str, str]],
@@ -446,7 +473,7 @@ def _refresh_env_from_file(env: Any) -> None:
     if new_apps_path:
         try:
             resolved = Path(new_apps_path).expanduser().resolve()
-            # A running Streamlit session may have been launched from a source checkout
+            # A running native UI session may have been launched from a source checkout
             # while ~/.agilab/.env still points to a packaged agi-space install.
             env.apps_path = (
                 session_apps_path
@@ -503,43 +530,49 @@ def _render_env_editor(env: Any, help_file: Path | None = None) -> None:
 
     unique_keys = _visible_env_editor_keys(template_keys, existing_entries)
 
-    st.caption(
-        "`AGI_PYTHON_VERSION` sets the default Python version. "
-        "Workers can override it with `<worker-host>_PYTHON_VERSION`, "
-        "for example `127.0.0.1_PYTHON_VERSION=3.13`."
-    )
-    st.caption(
-        "Secret-like variables (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`) "
-        "are hidden. Leave an existing secret blank to keep the saved value."
-    )
-
     with st.form("env_editor_form"):
-        for key in unique_keys:
-            default_value = last_value_map.get(key, template_defaults.get(key, ""))
-            if key == CLUSTER_CREDENTIALS_KEY and key not in last_value_map:
-                default_value = ""
-            if key == CLUSTER_CREDENTIALS_KEY and default_value == KEYRING_SENTINEL:
-                default_value = ""
-            display_value = _env_editor_input_value(key, default_value)
-            st.text_input(
-                _env_editor_field_label(key),
-                value=display_value,
-                key=f"env_editor_val_{key}",
-                help=f"Set value for {key}",
-                type="password" if _is_sensitive_env_key(key) else "default",
-            )
-
-        st.markdown("#### Add a new variable")
-        new_key = st.text_input("Variable name", key="env_editor_new_key", placeholder="MY_SETTING")
-        new_key_draft = str(st.session_state.get("env_editor_new_key", "") or "")
-        new_value = st.text_input(
-            "Variable value",
-            key="env_editor_new_value",
-            placeholder="value",
-            type="password" if _is_sensitive_env_key(new_key_draft) else "default",
-        )
-
         submitted = st.form_submit_button("Save .env", type="primary")
+        st.caption("Save applies edits in every section. Collapsing a section keeps its values.")
+        with st.expander("Variable conventions", expanded=False):
+            st.caption(
+                "`AGI_PYTHON_VERSION` sets the default Python version. "
+                "Workers can override it with `<worker-host>_PYTHON_VERSION`, "
+                "for example `127.0.0.1_PYTHON_VERSION=3.13`."
+            )
+            st.caption(
+                "Secret-like variables (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`, `CREDENTIAL`) "
+                "are hidden. Leave an existing secret blank to keep the saved value."
+            )
+        with st.expander("Add a new variable", expanded=False):
+            new_key = st.text_input("Variable name", key="env_editor_new_key", placeholder="MY_SETTING")
+            new_key_draft = str(st.session_state.get("env_editor_new_key", "") or "")
+            new_value = st.text_input(
+                "Variable value",
+                key="env_editor_new_value",
+                placeholder="value",
+                type="password" if _is_sensitive_env_key(new_key_draft) else "default",
+                type_dependency={
+                    "key": "env_editor_new_key",
+                    "pattern": SENSITIVE_ENV_KEY_RE.pattern,
+                    "flags": "i",
+                },
+            )
+        for label, group_keys in _env_editor_groups(unique_keys).items():
+            with st.expander(f"{label} ({len(group_keys)})", expanded=False):
+                for key in group_keys:
+                    default_value = last_value_map.get(key, template_defaults.get(key, ""))
+                    if key == CLUSTER_CREDENTIALS_KEY and key not in last_value_map:
+                        default_value = ""
+                    if key == CLUSTER_CREDENTIALS_KEY and default_value == KEYRING_SENTINEL:
+                        default_value = ""
+                    display_value = _env_editor_input_value(key, default_value)
+                    st.text_input(
+                        _env_editor_field_label(key),
+                        value=display_value,
+                        key=f"env_editor_val_{key}",
+                        help=f"Set value for {key}",
+                        type="password" if _is_sensitive_env_key(key) else "default",
+                    )
 
     if submitted:
         cleaned_updates: Dict[str, str] = {}

@@ -25,6 +25,18 @@ Most users get it through the AGILAB UI profile:
 pip install "agilab[ui]"
 ```
 
+## Native Host Accessibility
+
+Native Python controls retain their state while React renders the workspace.
+Radio options expose their individual labels, tabs support Arrow, Home and End
+keys, and modal dialogs restore focus when they close. Escape also closes the
+contextual tools panel from the main workspace.
+
+Long labels and project names wrap on narrow screens. Python plots can supply
+alternative text, and the threaded HTTP host selects a headless Matplotlib
+backend before executing views. Notebook rendering keeps its existing kernel
+and Python callbacks; the HTTP backend setup applies to the web host.
+
 ## Component Contract
 
 ```python

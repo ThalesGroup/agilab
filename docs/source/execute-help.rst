@@ -13,6 +13,13 @@ snippets. The mutable per-user settings file lives under
 ``~/.agilab/apps/<app>/app_settings.toml`` and is seeded from the app's
 versioned ``app_settings.toml`` source file on first use.
 
+Execution controls appear before the optional detail sections.
+**Environment health**, **Resources and deployment**, **Configure run
+arguments**, and **Run options** start collapsed. Open them to inspect or
+change the configuration; their values remain available to execution.
+When **RUN** is unavailable, its blocking reason stays visible beside the
+button, with deployment controls in **Resources and deployment**.
+
 Page snapshot
 -------------
 

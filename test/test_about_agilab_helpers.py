@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import threading
 import tomllib
 from types import SimpleNamespace
@@ -4561,6 +4562,105 @@ def test_handle_data_root_failure_reads_persisted_share_when_runtime_state_empty
     assert all("(expands to `.`)" not in body for _kind, body in fake_st.events)
 
 
+def test_env_editor_grouped_sections_preserve_hidden_settings_and_secret_values(tmp_path, monkeypatch):
+    env_editor = about_agilab._about_env_editor
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "AGI_PYTHON_VERSION=3.13\nOPENAI_API_KEY=existing-synthetic-secret\n"
+        "UNKNOWN_PRIVATE_SECRET=hidden-synthetic-secret\n# AGI_CLUSTER_ENABLED=0\n",
+        encoding="utf-8",
+    )
+    template_file = tmp_path / "template.env"
+    template_file.write_text(
+        "AGI_CLUSTER_SHARE=\nAGI_PYTHON_VERSION=3.13\n# AGI_CLUSTER_ENABLED=0\n"
+        "OPENAI_API_KEY=\nCUSTOM_SETTING=\n",
+        encoding="utf-8",
+    )
+    fake_st = _FakeStreamlit(button_values={"Save .env": True})
+    captured_inputs = {}
+    original_input = fake_st.text_input
+
+    def capture_input(label, **kwargs):
+        captured_inputs[kwargs.get("key")] = dict(kwargs)
+        return original_input(label, **kwargs)
+
+    fake_st.text_input = capture_input
+    fake_st.session_state.update({
+        "env_editor_new_key": "AGILAB_UX_SYNTHETIC_SECRET",
+        "env_editor_new_value": "new-synthetic-secret",
+    })
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", env_file)
+    monkeypatch.setattr(about_agilab, "TEMPLATE_ENV_PATH", template_file)
+    about_agilab._render_env_editor(SimpleNamespace(envars={}))
+
+    sections = [body for kind, body in fake_st.events if kind == "expander"]
+    for expected in (
+        "Add a new variable:False", "Workspace and data (1):False",
+        "Python runtime (1):False", "Cluster and execution (1):False",
+        "Credentials and services (1):False", "Other settings (1):False",
+    ):
+        assert expected in sections
+    assert fake_st.events.index(("form_submit_button", "Save .env")) < fake_st.events.index(("text_input", "Default Python version"))
+    assert captured_inputs["env_editor_val_OPENAI_API_KEY"]["value"] == ""
+    assert captured_inputs["env_editor_val_OPENAI_API_KEY"]["type"] == "password"
+    dependency = captured_inputs["env_editor_new_value"]["type_dependency"]
+    assert dependency["key"] == "env_editor_new_key"
+    assert re.search(dependency["pattern"], "lowercase_api_token", flags=re.IGNORECASE)
+    written = env_file.read_text(encoding="utf-8")
+    assert "OPENAI_API_KEY=existing-synthetic-secret" in written
+    assert "UNKNOWN_PRIVATE_SECRET=hidden-synthetic-secret" in written
+    assert "# AGI_CLUSTER_ENABLED=0" in written
+    assert "AGILAB_UX_SYNTHETIC_SECRET=new-synthetic-secret" in written
+    assert "env_editor_val_UNKNOWN_PRIVATE_SECRET" not in captured_inputs
+
+
+def test_env_editor_native_form_serializes_masking_and_saves_collapsed_controls(tmp_path, monkeypatch):
+    from agi_web import python_ui as native_ui
+
+    env_editor = about_agilab._about_env_editor
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "AGI_PYTHON_VERSION=3.13\nOPENAI_API_KEY=existing-synthetic-secret\n"
+        "UNKNOWN_PRIVATE_SECRET=hidden-synthetic-secret\n",
+        encoding="utf-8",
+    )
+    template_file = tmp_path / "template.env"
+    template_file.write_text("AGI_PYTHON_VERSION=3.13\nOPENAI_API_KEY=\n", encoding="utf-8")
+    monkeypatch.setattr(env_editor, "st", native_ui)
+    monkeypatch.setattr(env_editor, "ENV_FILE_PATH", env_file)
+    monkeypatch.setattr(env_editor, "TEMPLATE_ENV_PATH", template_file)
+    monkeypatch.setenv("AGI_PYTHON_VERSION", "preexisting-synthetic")
+    monkeypatch.setenv("AGILAB_UX_SYNTHETIC_SECRET", "preexisting-synthetic")
+    session = ViewSession(lambda: env_editor._render_env_editor(SimpleNamespace(envars={})))
+    initial = session.render()
+    assert not initial["error"]
+    assert "existing-synthetic-secret" not in json.dumps(initial)
+    widgets = {widget.key: widget for widget in session.widgets.values()}
+    value_widget = widgets["env_editor_new_value"]
+    assert value_widget.props["type_dependency"]["key"] == "env_editor_new_key"
+    assert widgets["env_editor_val_OPENAI_API_KEY"].props["value"] == ""
+    form = next(node for node in initial["nodes"]["main"] if node["kind"] == "form")
+    assert form["children"][0]["kind"] == "form_submit_button"
+    sections = [node for node in form["children"] if node["kind"] == "expander"]
+    assert sections and all(not section["props"]["expanded"] for section in sections)
+    submit = next(widget for widget in session.widgets.values() if widget.kind == "form_submit_button")
+    result = session.dispatch({
+        "id": submit.id, "value": True, "revision": initial["revision"], "csrf_token": initial["csrf_token"],
+        "form_values": {
+            widgets["env_editor_new_key"].id: "AGILAB_UX_SYNTHETIC_SECRET",
+            value_widget.id: "new-synthetic-secret",
+            widgets["env_editor_val_AGI_PYTHON_VERSION"].id: "3.12",
+        },
+    })
+    assert not result["error"]
+    written = env_file.read_text(encoding="utf-8")
+    assert "AGI_PYTHON_VERSION=3.12" in written
+    assert "AGILAB_UX_SYNTHETIC_SECRET=new-synthetic-secret" in written
+    assert "OPENAI_API_KEY=existing-synthetic-secret" in written
+    assert "UNKNOWN_PRIVATE_SECRET=hidden-synthetic-secret" in written
+
+
 def test_render_env_editor_saves_updates_and_redacted_preview(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text(
@@ -5930,7 +6030,8 @@ def test_settings_page_renders_environment_and_runtime_controls(monkeypatch):
     about_agilab.settings_page(env)
 
     assert ("markdown", "## Settings") in fake_st.events
-    assert ("markdown", "#### Runtime diagnostics") in fake_st.events
+    assert ("expander", "Runtime diagnostics:False") in fake_st.events
+    assert fake_st.events.index(("env_editor", "rendered")) < fake_st.events.index(("selectbox", "Diagnostics level"))
     assert ("selectbox", "Diagnostics level") in fake_st.events
     assert ("env_editor", "rendered") in fake_st.events
     assert rendered_versions == ["2026.4.28"]

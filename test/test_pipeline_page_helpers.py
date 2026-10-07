@@ -74,6 +74,60 @@ def _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root: Path):
     return module
 
 
+def test_workflow_status_is_optional_and_preserves_all_five_cards(tmp_path, monkeypatch):
+    from agi_web import python_ui
+    from agi_web.testing import AppTest
+
+    module = _load_pipeline_module()
+    env = SimpleNamespace()
+    monkeypatch.setattr(module, "st", python_ui)
+    monkeypatch.setattr(module, "get_stages_list", lambda *_args: [])
+    monkeypatch.setattr(module, "_scan_pipeline_output_files", lambda _root: {
+        "count": 3, "dataframes": 2, "truncated": False, "latest": None,
+    })
+    monkeypatch.setattr(module, "load_pipeline_conceptual_dot", lambda *_args: (None, ""))
+    monkeypatch.setattr(module, "_latest_pipeline_workspace_mtime", lambda *_args: None)
+    app = AppTest.from_function(lambda: module._render_pipeline_workspace_overview(
+        env, tmp_path, tmp_path / "lab_stages.toml",
+    )).run()
+    assert not app.exception
+    assert len(app.expander) == 1
+    assert app.expander[0].node["props"]["label"] == "Workflow status and outputs"
+    assert app.expander[0].node["props"]["expanded"] is False
+    rendered = " ".join(str(element.value) for element in app.markdown)
+    for label in ["Runnable", "Output files", "Dataframes", "Workflow graph", "Updated"]:
+        assert label in rendered
+    assert "3" in rendered
+    assert "2" in rendered
+
+
+def test_workflow_main_has_one_title_and_retains_page_and_notebook_context(tmp_path, monkeypatch):
+    from agi_web import python_ui
+    from agi_web.testing import AppTest
+
+    module = _load_pipeline_module()
+    env = SimpleNamespace(
+        agilab_pck=tmp_path, apps_path=tmp_path / "apps", AGILAB_LOG_ABS=tmp_path / "logs",
+        target="owned", active_app=tmp_path / "owned_project",
+    )
+    monkeypatch.setattr(module, "st", python_ui)
+    monkeypatch.setattr(module, "_ensure_page_env", lambda *_args, **_kwargs: env)
+    monkeypatch.setattr(module, "render_page_chrome", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "_pipeline_export_root", lambda _env: tmp_path / "exports")
+    monkeypatch.setattr(module, "background_services_enabled", lambda: False)
+    monkeypatch.setattr(module, "page", lambda: python_ui.caption("Existing workflow and notebook actions"))
+    monkeypatch.setattr(module, "render_context_expander", lambda *_args, **_kwargs: python_ui.caption("Workflow context"))
+    app = AppTest.from_function(module.main)
+    app.session_state["env"] = env
+    app.run()
+    assert not app.exception
+    assert len(app.title) == 1
+    assert app.title[0].value == "Build and run a workflow"
+    assert [element.value for element in app.caption] == [
+        "Existing workflow and notebook actions", "Workflow context",
+    ]
+
+
 def test_load_pre_prompt_messages_returns_list(tmp_path, monkeypatch):
     module = _load_pipeline_module()
     warnings: list[str] = []

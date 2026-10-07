@@ -2590,9 +2590,10 @@ def _render_multi_app_dag_graph(state: Dict[str, Any], *, key_prefix: str) -> No
         graph_state = _multi_app_dag_graph_state(
             state, selected_id, focus=True, neighbor_offset=st.session_state[page_key] * 3, neighbor_limit=3,
         )
-    st.graphviz_chart(_multi_app_dag_dot(graph_state, selected_unit_id=selected_id, stages_only=focus), width="content")
-    if focus:
-        st.caption(f"Showing {len(graph_state['units'])} of {len(units)} stages. Connections join stages; inputs and outputs are listed below. Choose Whole plan for the full artifact graph.")
+    with st.expander("Graph preview", expanded=False):
+        st.graphviz_chart(_multi_app_dag_dot(graph_state, selected_unit_id=selected_id, stages_only=focus), width="content")
+        if focus:
+            st.caption(f"Showing {len(graph_state['units'])} of {len(units)} stages. Connections join stages; inputs and outputs are listed below. Choose Whole plan for the full artifact graph.")
     selected = units[selected_id]
     st.caption(f"{selected_id}: {_multi_app_dag_workplan_state(selected)}")
     input_col, output_col = st.columns(2)
@@ -3328,6 +3329,7 @@ def _render_global_runner_state_view(
     support_message = str(getattr(real_run_support, "message", "")).strip()
     if support_message:
         st.caption(support_message)
+    run_actions_slot = st.container()
     _render_multi_app_dag_graph(state, key_prefix=f"{index_page_str}_global_runner")
     with st.expander("Plan details", expanded=False):
         if dag_label:
@@ -3472,7 +3474,8 @@ def _render_global_runner_state_view(
             for unit in _multi_app_dag_units(state)
         ):
             st.caption("Targets include stages whose inputs are now available.")
-        run_next_col, run_ready_col = st.columns(2)
+        with run_actions_slot:
+            run_next_col, run_ready_col = st.columns(2)
         can_run_next = stage_backend == GLOBAL_DAG_STAGE_BACKEND_LOCAL
         with run_next_col:
             if can_run_next and next_targets is not None:
@@ -4558,7 +4561,7 @@ def display_lab_tab(
         first_generation_mode_key = f"{safe_prefix}_first_generation_mode"
         if new_q_key not in st.session_state:
             st.session_state[new_q_key] = ""
-        with st.expander("New stage", expanded=True):
+        with st.expander("New stage", expanded=False):
             stage_source = compact_choice(
                 st,
                 "Stage source",

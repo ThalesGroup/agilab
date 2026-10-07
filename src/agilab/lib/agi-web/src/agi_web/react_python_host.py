@@ -27,11 +27,24 @@ _MAX_BODY = 48 * 1024 * 1024
 _SESSION_TTL = 8 * 60 * 60
 
 
+def _configure_headless_plotting() -> None:
+    """Keep figure creation in HTTP threads independent of desktop GUI loops.
+
+    Matplotlib remains optional and is only imported by views that use it.
+    Importing this module from a notebook does not change its chosen backend.
+    """
+    os.environ["MPLBACKEND"] = "Agg"
+    matplotlib = sys.modules.get("matplotlib")
+    if matplotlib is not None:
+        matplotlib.use("Agg", force=True)
+
+
 class ReactPythonServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address: tuple[str, int], source: Path | Callable[[], Any], *, argv=None):
         enforce_public_bind_policy(ui_config_getter=lambda option: address[0] if option == "address" else None)
+        _configure_headless_plotting()
         self.source = source
         self.source_argv = list(argv or [])
         self.sessions: dict[str, tuple[ViewSession, float]] = {}
