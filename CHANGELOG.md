@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.07] - 2026-10-07
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
+
 ### Prepared release — `2026.10.07`
 
 The release candidate includes `agi-web`, `agi-gui`, `agi-pages`,
@@ -75,6 +79,12 @@ remains the current public evidence.
 - Require a pre-existing release tag bound to the exact publication commit before
   PyPI publishing and GitHub release-asset attachment. Missing or mismatched tags
   stop the workflow before uploads; release creation verifies the existing tag.
+
+### Changed
+
+- Published AGILAB `2026.10.07` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, `agi-app-learning-assessment`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.05.1] - 2026-10-06
 
@@ -1192,3 +1202,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
 [2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
 [2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
+[2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
