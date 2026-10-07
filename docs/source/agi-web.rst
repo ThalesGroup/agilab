@@ -28,6 +28,11 @@ renderer also honours ``width="stretch"``.
 Jupyter through an AnyWidget. Each view has its Python session; callback events
 rerender that session. Notebook styles remain local to the widget.
 
+Plotly's SVG layers and modebar styles are also copied into each widget's
+shadow root. Charts honour ``figure.layout.height`` or use a default height of
+450 pixels. Available-width changes resize the chart; its own rendered height
+does not trigger another resize. Multiple widgets keep independent styles.
+
 ``agi_web.portable_python_host.export_python_host`` copies the standard-library
 host and bundled assets into a portable directory. It does not export the
 app's scientific dependencies, models or datasets automatically.
