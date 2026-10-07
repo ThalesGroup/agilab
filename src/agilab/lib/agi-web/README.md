@@ -98,6 +98,20 @@ React views require a live widget frontend; the static HTML adapter remains for
 the existing Canvas2D/WebGL components. Notebook page exports always retain
 native tables and diagnose missing Python widget dependencies before using Plotly.
 
+On slower CPUs, point selection reuses the existing map/curve geometry instead
+of rebuilding every marker and path. Group, zoom, series, range and payload
+changes still update the plot. All displayed points, hover labels and keyboard
+selection remain available in both the native browser adapter and Jupyter.
+
+Local form drafts and contextual tools also reuse unchanged Markdown, tables
+and chart nodes. Python transport updates continue to refresh changed content
+and control values. This reduces frontend work; it does not speed up Python
+calculations or establish a hardware-independent interaction latency.
+
+Maintainers run the DOM regressions with `npm run test:controls` in `frontend/`.
+They exercise real controls and verify that unchanged content/geometry remains
+stable while selections, new payloads and callbacks still update correctly.
+
 Maintainers rebuild assets with `npm ci --ignore-scripts` then `npm run build`
 in `frontend/`. The committed bundles contain React and its license, require no
 CDN downloads, and ship with deterministic SHA-256 integrity metadata.

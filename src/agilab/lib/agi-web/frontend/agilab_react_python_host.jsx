@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useEffect, useId, useRef, useState} from "react";
+import React, {createContext, memo, useCallback, useContext, useEffect, useId, useMemo, useRef, useState} from "react";
 import {createRoot} from "react-dom/client";
 import {markdownHTML, mathHTML, sanitizeHTML} from "./agilab_python_view_markup.js";
 import {PythonLinkAction, safeURL} from "./agilab_python_link_action.jsx";
@@ -6,13 +6,17 @@ import "./agilab_react_python_host.css";
 
 const View = createContext(null);
 
-function Markup({body}) {
+const Markup = memo(function Markup({body}) {
   return <div dangerouslySetInnerHTML={{__html: sanitizeHTML(body)}}/>;
-}
+});
 
-function Markdown({body}) {
+const Markdown = memo(function Markdown({body}) {
   return <div className="py-markdown" dangerouslySetInnerHTML={{__html: markdownHTML(body)}}/>;
-}
+});
+
+const Latex = memo(function Latex({body}) {
+  return <div className="py-latex" dangerouslySetInnerHTML={{__html: sanitizeHTML(mathHTML(body))}}/>;
+});
 
 function Island({node}) {
   const {send, toolsPanel} = useContext(View), element = useRef(null), module = useRef(null), dispose = useRef(null), latest = useRef(null);
@@ -144,12 +148,17 @@ function Control({node}) {
 }
 
 function DataTable({node}) {
-  const view = useContext(View), p = node.props, selected = p.value?.rows || [];
+  const view = useContext(View);
+  return <Table node={node} send={view.send} busy={Boolean(node.props.selection_mode && view.busy)}/>;
+}
+
+const Table = memo(function Table({node, send, busy}) {
+  const p = node.props, selected = p.value?.rows || [];
   return <div className="py-table" data-widget-kind="dataframe" data-widget-key={p.key}><table><thead><tr>{p.selection_mode && <th>Select</th>}{p.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead><tbody>{p.rows.map((row, index) => <tr key={index}>
-    {p.selection_mode && <td><input aria-label={`Select row ${index + 1}`} type="checkbox" checked={selected.includes(index)} disabled={view.busy} onChange={event => view.send(node, {rows: event.target.checked ? p.selection_mode === "single-row" ? [index] : [...selected, index] : selected.filter(item => item !== index)})}/></td>}
+    {p.selection_mode && <td><input aria-label={`Select row ${index + 1}`} type="checkbox" checked={selected.includes(index)} disabled={busy} onChange={event => send(node, {rows: event.target.checked ? p.selection_mode === "single-row" ? [index] : [...selected, index] : selected.filter(item => item !== index)})}/></td>}
     {row.map((cell, cellIndex) => <td key={cellIndex}>{typeof cell === "object" ? JSON.stringify(cell) : String(cell ?? "")}</td>)}
   </tr>)}</tbody></table></div>;
-}
+});
 
 function Tabs({node}) {
   const [selected, setSelected] = useState(0);
@@ -157,26 +166,36 @@ function Tabs({node}) {
 }
 
 const controls = new Set(["button", "form_submit_button", "checkbox", "toggle", "text_input", "text_area", "number_input", "slider", "selectbox", "radio", "pills", "segmented_control", "select_slider", "multiselect", "date_input", "file_uploader"]);
-function Node({node}) {
-  const view = useContext(View), p = node.props, content = <Nodes nodes={node.children}/>;
+function Form({node}) {
+  const view = useContext(View);
+  return <form className="py-form" data-form={node.id} onSubmit={event => {
+    event.preventDefault();
+    const submitted = view.widgets[event.nativeEvent.submitter?.id];
+    const button = submitted?.props.form === node.id ? submitted : Object.values(view.widgets).find(widget => widget.kind === "form_submit_button" && widget.props.form === node.id && !widget.props.disabled);
+    if (button) view.send(button, true, {form_values: Object.fromEntries(Object.entries(view.forms).filter(([id]) => view.widgets[id]?.props.form === node.id))});
+  }}><Nodes nodes={node.children}/></form>;
+}
+
+function LinkAction({node}) {
+  return <PythonLinkAction node={node} view={useContext(View)}/>;
+}
+
+// Pure traversal stays outside View so local controls do not repaint heavy siblings.
+const Node = memo(function Node({node}) {
+  const p = node.props, content = <Nodes nodes={node.children}/>;
   if (controls.has(node.kind)) return <div data-widget-kind={node.kind} data-widget-key={p.key}><Control node={node}/></div>;
   if (node.kind === "component") return <Island node={node}/>;
   if (node.kind === "columns") return <div className="py-columns" style={{gridTemplateColumns: p.weights.map(weight => `${weight}fr`).join(" ")}}>{content}</div>;
   if (node.kind === "tabs") return <Tabs node={node}/>;
   if (node.kind === "expander" || node.kind === "status") return <details className="py-expander" data-widget-kind={node.kind} data-widget-key={p.key} data-state={p.state} open={p.expanded}><summary>{p.label}</summary>{content}</details>;
-  if (node.kind === "form") return <form className="py-form" data-form={node.id} onSubmit={event => {
-    event.preventDefault();
-    const submitted = view.widgets[event.nativeEvent.submitter?.id];
-    const button = submitted?.props.form === node.id ? submitted : Object.values(view.widgets).find(widget => widget.kind === "form_submit_button" && widget.props.form === node.id && !widget.props.disabled);
-    if (button) view.send(button, true, {form_values: Object.fromEntries(Object.entries(view.forms).filter(([id]) => view.widgets[id]?.props.form === node.id))});
-  }}>{content}</form>;
+  if (node.kind === "form") return <Form node={node}/>;
   if (node.kind === "dialog") return <div className="py-dialog-backdrop"><section role="dialog" aria-modal="true" aria-label={p.title}><h2>{p.title}</h2>{content}</section></div>;
   if (node.kind === "container" || node.kind === "tab") return <div className={`py-container ${p.border ? "py-border" : ""}`} style={p.height && typeof p.height === "number" ? {maxHeight: p.height, overflow: "auto"} : {}}>{content}</div>;
   if (["title", "header", "subheader"].includes(node.kind)) return React.createElement({title: "h1", header: "h2", subheader: "h3"}[node.kind], null, p.body);
   if (node.kind === "caption") return <p className="py-caption">{p.body}</p>;
   if (node.kind === "markdown") return <Markdown body={p.body}/>;
   if (node.kind === "html") return <Markup body={p.body}/>;
-  if (node.kind === "latex") return <div className="py-latex" dangerouslySetInnerHTML={{__html: sanitizeHTML(mathHTML(p.body))}}/>;
+  if (node.kind === "latex") return <Latex body={p.body}/>;
   if (["text", "code", "json"].includes(node.kind)) return <pre className={`py-${node.kind}`}><code>{p.body}</code></pre>;
   if (["error", "warning", "info", "success", "exception"].includes(node.kind)) return <div className={`py-alert py-${node.kind}`} role={node.kind === "error" || node.kind === "exception" ? "alert" : "status"}>{p.body || p.message}</div>;
   if (node.kind === "metric") return <div className="py-metric"><span>{p.label}</span><strong>{p.value}</strong>{p.delta && <small>{p.delta}</small>}</div>;
@@ -189,11 +208,11 @@ function Node({node}) {
   if (node.kind === "altair_chart") return <Vega node={node}/>;
   if (node.kind === "html_frame") return <iframe className="py-frame" sandbox="allow-scripts allow-downloads" srcDoc={p.body} style={{height: p.height || 450}} title="Embedded view"/>;
   if (node.kind === "iframe") return <iframe className="py-frame" src={safeURL(p.src)} style={{height: p.height || 450}} title="Embedded view"/>;
-  if (["download_button", "link_button", "page_link"].includes(node.kind)) return <PythonLinkAction node={node} view={view}/>;
+  if (["download_button", "link_button", "page_link"].includes(node.kind)) return <LinkAction node={node}/>;
   return <div role="alert">Unsupported view element: {node.kind}</div>;
-}
+});
 
-function Nodes({nodes}) {return nodes.map(node => <Node key={node.id} node={node}/>);}
+const Nodes = memo(function Nodes({nodes}) {return nodes.map(node => <Node key={node.id} node={node}/>);});
 function widgetMap(nodes, result = {}) {for (const node of nodes) {result[node.id] = node; widgetMap(node.children, result);} return result;}
 
 export function PythonViewApp({transport = null, initialPayload = null} = {}) {
@@ -210,7 +229,7 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     toolsTrigger.current = trigger;
     setShowSidebar(open => !open);
   }, []);
-  const runOperation = (kind, job) => {
+  const runOperation = useCallback((kind, job) => {
     const epoch = operationEpoch.current;
     pending.current += 1;
     if (!working.current) {working.current = true; setBusy(true); setBusyKind(kind);}
@@ -224,8 +243,8 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     });
     operations.current = next;
     return next;
-  };
-  const accept = (next, replace = false) => {
+  }, []);
+  const accept = useCallback((next, replace = false) => {
     if (current.current?.path !== next.path) setShowSidebar(false);
     current.current = next; setPayload(next); setError("");
     if (transport) return;
@@ -233,8 +252,8 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     const url = new URL(next.path, location.origin);
     Object.entries(next.query).forEach(([key, values]) => (Array.isArray(values) ? values : [values]).forEach(value => url.searchParams.append(key, value)));
     if (url.pathname + url.search !== location.pathname + location.search) history[replace ? "replaceState" : "pushState"]({}, "", url);
-  };
-  const load = (target = null, replace = false) => runOperation("navigation", async () => {
+  }, [transport]);
+  const load = useCallback((target = null, replace = false) => runOperation("navigation", async () => {
       const base = transport ? new URL(current.current?.path || "/", "https://agi-web.invalid") : new URL(location.href);
       const url = target == null ? base : target instanceof URL ? target : new URL(target, base);
       let next;
@@ -254,8 +273,8 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
         next = await response.json(); if (!response.ok) throw new Error(next.error);
       }
       setForms({}); accept(next, replace);
-  });
-  const send = (node, value, extra = {}) => {
+  }), [transport, runOperation, accept]);
+  const send = useCallback((node, value, extra = {}) => {
     const context = JSON.stringify([current.current.path, current.current.query]);
     return runOperation(node.kind, async () => {
     if (context !== JSON.stringify([current.current.path, current.current.query])) throw new Error("The view changed while this action was waiting. Try again.");
@@ -280,7 +299,7 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
       accept(next);
     } finally {actionActive = false; clearInterval(progress);}
     });
-  };
+  }, [transport, runOperation, accept]);
   useEffect(() => {
     if (!initialPayload) load(undefined, true);
     if (transport) return;
@@ -291,10 +310,10 @@ export function PythonViewApp({transport = null, initialPayload = null} = {}) {
     const interval = setInterval(() => {if (!working.current && !Object.keys(forms).length && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) load();}, Math.max(1, payload.auto_refresh) * 1000);
     return () => clearInterval(interval);
   }, [payload?.auto_refresh, forms]);
+  const widgets = useMemo(() => payload ? widgetMap([...payload.nodes.main, ...payload.nodes.sidebar]) : {}, [payload?.nodes]);
   if (!payload) return <main className="py-loading">{error || "Opening AGILAB…"}</main>;
   const hasSidebar = payload.nodes.sidebar.length > 0;
   const sidebarOpen = hasSidebar && showSidebar;
-  const widgets = widgetMap([...payload.nodes.main, ...payload.nodes.sidebar]);
   const hasWorkspaceTools = Object.values(widgets).some(node =>
     node.kind === "component" && node.props.name === "agilab_react_main_interface" && Array.isArray(node.props.data?.routes));
   const toolsPanel = {available: hasSidebar, open: sidebarOpen, setOpen: setToolsOpen};

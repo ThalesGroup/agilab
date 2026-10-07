@@ -423,6 +423,12 @@ under Advanced parameters. Updated package
 publication and hosted deployment are separate from this source migration;
 previously published wheels retain the dependencies of their release.
 
+The shared React views reuse unchanged content while editing form drafts or
+opening contextual tools. Map and curve selections reuse plot geometry and keep
+all displayed points selectable, in both the browser and Jupyter. These changes
+reduce browser work on slower CPUs; Python calculations and network response
+times still depend on the workload and deployment.
+
 ### Source Checkout With External Apps
 
 When running AGILAB from a source checkout, `--install-apps` installs the
