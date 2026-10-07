@@ -4661,6 +4661,85 @@ def test_env_editor_native_form_serializes_masking_and_saves_collapsed_controls(
     assert "UNKNOWN_PRIVATE_SECRET=hidden-synthetic-secret" in written
 
 
+@pytest.mark.parametrize(
+    "saved_value",
+    [about_agilab._about_env_editor.KEYRING_SENTINEL, "existing-synthetic-cluster-secret"],
+    ids=["keyring-reference", "dotenv-secret"],
+)
+def test_env_editor_native_form_preserves_existing_cluster_credentials(
+    tmp_path, monkeypatch, saved_value
+):
+    from agi_web import python_ui as native_ui
+
+    env_editor = about_agilab._about_env_editor
+    credential_key = env_editor.CLUSTER_CREDENTIALS_KEY
+    runtime_secret = "runtime-synthetic-cluster-secret"
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        f"AGI_PYTHON_VERSION=3.13\n{credential_key}={saved_value}\n",
+        encoding="utf-8",
+    )
+    template_file = tmp_path / "template.env"
+    template_file.write_text(
+        f"AGI_PYTHON_VERSION=3.13\n{credential_key}=\n", encoding="utf-8"
+    )
+    env = SimpleNamespace(
+        envars={credential_key: runtime_secret}, CLUSTER_CREDENTIALS=runtime_secret
+    )
+    stored_credentials = []
+    monkeypatch.setattr(env_editor, "st", native_ui)
+    monkeypatch.setattr(env_editor, "ENV_FILE_PATH", env_file)
+    monkeypatch.setattr(env_editor, "TEMPLATE_ENV_PATH", template_file)
+    monkeypatch.setattr(
+        env_editor,
+        "store_cluster_credentials",
+        lambda secret, **_kwargs: stored_credentials.append(secret) or True,
+    )
+    monkeypatch.setenv(credential_key, runtime_secret)
+    monkeypatch.setenv("AGI_PYTHON_VERSION", "3.13")
+    session = ViewSession(lambda: env_editor._render_env_editor(env))
+
+    initial = session.render()
+    assert not initial["error"]
+    widgets = {widget.key: widget for widget in session.widgets.values()}
+    credential_widget = widgets[f"env_editor_val_{credential_key}"]
+    assert credential_widget.props["value"] == ""
+    assert credential_widget.props["type"] == "password"
+    assert saved_value not in json.dumps(initial)
+    assert runtime_secret not in json.dumps(initial)
+    form = next(node for node in initial["nodes"]["main"] if node["kind"] == "form")
+    credential_section = next(
+        node for node in form["children"]
+        if node["kind"] == "expander"
+        and node["props"]["label"].startswith("Credentials and services")
+    )
+    assert not credential_section["props"]["expanded"]
+    submit = next(
+        widget for widget in session.widgets.values()
+        if widget.kind == "form_submit_button"
+    )
+
+    result = session.dispatch({
+        "id": submit.id, "value": True,
+        "revision": initial["revision"], "csrf_token": initial["csrf_token"],
+        "form_values": {
+            credential_widget.id: "",
+            widgets["env_editor_val_AGI_PYTHON_VERSION"].id: "3.12",
+        },
+    })
+
+    assert not result["error"]
+    assert env_file.read_text(encoding="utf-8") == (
+        f"AGI_PYTHON_VERSION=3.12\n{credential_key}={saved_value}\n"
+    )
+    assert stored_credentials == []
+    assert env.envars[credential_key] == runtime_secret
+    assert env.CLUSTER_CREDENTIALS == runtime_secret
+    assert os.environ[credential_key] == runtime_secret
+    assert saved_value not in json.dumps(result)
+    assert runtime_secret not in json.dumps(result)
+
+
 def test_render_env_editor_saves_updates_and_redacted_preview(tmp_path, monkeypatch):
     env_file = tmp_path / ".env"
     env_file.write_text(
