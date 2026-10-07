@@ -142,7 +142,7 @@ def main():
                         page.on("response", lambda response: failed_responses.append({"url": response.url, "status": response.status}) if response.status >= 400 else None)
                         page.goto(url)
                         shell = page.locator(".agilab-main-interface")
-                        shell.get_by_role("heading", name="From a project to replayable results").wait_for(timeout=60000)
+                        shell.get_by_role("heading", name="Run a project, explore its results").wait_for(timeout=60000)
                         picker = shell.get_by_label("Project", exact=True)
                         assert picker.input_value() == "alpha_project"
                         shell.get_by_role("button", name="WORKFLOW", exact=True).first.click()
@@ -254,7 +254,7 @@ def main():
                         shell.get_by_role("button", name="SETTINGS", exact=True).click()
                         page.get_by_role("heading", name="Python settings").wait_for()
                         shell.get_by_role("button", name="AGILAB home", exact=True).click()
-                        shell.get_by_role("heading", name="From a project to replayable results").wait_for()
+                        shell.get_by_role("heading", name="Run a project, explore its results").wait_for()
                         assert picker.input_value() == "beta_project"
                         shell.get_by_role("button", name="ANALYSIS", exact=True).first.click()
                         page.get_by_role("heading", name="Python 4_ANALYSIS").wait_for()
@@ -271,7 +271,7 @@ def main():
                         second.close()
                         page.set_viewport_size({"width": 390, "height": 844})
                         shell.get_by_role("button", name="AGILAB home", exact=True).click()
-                        shell.get_by_role("heading", name="From a project to replayable results").wait_for()
+                        shell.get_by_role("heading", name="Run a project, explore its results").wait_for()
                         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                         page.screenshot(path=str(output / "agilab_react_main_interface_mobile_preview.png"), full_page=True)
                         page.set_viewport_size({"width": 1440, "height": 1100})

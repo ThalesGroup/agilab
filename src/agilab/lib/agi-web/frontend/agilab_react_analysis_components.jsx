@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useId } from "react";
+import React, { memo, useCallback, useState, useMemo, useEffect, useRef, useId } from "react";
 
 const colors = ["#2563eb", "#f97316", "#059669", "#9333ea", "#dc2626", "#0891b2"];
 const W = 760, H = 340, pad = 52;
@@ -23,14 +23,19 @@ function formatDate(value, step) {
   const micros = date.getUTCMilliseconds() * 1000 + Math.floor((value - whole) * 1000);
   return `${iso.slice(5, 19).replace("T", " ")}.${String(micros).padStart(6, "0")}`;
 }
-function Scale({ children, xs, ys, xLabel, yLabel, zoom = 1, xSingleMargin, formatX = formatNumber }) {
-  const clipId = useId();
+function scaleGeometry(xs, ys, zoom, xSingleMargin) {
   const [xa, xb] = extent(xs, xSingleMargin), [ya, yb] = extent(ys);
   const xm = (xa + xb) / 2, ym = (ya + yb) / 2;
   const x0 = xm - (xb - xa) / (2 * zoom), x1 = xm + (xb - xa) / (2 * zoom);
   const y0 = ym - (yb - ya) / (2 * zoom), y1 = ym + (yb - ya) / (2 * zoom);
   const x = (v) => pad + (v - x0) / (x1 - x0) * (W - pad * 2);
   const y = (v) => H - pad - (v - y0) / (y1 - y0) * (H - pad * 2);
+  return {x0, x1, y0, y1, x, y};
+}
+function Scale({ children, xs, ys, xLabel, yLabel, zoom = 1, xSingleMargin, formatX = formatNumber }) {
+  const clipId = useId();
+  const {x0, x1, y0, y1, x, y} = useMemo(() => scaleGeometry(xs, ys, zoom, xSingleMargin),
+    [xs, ys, zoom, xSingleMargin]);
   return <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${yLabel} against ${xLabel}`}>
     {Array.from({length: 5}, (_, i) => {
       const xv = x0 + (x1 - x0) * i / 4, yv = y0 + (y1 - y0) * i / 4;
@@ -57,8 +62,24 @@ function Range({ first, last, start, end, setStart, setEnd, format }) {
       value={end} onChange={e => setEnd(Math.max(+e.target.value, start))}/><span>{format(end)}</span></label>
   </div>;
 }
+const MapMarker = memo(function MapMarker({point, cx, cy, radius, color, selected, onChoose}) {
+  return <circle cx={cx} cy={cy} r={radius} fill={color} stroke={selected ? "currentColor" : "none"}
+    tabIndex="0" role="button" aria-label={`Position ${point.label}`}
+    onClick={() => onChoose(point)}
+    onKeyDown={e => {if(e.key === "Enter" || e.key === " "){e.preventDefault(); onChoose(point);}}}>
+    <title>{`${point.label}: ${point.latitude}, ${point.longitude}`}</title></circle>;
+});
+const MapMarkers = memo(function MapMarkers({points, x, y, zoom, groupColors, selectedRow, onChoose}) {
+  const positions = useMemo(() => points.map(point => ({point, row: point.row,
+    cx: x(point.longitude), cy: y(point.latitude), color: groupColors.get(point.group)})),
+  [points, x, y, groupColors]);
+  const radius = 4 / Math.sqrt(zoom);
+  return <g>{positions.map(position => <MapMarker key={position.row} point={position.point}
+    cx={position.cx} cy={position.cy} radius={radius} color={position.color}
+    selected={selectedRow === position.row} onChoose={onChoose}/>)}</g>;
+});
 export function CoordinateMap({ payload, payloadKey, onSelection }) {
-  const groups = useMemo(() => [...new Set(payload.points.map(p => p.group))], [payload]);
+  const groups = useMemo(() => [...new Set(payload.points.map(p => p.group))], [payload, payloadKey]);
   const groupColors = useMemo(() => new Map(groups.map((g, i) => [g, colors[i % colors.length]])), [groups]);
   const [group, setGroup] = useState(""), [selected, setSelected] = useState(null);
   const [zoom, setZoom] = useState(1);
@@ -67,12 +88,13 @@ export function CoordinateMap({ payload, payloadKey, onSelection }) {
     previousKey.current = payloadKey; setGroup(""); setSelected(null); setZoom(1); onSelection({});
   }, [payloadKey]);
   const clearSelection = () => { if (selected) onSelection({}); setSelected(null); };
-  const points = payload.points.filter(p => group === "" || p.group === groups[Number(group)]);
-  const xs = points.map(p => p.longitude), ys = points.map(p => p.latitude);
-  const choose = (point) => {
+  const points = useMemo(() => payload.points.filter(p => group === "" || p.group === groups[Number(group)]),
+    [payload, payloadKey, group, groups]);
+  const {xs, ys} = useMemo(() => ({xs: points.map(p => p.longitude), ys: points.map(p => p.latitude)}), [points]);
+  const choose = useCallback((point) => {
     setSelected(point);
     onSelection({row: point.row, label: point.label, latitude: point.latitude, longitude: point.longitude});
-  };
+  }, [onSelection]);
   return <>
     <div className="agilab-toolbar">
       <label>Group <select aria-label="Map group" value={group} onChange={e => {setGroup(e.target.value); clearSelection();}}>
@@ -83,16 +105,34 @@ export function CoordinateMap({ payload, payloadKey, onSelection }) {
     </div>
     <p className="agilab-hint">Longitude/latitude coordinates. {points.length} positions; no basemap required.</p>
     {points.length ? <Scale xs={xs} ys={ys} zoom={zoom} xLabel="Longitude (degrees)" yLabel="Latitude (degrees)">
-      {({x, y}) => <g>
-        {points.map(p => <circle key={p.row} cx={x(p.longitude)} cy={y(p.latitude)} r={4/Math.sqrt(zoom)}
-          fill={groupColors.get(p.group)} stroke={selected?.row === p.row ? "currentColor" : "none"}
-          tabIndex="0" role="button" aria-label={`Position ${p.label}`}
-          onClick={() => choose(p)} onKeyDown={e => {if(e.key === "Enter" || e.key === " "){e.preventDefault(); choose(p);}}}>
-          <title>{`${p.label}: ${p.latitude}, ${p.longitude}`}</title></circle>)}</g>}
+      {({x, y}) => <MapMarkers points={points} x={x} y={y} zoom={zoom} groupColors={groupColors}
+        selectedRow={selected?.row} onChoose={choose}/>}
     </Scale> : <p>No valid coordinates in this selection.</p>}
     <Selection point={selected && {...selected, label: `${selected.label}: latitude ${selected.latitude}, longitude ${selected.longitude}`}}/>
   </>;
 }
+const CurvesPlot = memo(function CurvesPlot({rows, active, xs, ys, payload, onChoose}) {
+  const formatX = payload.x_type === "datetime" ? formatDate : formatNumber;
+  return <Scale xs={xs} ys={ys}
+    xLabel={payload.x_type === "datetime" ? `${payload.x_label} (UTC)` : payload.x_label}
+    yLabel={payload.y_label} formatX={formatX} xSingleMargin={payload.x_type === "datetime" ? 43200000 : undefined}>
+    {({x, y}) => active.map(({series: s, color}) => {
+      let penDown = false;
+      const d = rows.map(r => {const v = r.values[s.id]; if (!finite(v)){penDown=false; return "";}
+        const command = penDown ? "L" : "M"; penDown=true; return `${command}${x(r.x)},${y(v)}`;}).join(" ");
+      return <g key={s.id}><path d={d} fill="none" stroke={color} strokeWidth="2"/>
+        {rows.map(r => {
+          if (!finite(r.values[s.id])) return false;
+          const choose = () => onChoose({row:r.row, series:s.id, x:r.x, y:r.values[s.id],
+            label:`${s.label} — ${r.label}: ${r.values[s.id]}`});
+          return <circle key={r.row} cx={x(r.x)} cy={y(r.values[s.id])} r="4"
+            fill={color} tabIndex="0" role="button" aria-label={`${s.label} ${r.label}`}
+            onClick={choose} onKeyDown={e => {if(e.key==="Enter"){e.preventDefault(); choose();}}}>
+            <title>{`${s.label} — ${r.label}: ${r.values[s.id]}`}</title></circle>;
+        })}</g>;
+    })}
+  </Scale>;
+});
 export function AnalysisCurves({ payload, payloadKey, onSelection }) {
   const [visible, setVisible] = useState(payload.series.map(s => s.id));
   const [start, setStart] = useState(0), [end, setEnd] = useState(Math.max(payload.rows.length - 1, 0));
@@ -103,10 +143,14 @@ export function AnalysisCurves({ payload, payloadKey, onSelection }) {
     setEnd(Math.max(payload.rows.length - 1, 0)); setSelected(null); onSelection({});
   }, [payloadKey]);
   const clearSelection = () => { if (selected) onSelection({}); setSelected(null); };
-  const rows = payload.rows.slice(start, end+1), ids = new Set(visible);
-  const active = payload.series.filter(s => ids.has(s.id));
-  const xs = rows.map(r => r.x), ys = rows.flatMap(r => active.map(s => r.values[s.id]).filter(finite));
-  const formatX = payload.x_type === "datetime" ? formatDate : formatNumber;
+  const {rows, ids, active, xs, ys} = useMemo(() => {
+    const rows = payload.rows.slice(start, end+1), ids = new Set(visible);
+    const active = payload.series.flatMap((series, index) => ids.has(series.id)
+      ? [{series, color: colors[index % colors.length]}] : []);
+    return {rows, ids, active, xs: rows.map(r => r.x),
+      ys: rows.flatMap(r => active.map(({series}) => r.values[series.id]).filter(finite))};
+  }, [payload, payloadKey, start, end, visible]);
+  const choose = useCallback(value => {setSelected(value); onSelection(value);}, [onSelection]);
   return <>
     <fieldset className="agilab-series"><legend>Series</legend>{payload.series.map((s, i) =>
       <label key={s.id} style={{color: colors[i%colors.length]}}><input type="checkbox" checked={ids.has(s.id)}
@@ -114,22 +158,8 @@ export function AnalysisCurves({ payload, payloadKey, onSelection }) {
     {payload.rows.length > 1 && <Range first={0} last={payload.rows.length-1} start={start} end={end}
       setStart={value => {setStart(value); clearSelection();}}
       setEnd={value => {setEnd(value); clearSelection();}} format={i => payload.rows[i]?.label ?? ""}/>}
-    {rows.length > 0 && active.length > 0 ? <Scale xs={xs} ys={ys}
-      xLabel={payload.x_type === "datetime" ? `${payload.x_label} (UTC)` : payload.x_label}
-      yLabel={payload.y_label} formatX={formatX} xSingleMargin={payload.x_type === "datetime" ? 43200000 : undefined}>
-      {({x, y}) => active.map(s => {
-        let penDown = false;
-        const d = rows.map(r => {const v = r.values[s.id]; if (!finite(v)){penDown=false; return "";}
-          const command = penDown ? "L" : "M"; penDown=true; return `${command}${x(r.x)},${y(v)}`;}).join(" ");
-        return <g key={s.id}><path d={d} fill="none" stroke={colors[payload.series.indexOf(s)%colors.length]} strokeWidth="2"/>
-          {rows.map(r => finite(r.values[s.id]) && <circle key={r.row} cx={x(r.x)} cy={y(r.values[s.id])} r="4"
-            fill={colors[payload.series.indexOf(s)%colors.length]} tabIndex="0" role="button" aria-label={`${s.label} ${r.label}`}
-            onClick={() => {const value={row:r.row, series:s.id, x:r.x, y:r.values[s.id], label:`${s.label} — ${r.label}: ${r.values[s.id]}`};
-              setSelected(value); onSelection(value);}}
-            onKeyDown={e => {if(e.key==="Enter") e.currentTarget.click();}}>
-            <title>{`${s.label} — ${r.label}: ${r.values[s.id]}`}</title></circle>)}</g>;
-      })}
-    </Scale> : <p>No series selected or no data in the range.</p>}
+    {rows.length > 0 && active.length > 0 ? <CurvesPlot rows={rows} active={active} xs={xs} ys={ys}
+      payload={payload} onChoose={choose}/> : <p>No series selected or no data in the range.</p>}
     <Selection point={selected}/>
     <button onClick={() => {setVisible(payload.series.map(s => s.id));setStart(0);setEnd(Math.max(payload.rows.length-1,0));
       setSelected(null);onSelection({});}}>Reset view</button>
