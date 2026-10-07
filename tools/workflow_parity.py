@@ -1829,7 +1829,27 @@ def _ui_frontend_smoke_profile() -> list[CommandSpec]:
             ],
             timeout_seconds=5 * 60,
             remove_paths=["screenshots/ui-frontend-smoke"],
-        )
+        ),
+        CommandSpec(
+            label="native Plotly shadow layout regression",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "--with",
+                "playwright",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "test/test_native_plotly_shadow_layout.py",
+                "--no-cov",
+            ],
+            timeout_seconds=3 * 60,
+        ),
     ]
 
 

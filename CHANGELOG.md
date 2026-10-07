@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+- Fix Plotly charts in native Jupyter widgets: apply SVG and modebar styles
+  inside each shadow root, preserve the figure height, and resize only when
+  the available width changes. This prevents the growing-chart layout loop.
+
 ## [2026.10.07] - 2026-10-07
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07

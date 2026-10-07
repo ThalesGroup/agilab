@@ -43,23 +43,60 @@ function Island({node}) {
 }
 
 const plotlyLibraries = new Map();
+function syncPlotlyShadowStyles(target) {
+  const root = target.getRootNode();
+  if (!root.host) return;
+  // Plotly writes rules with insertRule, so cloning its style tags loses them.
+  const css = [...target.ownerDocument.querySelectorAll('style[id^="plotly.js-style-"]')]
+    .flatMap(style => [...(style.sheet?.cssRules || [])].map(rule => rule.cssText)).join("\n");
+  let style = root.querySelector("style[data-agilab-plotly-styles]");
+  if (!style) {
+    style = target.ownerDocument.createElement("style");
+    style.dataset.agilabPlotlyStyles = "";
+    root.appendChild(style);
+  }
+  if (style.textContent !== css) style.textContent = css;
+}
+
 function Plot({node}) {
   const element = useRef(null);
+  const figure = node.props.figure;
+  const height = Number.isFinite(figure.layout?.height) && figure.layout.height > 0 ? figure.layout.height : 450;
   useEffect(() => {
-    let cancelled = false, observer;
+    const target = element.current;
+    let cancelled = false, observer, frame;
     if (!plotlyLibraries.has(node.props.library)) plotlyLibraries.set(node.props.library, new Promise((resolve, reject) => {
       const script = document.createElement("script"); script.src = node.props.library;
       script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
     }));
-    plotlyLibraries.get(node.props.library).then(() => {
+    plotlyLibraries.get(node.props.library).then(async () => {
       if (cancelled) return;
-      const figure = node.props.figure;
-      window.Plotly.react(element.current, figure.data, {...figure.layout, autosize: true}, {responsive: true, displaylogo: false});
-      observer = new ResizeObserver(() => window.Plotly.Plots.resize(element.current)); observer.observe(element.current);
+      syncPlotlyShadowStyles(target);
+      await window.Plotly.react(target, figure.data, {...figure.layout, height, autosize: true}, {responsive: false, displaylogo: false});
+      if (cancelled) return;
+      syncPlotlyShadowStyles(target);
+      let previousWidth = target.getBoundingClientRect().width;
+      observer = new ResizeObserver(([entry]) => {
+        const width = entry.contentRect.width;
+        if (width === previousWidth) return;
+        previousWidth = width;
+        if (width <= 0) return;
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          frame = undefined;
+          if (!cancelled) window.Plotly.Plots.resize(target);
+        });
+      });
+      observer.observe(target);
     });
-    return () => {cancelled = true; observer?.disconnect(); if (element.current && window.Plotly) window.Plotly.purge(element.current);};
-  }, [node.props.figure, node.props.library]);
-  return <div className="py-plot" ref={element}/>;
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (target && window.Plotly) window.Plotly.purge(target);
+    };
+  }, [figure, height, node.props.library]);
+  return <div className="py-plot" ref={element} style={{height, minHeight: 0}}/>;
 }
 
 function Graph({node}) {
