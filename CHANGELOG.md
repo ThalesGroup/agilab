@@ -23,15 +23,21 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
-### Prepared release — `2026.10.07`
+## [2026.10.07] - 2026-10-07
 
-The release candidate includes `agi-web`, `agi-gui`, `agi-pages`,
-`agi-app-learning-assessment`, `agi-apps`, and `agilab` at `2026.10.07`.
-Their exact dependency pins are updated together. Unchanged core, environment,
-node, cluster, and other app packages retain their current versions.
-Publication, the hosted demo, and the release-bound documentation proof remain
-pending until the new release workflow completes; the published release below
-remains the current public evidence.
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
+
+### Published packages
+
+This release publishes `agi-web`, `agi-gui`, `agi-pages`,
+`agi-app-learning-assessment`, `agi-apps`, and `agilab` at `2026.10.07`
+(`2026.10.7` on PyPI). Their exact dependency pins are updated together.
+Unchanged core, environment, node, cluster, and other app packages retain their
+current versions. Publication completed in the
+[release workflow](https://github.com/ThalesGroup/agilab/actions/runs/37613918980).
+The [hosted demo](https://jpmorard-agilab.hf.space/) runs this release, and its
+publication attempt and deployed commit are recorded in the
+[release proof](docs/source/release-proof.rst).
 
 ### Web layout, accessibility, and responsiveness
 
@@ -75,6 +81,12 @@ remains the current public evidence.
 - Require a pre-existing release tag bound to the exact publication commit before
   PyPI publishing and GitHub release-asset attachment. Missing or mismatched tags
   stop the workflow before uploads; release creation verifies the existing tag.
+
+### Changed
+
+- Published AGILAB `2026.10.07` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, `agi-app-learning-assessment`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.05.1] - 2026-10-06
 
@@ -1192,3 +1204,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.09.21.2]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.09.21_2
 [2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
 [2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
+[2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07

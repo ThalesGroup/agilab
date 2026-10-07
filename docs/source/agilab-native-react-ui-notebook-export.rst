@@ -33,22 +33,22 @@ Open **Tools** from the workspace header. Press **Escape** to close it and
 return focus to its disclosure. Option groups expose each option's own name,
 and long project titles and analysis filenames wrap on mobile.
 
-Install and launch from source
-------------------------------
+Install and launch
+------------------
 
-The prepared native release target is ``2026.10.07`` (normalised by PyPI to
-``2026.10.7``). Once its publication is recorded in :doc:`release-proof`, a
-new environment can install the UI, notebooks and promoted built-ins with::
+The native release ``2026.10.07`` is published on PyPI as ``2026.10.7``.
+See :doc:`release-proof` for publication evidence. Install the UI, notebooks
+and promoted built-ins in a new environment with::
 
    python -m pip install 'agilab[ui,notebook,examples]==2026.10.7'
    agilab --no-browser
 
-Run the installed CLI outside the source checkout. The Minimal App, R Runtime
-Bridge and legacy UAV Queue are also packaged, through the matching GitHub
-Release distribution archive; see :doc:`public-app-catalog`. An app's Python,
-scientific and external runtime prerequisites still apply. Private app
-packages use their private distribution channel and are not included in
-public wheels.
+Run the installed CLI outside the source checkout. The Minimal App is included
+in ``agi-apps``. The R Runtime Bridge and legacy UAV Queue are supplied as
+source in the archive of the signed ``v2026.10.07`` tag; see
+:doc:`public-app-catalog`. An app's Python, scientific and external runtime
+prerequisites still apply. Private app packages use their private distribution
+channel and are not included in public wheels.
 
 From the AGILAB repository root, install the UI and notebook profiles::
 
