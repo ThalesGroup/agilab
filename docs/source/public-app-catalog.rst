@@ -89,12 +89,6 @@ Package route legend:
        It can also be launched with ``agilab pytorch-playground``,
        ``agilab pytorch-playground --backend hf``, or the generic
        ``agilab app surface pytorch_playground_project --ui <backend>`` path.
-   * - ``r_runtime_bridge_project``
-     - None
-     - Source built-in
-     - Narrow R stage runtime proof: AGILAB stays the Python orchestrator while
-       a worker executes ``Rscript`` through JSON input/output, captured logs,
-       artifact directories, manifest hashes, and reducer evidence.
    * - ``learning_assessment_project``
      - ``agi-app-learning-assessment``
      - PyPI app package
