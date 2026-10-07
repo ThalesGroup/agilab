@@ -1,18 +1,25 @@
 .agilab-main-interface { color:var(--st-text-color, #172033); font-family:var(--st-font, sans-serif); line-height:1.5; width:100%; }
 .agilab-main-interface * { box-sizing:border-box; }
-.agilab-project-workspace { padding-top:16px; }
+.agilab-project-workspace { padding-top:16px; display:grid; grid-template-areas:"intro" "health" "actions" "note"; }
+.agilab-project-workspace > .agilab-home-intro { grid-area:intro; }
+.agilab-project-workspace > .agilab-project-health { grid-area:health; }
+.agilab-project-actions { grid-area:actions; }
+.agilab-project-workspace > .agilab-notebook-note { grid-area:note; }
 .agilab-analysis-workspace { padding-top:16px; }
 .agilab-analysis-selection { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:24px 0 16px; }
 .agilab-analysis-choices { min-width:0; margin:0; padding:16px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; }
 .agilab-analysis-choices legend { font-size:18px; font-weight:600; padding:0 6px; }
 .agilab-analysis-choice { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:8px 0; }
 .agilab-analysis-choice label { display:flex; align-items:center; gap:10px; min-width:0; overflow-wrap:anywhere; }
+.agilab-analysis-choice button { flex-shrink:0; }
 .agilab-analysis-choice input { flex-shrink:0; width:18px; height:18px; accent-color:var(--st-primary-color, #2563eb); }
 .agilab-analysis-save { display:flex; align-items:center; flex-wrap:wrap; gap:16px; }
 .agilab-analysis-save span { font-size:14px; }
 .agilab-analysis-export { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; padding:20px; margin-top:24px; background:var(--st-secondary-background-color, #f3f6fa); border-radius:12px; }
 .agilab-analysis-export h2 { font-size:20px; margin:0 0 8px; }
 .agilab-analysis-export p { margin:0; }
+.agilab-analysis-export > div { min-width:0; }
+.agilab-analysis-evidence { max-width:100%; overflow-wrap:anywhere; }
 @media(max-width:700px) { .agilab-analysis-selection { grid-template-columns:1fr; } }
 .agilab-project-health { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:24px 0; }
 .agilab-health-card { min-width:0; padding:18px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; background:var(--st-secondary-background-color, #f3f6fa); overflow-wrap:anywhere; }
@@ -46,7 +53,7 @@
 .agilab-workspace-tools[open] div { display:flex; flex-wrap:wrap; gap:7px; padding:10px 0; }
 .agilab-home-intro { padding:28px 0 20px; max-width:750px; }
 .agilab-eyebrow { color:var(--st-primary-color, #2451a6); font-size:13px; text-transform:uppercase; letter-spacing:.1em; }
-.agilab-home-intro h1 { font-size:clamp(24px, 3.8vw, 38px); line-height:1.2; margin:12px 0; }
+.agilab-home-intro h1 { font-size:clamp(24px, 3.8vw, 38px); line-height:1.2; margin:12px 0; overflow-wrap:anywhere; }
 .agilab-home-intro p { margin:8px 0; }
 .agilab-project-summary { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; padding:20px; background:var(--st-secondary-background-color, #f6f8fc); }
 .agilab-project-summary h2 { margin:4px 0; font-size:20px; overflow-wrap:anywhere; }
@@ -56,4 +63,16 @@
 .agilab-card-title { font-weight:650; }
 .agilab-card-link { margin-top:auto; color:var(--st-primary-color, #2451a6); font-size:13px; }
 .agilab-notebook-note { font-size:14px; opacity:.75; }
-@media(max-width:600px) { .agilab-project-picker { flex-basis:100%; } .agilab-version { display:none; } .agilab-workspace-tools { margin-left:0; } }
+@media(max-width:600px) {
+  .agilab-project-picker { flex-basis:100%; }
+  .agilab-version { display:none; }
+  .agilab-workspace-tools { margin-left:0; }
+  .agilab-project-workspace { grid-template-areas:"intro" "actions" "health" "note"; }
+  .agilab-project-actions { gap:10px; padding:8px 0; }
+  .agilab-project-workspace .agilab-project-actions button { padding:14px; gap:6px; }
+  .agilab-project-workspace .agilab-project-health { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .agilab-project-workspace .agilab-health-card { padding:12px; }
+  .agilab-project-workspace .agilab-health-card h2 { margin-bottom:6px; }
+  .agilab-project-workspace .agilab-health-value { font-size:18px; }
+  .agilab-project-workspace .agilab-health-caption { margin:6px 0; }
+}

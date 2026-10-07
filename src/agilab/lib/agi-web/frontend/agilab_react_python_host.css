@@ -11,3 +11,10 @@
 .py-app[data-operation="text_area"] .py-island,
 .py-app[data-operation="number_input"] .py-island{pointer-events:auto}
 .py-link-button[aria-disabled="true"] {opacity:.55;cursor:default}
+/* Environment keys and option names can be longer than a phone viewport. */
+.py-control,.py-check,.py-options label {min-width:0;max-width:100%}
+.py-control>span,.py-control small,.py-check>span,.py-options label>span,.py-expander summary {overflow-wrap:anywhere;min-width:0}
+.py-control input,.py-control select,.py-control textarea {min-width:0;max-width:100%}
+.py-options label {flex:0 1 auto}
+.py-options input {flex-shrink:0}
+.py-app figure img {display:block}

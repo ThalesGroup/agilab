@@ -73,7 +73,12 @@ with left:
         ax.set_xlabel("Predicted species")
         ax.set_ylabel("Actual species")
         fig.tight_layout()
-        st.pyplot(fig, width="stretch")
+        st.pyplot(
+            fig, width="stretch",
+            alt=f"Confusion matrix for {selected} on {len(y_test)} held-out Iris flowers. "
+                f"Rows show actual species and columns show predicted species. "
+                f"{int(wrong.sum())} flowers are misclassified.",
+        )
         plt.close(fig)
 with right:
     with st.container(border=True):
@@ -90,7 +95,12 @@ with right:
         ax.set_ylabel("Petal width (cm)")
         ax.legend(fontsize=8)
         fig.tight_layout()
-        st.pyplot(fig, width="stretch")
+        st.pyplot(
+            fig, width="stretch",
+            alt=f"Petal length versus petal width in centimetres for {len(y_test)} held-out Iris flowers. "
+                f"Colour and shape identify the actual species; red rings mark the "
+                f"{int(wrong.sum())} flowers misclassified by {selected}.",
+        )
         plt.close(fig)
 st.caption("Colors and shapes indicate actual species; red rings mark errors. This two-feature view "
            "does not show the full four-feature decision boundary.")

@@ -18,6 +18,12 @@ tables, charts and navigation. Run a Python file with::
 
    python -m agi_web.react_python_host VIEW.py --address 127.0.0.1 --no-browser
 
+Constructing the HTTP server selects Matplotlib's non-interactive ``Agg``
+backend before request threads create figures. Matplotlib stays optional.
+Importing the host or using the notebook adapter preserves the notebook's
+chosen backend. Supply ``alt`` text for scientific figures; the native image
+renderer also honours ``width="stretch"``.
+
 ``agi_web.notebook_python_view.render_python_view`` renders the same file in
 Jupyter through an AnyWidget. Each view has its Python session; callback events
 rerender that session. Notebook styles remain local to the widget.

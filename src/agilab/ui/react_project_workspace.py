@@ -19,6 +19,20 @@ _WORKSPACE_ACTIONS = (
 )
 
 
+def _card_data(card: Any) -> dict[str, str]:
+    """Keep diagnostic state while distinguishing ordinary onboarding status."""
+    value = str(card.value)
+    state = header_value_state(value, card.caption, explicit=card.state)
+    display_state = state
+    status_label = "Needs attention" if state == "incomplete" else "Ready"
+    if card.label == "API keys" and value == "Optional":
+        display_state, status_label = "neutral", "Optional"
+    elif card.label == "Runs" and value == "0" and card.caption == "no run logs yet":
+        display_state, status_label = "neutral", "No runs yet"
+    return {"label": card.label, "value": value, "caption": card.caption,
+            "state": state, "display_state": display_state, "status_label": status_label}
+
+
 def project_workspace_data(env: Any, health: Any, routes: Mapping[str, Any]) -> dict[str, Any]:
     """Serialize visible diagnostics, with no credentials or detail-row payload."""
     return {
@@ -27,11 +41,7 @@ def project_workspace_data(env: Any, health: Any, routes: Mapping[str, Any]) -> 
         "project_path": str(active_app_store_path(env)),
         "route": "project",
         "projects": [],
-        "cards": [
-            {"label": card.label, "value": str(card.value), "caption": card.caption,
-             "state": header_value_state(card.value, card.caption, explicit=card.state)}
-            for card in health.cards
-        ],
+        "cards": [_card_data(card) for card in health.cards],
         "actions": [
             {"id": key, "label": label, "description": description}
             for key, label, description in _WORKSPACE_ACTIONS if key in routes

@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node build_agilab_react_analysis.mjs",
-    "test:home": "node --test agilab_react_home_journey.test.mjs agilab_react_contextual_tools.test.mjs",
+    "test:home": "node --test agilab_react_home_journey.test.mjs agilab_react_contextual_tools.test.mjs agilab_react_main_workspace_keyboard_and_status.test.mjs",
     "test:links": "node --test agilab_python_link_action.test.mjs",
-    "test:tools": "node --test agilab_react_contextual_tools.test.mjs",
+    "test:tools": "node --test agilab_react_contextual_tools.test.mjs agilab_react_main_workspace_keyboard_and_status.test.mjs",
     "test:controls": "node --test agilab_react_native_controls_and_progress.test.mjs agilab_react_low_power_rendering.test.mjs agilab_react_analysis_low_power.test.mjs"
   },
   "dependencies": {

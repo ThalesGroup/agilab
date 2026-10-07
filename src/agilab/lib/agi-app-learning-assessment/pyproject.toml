@@ -1,5 +1,5 @@
 [project]
-version = "2026.10.04"
+version = "2026.10.07"
 name = "agi-app-learning-assessment"
 description = "AGILAB learning and assessment workflow with evidence scoring and regression-plan artifacts"
 requires-python = ">=3.13"

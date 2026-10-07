@@ -1640,7 +1640,7 @@ def _render_pipeline_workspace_overview(
     )
     workspace_updated = _latest_pipeline_workspace_mtime(lab_dir, stages_file)
 
-    with st.container(border=True):
+    with st.expander("Workflow status and outputs", expanded=False):
         top_cols = st.columns(2)
         with top_cols[0]:
             _render_pipeline_header_card(
@@ -1909,6 +1909,7 @@ def main() -> None:
             page_label="WORKFLOW",
             docs_html_file="experiment-help.html",
         )
+        st.title("Build and run a workflow")
 
         st.session_state.setdefault("stages_file_name", STAGES_FILE_NAME)
         st.session_state.setdefault("help_path", Path(env.agilab_pck) / "gui/help")

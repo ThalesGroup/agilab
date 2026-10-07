@@ -212,3 +212,120 @@ test("the packaged production bundle completes an initially empty date range", a
   await waitFor(() => actions.length === 2 && inputs()[1].value === "2026-10-07");
   assert.deepEqual(actions.map(action => action.value), [["2026-10-06"], ["2026-10-06", "2026-10-07"]]);
 });
+
+test("option groups name each radio independently and preserve Python selections", async () => {
+  for (const kind of ["radio", "pills", "segmented_control"]) {
+    let revision = 1;
+    const actions = [];
+    const selection = value => node("mode", kind, { label: "Analysis mode", key: "mode", value,
+      options: [0, 1], option_labels: ["Coordinates", "Curves"], help: "Choose a view" });
+    const element = await mount(payload(revision, [selection(0)]), {
+      action: async action => { actions.push(action); return payload(++revision, [selection(action.value)]); },
+    });
+    const group = element.querySelector('[role="radiogroup"]');
+    assert.equal(group.getAttribute("aria-label"), "Analysis mode");
+    assert.equal(document.getElementById(group.getAttribute("aria-describedby")).textContent, "Choose a view");
+    const options = [...group.querySelectorAll('input[type="radio"]')];
+    assert.deepEqual(options.map(input => input.getAttribute("aria-label")), ["Coordinates", "Curves"]);
+    assert.equal(group.querySelector("label label"), null);
+    await act(() => options[1].click());
+    assert.equal(actions.at(-1).value, 1);
+    assert.deepEqual([...group.querySelectorAll("input")].map(input => input.checked), [false, true]);
+    await act(() => cleanup()); cleanup = null;
+    element.remove();
+  }
+});
+
+test("multi-select options expose their own names and start from an empty selection", async () => {
+  const choices = value => node("features", "segmented_control", { label: "Features", key: "features", value,
+    selection_mode: "multi", options: [0, 1], option_labels: ["Speed", "Altitude"] });
+  const actions = [];
+  const element = await mount(payload(1, [choices(null)]), {
+    action: async action => { actions.push(action); return payload(2, [choices(action.value)]); },
+  });
+  const group = element.querySelector('[role="group"]');
+  assert.equal(group.getAttribute("aria-label"), "Features");
+  const options = [...group.querySelectorAll('input[type="checkbox"]')];
+  assert.deepEqual(options.map(input => input.getAttribute("aria-label")), ["Speed", "Altitude"]);
+  await act(() => options[1].click());
+  assert.deepEqual(actions.at(-1).value, [1]);
+});
+
+function dependentForm(pattern = "(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)", flags = "i", sourceKey = "variable_name") {
+  const form = node("settings", "form");
+  const additions = node("new-variable", "expander", { label: "Add variable", expanded: true });
+  additions.children = [
+    node("name", "text_input", { label: "Variable name", key: "variable_name", value: "", form: "settings" }),
+    node("value", "text_input", { label: "Variable value", key: "variable_value", value: "", form: "settings",
+      type_dependency: { key: sourceKey, pattern, flags } }),
+  ];
+  const savedSection = node("saved-section", "expander", { label: "Existing settings", expanded: false });
+  savedSection.children = [node("existing", "text_input", { label: "Existing value", key: "existing_value", value: "saved", form: "settings" })];
+  form.children = [additions, savedSection, node("save", "form_submit_button", { label: "Save settings", form: "settings" })];
+  return payload(1, [form]);
+}
+
+test("sensitive form drafts mask before submission and collapsed field edits still submit", async () => {
+  const actions = [];
+  const element = await mount(dependentForm(), { action: async action => { actions.push(action); return dependentForm(); } });
+  const name = element.querySelector("#name"), value = element.querySelector("#value");
+  await changeInput(name, "AGILAB_UX_SYNTHETIC_SECRET", "input");
+  assert.equal(value.type, "password");
+  await changeInput(value, "synthetic-value", "input");
+  assert.equal(value.value, "synthetic-value");
+  assert.equal(actions.length, 0, "A form draft must not make a server roundtrip.");
+  const section = element.querySelector('[data-widget-kind="expander"] + [data-widget-kind="expander"]');
+  section.open = true;
+  await changeInput(element.querySelector("#existing"), "changed", "input");
+  section.open = false;
+  assert.equal(element.querySelector("#existing").value, "changed");
+  await changeInput(name, "PUBLIC_SETTING", "input");
+  assert.equal(value.type, "text");
+  assert.equal(value.value, "synthetic-value");
+  await changeInput(name, "private_api_token", "input");
+  assert.equal(value.type, "password");
+  await act(async () => {element.querySelector('button[type="submit"]').click();});
+  assert.deepEqual(actions[0].form_values, { name: "private_api_token", value: "synthetic-value", existing: "changed" });
+});
+
+test("missing or malformed masking dependencies keep the value concealed", async () => {
+  const missingFields = dependentForm();
+  missingFields.nodes.main[0].children[0].children[1].props.type_dependency = {};
+  for (const fixture of [dependentForm("["), dependentForm("SECRET", "invalid"), dependentForm("SECRET", "i", "missing"), missingFields]) {
+    const element = await mount(fixture);
+    assert.equal(element.querySelector("#value").type, "password");
+    await act(() => cleanup()); cleanup = null;
+    element.remove();
+  }
+});
+
+test("initial sensitive form values remain masked and survive a draft name change", async () => {
+  const fixture = dependentForm();
+  const fields = fixture.nodes.main[0].children[0].children;
+  fields[0].props.value = "saved_api_key";
+  fields[1].props.value = "initial-synthetic-value";
+  const element = await mount(fixture);
+  const value = element.querySelector("#value");
+  assert.equal(value.type, "password");
+  assert.equal(value.value, "initial-synthetic-value");
+  await changeInput(element.querySelector("#name"), "PUBLIC_SETTING", "input");
+  assert.equal(value.type, "text");
+  assert.equal(value.value, "initial-synthetic-value");
+});
+
+test("image descriptions and stretch widths reach the rendered plot", async () => {
+  const element = await mount(payload(1, [
+    node("plot", "image", { urls: ["https://agilab-test.invalid/plot.png"], alt: "Iris features grouped by species", width: "stretch", caption: "Iris measurements" }),
+    node("captioned", "image", { urls: ["https://agilab-test.invalid/chart.png"], caption: "Flight altitude over time", width: 600 }),
+    node("decorative", "image", { urls: ["https://agilab-test.invalid/decoration.png"], alt: "" }),
+    node("undescribed", "image", { urls: ["https://agilab-test.invalid/no-description.png"], caption: "" }),
+  ]));
+  const images = [...element.querySelectorAll("img")];
+  assert.equal(images[0].alt, "Iris features grouped by species");
+  assert.equal(images[0].style.width, "100%");
+  assert.equal(images[0].style.height, "auto");
+  assert.equal(images[1].alt, "Flight altitude over time");
+  assert.equal(images[1].style.width, "600px");
+  assert.equal(images[2].getAttribute("alt"), "", "Only an explicit decorative alt may be empty.");
+  assert.equal(images[3].hasAttribute("alt"), false, "An empty caption must not mark an undescribed plot decorative.");
+});

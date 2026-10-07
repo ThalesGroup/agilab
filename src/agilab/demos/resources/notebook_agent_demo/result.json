@@ -70,14 +70,14 @@
     "status": "passed"
   },
   "files": {
-    "app.py": "240945418525adddf5ac9202d438894ddc1a7a776680ace60984237990f8b401",
+    "app.py": "985069c7e885375a0a279eedab3b837492b0b8ef3af9207ffbfa412b0ae8068e",
     "models.py": "f592dd7caec6c17bd80151163b13422a45af22a0a2323fadbefce2010b8530f1",
     "solution.ipynb": "3b0c12d79392fc5735754ef747645414af3aae0679f5d1cb0d0dcb63f53dfe6f",
     "lab_stages.toml": "2a72dca5a3133363acb6d8bee152ba17d8739c5c46a413cd03bfa808305ff0df"
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-05T12:00:30.845190+00:00",
+    "verified_at_utc": "2026-10-07T09:50:16.817938+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "app.py": "69139fa1ca8921dba945ac6b510e7b512752b5b1fa88715823abc2b5122df279",
@@ -203,6 +203,25 @@
       "status": "passed"
     },
     "interface_test_verification": {},
+    "interface_adjustments": [
+      {
+        "scope": "post-generation interface adjustment; original autonomous build retained",
+        "note": "Post-generation accessibility adjustment by AGILAB Codex Agent: add descriptive alternative text to the two Iris plots; original autonomous build and scientific artifacts retained.",
+        "verified_at_utc": "2026-10-07T09:50:16.817938+00:00",
+        "files": {
+          "app.py": {
+            "before_sha256": "240945418525adddf5ac9202d438894ddc1a7a776680ace60984237990f8b401",
+            "after_sha256": "985069c7e885375a0a279eedab3b837492b0b8ef3af9207ffbfa412b0ae8068e"
+          }
+        },
+        "verification_checks": [
+          "held_out_models",
+          "fresh_notebook_execution",
+          "app_startup",
+          "app_slider_interaction"
+        ]
+      }
+    ],
     "scientific_proof_retention": {}
   }
 }

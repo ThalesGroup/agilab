@@ -140,7 +140,7 @@ def reverify_text_science(checkout: Path, report: dict, current: dict) -> dict:
     return proof
 
 
-def verify_and_refresh(project: Path) -> dict:
+def verify_and_refresh(project: Path, *, interface_adjustment_note: str | None = None) -> dict:
     receipt = project / "result.json"
     if receipt.is_symlink() or not receipt.is_file():
         raise ValueError("Expected a regular existing public receipt.")
@@ -151,6 +151,13 @@ def verify_and_refresh(project: Path) -> dict:
     if not isinstance(names, dict) or not {"app.py", "solution.ipynb"}.issubset(names):
         raise ValueError("Expected a complete existing demo artifact manifest.")
     before = hashes(project, names)
+    changed_files = {name for name in names if before[name] != names[name]}
+    if interface_adjustment_note is not None:
+        interface_adjustment_note = interface_adjustment_note.strip()
+        if not interface_adjustment_note:
+            raise ValueError("An interface adjustment note must describe the change.")
+        if changed_files - INTERFACE_FILES:
+            raise ValueError("An interface adjustment note cannot describe changed scientific artifacts.")
     verifier_module = "notebook_verifier" if project.name.startswith("notebook_agent") else "notebook_execution_verifier"
     metadata_fixture = False
     test_verification = deepcopy(report.get("native_ui_migration", {}).get("interface_test_verification", {}))
@@ -226,6 +233,20 @@ def verify_and_refresh(project: Path) -> dict:
         "native_verification": deepcopy(verification),
         "interface_test_verification": test_verification,
     }
+    adjustments = deepcopy(old_migration.get("interface_adjustments", []))
+    if interface_adjustment_note is not None and changed_files:
+        adjustments.append({
+            "scope": "post-generation interface adjustment; original autonomous build retained",
+            "note": interface_adjustment_note,
+            "verified_at_utc": migration["verified_at_utc"],
+            "files": {
+                name: {"before_sha256": names[name], "after_sha256": before[name]}
+                for name in sorted(changed_files)
+            },
+            "verification_checks": deepcopy(verification["checks"]),
+        })
+    if adjustments:
+        migration["interface_adjustments"] = adjustments
     if scientific is not None:
         migration["current_scientific_verification"] = scientific
     migration["scientific_proof_retention"] = retained
@@ -243,9 +264,14 @@ def main() -> int:
     parser.add_argument("--demo", choices=DEMOS, action="append")
     parser.add_argument("--restore-scientific-proofs", action="store_true",
                         help="Restore SHA-verified historical science sections after a completed native verification.")
+    parser.add_argument("--interface-adjustment-note",
+                        help="Describe a post-generation interface-only change after fresh verification; preserve the original build provenance.")
     args = parser.parse_args()
+    if args.restore_scientific_proofs and args.interface_adjustment_note is not None:
+        parser.error("An interface adjustment requires fresh verification, not proof restoration.")
     operation = restore_scientific_proofs if args.restore_scientific_proofs else verify_and_refresh
-    reports = [operation(ROOT / "src/agilab/demos/resources" / demo) for demo in (args.demo or DEMOS)]
+    kwargs = {} if args.restore_scientific_proofs else {"interface_adjustment_note": args.interface_adjustment_note}
+    reports = [operation(ROOT / "src/agilab/demos/resources" / demo, **kwargs) for demo in (args.demo or DEMOS)]
     print(json.dumps(reports, indent=2))
     return 0
 

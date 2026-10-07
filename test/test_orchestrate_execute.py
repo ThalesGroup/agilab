@@ -856,6 +856,59 @@ def _make_execute_deps(message_log: list[tuple[str, str]], state: _State):
     )
 
 
+@pytest.mark.parametrize("ready", [False, True])
+def test_native_run_prerequisite_is_visible_beside_disabled_button_only(tmp_path, monkeypatch, ready):
+    import asyncio
+    from agi_web import python_ui
+    from agi_web.testing import AppTest
+
+    project = tmp_path / "owned_project"
+    (project / ".venv").mkdir(parents=True)
+    env = SimpleNamespace(
+        dataframe_path=tmp_path, app_data_rel=None, runenv=tmp_path / "runenv",
+        app="owned_project", wenv_abs=tmp_path / "wenv",
+    )
+    reason = "Manager environment missing. Open Resources and deployment to prepare it."
+    monkeypatch.setattr(orchestrate_execute, "st", python_ui)
+
+    def render():
+        asyncio.run(orchestrate_execute.render_execute_section(
+            env=env, project_path=project, app_state_name=env.app,
+            controls_visible=True, show_run_panel=True, cmd="print('owned command')",
+            deps=_make_execute_deps([], python_ui.session_state), install_ready=ready,
+            install_disabled_reason="" if ready else reason, worker_env_required=False,
+        ))
+
+    app = AppTest.from_function(render)
+    app.session_state["app_settings"] = {"args": {}, "cluster": {"cluster_enabled": False}}
+    app.session_state["df_export_file"] = str(tmp_path / "export.csv")
+    app.session_state["profile_report_file"] = tmp_path / "profile.html"
+    app.run()
+    assert not app.exception
+
+    def walk(nodes, ancestors=()):
+        for node in nodes:
+            yield node, ancestors
+            yield from walk(node["children"], (*ancestors, node))
+
+    nodes = list(walk(app._session.last_nodes["main"]))
+    run_button, button_ancestors = next((node, ancestors) for node, ancestors in nodes
+                                      if node["kind"] == "button" and node["props"].get("key") == "run_btn")
+    assert bool(run_button["props"]["disabled"]) is not ready
+    visible_reasons = [(node, ancestors) for node, ancestors in nodes
+                       if node["kind"] == "caption" and node["props"].get("body") == reason
+                       and not any(parent["kind"] == "expander" and not parent["props"]["expanded"]
+                                   for parent in ancestors)]
+    if ready:
+        assert not visible_reasons
+    else:
+        assert len(visible_reasons) == 1
+        assert visible_reasons[0][1][-1]["id"] == button_ancestors[-1]["id"]
+        assert run_button["props"]["help"] == reason
+    assert not any(node["kind"] == "markdown" and "5. Run and inspect outputs" in node["props"].get("body", "")
+                   for node, _ in nodes)
+
+
 def test_run_log_view_body_keeps_short_logs_unchanged():
     body, omitted = orchestrate_execute.run_log_view_body("line 1\nline 2", max_lines=5)
 
@@ -943,7 +996,7 @@ async def test_render_execute_section_loads_csv_preview_and_exports(monkeypatch,
     assert fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["kind"] == "success"
     assert "Dataframe exported successfully" in fake_st.session_state[orchestrate_execute.EXECUTE_NOTICE_KEY]["message"]
     assert ("rerun_fragment_or_app", "called") in fake_st.messages
-    assert ("markdown", "## 5. Run and inspect outputs") in fake_st.messages
+    assert ("markdown", "## Run and inspect outputs") in fake_st.messages
     assert any(kind == "preview" for kind, _ in fake_st.messages)
 
     fake_st.button_calls.clear()

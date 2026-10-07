@@ -4,6 +4,11 @@ WORKFLOW
 .. toctree::
    :hidden:
 
+Run controls appear before graph inspection. **Workflow status and outputs**,
+**Graph preview**, and **New stage** start collapsed. The current stage
+inspector remains visible, and collapsing the other sections preserves their
+controls and state.
+
 Page snapshot
 -------------
 

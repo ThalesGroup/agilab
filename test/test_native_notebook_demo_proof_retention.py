@@ -166,3 +166,64 @@ def test_fresh_text_science_is_distinct_from_the_original_build(tmp_path, monkey
     assert migration["scientific_proof_retention"]["sections"] == []
     assert migration["scientific_proof_retention"]["reverified_sections"] == ["text"]
     assert report["seconds"] == 17 and report["source"] == original["source"]
+
+
+def _interface_adjustment_fixture(tmp_path, monkeypatch, *, passed=True):
+    from types import SimpleNamespace
+
+    project = tmp_path / "notebook_agent_demo"
+    project.mkdir()
+    original = _receipt(project)
+    original["schema"] = "agilab.notebook_agent.public_demo.v1"
+    original["native_ui_migration"]["interface_adjustments"] = [{"note": "prior native conversion"}]
+    (project / "result.json").write_text(json.dumps(original))
+    (project / "app.py").write_text("render_native_view(alt='Iris decision boundary')\n")
+    native = {"status": "passed", "checks": ["held_out_models", "fresh_notebook_execution",
+                                              "app_startup", "app_slider_interaction"]}
+    monkeypatch.setattr(verifier.subprocess, "run",
+                        lambda *args, **kwargs: SimpleNamespace(
+                            returncode=0 if passed else 1,
+                            stdout=json.dumps(native) if passed else "verification failed",
+                            stderr=""))
+    runtime = tmp_path / "src/agilab/agent_runtime/notebook_verifier.py"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text("fresh_native_verifier = True\n")
+    monkeypatch.setattr(verifier, "ROOT", tmp_path)
+    return project, original, native
+
+
+def test_verified_interface_adjustment_retains_original_build_and_hash_transition(tmp_path, monkeypatch):
+    project, original, native = _interface_adjustment_fixture(tmp_path, monkeypatch)
+    verifier.verify_and_refresh(project, interface_adjustment_note="Describe the two Iris plots.")
+    report = json.loads((project / "result.json").read_text())
+    migration = report["native_ui_migration"]
+    assert migration["original_files"] == original["native_ui_migration"]["original_files"]
+    assert migration["original_verification"] == original["native_ui_migration"]["original_verification"]
+    assert report["seconds"] == original["seconds"] and report["source"] == original["source"]
+    assert migration["interface_adjustments"][0] == {"note": "prior native conversion"}
+    adjustment = migration["interface_adjustments"][1]
+    assert adjustment["files"] == {
+        "app.py": {"before_sha256": original["files"]["app.py"],
+                   "after_sha256": hashlib.sha256((project / "app.py").read_bytes()).hexdigest()}
+    }
+    assert adjustment["verification_checks"] == native["checks"]
+    assert migration["native_verification"] == native
+    verifier.verify_and_refresh(project, interface_adjustment_note="Describe the two Iris plots.")
+    assert len(json.loads((project / "result.json").read_text())["native_ui_migration"]["interface_adjustments"]) == 2
+
+
+def test_failed_fresh_verification_cannot_reseal_an_interface_adjustment(tmp_path, monkeypatch):
+    project, _, _ = _interface_adjustment_fixture(tmp_path, monkeypatch, passed=False)
+    before = (project / "result.json").read_bytes()
+    with pytest.raises(ValueError, match="Native demo verification failed"):
+        verifier.verify_and_refresh(project, interface_adjustment_note="Describe the two Iris plots.")
+    assert (project / "result.json").read_bytes() == before
+
+
+def test_interface_adjustment_note_cannot_relabel_changed_science(tmp_path, monkeypatch):
+    project, _, _ = _interface_adjustment_fixture(tmp_path, monkeypatch)
+    (project / "core.py").write_text("answer = 99\n")
+    before = (project / "result.json").read_bytes()
+    with pytest.raises(ValueError, match="cannot describe changed scientific artifacts"):
+        verifier.verify_and_refresh(project, interface_adjustment_note="Describe the two Iris plots.")
+    assert (project / "result.json").read_bytes() == before
