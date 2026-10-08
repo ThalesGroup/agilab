@@ -23,9 +23,19 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.07.1] - 2026-10-08
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
+
 - Fix Plotly charts in native Jupyter widgets: apply SVG and modebar styles
   inside each shadow root, preserve the figure height, and resize only when
   the available width changes. This prevents the growing-chart layout loop.
+
+### Changed
+
+- Published AGILAB `2026.10.07.1` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.07] - 2026-10-07
 
@@ -1209,3 +1219,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
 [2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
 [2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
+[2026.10.07.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
