@@ -1200,9 +1200,6 @@ jobs:
             release_tag="v${release_tag}"
           fi
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          gh auth setup-git
           git fetch origin main
           release_branch="automation/release-evidence-${release_tag#v}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           git switch -C "$release_branch" origin/main
@@ -1275,9 +1272,13 @@ jobs:
             exit 0
           fi
 
-          git add "${release_metadata_paths[@]}"
-          git commit -m "docs(release): record HF Space sync"
-          git push --set-upstream origin "$release_branch"
+          # GitHub signs the API commit; no private signing key enters the runner.
+          # The helper verifies the signature, parent and exact metadata blobs.
+          python tools/release_proof/create_signed_release_proof_commit.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --branch "$release_branch" \
+            --expected-head "$(git rev-parse HEAD)" \
+            --github-output "$GITHUB_OUTPUT"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Attest immutable release proof assets
@@ -1315,6 +1316,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_BRANCH: ${{ steps.release-proof.outputs.release_branch }}
           RELEASE_VERSION: ${{ steps.release-proof.outputs.release_version }}
+          RELEASE_COMMIT: ${{ steps.release-proof.outputs.release_commit }}
         run: |
           set -euo pipefail
           cat > release-evidence-pr.md <<EOF
@@ -1327,7 +1329,8 @@ jobs:
           ## Validation
 
           - release proof render and live GitHub-run checks passed in the publishing workflow
-          - repository, root-test, and docs-source workflows are dispatched below for this exact commit
+          - GitHub verified the server-signed commit ${RELEASE_COMMIT}, its parent and exact evidence blobs
+          - repository, root-test, and docs-source workflows are dispatched below for this exact commit; GITHUB_TOKEN-created PRs do not trigger those workflows automatically
 
           ## Agent Metadata
 
