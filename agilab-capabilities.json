@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-07T19:21:46Z",
+  "generated_at_utc": "2026-10-08T11:02:22Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 300,
+    "evidence_schema_count": 301,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2135,6 +2135,12 @@
         "src/agilab/demos/resources/text_notebook_demo_astra/result.json",
         "src/agilab/demos/resources/text_notebook_demo_rtx/result.json",
         "tools/demos/export_text_notebook_demo.py"
+      ]
+    },
+    {
+      "schema": "agilab.native_web.low_power_benchmark.v1",
+      "sources": [
+        "tools/testing/agilab_native_web_low_power_benchmark.py"
       ]
     },
     {

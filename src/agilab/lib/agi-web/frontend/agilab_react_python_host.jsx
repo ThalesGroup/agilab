@@ -203,12 +203,27 @@ function DataTable({node}) {
   return <Table node={node} send={view.send} busy={Boolean(node.props.selection_mode && view.busy)}/>;
 }
 
+const TableCells = memo(function TableCells({row}) {
+  return row.map((cell, cellIndex) => <td key={cellIndex}>{typeof cell === "object" ? JSON.stringify(cell) : String(cell ?? "")}</td>);
+});
+
 const Table = memo(function Table({node, send, busy}) {
+  const [requestedPage, setPage] = useState(0);
   const p = node.props, selected = p.value?.rows || [];
-  return <div className="py-table" data-widget-kind="dataframe" data-widget-key={p.key}><table><thead><tr>{p.selection_mode && <th>Select</th>}{p.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead><tbody>{p.rows.map((row, index) => <tr key={index}>
+  const pageSize = 100, lastPage = Math.max(0, Math.ceil(p.rows.length / pageSize) - 1);
+  if (requestedPage > lastPage) setPage(lastPage);
+  const page = Math.min(requestedPage, lastPage), start = page * pageSize;
+  return <div className="py-table" data-widget-kind="dataframe" data-widget-key={p.key}>
+    {lastPage > 0 && <div className="py-table-pagination" role="group" aria-label="Table pages">
+      <button type="button" className="py-button" aria-label="Previous table page" disabled={busy || page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+      <span role="status">Rows {start + 1}–{Math.min(start + pageSize, p.rows.length)} of {p.rows.length}</span>
+      {p.selection_mode && <span>Selected: {selected.length}</span>}
+      <button type="button" className="py-button" aria-label="Next table page" disabled={busy || page === lastPage} onClick={() => setPage(page + 1)}>Next</button>
+    </div>}
+    <table><thead><tr>{p.selection_mode && <th>Select</th>}{p.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead><tbody>{p.rows.slice(start, start + pageSize).map((row, offset) => { const index = start + offset; return <tr key={index}>
     {p.selection_mode && <td><input aria-label={`Select row ${index + 1}`} type="checkbox" checked={selected.includes(index)} disabled={busy} onChange={event => send(node, {rows: event.target.checked ? p.selection_mode === "single-row" ? [index] : [...selected, index] : selected.filter(item => item !== index)})}/></td>}
-    {row.map((cell, cellIndex) => <td key={cellIndex}>{typeof cell === "object" ? JSON.stringify(cell) : String(cell ?? "")}</td>)}
-  </tr>)}</tbody></table></div>;
+    <TableCells row={row}/>
+  </tr>; })}</tbody></table></div>;
 });
 
 function Tabs({node}) {
