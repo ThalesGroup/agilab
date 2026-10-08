@@ -51,9 +51,14 @@ AGI_GUI_COVERAGE_CHUNKS = (
     "pages-rest",
     "views",
     "reports",
+    "general",
+    "demos",
+    "builtin",
 )
 AGI_GUI_COVERAGE_MANIFEST_SCHEMA = "agilab.workflow_parity.agi_gui_coverage_chunk.v1"
 AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS = 120.0
+
+
 def _coverage_shard_plan_module():
     module_path = REPO_ROOT / "tools" / "coverage_shard_plan.py"
     spec = importlib.util.spec_from_file_location(
@@ -571,6 +576,10 @@ def _agi_gui_profile() -> list[CommandSpec]:
         for index, (label, targets) in enumerate(_agi_gui_static_chunk_args().items())
     ]
     commands.extend(
+        _agi_gui_specialized_coverage_chunk(label)
+        for label in ("general", "demos", "builtin")
+    )
+    commands.extend(
         [
             _agi_gui_coverage_combine(),
             _agi_gui_timing_report(),
@@ -686,6 +695,226 @@ def _agi_gui_coverage_chunk_code(
     )
 
 
+def _agi_gui_specialized_coverage_steps(label: str) -> list[tuple[list[str], int]]:
+    data_file = f"test-results/coverage-agi-gui-{label}.db"
+    if label == "general":
+        return [
+            (
+                [
+                    "uv",
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "run",
+                    "--group",
+                    "dev",
+                    "--group",
+                    "test-ui",
+                    "--extra",
+                    "ui",
+                    "--extra",
+                    "viz",
+                    "--extra",
+                    "notebook",
+                    "--with",
+                    "tiktoken==0.14.0",
+                    "python",
+                    "-m",
+                    "tools.testing.root_test_runner",
+                    "--unclassified",
+                    f"--coverage-data-file={data_file}",
+                    "--junit-dir=test-results",
+                ],
+                16 * 60,
+            )
+        ]
+    if label == "builtin":
+        return [
+            (
+                [
+                    "uv",
+                    "--preview-features",
+                    "extra-build-dependencies",
+                    "run",
+                    "python",
+                    "tools/builtin_app_tests.py",
+                    "--keep-going",
+                    f"--coverage-data-file={data_file}",
+                    "--junit-dir=test-results",
+                ],
+                16 * 60,
+            )
+        ]
+    if label != "demos":
+        raise ValueError(f"unknown specialized agi-gui coverage chunk: {label}")
+    requirements_args: list[str] = []
+    for test_file in sorted(REPO_ROOT.glob("src/agilab/demos/resources/*/tests.py")):
+        requirements = test_file.with_name("requirements.txt")
+        if not requirements.is_file():
+            raise RuntimeError(f"missing demo requirements: {requirements}")
+        requirements_args.extend(
+            ["--with-requirements", requirements.relative_to(REPO_ROOT).as_posix()]
+        )
+    return [
+        (
+            [
+                "uv",
+                "run",
+                "--no-project",
+                "--python",
+                "3.14t",
+                "python",
+                "-m",
+                "venv",
+                "--copies",
+                "--without-pip",
+                "__FREE_THREADING_ENV__",
+            ],
+            5 * 60,
+        ),
+        (
+            [
+                "uv",
+                "pip",
+                "sync",
+                "--python",
+                "__FREE_THREADING_PYTHON__",
+                "--require-hashes",
+                "--no-build",
+                ".github/requirements/ci-free-threaded-coverage.txt",
+            ],
+            5 * 60,
+        ),
+        (
+            [
+                "uv",
+                "run",
+                "--no-project",
+                "--python",
+                "3.13",
+                "--with",
+                "coverage>=7.16,<8",
+                *requirements_args,
+                "python",
+                "-m",
+                "tools.testing.root_test_runner",
+                "--demos",
+                "--coverage-config=.coveragerc.demo-resources",
+                f"--coverage-data-file={data_file}",
+                "--junit-dir=test-results",
+            ],
+            16 * 60,
+        ),
+        (
+            [
+                "uv",
+                "run",
+                "--no-project",
+                "--python",
+                "3.12",
+                "--with",
+                "featuretools==1.31.0",
+                "--with",
+                "pandas==2.3.3",
+                "--with",
+                "woodwork==0.31.0",
+                "--with",
+                "setuptools==80.9.0",
+                "--with",
+                "coverage==7.16.1",
+                "--with",
+                "pytest",
+                "--with",
+                "pytest-asyncio",
+                "python",
+                "-m",
+                "coverage",
+                "run",
+                "--parallel-mode",
+                "--rcfile=.coveragerc.agi-gui",
+                f"--data-file={data_file}",
+                "-m",
+                "pytest",
+                "--noconftest",
+                "-q",
+                "-o",
+                "addopts=",
+                "--junitxml=test-results/junit-agi-gui-demos-telemetry.xml",
+                "test/test_telemetry_feature_evidence.py",
+            ],
+            3 * 60,
+        ),
+    ]
+
+
+def _agi_gui_specialized_coverage_chunk_code(
+    label: str, steps: list[tuple[list[str], int]]
+) -> str:
+    # Specialized CI lanes own multiple isolated test processes and JUnit files.
+    return (
+        "from pathlib import Path\n"
+        "import json, os, subprocess, sys, tempfile, time\n"
+        f"label = {label!r}\n"
+        f"steps = {steps!r}\n"
+        f"schema = {AGI_GUI_COVERAGE_MANIFEST_SCHEMA!r}\n"
+        f"manifest_path = Path({_agi_gui_coverage_manifest_path(label)!r})\n"
+        "base_path = Path(f'test-results/coverage-agi-gui-{label}.db')\n"
+        "started = time.perf_counter()\n"
+        "returncode = 0\n"
+        "completed_steps = []\n"
+        "with tempfile.TemporaryDirectory(prefix='agilab-gui-free-threading-') as temporary_dir:\n"
+        "    free_env = Path(temporary_dir) / 'environment'\n"
+        "    free_python = free_env / 'bin' / 'python'\n"
+        "    env = os.environ.copy()\n"
+        "    if label == 'demos':\n"
+        "        env['AGILAB_FREE_THREADING_PYTHON'] = str(free_python)\n"
+        "    for argv, timeout_seconds in steps:\n"
+        "        argv = [str(free_env) if arg == '__FREE_THREADING_ENV__' else str(free_python) if arg == '__FREE_THREADING_PYTHON__' else arg for arg in argv]\n"
+        "        try:\n"
+        "            completed = subprocess.run(argv, env=env, timeout=timeout_seconds, check=False)\n"
+        "            returncode = completed.returncode\n"
+        "        except subprocess.TimeoutExpired:\n"
+        "            returncode = 124\n"
+        "        completed_steps.append({'argv': argv, 'returncode': returncode})\n"
+        "        if returncode:\n"
+        "            break\n"
+        "coverage_db_paths = sorted(path.as_posix() for path in base_path.parent.glob(base_path.name + '*') if path.is_file() and path.stat().st_size > 0)\n"
+        "junit_paths = sorted(path.as_posix() for path in base_path.parent.glob(f'junit-agi-gui-{label}-*.xml') if path.is_file() and path.stat().st_size > 0)\n"
+        "if not coverage_db_paths or not junit_paths:\n"
+        "    returncode = returncode or 1\n"
+        "if label == 'demos' and (not any(Path(path).name == 'junit-agi-gui-demos-telemetry.xml' for path in junit_paths) or len(junit_paths) < 2):\n"
+        "    returncode = returncode or 1\n"
+        "manifest = {'schema': schema, 'chunk': label, 'returncode': returncode,\n"
+        "            'duration_seconds': time.perf_counter() - started,\n"
+        "            'data_file': base_path.as_posix(), 'junit_paths': junit_paths,\n"
+        "            'coverage_db_paths': coverage_db_paths, 'completed_steps': completed_steps,\n"
+        "            'expected_steps': len(steps)}\n"
+        "manifest_path.parent.mkdir(parents=True, exist_ok=True)\n"
+        "manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\\n', encoding='utf-8')\n"
+        "sys.exit(returncode)\n"
+    )
+
+
+def _agi_gui_specialized_coverage_chunk(label: str) -> CommandSpec:
+    steps = _agi_gui_specialized_coverage_steps(label)
+    return CommandSpec(
+        label=f"agi-gui coverage ({label})",
+        argv=[
+            sys.executable,
+            "-c",
+            _agi_gui_specialized_coverage_chunk_code(label, steps),
+        ],
+        env={"AGILAB_DISABLE_BACKGROUND_SERVICES": "1"},
+        timeout_seconds=sum(timeout for _, timeout in steps) + 60,
+        ensure_dirs=["test-results"],
+        remove_paths=[
+            f"test-results/coverage-agi-gui-{label}.db",
+            f"test-results/coverage-agi-gui-{label}.db.*",
+            f"test-results/junit-agi-gui-{label}-*.xml",
+            _agi_gui_coverage_manifest_path(label),
+        ],
+    )
+
+
 def _agi_gui_coverage_combine_code() -> str:
     manifest_paths = _agi_gui_coverage_manifest_paths()
     return (
@@ -738,7 +967,7 @@ def _agi_gui_coverage_combine_code() -> str:
         "            [path for path in base_path.parent.glob(base_path.name + '*') if path.is_file() and path.stat().st_size > 0],\n"
         "        )\n"
         "        junit_path = Path(f'test-results/junit-agi-gui-{chunk}.xml')\n"
-        "        if coverage_db_paths and junit_path.is_file() and junit_path.stat().st_size > 0 and _junit_succeeded(junit_path):\n"
+        "        if chunk not in ('general', 'demos', 'builtin') and coverage_db_paths and junit_path.is_file() and junit_path.stat().st_size > 0 and _junit_succeeded(junit_path):\n"
         "            recovered_manifests[manifest_path] = {\n"
         "                'schema': schema,\n"
         "                'chunk': chunk,\n"
@@ -774,6 +1003,19 @@ def _agi_gui_coverage_combine_code() -> str:
         "    returncode = int(manifest.get('returncode', 1))\n"
         "    if returncode != 0:\n"
         "        failed_chunks.append(f'{chunk}={returncode}')\n"
+        "    expected_chunk = manifest_file.name.removeprefix('coverage-agi-gui-').removesuffix('.manifest.json')\n"
+        "    if chunk != expected_chunk:\n"
+        "        failed_chunks.append(f'{expected_chunk}: unexpected chunk {chunk}')\n"
+        "    junit_paths = manifest.get('junit_paths')\n"
+        "    if junit_paths is None and chunk not in ('general', 'demos', 'builtin'):\n"
+        "        junit_paths = [manifest.get('junit_path')]\n"
+        "    if chunk in ('general', 'demos', 'builtin') and (not isinstance(junit_paths, list) or not junit_paths or any(not path or not _junit_succeeded(path) for path in junit_paths)):\n"
+        "        failed_chunks.append(f'{chunk}: missing or failing JUnit')\n"
+        "    if chunk in ('general', 'demos', 'builtin'):\n"
+        "        completed_steps = manifest.get('completed_steps')\n"
+        "        expected_steps = 4 if chunk == 'demos' else 1\n"
+        "        if manifest.get('expected_steps') != expected_steps or not isinstance(completed_steps, list) or len(completed_steps) != expected_steps or any(step.get('returncode') != 0 for step in completed_steps):\n"
+        "            failed_chunks.append(f'{chunk}: incomplete specialized steps')\n"
         "    raw_paths = manifest.get('coverage_db_paths')\n"
         "    raw_chunk_paths = raw_paths if isinstance(raw_paths, list) else []\n"
         "    data_file = manifest.get('data_file')\n"

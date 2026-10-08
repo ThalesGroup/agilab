@@ -1,8 +1,8 @@
 {
-  "file_count": 287,
+  "file_count": 288,
   "format_version": 3,
   "managed_target": "docs/source",
-  "public_owned_digest_sha256": "630a48d3efe1a4f6ae4af22314d23c7b0a14f211c881913809b66f712d02c449",
+  "public_owned_digest_sha256": "5cf2f4aaeac77c427821b67b4bd13b5a8bb53fd6576d1a019b05bd6a730e1810",
   "public_owned_exclusions": [
     "data/release_proof.toml",
     "data/ui_robot_evidence.json",
@@ -10,13 +10,13 @@
   ],
   "public_owned_file_count": 3,
   "public_owned_files_sha256": {
-    "data/release_proof.toml": "1d5a4c60ccca042edac199f04ec0c00445e13f0c91d1b4e108804578f78c669e",
+    "data/release_proof.toml": "610a633b692ae3fd051e0b3da481a17d1f5ad8dc69624699c94af75663e9ed4a",
     "data/ui_robot_evidence.json": "18c47a02a0122f6de1dbcffbdee31b6ed4eb53223d0dcb44b9a64bdc07e0dbac",
-    "release-proof.rst": "565ce0166852e63b1235459f8c0f8c5f94dec4ed345f0cfd4ca1341ea7656d6c"
+    "release-proof.rst": "25b85313a27ac1c3eb3120e8a08eae6c35bf9022291ff5a506106f194ccff417"
   },
-  "source_digest_sha256": "f12571cacd0561cdb89da2e673a8be33c6e59143fbd8dcaf7bca9488fcc9056b",
+  "source_digest_sha256": "1c96f0dde208fb66d51c6222a30f4a5950a78b7760754887a95d1033282751cb",
   "source_hint": "../thales_agilab/docs/source",
   "source_status": "verified",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "f12571cacd0561cdb89da2e673a8be33c6e59143fbd8dcaf7bca9488fcc9056b"
+  "target_digest_sha256": "1c96f0dde208fb66d51c6222a30f4a5950a78b7760754887a95d1033282751cb"
 }

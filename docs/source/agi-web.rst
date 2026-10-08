@@ -98,3 +98,14 @@ Compatibility names
 older app configuration retain similar names. They use the native facade and
 do not restore the former dependency or launch path. Prefer the native names
 when writing new views.
+
+.. seealso::
+
+   :doc:`agilab-builtin-private-offline-qualification` describes source-pinned
+   offline qualification for builtin and private apps, including the shared
+   web and notebook validation boundary.
+
+.. toctree::
+   :hidden:
+
+   agilab-builtin-private-offline-qualification
