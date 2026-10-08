@@ -123,6 +123,29 @@ title and include the command you ran plus the first failing log lines.
 - Branch protection: `main`, release tags, and publication workflows are maintainer-owned. Do not bypass required reviews, local guardrails, or release proof checks.
 - Release ownership: only maintainers should create release tags, publish PyPI artifacts, update release proof, or approve Trusted Publishing changes.
 
+Release evidence automation creates a fresh `automation/release-evidence-*`
+review branch with `tools/release_proof/create_signed_release_proof_commit.py`. GitHub signs
+the commit through `createCommitOnBranch`; its expected parent, five permitted
+metadata paths, exact blob hashes and verified signature are checked before the
+PR opens. No private signing key is stored in Actions. If verification fails,
+inspect the retained branch and permissions; do not replace it with an unsigned
+commit, force-update it, or weaken signed-commit protection.
+
+PRs created with `GITHUB_TOKEN` do not automatically trigger validation workflows,
+so the publishing workflow dispatches the three evidence checks once. Validation
+concurrency separates events: manual dispatches cannot cancel PR checks, while
+new updates to the same PR still supersede older PR runs. Check the required PR
+rollup before merging; a successful separate dispatch is not proof that an
+cancelled PR check has recovered. Re-run the affected PR jobs through GitHub when
+necessary. Existing human publication and PyPI device-confirmation gates remain.
+
+To qualify the real Actions token after changing signing automation, dispatch
+`ci.yml` once with `validate_release_proof_signing=true`. Its opt-in job creates
+only an owned run/attempt branch, checks bot identity, verified signature and
+exact blobs, proves a stale expected parent is rejected, and re-reads the exact
+commit before deleting that branch. The receipt is retained as an artifact.
+It does not publish distributions, change versions or tags, or approve releases.
+
 ## Pull Request Checklist
 
 - Explain the use case or failure that the pull request addresses.

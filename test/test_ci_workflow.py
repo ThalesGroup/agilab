@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import shutil
 import subprocess
+import re
 
 import pytest
 import yaml
@@ -34,7 +35,7 @@ VALIDATION_WORKFLOW_PATHS = (
 )
 
 VALIDATION_CONCURRENCY_GROUP = (
-    "group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || "
+    "group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.head.repo.full_name || "
     "github.repository }}-${{ github.head_ref || github.ref_name }}"
 )
 
@@ -390,6 +391,68 @@ def test_validation_workflows_cancel_superseded_branch_runs() -> None:
         assert "cancel-in-progress: true" in text, path
 
 
+def _validation_group(
+    path: Path, event: str, repository: str, branch: str, *,
+    head_sha: str = "a" * 40, action: str = "opened",
+) -> str:
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+    context = {
+        "github.workflow": workflow["name"],
+        "github.event_name": event,
+        "github.sha": head_sha,
+        "github.event.action": action,
+        "github.event.pull_request.head.sha": head_sha,
+        "github.repository": "ThalesGroup/agilab",
+        "github.event.pull_request.head.repo.full_name": repository if event == "pull_request" else "",
+        "github.head_ref": branch if event == "pull_request" else "",
+        "github.ref_name": "1088/merge" if event == "pull_request" else branch,
+    }
+
+    def replace(match: re.Match[str]) -> str:
+        return next(
+            (context[key.strip()] for key in match.group(1).split("||") if context[key.strip()]),
+            "",
+        )
+
+    return re.sub(r"\$\{\{\s*(.*?)\s*\}\}", replace, workflow["concurrency"]["group"])
+
+
+@pytest.mark.parametrize("path", VALIDATION_WORKFLOW_PATHS)
+def test_manual_validation_cannot_cancel_required_pr_checks(path: Path) -> None:
+    branch = "automation/release-evidence-2026.10.07_1-37681495922-1"
+    pr_group = _validation_group(path, "pull_request", "ThalesGroup/agilab", branch)
+    manual_group = _validation_group(path, "workflow_dispatch", "ThalesGroup/agilab", branch)
+
+    assert pr_group != manual_group
+    assert pr_group == _validation_group(
+        path, "pull_request", "ThalesGroup/agilab", branch,
+        head_sha="b" * 40, action="synchronize",
+    )
+    assert pr_group != _validation_group(path, "pull_request", "fork/agilab", branch)
+    assert pr_group != _validation_group(path, "pull_request", "ThalesGroup/agilab", "another-pr")
+    assert yaml.safe_load(path.read_text(encoding="utf-8"))["concurrency"]["cancel-in-progress"] is True
+
+
+def test_release_proof_signing_validation_requires_explicit_manual_opt_in() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    job = workflow["jobs"]["release-proof-signing-validation"]
+    assert job["if"] == (
+        "${{ github.event_name == 'workflow_dispatch' && inputs.validate_release_proof_signing }}"
+    )
+    assert job["permissions"] == {"contents": "write"}
+    assert workflow["permissions"] == {"contents": "read"}
+    assert "default: false" in WORKFLOW_PATH.read_text(encoding="utf-8")
+    checkout = job["steps"][0]
+    assert checkout["with"]["persist-credentials"] is False
+    validate = next(step for step in job["steps"] if "tools/release_proof/validate_release_proof_signing.py" in step.get("run", ""))
+    assert validate["env"] == {"GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"}
+    assert '--source "$GITHUB_SHA"' in validate["run"]
+    assert '--run-id "$GITHUB_RUN_ID"' in validate["run"]
+    upload = job["steps"][-1]
+    assert upload["if"] == "always()"
+    assert upload["with"]["if-no-files-found"] == "error"
+
+
 def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
     text = ROOT_TEST_SUITE_WORKFLOW_PATH.read_text(encoding="utf-8")
     checkout = text.split("- name: Checkout", 1)[1].split(
@@ -443,10 +506,13 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
 
 
-def test_clean_public_install_avoids_stale_pip_cache_warnings() -> None:
-    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+def test_clean_public_install_uses_release_proof_installer_without_mutable_bootstrap() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    steps = workflow["jobs"]["clean-public-install"]["steps"]
+    install = next(step for step in steps if step["name"] == "Install released AGILAB package")
 
-    assert "python -m pip install --upgrade pip --no-cache-dir" in text
+    assert "python tools/install_release_proof_package.py --retries 20 --delay-seconds 15" in install["run"]
+    assert "pip install" not in install["run"]
 
 
 def test_base_python_compat_exercises_supported_boundaries_through_the_cli() -> None:

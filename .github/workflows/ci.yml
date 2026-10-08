@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: ["**"]
   workflow_dispatch:
+    inputs:
+      validate_release_proof_signing:
+        description: "Qualify server-signed release evidence with the real Actions token."
+        type: boolean
+        default: false
   schedule:
     - cron: "17 5 * * 1"
 
@@ -13,10 +18,48 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
+  release-proof-signing-validation:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.validate_release_proof_signing }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout validation source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Qualify signing, exact blobs and stale-head rejection
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python tools/release_proof/validate_release_proof_signing.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --source "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --output "$RUNNER_TEMP/agilab-release-proof-signing-validation.json"
+
+      - name: Preserve signing qualification receipt
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agilab-release-proof-signing-validation
+          path: ${{ runner.temp }}/agilab-release-proof-signing-validation.json
+          if-no-files-found: error
+          retention-days: 7
+
   local-only-policy:
     runs-on: ubuntu-latest
     steps:
@@ -396,7 +439,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip --no-cache-dir
           python tools/install_release_proof_package.py --retries 20 --delay-seconds 15
 
       - name: Validate clean package first proof
