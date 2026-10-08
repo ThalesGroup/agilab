@@ -76,6 +76,34 @@ def test_junit_counts_actual_cases_and_skips(tmp_path):
     }
 
 
+def mock_sandbox_exec_presence(monkeypatch, *, available):
+    original_is_file = tool.Path.is_file
+
+    def is_file(path):
+        if str(path) == "/usr/bin/sandbox-exec":
+            return available
+        return original_is_file(path)
+
+    monkeypatch.setattr(tool.Path, "is_file", is_file)
+
+
+@pytest.mark.parametrize("system", ["Linux", "Windows", "Darwin"])
+def test_unsupported_backend_refuses_before_execution(monkeypatch, tmp_path, system):
+    path, _ = manifest(tmp_path)
+    output = tmp_path / "unsupported_platform_qualification_evidence"
+    monkeypatch.setattr(tool.platform, "system", lambda: system)
+    mock_sandbox_exec_presence(monkeypatch, available=False)
+
+    def unexpected_call(*args, **kwargs):
+        pytest.fail("Unsupported backend must be rejected before execution")
+
+    monkeypatch.setattr(tool, "source_snapshot", unexpected_call)
+    monkeypatch.setattr(tool, "execute", unexpected_call)
+    with pytest.raises(ValueError, match="macOS sandbox-exec"):
+        tool.run(path, output)
+    assert not output.exists()
+
+
 def fake_run(
     monkeypatch,
     tmp_path,
@@ -107,6 +135,8 @@ def fake_run(
 
     monkeypatch.setattr(tool, "source_snapshot", snapshot)
     monkeypatch.setattr(tool.platform, "system", lambda: "Darwin")
+    # Unit tests simulate the complete macOS backend, including its executable.
+    mock_sandbox_exec_presence(monkeypatch, available=True)
 
     def probe(argv, **kwargs):
         assert kwargs["env"]["AGI_INTERNET_ON"] == "0"
@@ -213,6 +243,9 @@ def test_source_snapshot_refuses_root_escape_symlink(monkeypatch, tmp_path):
         )
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="Native process tracking uses macOS libproc"
+)
 def test_timeout_stops_only_its_owned_process_group(tmp_path):
     child_pid = tmp_path / "example_owned_child_pid.txt"
     code = "import pathlib,subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']);pathlib.Path(sys.argv[1]).write_text(str(p.pid));time.sleep(60)"
@@ -234,6 +267,9 @@ def test_timeout_stops_only_its_owned_process_group(tmp_path):
     assert probe.returncode != 0 or probe.stdout.strip().startswith("Z")
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="Native process tracking uses macOS libproc"
+)
 def test_successful_launcher_does_not_leave_owned_server(tmp_path):
     child_pid = tmp_path / "example_owned_server_pid.txt"
     code = "import pathlib,subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)']);pathlib.Path(sys.argv[1]).write_text(str(p.pid));time.sleep(.2)"
@@ -388,6 +424,9 @@ def test_canonical_cache_bytes_are_bound_to_the_source_snapshot(
     assert before != tool.source_snapshot(scope)
 
 
+@pytest.mark.skipif(
+    sys.platform != "darwin", reason="Native process tracking uses macOS libproc"
+)
 def test_successful_launcher_does_not_leave_detached_owned_child(tmp_path):
     child_pid = tmp_path / "example_detached_owned_child_pid.txt"
     code = "import pathlib,subprocess,sys,time; p=subprocess.Popen([sys.executable,'-c','import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);time.sleep(60)'],start_new_session=True);pathlib.Path(sys.argv[1]).write_text(str(p.pid));time.sleep(.2)"
