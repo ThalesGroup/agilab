@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-08T11:00:48Z",
+  "generated_at_utc": "2026-10-08T12:01:57Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -10,7 +10,7 @@
     "repository": "https://github.com/ThalesGroup/agilab",
     "documentation": "https://thalesgroup.github.io/agilab/",
     "project": "agilab",
-    "version": "2026.10.07.1"
+    "version": "2026.10.08"
   },
   "boundary": {
     "proves": "This manifest proves that public AGILAB surfaces are discoverable from checked-in contracts.",
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 301,
+    "evidence_schema_count": 304,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -317,7 +317,7 @@
       "name": "agi-gui",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.10.07.1",
+      "version": "2026.10.08",
       "description": "AGILAB native React UI dependency bundle and Python view helpers",
       "project": "src/agilab/lib/agi-gui",
       "pyproject": "src/agilab/lib/agi-gui/pyproject.toml",
@@ -328,7 +328,7 @@
       "name": "agi-web",
       "role": "ui-component",
       "status": "PyPI package",
-      "version": "2026.10.07.1",
+      "version": "2026.10.08",
       "description": "AGILAB portable web components with native React Python views and shared analysis components for Jupyter",
       "project": "src/agilab/lib/agi-web",
       "pyproject": "src/agilab/lib/agi-web/pyproject.toml",
@@ -504,7 +504,7 @@
       "name": "agi-pages",
       "role": "page-umbrella",
       "status": "PyPI package",
-      "version": "2026.10.07.1",
+      "version": "2026.10.08",
       "description": "AGILAB public analysis page umbrella and provider package",
       "project": "src/agilab/lib/agi-pages",
       "pyproject": "src/agilab/lib/agi-pages/pyproject.toml",
@@ -724,7 +724,7 @@
       "name": "agilab",
       "role": "top-level-bundle",
       "status": "PyPI package",
-      "version": "2026.10.07.1",
+      "version": "2026.10.08",
       "description": "AGILAB is a reproducible AI/ML workbench for engineering teams.",
       "project": ".",
       "pyproject": "pyproject.toml",
@@ -2138,6 +2138,12 @@
       ]
     },
     {
+      "schema": "agilab.native_web.low_power_benchmark.v1",
+      "sources": [
+        "tools/testing/agilab_native_web_low_power_benchmark.py"
+      ]
+    },
+    {
       "schema": "agilab.notebook_adoption.v1",
       "sources": [
         "src/agilab/agent_runtime/notebook_adoption.py"
@@ -2348,6 +2354,19 @@
         "src/agilab/demos/resources/milp_energy_demo/result.json",
         "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
         "src/agilab/demos/resources/text_notebook_demo/result.json"
+      ]
+    },
+    {
+      "schema": "agilab.offline_app_qualification_manifest.v1",
+      "sources": [
+        "docs/source/agilab-builtin-private-offline-qualification.rst",
+        "tools/testing/agilab_offline_app_qualification.py"
+      ]
+    },
+    {
+      "schema": "agilab.offline_app_qualification_receipt.v1",
+      "sources": [
+        "tools/testing/agilab_offline_app_qualification.py"
       ]
     },
     {

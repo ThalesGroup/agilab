@@ -23,6 +23,29 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+Prepared for the 2026.10.08 release.
+
+### Native web and notebook responsiveness
+
+- Paginate native tables at 100 rows while preserving access to all supplied
+  rows and selections across pages. Reuse unchanged cells during busy updates,
+  keep page navigation inside forms safe, and clamp the page when results shrink.
+- On a 1,000-row frontend fixture under Chromium CPU slowdown ×4, median
+  selection time falls from 445.15 to 133.05 ms. This is a browser measurement;
+  physical low-power hardware and scientific workloads are not qualified.
+
+### Offline qualification and release evidence
+
+- Add source-pinned offline qualification with manifest integrity, executable
+  bytecode binding, isolated network policies and owned-descendant cleanup.
+  Document the builtin/private science, native web and fresh-kernel notebook
+  qualification boundaries; actual Linux dataplane execution remains to qualify.
+- Sign generated release-proof commits through the GitHub API with expected-head
+  protection, and separate manual dispatch concurrency from pull-request checks.
+- Update agi-web, agi-gui, agi-pages and agilab together; retain other package
+  versions and their exact dependency pins. Publication evidence is added after
+  the protected release workflow succeeds.
+
 ## [2026.10.07.1] - 2026-10-08
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
