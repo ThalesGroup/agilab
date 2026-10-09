@@ -6,8 +6,11 @@ import re
 import runpy
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 
 MODULE_PATH = Path("tools/workflow_parity.py").resolve()
@@ -920,6 +923,92 @@ def test_agi_gui_profile_covers_actual_workflow_matrix_and_specialized_lanes() -
     demos_code = module._agi_gui_specialized_coverage_chunk("demos").argv[-1]
     assert "TemporaryDirectory" in demos_code
     assert "AGILAB_FREE_THREADING_PYTHON" in demos_code
+
+
+@pytest.mark.parametrize(
+    ("os_name", "python_parts"),
+    [("nt", ("Scripts", "python.exe")), ("posix", ("bin", "python"))],
+    ids=["windows-layout", "posix-layout"],
+)
+def test_agi_gui_demos_runner_uses_platform_venv_python(
+    tmp_path: Path, monkeypatch, os_name: str, python_parts: tuple[str, str]
+) -> None:
+    module = _load_module()
+    command = module._agi_gui_specialized_coverage_chunk("demos")
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    calls = []
+    temporary_paths = []
+    created_python = None
+
+    def temporary_directory(**kwargs):
+        directory = tempfile.TemporaryDirectory(dir=tmp_path, **kwargs)
+        temporary_paths.append(Path(directory.name))
+        return directory
+
+    def run(argv, *, env, timeout, check):
+        nonlocal created_python
+        assert timeout > 0 and check is False
+        calls.append((list(argv), env.copy()))
+        if "venv" in argv:
+            created_python = Path(argv[-1]).joinpath(*python_parts)
+            created_python.parent.mkdir(parents=True)
+            created_python.touch()
+        elif argv[:3] == ["uv", "pip", "sync"]:
+            python = Path(argv[argv.index("--python") + 1])
+            return SimpleNamespace(returncode=0 if python.is_file() else 2)
+        else:
+            python = Path(env["AGILAB_FREE_THREADING_PYTHON"])
+            if not python.is_file():
+                return SimpleNamespace(returncode=2)
+            if "--demos" in argv:
+                (test_results / "coverage-agi-gui-demos.db.fixture").write_text(
+                    "coverage fixture"
+                )
+                (test_results / "junit-agi-gui-demos-tests.xml").write_text(
+                    "<testsuite tests='1'/>"
+                )
+            elif "test/test_telemetry_feature_evidence.py" in argv:
+                (test_results / "junit-agi-gui-demos-telemetry.xml").write_text(
+                    "<testsuite tests='1'/>"
+                )
+            else:
+                raise AssertionError(f"unexpected demos command: {argv}")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.chdir(tmp_path)
+    # Simulate the platform lookup and child processes without changing host pathlib.
+    with monkeypatch.context() as patch:
+        patch.setitem(sys.modules, "os", SimpleNamespace(name=os_name, environ={}))
+        patch.setitem(
+            sys.modules,
+            "subprocess",
+            SimpleNamespace(run=run, TimeoutExpired=subprocess.TimeoutExpired),
+        )
+        patch.setitem(
+            sys.modules,
+            "tempfile",
+            SimpleNamespace(TemporaryDirectory=temporary_directory),
+        )
+        with pytest.raises(SystemExit) as exc:
+            exec(command.argv[-1], {})
+
+    assert exc.value.code == 0
+    assert created_python is not None
+    assert len(calls) == 4
+    sync_argv = calls[1][0]
+    assert sync_argv[sync_argv.index("--python") + 1] == str(created_python)
+    assert all(
+        env["AGILAB_FREE_THREADING_PYTHON"] == str(created_python)
+        for _, env in calls
+    )
+    manifest = json.loads(
+        (test_results / "coverage-agi-gui-demos.manifest.json").read_text()
+    )
+    assert manifest["returncode"] == 0
+    assert manifest["expected_steps"] == len(manifest["completed_steps"]) == 4
+    assert all(step["returncode"] == 0 for step in manifest["completed_steps"])
+    assert all(not path.exists() for path in temporary_paths)
 
 
 def test_agi_gui_combine_rejects_missing_specialized_lanes(
