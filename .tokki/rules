@@ -17,6 +17,25 @@
   for compact context before expanding to full repo reads. Impact validation
   remains the source of truth for tests and artifact refreshes.
 
+## Task cleanup checkpoint
+- At completion, handoff, or interruption, inventory task-owned temporary
+  workspaces, worktrees, caches, and previews; retain requested deliverables,
+  durable validation evidence, recovery handles, and the only rollback copy.
+- Recheck ownership, filesystem identity, live processes, open handles, and
+  dependencies before moving anything. Defer shared, live, or uncertain items;
+  never stop another agent's processes for housekeeping.
+- Preserve dirty worktrees. Inspect staged and unstaged changes, untracked and
+  ignored contents before any archive; a diff and status snapshot alone cannot
+  restore their full state. Never force-remove or reset a worktree for cleanup.
+- Move only authorized, disposable task-owned items to Trash or quarantine.
+  Keep a restore manifest outside the moved scope with original/destination
+  paths, sizes, content hashes or reproducible Git identity, and restore steps;
+  verify recovery. Pending queues and lifecycle/authentication locks are not
+  cleanup candidates.
+- Report moved, retained, and deferred counts/sizes with reasons and the restore
+  location. Moving to Trash does not free disk space; never empty Trash as part
+  of a task closeout. Shared/global cleanup requires its own scope.
+
 ## Built-in apps and docs
 - Built-in app changes need app-local validation through
   `./dev builtin-app-tests --app <project>` or `./dev app-contracts`; root
