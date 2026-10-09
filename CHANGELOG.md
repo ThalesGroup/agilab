@@ -23,6 +23,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.08] - 2026-10-08
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08
+
 Prepared for the 2026.10.08 release.
 
 ### Native web and notebook responsiveness
@@ -45,6 +49,12 @@ Prepared for the 2026.10.08 release.
 - Update agi-web, agi-gui, agi-pages and agilab together; retain other package
   versions and their exact dependency pins. Publication evidence is added after
   the protected release workflow succeeds.
+
+### Changed
+
+- Published AGILAB `2026.10.08` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.07.1] - 2026-10-08
 
@@ -1243,3 +1253,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
 [2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
 [2026.10.07.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
+[2026.10.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08
