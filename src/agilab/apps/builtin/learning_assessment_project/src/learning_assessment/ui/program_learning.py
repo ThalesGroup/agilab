@@ -9,6 +9,13 @@ from typing import Any
 from ..domain import assessment_session as sessions
 from ..domain.assessment_program import build_program_coverage_report
 from ..domain.diagnostic import CASE_SCHEMA, validate_case_payload
+from ..domain.diagnostic import catalog_metadata
+from .academic_assessment import (
+    academic_reference,
+    render_academic_answer,
+    render_education_coverage,
+    render_education_trace,
+)
 
 
 MAX_BANK_BYTES = 8 * 1024 * 1024
@@ -88,6 +95,8 @@ def select_bank(bundled_path: Path, env: Any, args: Any) -> dict[str, Any] | Non
 
 
 def _reference(case: dict[str, Any]) -> str:
+    if "academic_assessment" in case:
+        return academic_reference(case)
     question = case.get("question_assessment")
     if question:
         if question["kind"] == "open_response":
@@ -107,6 +116,8 @@ def _reference(case: dict[str, Any]) -> str:
 def _answer_widgets(case: dict[str, Any], key: str) -> dict[str, Any]:
     from agi_web import python_ui as st
 
+    if "academic_assessment" in case:
+        return render_academic_answer(case, key)
     question = case.get("question_assessment")
     if question:
         if question["kind"] == "numeric":
@@ -179,6 +190,7 @@ def _render_learning(bank: dict[str, Any], session: dict[str, Any], key: str) ->
     )
     case = by_id[selected]
     st.markdown(case["student_prompt"])
+    render_education_trace(catalog_metadata(case))
     if "transfer_variant" in case:
         st.caption(case["transfer_variant"]["changes"])
     context = sessions.case_context(bank, selected)
@@ -473,7 +485,9 @@ def render_program(bank: dict[str, Any]) -> None:
                 {
                     "exercice": c["case_id"],
                     "titre": c["title"],
-                    "type": c.get("question_assessment", {}).get("kind", "diagnostic"),
+                    "type": "academic_questions"
+                    if "academic_assessment" in c
+                    else c.get("question_assessment", {}).get("kind", "diagnostic"),
                     "transfert": "transfer_variant" in c,
                 }
                 for c in bank["cases"]
@@ -490,6 +504,7 @@ def render_program(bank: dict[str, Any]) -> None:
             f"{len(session['attempts'])} tentative(s), {len(session['reviews'])} revue(s) de réponse, {len(session['practical_reviews'])} revue(s) pratique(s). Lire ou terminer une activité ne valide pas automatiquement une compétence."
         )
     with coverage:
+        render_education_coverage(bank["cases"], workspace_key)
         if program:
             report = build_program_coverage_report(program, bank["cases"])
             st.metric("Compétences déclarées", report["competency_count"])

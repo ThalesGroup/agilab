@@ -28,7 +28,16 @@ from learning_assessment.classroom import (  # noqa: E402
     score_classroom_submissions,
     validate_classroom_payload,
 )
-from learning_assessment.diagnostic import diagnose_case, validate_case_payload  # noqa: E402
+from learning_assessment.diagnostic import (  # noqa: E402
+    catalog_metadata,
+    diagnose_case,
+    validate_case_payload,
+)
+from learning_assessment.domain.education import (  # noqa: E402
+    STAGE_LABELS,
+    TRACE_FIELDS,
+    resolve_academic_assessment,
+)
 from learning_assessment.domain.learning import (  # noqa: E402
     available_learning_tracks,
     load_ml_landscape,
@@ -36,6 +45,11 @@ from learning_assessment.domain.learning import (  # noqa: E402
     probability_density_svg,
 )
 from learning_assessment.exports import diagnostic_report_to_markdown  # noqa: E402
+from learning_assessment.ui.academic_assessment import (  # noqa: E402
+    render_academic_answer as _render_academic_answer,
+    render_education_coverage,
+    render_education_trace as _render_education_trace,
+)
 from learning_assessment.ui.guided_lesson import render_guided_lesson  # noqa: E402
 
 
@@ -412,6 +426,7 @@ def catalog_rows(cases: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "case_id": str(case.get("case_id", "")),
+                **{field: catalog.get(field, "") for field in TRACE_FIELDS},
                 "title": str(catalog.get("title", "")),
                 "difficulty": str(catalog.get("difficulty", "")),
                 "learner_level": str(catalog.get("learner_level", "")),
@@ -454,6 +469,9 @@ def filter_cases(
     learner_level: str = "",
     curriculum_id: str = "",
     learning_track: str = "",
+    education_stage: str = "",
+    course_id: str = "",
+    course_kind: str = "",
 ) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for case in cases:
@@ -469,6 +487,12 @@ def filter_cases(
         if learner_level and catalog.get("learner_level") != learner_level:
             continue
         if learning_track and catalog.get("learning_track") != learning_track:
+            continue
+        if education_stage and catalog.get("education_stage") != education_stage:
+            continue
+        if course_id and catalog.get("education_course_id") != course_id:
+            continue
+        if course_kind and catalog.get("education_course_kind") != course_kind:
             continue
         if curriculum_id and curriculum_id not in curriculum_ids:
             continue
@@ -695,6 +719,42 @@ def render(
     selected_track_id = str(selected_track or "all")
     selected_track_filter = "" if selected_track_id == "all" else selected_track_id
     selected_track_cases = filter_cases(cases, learning_track=selected_track_filter)
+    stage_labels = {"": "Tous les niveaux", **STAGE_LABELS}
+    stage_options = [""] + [
+        stage
+        for stage in STAGE_LABELS
+        if any(
+            catalog_metadata(case).get("education_stage") == stage
+            for case in selected_track_cases
+        )
+    ]
+    if st.session_state.get("learning_education_stage", "") not in stage_options:
+        st.session_state["learning_education_stage"] = ""
+    selected_stage = st.selectbox(
+        "Niveau scolaire",
+        stage_options,
+        format_func=stage_labels.__getitem__,
+        key="learning_education_stage",
+    )
+    selected_track_cases = filter_cases(
+        selected_track_cases, education_stage=selected_stage
+    )
+    course_titles = {"": "Tous les cours"}
+    for case in selected_track_cases:
+        metadata = catalog_metadata(case)
+        if metadata.get("education_course_id"):
+            course_titles[metadata["education_course_id"]] = metadata[
+                "education_course_title"
+            ]
+    if st.session_state.get("learning_education_course", "") not in course_titles:
+        st.session_state["learning_education_course"] = ""
+    selected_course = st.selectbox(
+        "Cours / Extra",
+        list(course_titles),
+        format_func=course_titles.__getitem__,
+        key="learning_education_course",
+    )
+    selected_track_cases = filter_cases(selected_track_cases, course_id=selected_course)
     if selected_track_id == "all":
         st.caption("The Catalog and Self-check tabs show every learner path.")
     else:
@@ -769,10 +829,15 @@ def render(
         catalog = report["catalog"]
         st.markdown(f"**{catalog['title']}**")
         st.caption(catalog["student_prompt"])
+        _render_education_trace(catalog)
         if answer_mode == "Worked example":
             st.info(
                 "Worked example: the fields below contain a model answer. "
                 "Explain each choice, then change an answer to compare the feedback."
+            )
+        elif "academic_assessment" in case:
+            st.caption(
+                "Answers start blank. Submit your choices to see the knowledge-question feedback."
             )
         else:
             st.caption(
@@ -782,40 +847,51 @@ def render(
             case.get("student_answer", {}) if answer_mode == "Worked example" else {}
         )
         answer_key = selected_id + "_" + answer_mode
-        answer = build_student_answer(
-            diagnosis=st.text_area(
-                "Diagnosis",
-                value=str(initial_answer.get("diagnosis", "")),
-                key=f"tescia_answer_diagnosis_{answer_key}",
-            ),
-            root_cause=st.text_area(
-                "Root cause",
-                value=str(initial_answer.get("root_cause", "")),
-                key=f"tescia_answer_root_cause_{answer_key}",
-            ),
-            evidence_ids=st.text_input(
-                "Evidence ids",
-                value=",".join(initial_answer.get("evidence_ids", [])),
-                key=f"tescia_answer_evidence_{answer_key}",
-            ),
-            selected_fix_id=st.text_input(
-                "Selected fix id",
-                value=str(initial_answer.get("selected_fix_id", "")),
-                key=f"tescia_answer_fix_{answer_key}",
-            ),
-            regression_test_ids=st.text_input(
-                "Regression test ids",
-                value=",".join(initial_answer.get("regression_test_ids", [])),
-                key=f"tescia_answer_regression_{answer_key}",
-            ),
-            confidence=st.slider(
-                "Confidence",
-                0.0,
-                1.0,
-                float(initial_answer.get("confidence", 0.5)),
-                key=f"tescia_answer_confidence_{answer_key}",
-            ),
-        )
+        if "academic_assessment" in case:
+            if answer_mode == "Worked example":
+                _, _, questions = resolve_academic_assessment(case)
+                initial_answer = {
+                    "academic_answers": {
+                        question["id"]: question["correct_choice"]
+                        for question in questions
+                    }
+                }
+            answer = _render_academic_answer(case, answer_key, initial_answer)
+        else:
+            answer = build_student_answer(
+                diagnosis=st.text_area(
+                    "Diagnosis",
+                    value=str(initial_answer.get("diagnosis", "")),
+                    key=f"tescia_answer_diagnosis_{answer_key}",
+                ),
+                root_cause=st.text_area(
+                    "Root cause",
+                    value=str(initial_answer.get("root_cause", "")),
+                    key=f"tescia_answer_root_cause_{answer_key}",
+                ),
+                evidence_ids=st.text_input(
+                    "Evidence ids",
+                    value=",".join(initial_answer.get("evidence_ids", [])),
+                    key=f"tescia_answer_evidence_{answer_key}",
+                ),
+                selected_fix_id=st.text_input(
+                    "Selected fix id",
+                    value=str(initial_answer.get("selected_fix_id", "")),
+                    key=f"tescia_answer_fix_{answer_key}",
+                ),
+                regression_test_ids=st.text_input(
+                    "Regression test ids",
+                    value=",".join(initial_answer.get("regression_test_ids", [])),
+                    key=f"tescia_answer_regression_{answer_key}",
+                ),
+                confidence=st.slider(
+                    "Confidence",
+                    0.0,
+                    1.0,
+                    float(initial_answer.get("confidence", 0.5)),
+                    key=f"tescia_answer_confidence_{answer_key}",
+                ),
+            )
         if st.button(
             "Evaluate answer",
             type="primary",
@@ -828,13 +904,24 @@ def render(
                 st.error(str(exc))
             else:
                 evaluation = scored["self_evaluation"]
-                st.metric(
-                    "Objective selections / 100", evaluation.get("objective_score", 0)
-                )
-                st.info(
-                    "Reasoning is pending human review. This selection score does not assess understanding or practical mastery."
-                )
+                if "academic_assessment" in case:
+                    st.metric("Knowledge answers / 100", scored["student_score"])
+                    st.caption(
+                        "This score covers the submitted knowledge questions; it does not certify practical mastery."
+                    )
+                else:
+                    st.metric(
+                        "Objective selections / 100",
+                        evaluation.get("objective_score", 0),
+                    )
+                    st.info(
+                        "Reasoning is pending human review. This selection score does not assess understanding or practical mastery."
+                    )
                 st.write(evaluation["feedback"])
+                for result in evaluation.get("question_results", []):
+                    with st.expander(result["prompt"]):
+                        st.write("Réponse attendue : " + result["correct_text"])
+                        st.write(result["explanation"])
                 decision = scored.get("decision", {})
                 if (
                     isinstance(decision, Mapping)
@@ -1008,6 +1095,7 @@ def render(
             st.code(json.dumps(draft, indent=2, sort_keys=True), language="json")
 
     with coverage_tab:
+        render_education_coverage(cases, "tescia")
         st.metric("Coverage ratio", coverage["coverage_ratio"])
         st.metric("Required ids", coverage["required_count"])
         st.metric("Minimum exercises per id", coverage["required_min_cases_per_id"])
