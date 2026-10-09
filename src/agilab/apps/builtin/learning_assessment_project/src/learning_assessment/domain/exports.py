@@ -41,6 +41,66 @@ def _json_block(value: Any) -> str:
     return "```json\n" + json.dumps(value, indent=2, sort_keys=True) + "\n```"
 
 
+def _education_markdown(catalog: Mapping[str, Any]) -> list[str]:
+    trace = catalog.get("education_trace", {})
+    if not isinstance(trace, Mapping) or not trace:
+        return []
+    lines = [
+        "## Traçabilité pédagogique",
+        "",
+        f"- Niveau : {trace.get('stage_label', '')}",
+        f"- Cours : {trace.get('course_title', '')} (`{trace.get('course_id', '')}`)",
+        f"- Chapitre : {trace.get('section_id', '')} — {trace.get('section_title', '')}",
+        f"- Type : {trace.get('course_kind', '')} / {trace.get('assessment_kind', '')}",
+        "- Notions : " + " ; ".join(n["label"] for n in trace.get("notions", [])),
+        f"- Révision des sources et questions : `{trace.get('source_revision', '')}`",
+    ]
+    for source in trace.get("sources", []):
+        lines.append(
+            f"- Source : [{source['title']}]({source['url']}) ; revue le {source['reviewed_on']}"
+        )
+        if source.get("scope"):
+            lines.append(f"  {source['scope']}")
+    lines.append("")
+    return lines
+
+
+def _academic_report_markdown(report: Mapping[str, Any]) -> str:
+    catalog = report["catalog"]
+    evaluation = report["self_evaluation"]
+    lines = [
+        f"# {catalog['title']}",
+        "",
+        f"- Exercice : `{report['case_id']}`",
+        f"- Note : {report['student_score']}/100",
+        f"- Réponses : {evaluation['answered_count']}/{evaluation['question_count']}",
+        f"- Réponses correctes : {evaluation['correct_count']}/{evaluation['question_count']}",
+        f"- Statut : {evaluation['status']}",
+        "",
+        "Chaque question a le même poids. Une réponse incorrecte ou absente vaut zéro.",
+        "Exercices originaux Learning & Assessment ; ce ne sont pas des sujets officiels ENSAE.",
+        "",
+        *_education_markdown(catalog),
+    ]
+    for result in evaluation["question_results"]:
+        lines.extend(
+            [
+                f"## {result['question_id']}",
+                "",
+                result["prompt"],
+                "",
+                f"- Votre réponse : {result['submitted_text'] or 'Non répondue'}",
+                f"- Résultat : {'Correct' if result['correct'] else 'À retravailler'}",
+                f"- Réponse attendue : {result['correct_text']}",
+                f"- Notions : {', '.join(result['notion_ids'])}",
+                "",
+                result["explanation"],
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
     """Render one diagnostic report as a printable correction sheet."""
 
@@ -50,6 +110,8 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
     self_eval = report.get("self_evaluation", {})
     if not isinstance(self_eval, Mapping):
         self_eval = {}
+    if catalog.get("assessment_kind") == "objective_questions":
+        return _academic_report_markdown(report)
     expected = self_eval.get("expected", {})
     if not isinstance(expected, Mapping):
         expected = {}
@@ -99,6 +161,7 @@ def diagnostic_report_to_markdown(report: Mapping[str, Any]) -> str:
         f"- Score band: `{self_eval.get('score_band', 'not_submitted')}`",
         f"- Case quality score: `{report.get('case_quality_score', 0.0)}`",
         "",
+        *_education_markdown(catalog),
         "## Exercise",
         "",
         str(catalog.get("student_prompt") or report.get("symptom", "")),

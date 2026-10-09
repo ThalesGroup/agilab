@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .diagnostic import classroom_metadata, diagnose_case, validate_case_payload
+from .education import TRACE_FIELDS, flatten_education_trace
 
 
 CLASSROOM_SCHEMA = "agilab.tescia_diagnostic.classroom.v1"
@@ -222,6 +223,8 @@ def expand_classroom_submissions(
                 "anonymize_student": anonymize,
             }
         )
+        if not base_case["submitted_at"]:
+            base_case.pop("submitted_at")
         if not anonymize:
             base_case["student_id"] = student_id
             if submission.get("display_name"):
@@ -245,6 +248,7 @@ def classroom_progress_row(report: Mapping[str, Any]) -> dict[str, Any]:
     feedback = _as_list(self_eval.get("feedback"))
     return {
         "class_id": _as_string(classroom.get("class_id")),
+        **flatten_education_trace(_as_mapping(catalog.get("education_trace"))),
         "session_id": _as_string(classroom.get("session_id")),
         "student_ref": _as_string(classroom.get("student_ref")),
         "exercise_id": _as_string(classroom.get("exercise_id")),
@@ -507,6 +511,7 @@ def _intervention_actions_from_aggregates(
 
 def _normalize_progress_row(row: Mapping[str, Any]) -> dict[str, Any]:
     return {
+        **{field: _as_string(row.get(field)) for field in TRACE_FIELDS},
         "class_id": _as_string(row.get("class_id")),
         "session_id": _as_string(row.get("session_id")),
         "student_ref": _as_string(row.get("student_ref")),

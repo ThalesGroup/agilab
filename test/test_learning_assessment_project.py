@@ -916,7 +916,7 @@ def test_tescia_sample_cases_have_complete_regression_coverage(monkeypatch) -> N
     incomplete = {
         str(case["case_id"]): regression_coverage(case)
         for case in _load_cases()
-        if regression_coverage(case) != 1.0
+        if "academic_assessment" not in case and regression_coverage(case) != 1.0
     }
 
     assert incomplete == {}
@@ -942,6 +942,7 @@ def test_tescia_learning_tracks_and_drift_decision_are_deterministic(
         "agilab_diagnostics",
         "mathematics_2026",
         "data_science_2026",
+        "engineering_ensae",
     ]
     assert {
         track["id"]: sum(case["learning_track"] == track["id"] for case in cases)
@@ -950,6 +951,7 @@ def test_tescia_learning_tracks_and_drift_decision_are_deterministic(
         "agilab_diagnostics": 2,
         "mathematics_2026": 10,
         "data_science_2026": 24,
+        "engineering_ensae": 102,
     }
 
     drift_case = next(
@@ -1502,6 +1504,7 @@ def test_tescia_app_surface_catalog_answer_and_authoring_helpers(monkeypatch) ->
         "agilab_diagnostics",
         "mathematics_2026",
         "data_science_2026",
+        "engineering_ensae",
     ]
     agilab_cases = module.filter_cases(cases, learning_track="agilab_diagnostics")
     assert {case["case_id"] for case in agilab_cases} == {
@@ -2672,12 +2675,22 @@ def test_tescia_reduce_contract_merges_case_summaries(monkeypatch) -> None:
     assert artifact.name == "learning_assessment_reduce_summary"
     assert artifact.partial_count == len(summaries)
     assert artifact.payload["case_count"] == len(summaries)
-    assert artifact.payload["actionable_count"] == len(summaries)
+    assert artifact.payload["actionable_count"] == sum(
+        summary["status"] == "actionable" for summary in summaries
+    )
     assert "cluster_share_sshfs" in artifact.payload["case_ids"]
     assert "math_2026_seconde_gt_coverage" in artifact.payload["case_ids"]
     assert "mount_scheduler_share_with_sshfs" in artifact.payload["selected_fix_ids"]
-    assert artifact.payload["student_score_mean"] is None
-    assert artifact.payload["graded_count"] == 0
+    # Academic multiple-choice cases have a declared objective score; pending
+    # human-review cases retain None and must not dilute the graded-only mean.
+    graded = [summary["student_score"] for summary in summaries
+              if summary["student_score"] is not None]
+    assert artifact.payload["graded_count"] == len(graded)
+    assert artifact.payload["student_score_mean"] == pytest.approx(
+        sum(graded) / len(graded), abs=0.1
+    )
+    assert any(summary["student_score"] is None for summary in summaries)
+
 
 
 def test_tescia_reduce_contract_counts_duplicate_case_runs(monkeypatch) -> None:

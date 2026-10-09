@@ -381,6 +381,8 @@ def restore_session(raw: bytes, bank: Mapping[str, Any]) -> dict[str, Any]:
         replay = diagnose_case({**cases[case_id], "student_answer": attempt["answer"]})[
             "self_evaluation"
         ]
+        if replay["status"] == "not_submitted":
+            raise ValueError("Une tentative ne peut pas contenir une réponse vide.")
         if attempt.get("evaluation") != replay or attempt.get(
             "context"
         ) != case_context(normalized, case_id):

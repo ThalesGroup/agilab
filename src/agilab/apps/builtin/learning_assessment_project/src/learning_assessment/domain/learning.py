@@ -40,6 +40,15 @@ LEARNING_TRACKS: Final[dict[str, dict[str, Any]]] = {
             "Select a reversible fix and a measurable regression plan.",
         ],
     },
+    "engineering_ensae": {
+        "label": "École d'ingénieur — cours et Extra",
+        "audience": "Élèves ingénieurs et enseignants",
+        "outcomes": [
+            "Résoudre des questions mathématiques avec une correction explicative.",
+            "Relier chaque résultat au cours, au chapitre et aux notions évaluées.",
+            "Contrôler la couverture des syllabus publics cités.",
+        ],
+    },
     DEFAULT_LEARNING_TRACK: {
         "label": "General diagnostics",
         "audience": "Learners adapting their own diagnostic cases",
