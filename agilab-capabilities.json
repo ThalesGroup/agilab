@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-08T12:01:57Z",
+  "generated_at_utc": "2026-10-09T12:20:26Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -935,7 +935,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-06-19"
+      "updated": "2026-10-09"
     },
     {
       "name": "agilab-security-review-patterns",
@@ -1007,7 +1007,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "path": ".claude/skills/repo-skill-maintenance/SKILL.md",
-      "updated": "2026-09-11"
+      "updated": "2026-10-09"
     },
     {
       "name": "report-qa-docx",

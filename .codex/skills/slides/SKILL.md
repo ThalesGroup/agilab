@@ -12,6 +12,8 @@ Use PptxGenJS for slide authoring. Do not use `python-pptx` for deck generation 
 
 Keep work in a task-local directory. Only copy final artifacts to the requested destination after rendering and validation pass.
 
+For AGILAB task closeout, follow the [task cleanup checkpoint](../../../.tokki/rules#task-cleanup-checkpoint); retain delivered sources, rebuild assets, requested previews, and validation evidence before moving disposable render scratch.
+
 ## Bundled Resources
 
 - `assets/pptxgenjs_helpers/`: Copy this folder into the deck workspace and import it locally instead of reimplementing helper logic.

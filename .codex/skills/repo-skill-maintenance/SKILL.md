@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-11
+  updated: 2026-10-09
 ---
 
 # Repo Skill Maintenance
@@ -16,11 +16,12 @@ newer Codex-specific content.
 
 ## Canonical contract
 
-These paths describe the public AGILAB checkout. For another repo, inspect its
-`AGENTS.md`, sync tooling, and resolved symlink targets before choosing a source.
-Edit a real skill directory once when several agent roots alias it. For a mirror
-owned by a pinned submodule, use its documented source-update and refresh workflow;
-do not bypass the pin by copying from a live sibling checkout.
+The paths and executable recipe below apply to the public AGILAB checkout.
+Before using them elsewhere, resolve the destination's `AGENTS.md`, canonical
+skill root, synchronizer, and any submodule pin. If that contract differs, use
+the destination's documented workflow instead of running AGILAB's commands or
+creating its directory layout. Edit a real directory once when provider roots
+alias it; never bypass a pinned mirror by copying from a live sibling checkout.
 
 - Shared source of truth: `.claude/skills/`
 - Repo Codex mirror: `.codex/skills/`

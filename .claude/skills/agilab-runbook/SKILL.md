@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, Streamlit, run configs,
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-06-19
+  updated: 2026-10-09
 ---
 
 # AGILab runbook (Agent Skill)
@@ -220,13 +220,10 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   private app-local validation against that pointer, then commit only the
   pointer update in the integration repository. After the pointer commit is
   pushed and validated, delete the stale unmergeable public branch.
-- **Dirty worktree cleanup**: when cleaning stale local worktrees, do not delete dirty worktrees
-  blindly. First inspect `git -C <worktree> status --short` and the branch relationship to
-  `origin/main`. If dirty changes are obsolete but still worth preserving, archive
-  `git -C <worktree> diff --binary` plus a status snapshot outside the repo before removal. Remove
-  only clean worktrees or dirty worktrees with an explicit archive path, then run `git worktree
-  prune`, delete stale branch refs that are already represented on `origin/main`, and realign local
-  `main` to `origin/main` when the old `main` worktree has been removed safely.
+- **Task cleanup**: follow the [task cleanup checkpoint](../../../.tokki/rules#task-cleanup-checkpoint)
+  for temporary workspaces, caches, previews, and worktrees. Preserve dirty worktrees;
+  a binary diff and status snapshot do not preserve staged, untracked, or ignored
+  contents. Keep unrelated branch/history maintenance outside task closeout.
 
 ## Git footprint maintenance
 
