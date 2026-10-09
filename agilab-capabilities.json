@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-09T12:20:26Z",
+  "generated_at_utc": "2026-10-09T15:39:02Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 304,
+    "evidence_schema_count": 308,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1886,6 +1886,33 @@
       "schema": "agilab.lab_stages_dag_preview.v1",
       "sources": [
         "src/agilab/pipeline/pipeline_lab.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.academic_assessment.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/README.md",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/education.py",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/sample_data/tescia_diagnostic_cases.json"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.academic_evaluation.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/education.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.education_coverage.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/education.py"
+      ]
+    },
+    {
+      "schema": "agilab.learning_assessment.engineering_course_sources.v1",
+      "sources": [
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/curriculum/engineering_course_assessments_fr_sources.json",
+        "src/agilab/apps/builtin/learning_assessment_project/src/learning_assessment/domain/education.py"
       ]
     },
     {
