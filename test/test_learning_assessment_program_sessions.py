@@ -484,6 +484,67 @@ def test_external_program_uses_real_ui_and_records_blank_then_submitted_answer(
     assert domain.restore_session(domain.export_session(session), bank) == session
 
 
+def test_native_ui_records_integer_practical_and_text_reviews_with_evidence(domain, bank):
+    from agi_web.testing import AppTest
+    from learning_assessment.ui.program_learning import render_program
+
+    app = AppTest.from_function(render_program, args=[bank]).run()
+    assert not app.exception
+    practical = bank["assessment_program"]["competencies"][0]["practical_assessment"]
+    criteria = {criterion["criterion_id"] for criterion in practical["rubric"]}
+    for control in app.number_input:
+        if control.label in criteria:
+            assert control.value is None
+            control.set_value(4)
+    piece = b'{"observed_delay_seconds": 0.2, "scope": "synthetic fixture"}'
+    next(u for u in app.file_uploader if u.label.startswith("Pièces du travail")).upload(
+        "synthetic_delay_observation.json", piece, "application/json"
+    )
+    next(t for t in app.text_input if t.label == "Évaluateur de la réalisation").input(
+        "Fixture reviewer"
+    )
+    next(t for t in app.text_area if t.label.startswith("Vérifications réalisées")).input(
+        "Checked the synthetic observation; no real learner or lab execution is asserted."
+    )
+    next(c for c in app.checkbox if c.label == "Sécurité et autorisation vérifiées").check()
+    next(c for c in app.checkbox if c.label.startswith("Intégrité et attribution")).check()
+    next(b for b in app.button if b.label == "Enregistrer la revue pratique").click().run()
+    assert not app.exception and not app.error
+    session_key = (
+        "learning_program_" + domain.bank_fingerprint(bank)[:16]
+        + "_session_" + domain.fingerprint("apprenant_01")[:16]
+    )
+    session = app.session_state[session_key]
+    assert len(session["practical_reviews"]) == 1
+    review = session["practical_reviews"][0]
+    assert review["criteria"] == {criterion: 4 for criterion in criteria}
+    assert all(type(score) is int for score in review["criteria"].values())
+    assert review["rubric_score"] == 4
+    assert review["status"] == "reviewed"
+    assert review["attestation"] == "declared_human_review"
+    assert review["artifacts"][0]["sha256"] == hashlib.sha256(piece).hexdigest()
+
+    next(t for t in app.text_area if t.label == "Votre raisonnement").input(
+        "Queueing adds a load-dependent waiting time."
+    )
+    next(b for b in app.button if b.label == "Enregistrer ma réponse").click().run()
+    assert not app.exception
+    for control in app.number_input:
+        if control.label in {"Mechanism", "Limits"}:
+            assert control.value is None
+            control.set_value(3)
+    next(t for t in app.text_input if t.label == "Évaluateur").input("Fixture reviewer")
+    next(t for t in app.text_area if t.label == "Justification et prochaine activité").input(
+        "Review the synthetic explanation, then vary the load."
+    )
+    next(b for b in app.button if b.label == "Enregistrer la revue").click().run()
+    assert not app.exception and not app.error
+    assert len(session["reviews"]) == 1
+    assert session["reviews"][0]["criteria"] == {"Mechanism": 3, "Limits": 3}
+    assert all(type(score) is int for score in session["reviews"][0]["criteria"].values())
+    assert domain.restore_session(domain.export_session(session), bank) == session
+
+
 def test_program_resume_rejects_malformed_attempt_without_replacing_progress(
     domain, bank
 ):

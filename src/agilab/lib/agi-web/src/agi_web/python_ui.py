@@ -271,7 +271,8 @@ def select_slider(label, options, value=None, **kwargs):
 def number_input(label, min_value=None, max_value=None, value="min", step=None, **kwargs):
     if value == "min":
         value = min_value if min_value is not None else (0.0 if isinstance(step, float) else 0)
-    integer = isinstance(value, int) and not isinstance(value, bool)
+    numeric_types = [item for item in ((min_value, max_value, step) if value is None else (value,)) if item is not None]
+    integer = bool(numeric_types) and all(isinstance(item, int) and not isinstance(item, bool) for item in numeric_types)
     return _widget("number_input", label, value, min_value=min_value, max_value=max_value,
                    step=step or (1 if integer else 0.01), integer=integer,
                    decoder=int if integer else float, **kwargs)

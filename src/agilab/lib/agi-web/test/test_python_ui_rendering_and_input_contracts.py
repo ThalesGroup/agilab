@@ -10,6 +10,7 @@ import pytest
 
 from agi_web import python_ui as ui
 from agi_web.python_view_session import RerunView, UIError, ViewSession, use_session
+from agi_web.testing import AppTest
 
 
 @pytest.fixture
@@ -81,6 +82,44 @@ def test_text_and_status_helpers_preserve_visible_content(session):
         assert spinner.node["props"]["state"] == "running"
     assert spinner.node["props"]["state"] == "complete"
     assert ui.status("Done", state="complete").node["props"]["state"] == "complete"
+
+
+@pytest.mark.parametrize(
+    "bounds, entered, expected_type, expected_step",
+    [
+        ({"min_value": 0, "max_value": 4}, 4, int, 1),
+        ({"max_value": 4}, 2, int, 1),
+        ({"step": 2}, 4, int, 2),
+        ({"min_value": 0.0, "max_value": 4.0}, 1.5, float, 0.01),
+        ({"min_value": 0, "max_value": 4.0}, 1.5, float, 0.01),
+        ({"min_value": 0, "max_value": 4, "step": 0.5}, 1.5, float, 0.5),
+        ({}, 1.5, float, 0.01),
+    ],
+)
+def test_empty_numeric_control_infers_type_and_round_trips_native_input(
+    bounds, entered, expected_type, expected_step
+):
+    app = AppTest.from_function(
+        lambda: ui.number_input("Score", value=None, key="score", **bounds)
+    ).run()
+    assert not app.exception
+    assert app.number_input("score").value is None
+    assert app.number_input("score").proto.integer is (expected_type is int)
+    assert app.number_input("score").step == expected_step
+    app.number_input("score").set_value(entered).run()
+    assert not app.exception
+    assert type(app.session_state["score"]) is expected_type
+    assert app.session_state["score"] == entered
+
+
+@pytest.mark.parametrize("invalid", [1.5, True, False])
+def test_empty_integer_control_rejects_fractional_and_boolean_native_input(invalid):
+    app = AppTest.from_function(
+        lambda: ui.number_input("Score", 0, 4, value=None, key="score")
+    ).run()
+    with pytest.raises(UIError, match="Expected (an integer|a number)"):
+        app.number_input("score").set_value(invalid).run()
+    assert app.session_state["score"] is None
 
 
 def test_duplicate_control_keys_and_numeric_defaults(session):
