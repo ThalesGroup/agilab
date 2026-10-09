@@ -429,10 +429,13 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     )[0]
     assert "docs/source/index.rst" not in release_metadata_block
     assert "test/test_public_demo_links.py" not in release_metadata_block
-    assert "git add \"${release_metadata_paths[@]}\"" in text
+    assert "tools/release_proof/create_signed_release_proof_commit.py" in text
+    assert '--expected-head "$(git rev-parse HEAD)"' in text
+    assert 'git commit -m "docs(release): record HF Space sync"' not in text
     assert "git push origin HEAD:main" not in text
     assert 'release_branch="automation/release-evidence-' in text
-    assert "git push --set-upstream origin \"$release_branch\"" in text
+    assert 'git push --set-upstream origin "$release_branch"' not in text
+    assert "RELEASE_COMMIT: ${{ steps.release-proof.outputs.release_commit }}" in text
     assert "gh pr create" in text
     assert "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\"" in text
     assert "gh workflow run root-test-suite.yml --ref \"$RELEASE_BRANCH\"" in text

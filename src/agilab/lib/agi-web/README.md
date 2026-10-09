@@ -73,6 +73,18 @@ The contract is intentionally framework-neutral:
   ships Canvas2D/WebGL paths; React assets are also bundled in the wheel. Adapters sit beside
   the contract without forcing Node tooling into every AGILAB install.
 
+## Retained Python Views in Jupyter
+
+`agi_web.notebook_python_view.render_python_view` displays a Python view through
+an AnyWidget and carries interactions over the notebook kernel's existing comms.
+Install `agi-web[notebook]` in that kernel and enable widgets in the frontend.
+The app's scientific packages, data and model weights remain separate prerequisites.
+
+Plotly styles are scoped to each widget, including its SVG layers and modebar.
+Charts honour an explicit figure height and otherwise use 450 pixels. Changes
+in available width resize the plot without a height feedback loop. These rules
+apply to simultaneous notebook widgets as well as the native web host.
+
 ## Shared React Analysis Views
 
 Install `agi-web[notebook]` in the notebook kernel environment and enable Jupyter

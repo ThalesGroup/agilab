@@ -1,5 +1,5 @@
 [project]
-version = "2026.10.07"
+version = "2026.10.08"
 name = "agi-web"
 description = "AGILAB portable web components with native React Python views and shared analysis components for Jupyter"
 requires-python = ">=3.12"

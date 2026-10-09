@@ -79,7 +79,7 @@ test("form drafts, tools and busy state preserve expensive sibling rendering whi
   const element = await mount(payload(1, [form, ...heavy], sidebar), {
     action: action => { actions.push(action); return reply.promise; },
   });
-  assert.equal(serializedCells, 250);
+  assert.equal(serializedCells, 100, "Only the visible page should serialize scientific cells.");
   assert.equal(sanitizations, 3);
   assert.equal(element.querySelector("[onerror]"), null);
   const markdown = element.querySelector(".py-markdown"), table = element.querySelector("table");
@@ -132,6 +132,88 @@ test("selectable tables retain busy protection and use the newest selection and 
   assert.deepEqual(actions[1].value, { rows: [1] });
   await act(async () => replies[1].resolve(payload(3, [table([1])])));
   assert.deepEqual([...element.querySelectorAll("input")].map(input => input.checked), [false, true]);
+});
+
+test("selectable table busy transitions preserve unchanged cell rendering and still accept new rows", async () => {
+  let serializations = 0;
+  const rows = Array.from({ length: 80 }, (_, index) => [{
+    toJSON() { serializations += 1; return { sample: index }; },
+  }]);
+  const reply = deferred(), actions = [];
+  const table = (data, selected) => node("samples", "dataframe", { key: "samples", columns: ["Sample"],
+    rows: data, selection_mode: "multi-row", value: { rows: selected } });
+  const element = await mount(payload(1, [table(rows, [])]), {
+    action: action => { actions.push(action); return reply.promise; },
+  });
+  assert.equal(serializations, 80);
+  await act(async () => element.querySelector('[aria-label="Select row 1"]').click());
+  assert.deepEqual(actions[0].value, { rows: [0] });
+  assert.ok([...element.querySelectorAll("input")].every(input => input.disabled));
+  assert.equal(serializations, 80, "Busy controls must not serialize the unchanged scientific cells again.");
+  await act(async () => reply.resolve(payload(2, [table([[{ sample: "new data" }]], [0])])));
+  assert.equal(element.querySelectorAll("tbody tr").length, 1);
+  assert.match(element.querySelector("tbody td:last-child").textContent, /new data/);
+  assert.equal(element.querySelector("input").checked, true);
+  assert.equal(element.querySelector("input").disabled, false);
+});
+
+test("large tables page all rows, preserve absolute selections and clamp after data shrinks", async () => {
+  const rows = Array.from({length: 250}, (_, index) => [index]);
+  const reply = deferred(), actions = [];
+  const table = (data, selected) => node("samples", "dataframe", {key: "samples", columns: ["Sample"],
+    rows: data, selection_mode: "multi-row", value: {rows: selected}});
+  const element = await mount(payload(1, [table(rows, [149])]), {
+    action: action => {actions.push(action); return reply.promise;},
+  });
+  const next = () => element.querySelector('[aria-label="Next table page"]');
+  assert.equal(element.querySelectorAll("tbody tr").length, 100);
+  assert.match(element.textContent, /Rows 1–100 of 250/);
+  assert.match(element.textContent, /Selected: 1/);
+  await act(async () => next().click());
+  assert.ok(element.querySelector('[aria-label="Select row 150"]').checked);
+  await act(async () => next().click());
+  assert.equal(element.querySelectorAll("tbody tr").length, 50);
+  assert.ok(next().disabled);
+  await act(async () => element.querySelector('[aria-label="Select row 250"]').click());
+  assert.deepEqual(actions[0].value, {rows: [149, 249]});
+  assert.ok(element.querySelector('[aria-label="Previous table page"]').disabled);
+  await act(async () => reply.resolve(payload(2, [table([["first"], ["second"]], [1])])));
+  assert.equal(element.querySelectorAll("tbody tr").length, 2);
+  assert.ok(element.querySelector('[aria-label="Select row 2"]').checked);
+  assert.match(element.textContent, /first/);
+  assert.equal(next(), null);
+});
+
+test("table pagination inside a form never submits the Python form", async () => {
+  const rows = Array.from({length: 250}, (_, index) => [index]);
+  const form = node("grid-form", "form", {}, [
+    node("grid", "dataframe", {columns: ["Sample"], rows}),
+    node("apply", "form_submit_button", {label: "Apply", form: "grid-form"}),
+  ]);
+  const actions = [];
+  const element = await mount(payload(1, [form]), {
+    action: async action => {actions.push(action); return payload(2, [form]);},
+  });
+  await act(async () => element.querySelector('[aria-label="Next table page"]').click());
+  assert.match(element.textContent, /Rows 101–200 of 250/);
+  await act(async () => element.querySelector('[aria-label="Previous table page"]').click());
+  assert.match(element.textContent, /Rows 1–100 of 250/);
+  assert.deepEqual(actions, [], "Pagination stays local and cannot submit scientific form actions.");
+});
+
+test("a clamped table page stays clamped when later Python data grows", async () => {
+  const rows = Array.from({length: 250}, (_, index) => [index]);
+  const replace = node("replace", "button", {label: "Replace table"});
+  const view = data => [replace, node("grid", "dataframe", {columns: ["Sample"], rows: data})];
+  let revision = 1;
+  const element = await mount(payload(revision, view(rows)), {
+    action: async () => payload(++revision, view(revision === 2 ? [["small"]] : rows)),
+  });
+  for (let i = 0; i < 2; i += 1) await act(async () => element.querySelector('[aria-label="Next table page"]').click());
+  await act(async () => [...element.querySelectorAll("button")].find(button => button.textContent === "Replace table").click());
+  assert.equal(element.querySelectorAll("tbody tr").length, 1);
+  await act(async () => [...element.querySelectorAll("button")].find(button => button.textContent === "Replace table").click());
+  assert.match(element.textContent, /Rows 1–100 of 250/);
 });
 
 test("unchanged markup remains parsed once across fresh Python payloads and links navigate with current data", async () => {

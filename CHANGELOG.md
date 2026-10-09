@@ -23,6 +23,53 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.08] - 2026-10-08
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08
+
+Prepared for the 2026.10.08 release.
+
+### Native web and notebook responsiveness
+
+- Paginate native tables at 100 rows while preserving access to all supplied
+  rows and selections across pages. Reuse unchanged cells during busy updates,
+  keep page navigation inside forms safe, and clamp the page when results shrink.
+- On a 1,000-row frontend fixture under Chromium CPU slowdown ×4, median
+  selection time falls from 445.15 to 133.05 ms. This is a browser measurement;
+  physical low-power hardware and scientific workloads are not qualified.
+
+### Offline qualification and release evidence
+
+- Add source-pinned offline qualification with manifest integrity, executable
+  bytecode binding, isolated network policies and owned-descendant cleanup.
+  Document the builtin/private science, native web and fresh-kernel notebook
+  qualification boundaries; actual Linux dataplane execution remains to qualify.
+- Sign generated release-proof commits through the GitHub API with expected-head
+  protection, and separate manual dispatch concurrency from pull-request checks.
+- Update agi-web, agi-gui, agi-pages and agilab together; retain other package
+  versions and their exact dependency pins. Publication evidence is added after
+  the protected release workflow succeeds.
+
+### Changed
+
+- Published AGILAB `2026.10.08` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+## [2026.10.07.1] - 2026-10-08
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
+
+- Fix Plotly charts in native Jupyter widgets: apply SVG and modebar styles
+  inside each shadow root, preserve the figure height, and resize only when
+  the available width changes. This prevents the growing-chart layout loop.
+
+### Changed
+
+- Published AGILAB `2026.10.07.1` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
 ## [2026.10.07] - 2026-10-07
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
@@ -1205,3 +1252,5 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.05]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05
 [2026.10.05.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.05_1
 [2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
+[2026.10.07.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
+[2026.10.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08

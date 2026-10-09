@@ -90,7 +90,7 @@ def _parity_agi_gui_targets(module) -> dict[str, list[str]]:
         components=None, skills=None, app_path=None, worker_copy=None
     )
     commands = module._profile_commands(args)["agi-gui"][
-        : len(module.AGI_GUI_COVERAGE_CHUNKS)
+        : len(module._agi_gui_static_chunk_args())
     ]
     targets_by_chunk: dict[str, list[str]] = {}
     for command in commands:
@@ -141,11 +141,16 @@ def test_agi_gui_workflow_parity_matches_coverage_workflow_targets() -> None:
 
 def test_agi_gui_test_chunks_select_real_notebook_dependency_profile() -> None:
     module = _load_module()
-    chunks = [command for command in module._agi_gui_profile()
-              if command.label.startswith("agi-gui coverage (")]
-    assert len(chunks) == len(module.AGI_GUI_COVERAGE_CHUNKS)
+    chunks = [
+        command
+        for command in module._agi_gui_profile()
+        if command.label.startswith("agi-gui coverage (") and "--extra" in command.argv
+    ]
+    assert len(chunks) == len(module._agi_gui_static_chunk_args())
     for command in chunks:
-        assert {"ui", "viz", "notebook"} <= set(_option_values(command.argv, "--extra")), (
+        assert {"ui", "viz", "notebook"} <= set(
+            _option_values(command.argv, "--extra")
+        ), (
             f"{command.label} executes source notebook widget tests and needs the notebook extra"
         )
 
@@ -188,7 +193,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_node = profiles["agi-node"][0]
     agi_cluster = profiles["agi-cluster"][0]
     agi_gui_commands = profiles["agi-gui"]
-    agi_gui_chunk_count = len(module.AGI_GUI_COVERAGE_CHUNKS)
+    agi_gui_chunk_count = len(module._agi_gui_static_chunk_args())
     agi_gui_chunks = agi_gui_commands[:agi_gui_chunk_count]
     agi_gui_combine = agi_gui_commands[-3]
     agi_gui_timing = agi_gui_commands[-2]
@@ -243,9 +248,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert agi_env.env["COVERAGE_FILE"] == ".coverage.agi-env"
     assert "--cov=agi_env" in agi_env.argv
     assert "coverage-agi-env.xml" in " ".join(agi_env.argv)
-    assert "./src/agilab/lib/agi-web" in _option_values(
-        agi_env.argv, "--with-editable"
-    )
+    assert "./src/agilab/lib/agi-web" in _option_values(agi_env.argv, "--with-editable")
     assert not any("streamlit" in argument.lower() for argument in agi_env.argv)
     assert agi_env.argv[-1] == "src/agilab/core/agi-env/test"
 
@@ -306,6 +309,9 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui coverage (pages-rest)",
         "agi-gui coverage (views)",
         "agi-gui coverage (reports)",
+        "agi-gui coverage (general)",
+        "agi-gui coverage (demos)",
+        "agi-gui coverage (builtin)",
         "agi-gui coverage combine",
         "agi-gui timing report",
         "agi-gui coverage xml",
@@ -315,12 +321,17 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
         for command in agi_gui_commands
     )
-    assert all(_has_extra(command.argv, "ui") for command in agi_gui_commands)
-    assert all(_has_extra(command.argv, "viz") for command in agi_gui_commands)
+    standard_gui_commands = [
+        command for command in agi_gui_commands if command.argv[0] == "uv"
+    ]
+    assert all(_has_extra(command.argv, "ui") for command in standard_gui_commands)
+    assert all(_has_extra(command.argv, "viz") for command in standard_gui_commands)
     assert all(
-        any(command.argv[i:i + 2] == ["--group", "test-ui"]
-            for i in range(len(command.argv) - 1))
-        for command in agi_gui_commands
+        any(
+            command.argv[i : i + 2] == ["--group", "test-ui"]
+            for i in range(len(command.argv) - 1)
+        )
+        for command in standard_gui_commands
     )
     assert agi_gui_commands[0].remove_paths[:2] == [
         ".coverage.agi-gui",
@@ -534,8 +545,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(ui_frontend_smoke.argv, "playwright")
     matrix_plan = _ui_robot_matrix_plan()
     expected_matrix_rows = {
-        str(row["shard"]): row
-        for row in matrix_plan["matrix"]["include"]
+        str(row["shard"]): row for row in matrix_plan["matrix"]["include"]
     }
     assert set(ui_robot_matrix) == set(expected_matrix_rows)
     for shard, command in ui_robot_matrix.items():
@@ -832,6 +842,169 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     assert _has_with_dependency(hf_visual_smoke_robot.argv, "playwright")
 
 
+def _complete_specialized_test_manifests(test_results: Path) -> None:
+    for chunk in ("general", "demos", "builtin"):
+        manifest_path = test_results / f"coverage-agi-gui-{chunk}.manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        junit_path = test_results / f"junit-agi-gui-{chunk}-tests.xml"
+        junit_path.write_text("<testsuite tests='1'/>")
+        junit_paths = [junit_path.as_posix()]
+        if chunk == "demos":
+            telemetry = test_results / "junit-agi-gui-demos-telemetry.xml"
+            telemetry.write_text("<testsuite tests='1'/>")
+            junit_paths.append(telemetry.as_posix())
+        expected_steps = 4 if chunk == "demos" else 1
+        manifest.update(
+            junit_paths=junit_paths,
+            expected_steps=expected_steps,
+            completed_steps=[{"returncode": 0}] * expected_steps,
+        )
+        manifest_path.write_text(json.dumps(manifest))
+
+
+def test_agi_gui_profile_covers_actual_workflow_matrix_and_specialized_lanes() -> None:
+    module = _load_module()
+    workflow = WORKFLOW_PATH.read_text()
+    gui_job = workflow.split("  agi-gui:\n", 1)[1].split("    steps:\n", 1)[0]
+    matrix_chunks = re.findall(r"^          - ([a-z-]+)$", gui_job, re.MULTILINE)
+    planned_chunks = [
+        match.group(1)
+        for command in module._agi_gui_profile()
+        if (match := re.fullmatch(r"agi-gui coverage \(([a-z-]+)\)", command.label))
+    ]
+    assert planned_chunks == matrix_chunks
+    assert len(matrix_chunks) == 10
+    assert set(module.AGI_GUI_COVERAGE_CHUNKS) == set(matrix_chunks)
+    general_steps = module._agi_gui_specialized_coverage_steps("general")
+    general, timeout = general_steps[0]
+    assert len(general_steps) == 1 and timeout == 16 * 60
+    assert "--unclassified" in general
+    assert _has_with_dependency(general, "tiktoken==0.14.0")
+    assert {"ui", "viz", "notebook"} <= set(_option_values(general, "--extra"))
+    builtin_steps = module._agi_gui_specialized_coverage_steps("builtin")
+    assert len(builtin_steps) == 1
+    assert builtin_steps[0][1] == 16 * 60
+    assert "tools/builtin_app_tests.py" in builtin_steps[0][0]
+    assert "--keep-going" in builtin_steps[0][0]
+    demos_steps = module._agi_gui_specialized_coverage_steps("demos")
+    assert [timeout for _, timeout in demos_steps] == [300, 300, 960, 180]
+    prepare, locked_tools, demos, telemetry = [argv for argv, _ in demos_steps]
+    assert _option_values(prepare, "--python") == ["3.14t"]
+    assert {"--copies", "--without-pip"} <= set(prepare)
+    assert {"--require-hashes", "--no-build"} <= set(locked_tools)
+    assert ".github/requirements/ci-free-threaded-coverage.txt" in locked_tools
+    assert _option_values(demos, "--python") == ["3.13"]
+    assert (
+        "--demos" in demos and "--coverage-config=.coveragerc.demo-resources" in demos
+    )
+    expected_requirements = sorted(
+        path.with_name("requirements.txt").relative_to(module.REPO_ROOT).as_posix()
+        for path in module.REPO_ROOT.glob("src/agilab/demos/resources/*/tests.py")
+    )
+    assert _option_values(demos, "--with-requirements") == expected_requirements
+    assert _option_values(telemetry, "--python") == ["3.12"]
+    for pin in (
+        "featuretools==1.31.0",
+        "pandas==2.3.3",
+        "woodwork==0.31.0",
+        "setuptools==80.9.0",
+        "coverage==7.16.1",
+    ):
+        assert _has_with_dependency(telemetry, pin)
+        assert pin in workflow
+    assert "--noconftest" in telemetry
+    assert "--junitxml=test-results/junit-agi-gui-demos-telemetry.xml" in telemetry
+    for label in ("general", "demos", "builtin"):
+        command = module._agi_gui_specialized_coverage_chunk(label)
+        assert command.env["AGILAB_DISABLE_BACKGROUND_SERVICES"] == "1"
+    demos_code = module._agi_gui_specialized_coverage_chunk("demos").argv[-1]
+    assert "TemporaryDirectory" in demos_code
+    assert "AGILAB_FREE_THREADING_PYTHON" in demos_code
+
+
+def test_agi_gui_combine_rejects_missing_specialized_lanes(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    for chunk in module._agi_gui_static_chunk_args():
+        db = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
+        db.write_text("fragment")
+        (test_results / f"junit-agi-gui-{chunk}.xml").write_text("<testsuite/>")
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": db.as_posix().removesuffix(".fragment"),
+                    "coverage_db_paths": [db.as_posix()],
+                }
+            )
+        )
+    monkeypatch.chdir(tmp_path)
+
+    def unexpected_combine(*_args, **_kwargs):
+        raise AssertionError("partial GUI data must never reach coverage combine")
+
+    monkeypatch.setitem(
+        sys.modules, "subprocess", SimpleNamespace(run=unexpected_combine)
+    )
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("missing specialized lanes were accepted")
+    output = capsys.readouterr().out
+    for chunk in ("general", "demos", "builtin"):
+        assert f"coverage-agi-gui-{chunk}.manifest.json" in output
+
+
+def test_agi_gui_combine_rejects_failing_specialized_report(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
+        db = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
+        db.write_text("fragment")
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": db.as_posix().removesuffix(".fragment"),
+                    "coverage_db_paths": [db.as_posix()],
+                }
+            )
+        )
+    _complete_specialized_test_manifests(test_results)
+    (test_results / "junit-agi-gui-demos-telemetry.xml").write_text(
+        "<testsuite failures='1'/>"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    def unexpected_combine(*_args, **_kwargs):
+        raise AssertionError("failing telemetry must never reach coverage combine")
+
+    monkeypatch.setitem(
+        sys.modules, "subprocess", SimpleNamespace(run=unexpected_combine)
+    )
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("failing telemetry was accepted")
+    assert "demos: missing or failing JUnit" in capsys.readouterr().out
+
+
 def test_agi_gui_coverage_chunk_wrapper_writes_manifest(tmp_path) -> None:
     module = _load_module()
     data_file = tmp_path / "coverage-agi-gui-demo.db"
@@ -900,6 +1073,8 @@ def test_agi_gui_coverage_combine_recovers_missing_success_manifest(
             encoding="utf-8",
         )
 
+    _complete_specialized_test_manifests(test_results)
+
     def fake_run(cmd, check=False):
         combined_commands.append(list(cmd))
         return SimpleNamespace(returncode=0)
@@ -953,6 +1128,8 @@ def test_agi_gui_coverage_combine_deduplicates_parallel_base_paths(
             encoding="utf-8",
         )
 
+    _complete_specialized_test_manifests(test_results)
+
     def fake_run(cmd, check=False):
         combined_commands.append(list(cmd))
         return SimpleNamespace(returncode=0)
@@ -1004,6 +1181,8 @@ def test_agi_gui_coverage_combine_rediscovers_current_db_when_manifest_is_stale(
             ),
             encoding="utf-8",
         )
+
+    _complete_specialized_test_manifests(test_results)
 
     def fake_run(cmd, check=False):
         combined_commands.append(list(cmd))
@@ -1063,6 +1242,8 @@ def test_agi_gui_coverage_combine_does_not_recover_failing_junit(
             ),
             encoding="utf-8",
         )
+
+    _complete_specialized_test_manifests(test_results)
 
     monkeypatch.chdir(tmp_path)
 
@@ -1248,7 +1429,14 @@ def test_git_changed_files_collects_unique_paths(monkeypatch) -> None:
         calls.append(list(argv))
         if argv[:2] == ["git", "diff"] and argv[-1] == "HEAD":
             return SimpleNamespace(returncode=0, stdout="tools/a.py\0shared.py\0")
-        if argv == ["git", "diff", "--no-renames", "--name-only", "-z", "origin/main...HEAD"]:
+        if argv == [
+            "git",
+            "diff",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            "origin/main...HEAD",
+        ]:
             return SimpleNamespace(returncode=0, stdout="tools/a.py\0shared.py\0")
         if argv[:4] == ["git", "diff", "--no-renames", "--cached"]:
             return SimpleNamespace(returncode=1, stdout="")
@@ -2034,8 +2222,14 @@ def test_workflow_parity_modernization_profiles_are_registered() -> None:
 
     profiles = module._profile_commands(args)
 
-    assert profiles["uv-preflight"][0].argv == ["python", "tools/uv_version_preflight.py"]
-    assert profiles["pandas-compat"][0].argv == ["python", "tools/pandas_compat_audit.py"]
+    assert profiles["uv-preflight"][0].argv == [
+        "python",
+        "tools/uv_version_preflight.py",
+    ]
+    assert profiles["pandas-compat"][0].argv == [
+        "python",
+        "tools/pandas_compat_audit.py",
+    ]
     descriptions = module._profile_descriptions()
     assert "uv binary" in descriptions["uv-preflight"]
     assert "pandas 3" in descriptions["pandas-compat"]

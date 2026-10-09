@@ -43,23 +43,60 @@ function Island({node}) {
 }
 
 const plotlyLibraries = new Map();
+function syncPlotlyShadowStyles(target) {
+  const root = target.getRootNode();
+  if (!root.host) return;
+  // Plotly writes rules with insertRule, so cloning its style tags loses them.
+  const css = [...target.ownerDocument.querySelectorAll('style[id^="plotly.js-style-"]')]
+    .flatMap(style => [...(style.sheet?.cssRules || [])].map(rule => rule.cssText)).join("\n");
+  let style = root.querySelector("style[data-agilab-plotly-styles]");
+  if (!style) {
+    style = target.ownerDocument.createElement("style");
+    style.dataset.agilabPlotlyStyles = "";
+    root.appendChild(style);
+  }
+  if (style.textContent !== css) style.textContent = css;
+}
+
 function Plot({node}) {
   const element = useRef(null);
+  const figure = node.props.figure;
+  const height = Number.isFinite(figure.layout?.height) && figure.layout.height > 0 ? figure.layout.height : 450;
   useEffect(() => {
-    let cancelled = false, observer;
+    const target = element.current;
+    let cancelled = false, observer, frame;
     if (!plotlyLibraries.has(node.props.library)) plotlyLibraries.set(node.props.library, new Promise((resolve, reject) => {
       const script = document.createElement("script"); script.src = node.props.library;
       script.onload = resolve; script.onerror = reject; document.head.appendChild(script);
     }));
-    plotlyLibraries.get(node.props.library).then(() => {
+    plotlyLibraries.get(node.props.library).then(async () => {
       if (cancelled) return;
-      const figure = node.props.figure;
-      window.Plotly.react(element.current, figure.data, {...figure.layout, autosize: true}, {responsive: true, displaylogo: false});
-      observer = new ResizeObserver(() => window.Plotly.Plots.resize(element.current)); observer.observe(element.current);
+      syncPlotlyShadowStyles(target);
+      await window.Plotly.react(target, figure.data, {...figure.layout, height, autosize: true}, {responsive: false, displaylogo: false});
+      if (cancelled) return;
+      syncPlotlyShadowStyles(target);
+      let previousWidth = target.getBoundingClientRect().width;
+      observer = new ResizeObserver(([entry]) => {
+        const width = entry.contentRect.width;
+        if (width === previousWidth) return;
+        previousWidth = width;
+        if (width <= 0) return;
+        if (frame !== undefined) cancelAnimationFrame(frame);
+        frame = requestAnimationFrame(() => {
+          frame = undefined;
+          if (!cancelled) window.Plotly.Plots.resize(target);
+        });
+      });
+      observer.observe(target);
     });
-    return () => {cancelled = true; observer?.disconnect(); if (element.current && window.Plotly) window.Plotly.purge(element.current);};
-  }, [node.props.figure, node.props.library]);
-  return <div className="py-plot" ref={element}/>;
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      if (target && window.Plotly) window.Plotly.purge(target);
+    };
+  }, [figure, height, node.props.library]);
+  return <div className="py-plot" ref={element} style={{height, minHeight: 0}}/>;
 }
 
 function Graph({node}) {
@@ -166,12 +203,27 @@ function DataTable({node}) {
   return <Table node={node} send={view.send} busy={Boolean(node.props.selection_mode && view.busy)}/>;
 }
 
+const TableCells = memo(function TableCells({row}) {
+  return row.map((cell, cellIndex) => <td key={cellIndex}>{typeof cell === "object" ? JSON.stringify(cell) : String(cell ?? "")}</td>);
+});
+
 const Table = memo(function Table({node, send, busy}) {
+  const [requestedPage, setPage] = useState(0);
   const p = node.props, selected = p.value?.rows || [];
-  return <div className="py-table" data-widget-kind="dataframe" data-widget-key={p.key}><table><thead><tr>{p.selection_mode && <th>Select</th>}{p.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead><tbody>{p.rows.map((row, index) => <tr key={index}>
+  const pageSize = 100, lastPage = Math.max(0, Math.ceil(p.rows.length / pageSize) - 1);
+  if (requestedPage > lastPage) setPage(lastPage);
+  const page = Math.min(requestedPage, lastPage), start = page * pageSize;
+  return <div className="py-table" data-widget-kind="dataframe" data-widget-key={p.key}>
+    {lastPage > 0 && <div className="py-table-pagination" role="group" aria-label="Table pages">
+      <button type="button" className="py-button" aria-label="Previous table page" disabled={busy || page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+      <span role="status">Rows {start + 1}–{Math.min(start + pageSize, p.rows.length)} of {p.rows.length}</span>
+      {p.selection_mode && <span>Selected: {selected.length}</span>}
+      <button type="button" className="py-button" aria-label="Next table page" disabled={busy || page === lastPage} onClick={() => setPage(page + 1)}>Next</button>
+    </div>}
+    <table><thead><tr>{p.selection_mode && <th>Select</th>}{p.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead><tbody>{p.rows.slice(start, start + pageSize).map((row, offset) => { const index = start + offset; return <tr key={index}>
     {p.selection_mode && <td><input aria-label={`Select row ${index + 1}`} type="checkbox" checked={selected.includes(index)} disabled={busy} onChange={event => send(node, {rows: event.target.checked ? p.selection_mode === "single-row" ? [index] : [...selected, index] : selected.filter(item => item !== index)})}/></td>}
-    {row.map((cell, cellIndex) => <td key={cellIndex}>{typeof cell === "object" ? JSON.stringify(cell) : String(cell ?? "")}</td>)}
-  </tr>)}</tbody></table></div>;
+    <TableCells row={row}/>
+  </tr>; })}</tbody></table></div>;
 });
 
 function Tabs({node}) {

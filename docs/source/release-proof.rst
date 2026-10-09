@@ -18,13 +18,13 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.10.07`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.10.08`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.10.07 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07>`__
+     - `v2026.10.08 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08>`__
    * - Dataset release
      - `datasets-82d4b1accb144409 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-82d4b1accb144409>`__ for ``13`` tracked dataset files; manifest ``82d4b1accb144409af883b3600dab54400aa30cb65034e2c122307020b070d75``
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``d72fce0ca2e93b3c3205ad18bc6162857fe1e570``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``2f407d834a41a0aebeb5a9d8f465f45f1dbbc448``
    * - Public guardrails
      - `repo-guardrails run 34586112200 <https://github.com/ThalesGroup/agilab/actions/runs/34586112200>`__ at commit ``a98b63c77d37`` passed repository guardrails; skipped jobs remain out of scope unless separately evidenced
    * - Docs source guard
@@ -34,7 +34,7 @@ Current public release
    * - Coverage
      - `coverage run 34577976386 <https://github.com/ThalesGroup/agilab/actions/runs/34577976386>`__ at commit ``1dc1002246fa`` passed component coverage and badge freshness checks
    * - PyPI publish
-     - `pypi-publish run 37613918980 <https://github.com/ThalesGroup/agilab/actions/runs/37613918980/attempts/1>`__ at commit ``f19482f7fee6`` publication workflow for the recorded release commit; see the linked attempt for its final result
+     - `pypi-publish run 37793396298 <https://github.com/ThalesGroup/agilab/actions/runs/37793396298/attempts/1>`__ at commit ``dbd021e4b479`` publication workflow for the recorded release commit; see the linked attempt for its final result
 
 What was proved
 ---------------
@@ -43,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.10.07"
+     python -m pip install "agilab[examples]==2026.10.08"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The pinned GitHub Actions rows record successful repository, documentation,
@@ -80,7 +80,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.10.07"
+   python -m pip install "agilab[examples]==2026.10.08"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
