@@ -18,7 +18,7 @@ import tomllib
 from agi_env.app_provider_registry import app_name_aliases
 from agi_env.app_settings_support import read_app_settings
 
-from agilab.notebooks.notebook_helper_cell import _helper_cell
+from agilab.notebooks.notebook_helper_cell import SDK_WORKER_DEPLOYMENT_HANDOFF, _helper_cell
 
 from agilab.ui.page_bundle_registry import discover_page_bundle
 
@@ -1732,6 +1732,10 @@ def build_notebook_export_handoff_markdown(manifest: Mapping[str, Any]) -> str:
         "3. Run `run_agilab_stage(i)` for one stage, or `run_agilab_pipeline()` for the full workflow.",
         "4. Edit `STAGE_###_CODE` cells when you want the notebook to become the new source of truth.",
         "",
+        "## SDK deployment prerequisites",
+        "",
+        SDK_WORKER_DEPLOYMENT_HANDOFF,
+        "",
         "## Commands",
         "",
         "```bash",
@@ -2272,6 +2276,7 @@ def build_notebook_document(
                     f"- Export mode: `{export_context.export_mode}`",
                     "- First run `validate_agilab_export()` to check local paths before executing workflow code.",
                     "- Use `run_agilab_stage(i)` or `run_agilab_pipeline()` to execute workflow stages in their recorded runtime.",
+                    "- " + SDK_WORKER_DEPLOYMENT_HANDOFF,
                     "- Disabled/skipped stages and output-skip rules remain enforced by the exported runner helpers.",
                     "- The selected automation profile is applied; module max_workers is preserved for re-import, while notebook pipeline execution stays sequential.",
                     "- ID-less stages can be re-imported only while the stage at the recorded module/index still matches its export fingerprint. Notebook source edits are accepted; if the AGILAB target changed, refresh the export or add an explicit stage ID.",

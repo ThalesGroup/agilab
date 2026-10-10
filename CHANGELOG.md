@@ -36,6 +36,9 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Use the SDK local-Python mode in new workflow templates and translate the
   former `local` label when replaying shorthand notebook stages. Preserve the
   execution of edited Python cells, including CSV transformations.
+- Require a deployed worker for every AGI.run mode, including local-Python
+  mode 0. Explain this SDK prerequisite in exported notebooks and handoffs
+  without adding installation stages to the authored plan.
 - Support the native file-picker popover in workflow pages, including inside
   containers, so CSV selection no longer interrupts notebook export. Consume
   completed upload events once to preserve selection without repeated reruns.

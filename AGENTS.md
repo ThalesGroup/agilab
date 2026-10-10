@@ -34,6 +34,11 @@ Use this runbook whenever you:
   `./dev app-contracts` enforces `tools/app_contracts/worker_dynamic_import_contract.py` in CI.
   A loader change needs regressions for all supported execution modes and cache
   invalidation; an interface change must prove it uses the SDK-selected class.
+  Every `AGI.run` mode, including `0` (local Python), requires a deployed worker
+  environment. Readiness checks must follow the SDK contract. Deployment is an
+  explicit ORCHESTRATE Resources action or authored `AGI.install` stage; notebook
+  export must preserve the author's plan. Ordinary Python stages and explicitly
+  workerless manager snippets that do not call `AGI.run` remain independent.
 - **Main React interface**: `src/agilab/main_page.py` uses `agi_web.python_ui`
   page/navigation registration as its routing authority. The React workspace
   header, project picker and home cards ship in `agi-web`; rebuild with `npm ci

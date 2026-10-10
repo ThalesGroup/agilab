@@ -5438,3 +5438,42 @@ def test_notebook_sync_sources_exclude_unreadable_files_and_duplicate_records(tm
     monkeypatch.setattr(Path, "read_bytes", unreadable)
     assert export._file_sha256(source) == ""
     assert export._dedupe_sync_sources([export._sync_source_record("page", source)]) == []
+
+
+def test_exported_sdk_workflow_explains_worker_deployment_and_preserves_authored_plan(tmp_path):
+    from agilab.pipeline.pipeline_stage_templates import DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY
+
+    app_root = tmp_path / "demo_project"
+    (app_root / "src").mkdir(parents=True)
+    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
+    template = DEFAULT_PIPELINE_STAGE_TEMPLATE_REGISTRY.require("generic.configure")
+    payload = template.default_payload()
+    payload["parameters"]["APP"] = "demo_project"
+    stage = template.saved_stage(template_payload=payload)
+    context = notebook_export_support.NotebookExportContext(
+        project_name="demo_project", module_path="demo_project",
+        artifact_dir=str(tmp_path / "artifacts"), active_app=str(app_root),
+    )
+    notebook = notebook_export_support.build_notebook_document(
+        {"demo_project": [stage]}, tmp_path / "lab_stages.toml", export_context=context,
+    )
+    namespace = {}
+    exec("".join(notebook["cells"][1]["source"]), namespace)
+    dynamic_handoff = namespace["export_handoff_markdown"]()
+    manifest = notebook_export_support.build_notebook_export_manifest(
+        notebook_data=notebook, notebook_path=tmp_path / "lab_stages.ipynb",
+    )
+    static_handoff = notebook_export_support.build_notebook_export_handoff_markdown(manifest)
+    introduction = "".join(notebook["cells"][0]["source"])
+    for instructions in (introduction, dynamic_handoff, static_handoff):
+        assert "ORCHESTRATE → Resources → Deploy scheduler & workers" in instructions
+        assert "mode `0` (local Python)" in instructions
+        assert "explicit `AGI.install` stage" in instructions
+        assert "does not add an installation stage" in instructions
+        assert "Python stages that do not call `AGI.run`" in instructions
+    stages = namespace["AGILAB_NOTEBOOK_EXPORT"]["stages"]
+    assert len(stages) == 1
+    assert stages[0]["code"] == stage["C"]
+    script = namespace["_build_shorthand_agi_script"](stages[0], stages[0]["code"])
+    assert "await AGI.run(app_env, request=request)" in script
+    assert "AGI.install(" not in script

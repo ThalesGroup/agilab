@@ -1751,6 +1751,11 @@ def test_orchestrate_primary_command_precedes_details_with_original_prerequisite
     module = _load_orchestrate_module()
     project = tmp_path / "owned_project"
     project.mkdir()
+    (project / "pyproject.toml").write_text(
+        "[project]\nname = 'owned-project'\n"
+        "[tool.agilab.app]\nruntime = 'local'\nworkerless = true\n",
+        encoding="utf-8",
+    )
     env = SimpleNamespace(
         app=project.name, projects=[project.name], active_app=project, target="owned",
         AGILAB_EXPORT_ABS=tmp_path / "export", TABLE_MAX_ROWS=100, envars={},
@@ -3081,7 +3086,32 @@ def test_benchmark_display_date_imports_os_when_not_provided(
     ) == module.datetime.fromtimestamp(0).strftime("%Y-%m-%d %H:%M:%S")
 
 
-def test_orchestrate_run_readiness_allows_direct_mode_with_stale_worker():
+def test_orchestrate_page_resolves_workerless_helper_from_guarded_source(tmp_path):
+    """A fresh page binds the real app contract helper through its import guard."""
+    _prime_current_agilab_package()
+    page_path = Path("src/agilab/pages/2_ORCHESTRATE.py").resolve()
+    spec = importlib.util.spec_from_file_location(
+        "agilab_orchestrate_dynamic_workerless_binding_tests", page_path
+    )
+    assert spec is not None and spec.loader is not None
+    page = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(page)
+    support = importlib.import_module("agilab.orchestrate.orchestrate_page_support")
+
+    assert page.app_declares_workerless is support.app_declares_workerless
+    project = tmp_path / "explicit_workerless_project"
+    project.mkdir()
+    env = SimpleNamespace(active_app=project)
+    assert page.app_declares_workerless(env) is False
+    (project / "pyproject.toml").write_text(
+        "[project]\nname = 'explicit-workerless-project'\n"
+        "[tool.agilab.app]\nruntime = 'local'\nworkerless = true\n",
+        encoding="utf-8",
+    )
+    assert page.app_declares_workerless(env) is True
+
+
+def test_orchestrate_run_readiness_blocks_sdk_local_mode_with_stale_worker():
     module = _load_orchestrate_module()
     install_status = {
         "manager_exists": True,
@@ -3091,14 +3121,14 @@ def test_orchestrate_run_readiness_allows_direct_mode_with_stale_worker():
         "worker_problem": "missing modules: torch",
     }
 
-    assert module._run_mode_requires_worker_environment(0) is False
-    assert module._run_mode_requires_worker_environment("0") is False
+    assert module._run_mode_requires_worker_environment(0) is True
+    assert module._run_mode_requires_worker_environment("0") is True
     assert (
-        module._install_ready_for_run(install_status, worker_required=False) is True
+        module._install_ready_for_run(install_status, worker_required=True) is False
     )
-    assert module._install_block_reason_for_run(
-        install_status, worker_required=False
-    ) == ""
+    assert "missing modules: torch" in module._install_block_reason_for_run(
+        install_status, worker_required=True
+    )
 
 
 def test_orchestrate_run_readiness_blocks_scaled_mode_with_stale_worker():

@@ -2061,8 +2061,10 @@ def test_execute_page_realigns_stale_active_app_only_for_source_root(
     assert str(source_project / ".venv") in code_text
 
 
-def test_execute_page_allows_direct_run_when_only_worker_install_is_missing(mock_ui_env):
-    """ORCHESTRATE direct mode should not block RUN on a missing worker env."""
+def test_execute_page_blocks_sdk_run_and_combo_when_worker_install_is_missing(
+    mock_ui_env
+):
+    """A deployed manager cannot run SDK stages without a deployed worker."""
 
     worker_src = (
         mock_ui_env["project_dir"]
@@ -2087,6 +2089,7 @@ def test_execute_page_allows_direct_run_when_only_worker_install_is_missing(mock
         "args": {},
         "cluster": {"cluster_enabled": False},
     }
+    at.session_state["mode"] = 0
     _seed_env_editor_state(at, env)
 
     at.run()
@@ -2094,11 +2097,17 @@ def test_execute_page_allows_direct_run_when_only_worker_install_is_missing(mock
     assert not at.exception
     run_button = at.button(key="run_btn")
     assert run_button.label == "RUN"
-    assert getattr(run_button, "disabled", None) is False
+    assert run_button.disabled is True
+    assert at.button(key="combo_exec_load_export").disabled is True
+    assert at.session_state["mode"] == 0
+    assert (env.active_app / ".venv").exists()
+    assert not (env.wenv_abs / ".venv").exists()
+    assert "AGI.run" in "\n".join(str(item.value) for item in at.code)
+    assert "worker" in run_button.help.lower()
 
 
 def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env):
-    """Workerless apps should not expose a CHECK distribute snippet or action."""
+    """Declared workerless apps can RUN/COMBO with only a deployed manager."""
 
     apps_dir = mock_ui_env["apps_dir"]
     project_dir = apps_dir / "workerless_project"
@@ -2118,6 +2127,7 @@ def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env)
         "class Workerless:\n    def __init__(self, env, **kwargs):\n        self.env = env\n",
         encoding="utf-8",
     )
+    _seed_probeable_venv(project_dir / ".venv")
 
     at = _app_test("src/agilab/pages/2_ORCHESTRATE.py")
     env = AgiEnv(apps_path=apps_dir, app="workerless_project", verbose=0)
@@ -2130,6 +2140,7 @@ def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env)
         "args": {},
         "cluster": {"cluster_enabled": False},
     }
+    at.session_state["mode"] = 0
     at.session_state["orchestrate:notebook_snippet:workerless_project:distribution"] = (
         "stale"
     )
@@ -2138,6 +2149,10 @@ def test_execute_page_hides_distribution_preview_for_workerless_app(mock_ui_env)
     at.run()
 
     assert not at.exception
+    assert at.button(key="run_btn").disabled is False
+    assert at.button(key="combo_exec_load_export").disabled is False
+    assert not env.wenv_abs.joinpath(".venv").exists()
+    assert "AGI.run" not in "\n".join(str(item.value) for item in at.code)
     assert "CHECK distribute" not in _all_button_labels(at)
     assert "Generated CHECK distribute snippet" not in _page_text(at)
     assert (
@@ -4614,3 +4629,78 @@ def test_project_page_maps_legacy_clone_action_to_create(mock_ui_env):
 
     assert at.session_state["sidebar_selection"] == "Create"
     assert "clone_env_strategy" in at.session_state
+
+
+def _orchestrate_runtime_readiness_helpers():
+    source_path = Path("src/agilab/pages/2_ORCHESTRATE.py")
+    tree = ast.parse(source_path.read_text(encoding="utf-8"))
+    names = {
+        "_run_mode_requires_worker_environment", "_install_ready_for_run",
+        "_install_block_reason_for_run", "_install_status_warning_message", "_runtime_status_label",
+    }
+    functions = [item for item in tree.body if isinstance(item, ast.FunctionDef) and item.name in names]
+    assert {item.name for item in functions} == names
+    future = ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0)
+    namespace = {}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[future, *functions], type_ignores=[])),
+                 str(source_path), "exec"), namespace)
+    return SimpleNamespace(**{name: namespace[name] for name in names})
+
+
+@pytest.mark.parametrize("run_mode", [*range(16), "0", "dc", [0], [0, 6], []])
+def test_orchestrate_sdk_modes_require_worker_deployment(run_mode):
+    helpers = _orchestrate_runtime_readiness_helpers()
+    assert helpers._run_mode_requires_worker_environment(run_mode) is True
+
+
+@pytest.mark.parametrize(
+    "manager_exists,manager_ready,worker_exists,worker_ready,expected",
+    [
+        (True, True, False, False, False),
+        (True, True, True, False, False),
+        (False, False, True, True, False),
+        (True, True, True, True, True),
+    ],
+)
+def test_orchestrate_mode_zero_readiness_requires_both_deployed_environments(
+    manager_exists, manager_ready, worker_exists, worker_ready, expected,
+):
+    helpers = _orchestrate_runtime_readiness_helpers()
+    status = {
+        "manager_exists": manager_exists, "manager_ready": manager_ready,
+        "worker_exists": worker_exists, "worker_ready": worker_ready,
+        "workerless": False,
+    }
+    worker_required = helpers._run_mode_requires_worker_environment(0)
+    assert helpers._install_ready_for_run(status, worker_required=worker_required) is expected
+    if not expected:
+        message = helpers._install_block_reason_for_run(status, worker_required=worker_required)
+        assert message
+        if manager_ready and not worker_exists:
+            assert "Worker environment" in message
+            assert "mode 0" in message
+            assert "Resources > Deploy scheduler & workers" in message
+
+
+@pytest.mark.asyncio
+async def test_orchestrate_mode_zero_readiness_matches_sdk_missing_worker_failure(tmp_path):
+    from agi_cluster.agi_distributor.runtime import runtime_distribution_support
+
+    helpers = _orchestrate_runtime_readiness_helpers()
+    status = {
+        "manager_exists": True, "manager_ready": True,
+        "worker_exists": False, "worker_ready": False,
+    }
+    assert not helpers._install_ready_for_run(
+        status, worker_required=helpers._run_mode_requires_worker_environment(0),
+    )
+    sdk_state = SimpleNamespace(_mode=0, env=SimpleNamespace(
+        wenv_abs=tmp_path / "undeployed_worker", envars={},
+    ))
+    with pytest.raises(FileNotFoundError, match=r"Worker installation.*not found"):
+        await runtime_distribution_support.run_local(
+            sdk_state, base_worker_cls=object,
+            validate_worker_uv_sources_fn=lambda path: pytest.fail("No manifest exists to validate"),
+            run_async_fn=lambda command, path: pytest.fail("No worker is deployed to execute"),
+        )
+    assert not sdk_state.env.wenv_abs.exists()
