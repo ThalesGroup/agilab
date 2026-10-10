@@ -1002,7 +1002,8 @@ def test_app_surface_full_reports_app_args_form_dependency_error(monkeypatch):
     assert any(kind == "analysis" for kind, _payload in events)
 
 
-def test_app_surface_run_once_uses_pytorch_worker(monkeypatch):
+def test_app_surface_run_once_uses_sdk_selected_worker(monkeypatch):
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
     spec = importlib.util.spec_from_file_location("pytorch_playground_app_surface_run_once_test", APP_SURFACE_PATH)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -1019,16 +1020,17 @@ def test_app_surface_run_once_uses_pytorch_worker(monkeypatch):
             events.append(("work_pool", item))
             return pd.DataFrame([{"backend": "fake"}])
 
-    fake_worker_package = ModuleType("pytorch_playground_worker")
-    fake_worker_package.__path__ = []  # type: ignore[attr-defined]
-    fake_worker_module = ModuleType("pytorch_playground_worker.pytorch_playground_worker")
-    fake_worker_module.PytorchPlaygroundWorker = _FakeWorker
-
-    monkeypatch.setitem(sys.modules, "pytorch_playground_worker", fake_worker_package)
-    monkeypatch.setitem(sys.modules, "pytorch_playground_worker.pytorch_playground_worker", fake_worker_module)
-
     runtime_env = SimpleNamespace(app="pytorch_playground_project")
     args_model = SimpleNamespace(model_dump=lambda **kwargs: {"dataset": "circles", "dump": kwargs})
+
+    def select_worker(env, mode, *, load_module_fn):
+        assert env is runtime_env
+        assert mode == 0
+        assert load_module_fn is runtime_support.load_module
+        events.append(("sdk_loader", mode))
+        return _FakeWorker
+
+    monkeypatch.setattr(runtime_support, "load_worker", select_worker)
 
     try:
         summary = module._run_playground_once(runtime_env, args_model)
@@ -1037,6 +1039,7 @@ def test_app_surface_run_once_uses_pytorch_worker(monkeypatch):
 
     assert summary.iloc[0]["backend"] == "fake"
     assert events == [
+        ("sdk_loader", 0),
         (
             "start",
             {

@@ -25,6 +25,15 @@ Use this runbook whenever you:
 
 ## General practices
 
+- **Dynamic application workers**: AGI SDK loading owns Python/Cython worker
+  selection and import-cache eviction, including worker processes. Managers and
+  interfaces must execute through the dispatcher or SDK `load_worker`; do not
+  bind an application worker class directly, even inside a function or through
+  a literal `importlib` call. Preserve SDK base declarations, declared cross-app
+  inheritance, scientific helpers and serialized-model provider registration.
+  `./dev app-contracts` enforces `tools/worker_dynamic_import_contract.py` in CI.
+  A loader change needs regressions for all supported execution modes and cache
+  invalidation; an interface change must prove it uses the SDK-selected class.
 - **Main React interface**: `src/agilab/main_page.py` uses `agi_web.python_ui`
   page/navigation registration as its routing authority. The React workspace
   header, project picker and home cards ship in `agi-web`; rebuild with `npm ci

@@ -47,6 +47,26 @@ Application workers may inherit another application's worker when that parent
 project is declared as a dependency. Route execution through the dispatcher
 rather than importing a specific worker implementation in the manager.
 
+The same rule applies to UI actions. For a local run, use the SDK
+`base_worker_runtime_support.load_worker(env, mode, load_module_fn=...)` and
+execute the returned class. Mode `0` selects local Python execution; the SDK
+handles Python/Cython selection and import-cache eviction for every mode.
+Do not rename imported worker classes used as bases: AST discovery needs their
+original class names. Module aliases remain supported.
+
+`./dev app-contracts` checks production managers, interfaces and workers without
+importing application code. To check an external or private repository, run:
+
+```bash
+python tools/worker_dynamic_import_contract.py --repo-root /path/to/apps-repository
+```
+
+This rejects explicit worker-class bindings and literal imports used for worker
+dispatch. Sharing scientific helper types/functions and registering serialized
+model providers without binding a worker class remain valid. Computed import
+expressions still require runtime tests and review; a static check cannot prove
+every possible Python execution path.
+
 ## External apps (optional)
 
 AGILab can also load apps from an external apps repository (for example, a private repository in your organisation).

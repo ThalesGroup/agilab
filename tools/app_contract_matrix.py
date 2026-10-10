@@ -638,7 +638,7 @@ def _project_checks(repo_root: Path, project_path: Path) -> list[Check]:
         project_data = pyproject.get("project", {})
         missing_core_deps = [
             package
-            for package in ("agi-env", "agi-node")
+            for package in ("agi-core", "agi-env", "agi-node")
             if not _has_dependency(manager_dependencies, package)
         ]
         checks.append(
@@ -1612,6 +1612,20 @@ def build_report(
     repo_root = repo_root.resolve()
     project_paths = discover_builtin_projects(repo_root)
     checks: list[Check] = []
+    guard = _load_module(
+        REPO_ROOT, Path("tools/worker_dynamic_import_contract.py"),
+        "agilab_worker_dynamic_import_contract",
+    )
+    try:
+        worker_imports = guard.inspect_roots(repo_root)
+    except (OSError, ValueError, SyntaxError, KeyError) as exc:
+        worker_imports = {"passed": False, "error": str(exc)}
+    checks.append(_check(
+        "worker_dynamic_imports", "Dynamic application worker loading",
+        worker_imports["passed"],
+        "production managers, interfaces, and workers preserve SDK worker selection",
+        evidence=("tools/worker_dynamic_import_contract.py",), details=worker_imports,
+    ))
     checks.append(
         _check(
             "builtin_project_inventory",

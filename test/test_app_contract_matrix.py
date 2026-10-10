@@ -20,6 +20,22 @@ def _load_module():
     return module
 
 
+def test_matrix_blocks_worker_binding_in_an_interface(tmp_path, monkeypatch):
+    module = _load_module()
+    worker_dir = tmp_path / "apps/demo_project/src/demo_worker"
+    worker_dir.mkdir(parents=True)
+    (worker_dir.parent / "app_settings.toml").write_text("", encoding="utf-8")
+    (worker_dir.parents[1] / "pyproject.toml").write_text('[project]\nname = "demo_project"\n', encoding="utf-8")
+    (worker_dir / "demo_worker.py").write_text("class DemoWorker:\n    pass\n", encoding="utf-8")
+    ui = worker_dir.parent / "interface.py"
+    ui.write_text("from demo_worker.demo_worker import DemoWorker\n", encoding="utf-8")
+    monkeypatch.setattr(module, "_global_checks", lambda *args, **kwargs: [])
+    report = module.build_report(repo_root=tmp_path)
+    contract = next(check for check in report["checks"] if check["id"] == "worker_dynamic_imports")
+    assert contract["status"] == "fail"
+    assert contract["details"]["findings"][0]["path"] == str(ui)
+
+
 def _seed_builtin_project(
     tmp_path: Path,
     name: str,
@@ -93,7 +109,7 @@ def _seed_builtin_project(
                 'version = "1.0.0"',
                 f'description = "{description}"',
                 'requires-python = ">=3.12"',
-                'dependencies = ["agi-env>=1", "agi-node>=1"]',
+                'dependencies = ["agi-core>=1", "agi-env>=1", "agi-node>=1"]',
                 *metadata_lines,
                 "",
                 "[build-system]",
