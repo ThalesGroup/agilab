@@ -34,6 +34,19 @@ Copy a template to a new `<name>_project` directory, rename the package and
 `pyproject.toml` metadata, then replace the template worker hooks with the app
 logic.
 
+## Manager and worker dependencies
+
+Declare `agi-core` in the app manager's `pyproject.toml`. This runtime bundle
+supplies the SDK used by GUI-generated deployment and RUN snippets, including
+`agi-cluster`. Keep worker manifests limited to `agi-node`, `agi-env` and the
+libraries needed by their computation.
+
+Keep the declared worker base imports: the runtime inspects them to discover
+the base class, then selects the Python or Cython worker module at execution.
+Application workers may inherit another application's worker when that parent
+project is declared as a dependency. Route execution through the dispatcher
+rather than importing a specific worker implementation in the manager.
+
 ## External apps (optional)
 
 AGILab can also load apps from an external apps repository (for example, a private repository in your organisation).

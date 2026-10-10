@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+import tomllib
 from pathlib import Path
+
+import pytest
+from packaging.requirements import Requirement
 
 
 MODULE_PATH = Path("tools/package_wheel_sanitizer.py").resolve()
@@ -85,6 +89,90 @@ def test_sanitize_packaged_builtin_app_pyprojects_updates_build_tree(tmp_path: P
 
     assert changed == [pyproject]
     assert "[tool.uv.sources]" not in pyproject.read_text(encoding="utf-8")
+
+
+def test_strip_packaged_core_uv_sources_removes_expanded_tables() -> None:
+    module = _load_module()
+    original = '''[project]
+name = "demo"
+dependencies = ["agi-web", "agi-env", "demo-lib"]
+
+[tool.uv.sources]
+agi-node = { path = "../../../core/agi-node", editable = true }
+demo-inline = { path = "../demo-inline" }
+
+[tool.uv.sources.agi-web] # source checkout only
+path = "../../../lib/agi-web"
+editable = true
+
+[tool.uv.sources."agi-env"]
+path = "../../../core/agi-env"
+
+[tool.uv.sources.'agi-core']
+path = "../../../core/agi-core"
+
+[tool.uv.sources.demo-lib]
+path = "../demo-lib"
+editable = true
+
+[build-system]
+requires = ["setuptools"]
+'''
+    sanitized = module.strip_packaged_core_uv_sources(original)
+    manifest = tomllib.loads(sanitized)
+
+    assert manifest["tool"]["uv"]["sources"] == {
+        "demo-inline": {"path": "../demo-inline"},
+        "demo-lib": {"path": "../demo-lib", "editable": True},
+    }
+    assert manifest["project"] == tomllib.loads(original)["project"]
+    assert manifest["build-system"] == {"requires": ["setuptools"]}
+    assert module.strip_packaged_core_uv_sources(sanitized) == sanitized
+
+
+def test_packaged_minimal_builtin_manifest_has_no_checkout_sources(tmp_path: Path) -> None:
+    module = _load_module()
+    source = Path("src/agilab/apps/builtin/minimal_app_project/pyproject.toml")
+    target = tmp_path / "agilab/apps/builtin/minimal_app_project/pyproject.toml"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(source.read_bytes())
+
+    assert module.sanitize_packaged_builtin_app_pyprojects(tmp_path) == [target]
+    manifest = tomllib.loads(target.read_text(encoding="utf-8"))
+    assert not manifest.get("tool", {}).get("uv", {}).get("sources", {})
+    assert manifest["project"] == tomllib.loads(source.read_text(encoding="utf-8"))["project"]
+    # GUI-generated RUN snippets import the orchestration SDK in the manager venv.
+    manager_dependencies = {
+        Requirement(spec).name for spec in manifest["project"]["dependencies"]
+    }
+    assert {"agi-env", "agi-node", "agi-core"} <= manager_dependencies
+
+
+MANAGER_MANIFESTS = tuple(
+    path
+    for category in ("builtin", "templates")
+    for path in sorted(Path("src/agilab/apps", category).glob("*/pyproject.toml"))
+    if (path.parent / "src/app_settings.toml").is_file()
+)
+
+
+@pytest.mark.parametrize("manifest_path", MANAGER_MANIFESTS, ids=str)
+def test_app_manager_declares_core_runtime_bundle(manifest_path: Path) -> None:
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    dependencies = {Requirement(spec).name for spec in manifest["project"]["dependencies"]}
+    # Generated RUN snippets require the SDK assembled by this manager-only bundle.
+    assert "agi-core" in dependencies
+
+
+@pytest.mark.parametrize(
+    "manifest_path",
+    sorted(Path("src/agilab/apps").glob("*/*/src/*_worker/pyproject.toml")),
+    ids=str,
+)
+def test_worker_manifest_does_not_require_manager_or_ui_sdk(manifest_path: Path) -> None:
+    manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
+    dependencies = {Requirement(spec).name for spec in manifest["project"].get("dependencies", [])}
+    assert dependencies.isdisjoint({"agi-core", "agi-cluster", "agi-web", "agi-gui"})
 
 
 def test_sanitize_packaged_page_bundle_pyprojects_updates_build_tree(tmp_path: Path) -> None:
