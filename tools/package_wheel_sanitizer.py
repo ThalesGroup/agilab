@@ -4,6 +4,7 @@ import importlib.util
 import re
 import shutil
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -50,6 +51,7 @@ PACKAGED_CORE_SOURCE_NAMES = frozenset(
 
 _SECTION_RE = re.compile(r"^\s*\[[^\]]+\]\s*(?:#.*)?$")
 _UV_SOURCES_RE = re.compile(r"^\s*\[tool\.uv\.sources\]\s*(?:#.*)?$")
+_UV_SOURCE_TABLE_RE = re.compile(r"^\s*\[tool\.uv\.sources\.")
 _SOURCE_ENTRY_RE = re.compile(r"^\s*([A-Za-z0-9_.-]+)\s*=.*$")
 
 
@@ -82,8 +84,21 @@ def strip_packaged_core_uv_sources(text: str) -> str:
     lines = text.splitlines(keepends=True)
     output: list[str] = []
     index = 0
+    packaged_source_names = _packaged_source_names()
     while index < len(lines):
         line = lines[index]
+        if _UV_SOURCE_TABLE_RE.match(line):
+            # uv also supports expanded (including quoted) source tables.
+            # Parse the header so package names are matched exactly.
+            try:
+                table_sources = tomllib.loads(line)["tool"]["uv"]["sources"]
+            except (tomllib.TOMLDecodeError, KeyError):
+                table_sources = {}
+            if any(name in packaged_source_names for name in table_sources):
+                index += 1
+                while index < len(lines) and not _SECTION_RE.match(lines[index]):
+                    index += 1
+                continue
         if not _UV_SOURCES_RE.match(line):
             output.append(line)
             index += 1
@@ -97,7 +112,6 @@ def strip_packaged_core_uv_sources(text: str) -> str:
             index += 1
 
         kept_block: list[str] = []
-        packaged_source_names = _packaged_source_names()
         for block_line in block:
             match = _SOURCE_ENTRY_RE.match(block_line)
             if match and match.group(1) in packaged_source_names:

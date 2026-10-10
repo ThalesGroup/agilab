@@ -18,6 +18,27 @@ def teardown_function(_fn):
     BaseWorker.env = None
 
 
+@pytest.mark.parametrize("mode", [0, 1, 2, 3, 8, 9, 10, 11])
+def test_load_worker_selects_mode_and_evicts_cache_before_loading(mode):
+    env = SimpleNamespace(target_worker="demo_worker", target_worker_class="TargetWorker")
+    selected_module = "demo_worker_cy" if mode & 2 else "demo_worker.demo_worker"
+    other_module = "demo_worker.demo_worker" if mode & 2 else "demo_worker_cy"
+    cached_other = object()
+    modules = {"demo_worker": object(), selected_module: object(), other_module: cached_other}
+    selected_class = type("SelectedWorker", (), {})
+    calls = []
+
+    def load_module(module, class_name):
+        assert "demo_worker" not in modules
+        assert selected_module not in modules
+        assert modules[other_module] is cached_other
+        calls.append((module, class_name))
+        return selected_class
+
+    assert runtime_support.load_worker(env, mode, load_module_fn=load_module, sys_modules=modules) is selected_class
+    assert calls == [(selected_module, "TargetWorker")]
+
+
 def test_capture_logs_and_result_respects_verbosity_and_restores_level():
     test_logger = logging.getLogger("agilab.base_worker_runtime_support")
     test_logger.handlers.clear()

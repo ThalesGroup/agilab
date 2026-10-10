@@ -338,11 +338,13 @@ def _render_analysis_surface(
 
 
 def _run_playground_once(runtime_env: Any, args_model: Any):
-    from pytorch_playground_worker.pytorch_playground_worker import (
-        PytorchPlaygroundWorker,
-    )
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
 
-    worker = PytorchPlaygroundWorker.__new__(PytorchPlaygroundWorker)
+    # Refresh runs locally in Python; the SDK owns worker selection and cache eviction.
+    worker_cls = runtime_support.load_worker(
+        runtime_env, 0, load_module_fn=runtime_support.load_module
+    )
+    worker = worker_cls.__new__(worker_cls)
     dump = getattr(args_model, "model_dump", None)
     worker.args = dump(mode="json") if callable(dump) else args_model
     worker.env = runtime_env

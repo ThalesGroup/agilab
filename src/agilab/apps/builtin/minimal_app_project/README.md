@@ -55,6 +55,16 @@ If a copied app does not appear in `PROJECT`, check the project suffix, root
 `pyproject.toml`, and `src/app_settings.toml`. If a worker import fails, confirm
 the worker package name matches the app manifest.
 
+Packaged app manifests resolve AGILAB dependencies from the configured package
+index or trusted wheelhouse. They do not require local `core/` or `lib/` source
+directories. Source checkouts retain their editable development dependencies.
+The manager uses the `agi-core` runtime bundle for GUI-generated orchestration.
+The worker keeps its `agi-node` base and dynamic Python/Cython loading contract;
+it does not need the manager or UI packages.
+For a wheel-based installation, use `IS_SOURCE_ENV=0` in the AGILAB environment
+configuration. A source-development configuration (`IS_SOURCE_ENV=1`) expects
+the corresponding local source projects during deployment.
+
 ## Scope
 
 This is a template-quality app, not a user-facing domain workflow. Use the

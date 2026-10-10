@@ -12,6 +12,7 @@ dependencies = [
     "agi-env>=2026.05.25,<2027.0",
     "pydantic>=2.12,<2.13",
     "agi-web>=2026.07.17,<2027.0",
+    "agi-core>=2026.10.05,<2027.0",
 ]
 
 [dependency-groups]
