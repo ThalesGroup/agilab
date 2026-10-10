@@ -63,17 +63,19 @@ def _release_parts(version: str | None) -> tuple[int, ...]:
     return tuple(int(part) for part in version.split("."))
 
 
-def prepare_sdk_wheels(root: Path) -> tuple[Path, dict[str, str]]:
-    """Build prepublication SDK candidates in an owned temporary directory."""
+def prepare_project_wheels(
+    root: Path, projects: Mapping[str, Path], *,
+    build_environment: Mapping[str, str] | None = None,
+) -> tuple[Path, dict[str, str]]:
+    """Build and validate source-bound candidates in an owned directory."""
 
     wheels = root / "wheels"
     wheels.mkdir()
     versions: dict[str, str] = {}
-    build_env = os.environ.copy()
+    build_env = os.environ.copy() if build_environment is None else dict(build_environment)
     for key in ("VIRTUAL_ENV", "UV_RUN_RECURSION_DEPTH", "UV_FIND_LINKS"):
         build_env.pop(key, None)
-    for name in SDK_PACKAGES:
-        source = SDK_PROJECTS_ROOT / name
+    for name, source in projects.items():
         project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
         if project["name"] != name:
             raise ValueError(f"unexpected SDK project name in {source}")
@@ -104,6 +106,14 @@ def prepare_sdk_wheels(root: Path) -> tuple[Path, dict[str, str]]:
             raise ValueError(f"candidate wheel metadata does not match {name}=={version}")
         versions[name] = version
     return wheels, versions
+
+
+def prepare_sdk_wheels(
+    root: Path, *, sdk_projects_root: Path | None = None
+) -> tuple[Path, dict[str, str]]:
+    """Prepare the four SDK wheels with the shared candidate builder."""
+    source_root = SDK_PROJECTS_ROOT if sdk_projects_root is None else sdk_projects_root
+    return prepare_project_wheels(root, {name: source_root / name for name in SDK_PACKAGES})
 
 
 def discover_builtin_app_tests(root: Path = BUILTIN_APPS_ROOT) -> list[BuiltinAppTestTarget]:
