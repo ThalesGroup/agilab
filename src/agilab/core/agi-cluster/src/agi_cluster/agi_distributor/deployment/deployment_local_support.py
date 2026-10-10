@@ -1084,7 +1084,10 @@ async def deploy_local_worker(
         repo_root = _read_agilab_repo_root()
         if repo_root is None:
             repo_root = _infer_repo_root_from_runtime(runtime_file)
-        if repo_root:
+        # A checkout marker can protect an authored pyproject without selecting
+        # its SDKs. Published installs keep their installed distribution specs;
+        # only an explicitly selected source environment may use checkout SDKs.
+        if repo_root and env.is_source_env:
             repo_env_project = repo_root / "core" / "agi-env"
             repo_node_project = repo_root / "core" / "agi-node"
             repo_core_project = repo_root / "core" / "agi-core"

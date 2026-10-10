@@ -15,7 +15,7 @@ dependencies = [
     "pydantic>=2.12,<2.13",
     "py7zr>=1.1,<1.2",
     "agi-web>=2026.07.17,<2027.0",
-    "agi-core>=2026.10.05,<2027.0",
+    "agi-core>=2026.10.10,<2027.0",
 ]
 
 [dependency-groups]

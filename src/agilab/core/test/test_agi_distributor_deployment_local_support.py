@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 from concurrent.futures import ThreadPoolExecutor
+from importlib.metadata import PathDistribution
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -3355,6 +3356,157 @@ async def test_deploy_local_worker_rapids_reuses_cli_and_falls_back_from_localho
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("is_source_env", [False, True], ids=["published", "source"])
+@pytest.mark.parametrize("checkout_discovery", ["marker", "runtime"])
+async def test_deploy_local_worker_checkout_sdk_requires_explicit_source_environment(
+    tmp_path, monkeypatch, is_source_env, checkout_discovery
+):
+    sdk_version = "2026.10.5"
+    repo_root = tmp_path / "neighbor-checkout" / "src" / "agilab"
+    checkout_projects = {}
+    for name in ("agi-env", "agi-node", "agi-core", "agi-cluster"):
+        project = repo_root / "core" / name
+        project.mkdir(parents=True)
+        (project / "pyproject.toml").write_text(
+            f"[project]\nname='{name}'\nversion='{sdk_version}'\n"
+            "dependencies=['checkout-sdk-only-dependency>=1']\n",
+            encoding="utf-8",
+        )
+        (project / "dist").mkdir()
+        (project / "dist" / f"{name.replace('-', '_')}-{sdk_version}-py3-none-any.whl").write_text(
+            "wheel placeholder; subprocesses are intercepted", encoding="utf-8"
+        )
+        checkout_projects[name] = project
+    marker = tmp_path / "agilab-source-checkout-marker.txt"
+    marker.write_text(str(repo_root), encoding="utf-8")
+    monkeypatch.setattr(
+        deployment_local_support.AgiEnv,
+        "read_agilab_path",
+        staticmethod(
+            lambda: Path(marker.read_text(encoding="utf-8"))
+            if checkout_discovery == "marker" else None
+        ),
+    )
+
+    site_packages = tmp_path / "published-controller" / "site-packages"
+    published_packages = {}
+    distributions = {}
+    for name in ("agilab", "agi-env", "agi-node", "agi-core", "agi-cluster"):
+        package = site_packages / name.replace("-", "_")
+        package.mkdir(parents=True)
+        (package / "__init__.py").write_text("", encoding="utf-8")
+        published_packages[name] = package
+        dist_info = site_packages / f"{name.replace('-', '_')}-{sdk_version}.dist-info"
+        dist_info.mkdir()
+        (dist_info / "METADATA").write_text(
+            f"Metadata-Version: 2.4\nName: {name}\nVersion: {sdk_version}\n",
+            encoding="utf-8",
+        )
+        distributions[name] = PathDistribution(dist_info)
+        assert not (dist_info / "direct_url.json").exists()
+    monkeypatch.setattr(deployment_local_support, "pkg_distribution", distributions.__getitem__)
+    resources = published_packages["agi-env"] / "resources"
+    resources.mkdir()
+    (resources / "published-resource.txt").write_text("published", encoding="utf-8")
+    cluster_package = published_packages["agi-cluster"]
+    (cluster_package / "agi_distributor").mkdir()
+    (cluster_package / "agi_distributor" / "cli.py").write_text("", encoding="utf-8")
+    runtime_file = cluster_package / "agi_distributor" / "runtime.py"
+    if checkout_discovery == "runtime":
+        runtime_file = (
+            checkout_projects["agi-cluster"] / "src/agi_cluster/agi_distributor/runtime.py"
+        )
+    runtime_file.parent.mkdir(parents=True, exist_ok=True)
+    runtime_file.write_text("# runtime location for checkout discovery\n", encoding="utf-8")
+
+    app_path = tmp_path / "authored-app"
+    app_path.mkdir()
+    authored_manifest = (
+        "[project]\nname='authored-app'\nrequires-python='>=3.13'\n"
+        f"dependencies=['agi-core=={sdk_version}']\n"
+    )
+    (app_path / "pyproject.toml").write_text(authored_manifest, encoding="utf-8")
+    wenv_abs = tmp_path / "cold-worker"
+    assert not wenv_abs.exists()
+    sdk_paths = checkout_projects if is_source_env else published_packages
+    env = SimpleNamespace(
+        is_source_env=is_source_env,
+        is_worker_env=False,
+        install_type=0,
+        agi_env=sdk_paths["agi-env"],
+        agi_node=sdk_paths["agi-node"],
+        agi_core=sdk_paths["agi-core"],
+        agi_cluster=sdk_paths["agi-cluster"],
+        env_pck=published_packages["agi-env"],
+        cluster_pck=cluster_package,
+        active_app=app_path,
+        wenv_abs=wenv_abs,
+        uv="uv",
+        uv_worker="uv",
+        python_version="3.13",
+        pyvers_worker="3.13",
+        envars={"AGI_INTERNET_ON": "1"},
+        verbose=0,
+        dataset_archive=tmp_path / "absent-dataset.7z",
+        target_worker="authored_worker",
+        post_install_rel="authored.post_install",
+        user=getpass.getuser(),
+        logger=mock.Mock(),
+    )
+    commands = []
+
+    async def run(cmd, cwd):
+        commands.append((cmd, Path(cwd)))
+        return ""
+
+    async def build_worker():
+        assert not wenv_abs.exists()
+        wenv_abs.mkdir()
+        (wenv_abs / "pyproject.toml").write_text(
+            authored_manifest.replace("authored-app", "authored-worker"), encoding="utf-8"
+        )
+
+    async def uninstall():
+        return None
+
+    agi_cls = SimpleNamespace(
+        env=env, _run_type="sync", _mode=0, DASK_MODE=4,
+        _rapids_enabled=False, _install_done_local=False,
+        _hardware_supports_rapids=lambda: False,
+        _build_lib_local=build_worker, _uninstall_modules=uninstall,
+    )
+    await _call_deploy_local_worker(
+        agi_cls, app_path, Path("cold-worker"), "",
+        agi_version_missing_on_pypi_fn=lambda _path: False,
+        runtime_file=str(runtime_file),
+        run_fn=run, set_env_var_fn=lambda *_args: None, log=mock.Mock(),
+    )
+    assert agi_cls._install_done_local is True
+    if is_source_env:
+        assert _has_worker_core_add_command(
+            commands, wenv_abs, checkout_projects["agi-env"], checkout_projects["agi-node"]
+        )
+        assert any(
+            "pip install" in cmd and " -e " in cmd
+            and _path_in_cmd(checkout_projects["agi-env"], cmd)
+            for cmd, _cwd in commands
+        )
+    else:
+        assert not any(_path_in_cmd(repo_root.parents[1], cmd) for cmd, _cwd in commands)
+        for project in (app_path, wenv_abs):
+            manifest = (project / "pyproject.toml").read_text(encoding="utf-8")
+            parsed = tomlkit.parse(manifest)
+            assert parsed["project"]["dependencies"] == [f"agi-core=={sdk_version}"]
+            assert not parsed.get("tool", {}).get("uv", {}).get("sources")
+            assert "checkout-sdk-only-dependency" not in manifest
+            assert not any(_path_in_cmd(path, manifest) for path in checkout_projects.values())
+            project_commands = "\n".join(cmd for cmd, cwd in commands if cwd == project)
+            for name in ("agi-env", "agi-node", "agi-core"):
+                assert f"{name}=={sdk_version}" in project_commands
+        assert (wenv_abs / "agilab/core/agi-env/src/agi_env/resources/published-resource.txt").read_text() == "published"
+
+
+@pytest.mark.asyncio
 async def test_deploy_local_worker_install_type_zero_non_source_covers_dependency_flow(
     tmp_path, monkeypatch
 ):
@@ -4297,6 +4449,11 @@ async def test_deploy_local_worker_offline_manager_overlay_preserves_local_sourc
     tmp_path, monkeypatch
 ):
     monkeypatch.delenv("AGI_INTERNET_ON", raising=False)
+    monkeypatch.setattr(
+        deployment_local_support,
+        "_resolve_distribution_install_spec",
+        lambda package_name: f"{package_name}==0.0.1",
+    )
     repo_root = tmp_path / "repo" / "src" / "agilab"
     (repo_root / "apps").mkdir(parents=True, exist_ok=True)
     env_project = repo_root / "core" / "agi-env"
@@ -4484,7 +4641,7 @@ path = "../sat_trajectory_project"
     expected_manager_installs = [
         f'pip install --python "{manager_python}" --upgrade --no-deps -e "{app_path}"',
         f'pip install --python "{manager_python}" --upgrade "{env_project}" "{node_project}"',
-        f'pip install --python "{manager_python}" --upgrade --no-deps "{core_project}"',
+        f'pip install --python "{manager_python}" --upgrade --no-deps "agilab==0.0.1" "agi-core==0.0.1"',
     ]
     for expected in expected_manager_installs:
         assert any(expected in cmd for cmd, _ in commands), "\n".join(
@@ -4494,6 +4651,7 @@ path = "../sat_trajectory_project"
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands
     )
+    assert not any(_path_in_cmd(core_project, cmd) for cmd, _ in commands)
     assert _has_worker_core_add_command(commands, wenv_abs, env_project, node_project)
 
 

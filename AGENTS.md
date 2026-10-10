@@ -39,6 +39,11 @@ Use this runbook whenever you:
   explicit ORCHESTRATE Resources action or authored `AGI.install` stage; notebook
   export must preserve the author's plan. Ordinary Python stages and explicitly
   workerless manager snippets that do not call `AGI.run` remain independent.
+- **Installed SDK deployment**: SDK source selection must follow
+  `env.is_source_env`. A checkout marker may protect project files from
+  rewriting; it must not redirect an installed app to local SDK dependencies.
+  Deployment changes need regressions for published and source environments
+  with a real checkout marker and an initially absent worker environment.
 - **Main React interface**: `src/agilab/main_page.py` uses `agi_web.python_ui`
   page/navigation registration as its routing authority. The React workspace
   header, project picker and home cards ship in `agi-web`; rebuild with `npm ci

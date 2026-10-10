@@ -42,8 +42,11 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Support the native file-picker popover in workflow pages, including inside
   containers, so CSV selection no longer interrupts notebook export. Consume
   completed upload events once to preserve selection without repeated reruns.
-- Prepare the affected app, web, page and umbrella packages at 2026.10.10.
-  The unchanged SDK packages retain their current versions.
+- Keep installed SDK deployments on package dependencies when a source
+  checkout is present. Only explicit source environments may select the
+  checkout SDK projects; retain protection against rewriting local projects.
+- Prepare the affected app, web, page, umbrella, agi-cluster and agi-core
+  packages at 2026.10.10. Unchanged agi-env and agi-node retain their versions.
 
 ## [2026.10.08] - 2026-10-08
 
