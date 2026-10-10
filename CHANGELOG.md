@@ -58,6 +58,14 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   them available to the isolated app resolvers before publication. Check the
   resolved SDK versions before running each suite, preserve authored app
   manifests, and keep actual PyPI installation qualification separate.
+- Reuse that SDK wheel builder for the fresh-clone newcomer release proof.
+  Build the clone's four SDK packages and agi-web, keep their wheels available
+  through installation and notebook import, and verify the versions installed
+  in its manager environment. Declare these dependency-downloading source
+  proofs as online with explicit PyPI plus candidate wheels; preserve the SDK's
+  offline wheelhouse policy and qualify offline installation separately.
+  Isolate inherited resolver settings before building those candidates as well
+  as before running the proofs, without changing the caller's environment.
 
 ## [2026.10.08] - 2026-10-08
 

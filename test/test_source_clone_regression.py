@@ -6,6 +6,9 @@ import os
 import subprocess
 import sys
 import shutil
+import tempfile
+from contextlib import contextmanager
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 
 import pytest
@@ -19,6 +22,11 @@ UV_PYTHON_SELECTOR = ("AGILAB_RELEASE_PROOF_PYTHON", "AGILAB_SOURCE_CLONE_PYTHON
 CLONE_PROOF_DIAGNOSTIC_TAIL_LINES = 40
 CLONE_PROOF_DIAGNOSTIC_TAIL_CHARS = 4_000
 CLONE_PROOF_FAILED_STEP_CHARS = 160
+CLONE_UV_ENV_RESET_KEYS = (
+    "VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH",
+    "UV_FIND_LINKS", "UV_NO_INDEX", "UV_OFFLINE", "UV_INDEX",
+    "UV_DEFAULT_INDEX", "UV_INDEX_URL", "UV_EXTRA_INDEX_URL",
+)
 
 
 def _uv_python_args() -> tuple[str, ...]:
@@ -45,7 +53,9 @@ def _prepare_clone_proof_home(home_root: Path) -> Path:
     env_file.parent.mkdir(parents=True, exist_ok=True)
     env_file.write_text(
         "AGI_PYTHON_VERSION=" + json.dumps(python_version) + "\n"
-        "AGI_PYTHON_UV_SPEC=" + json.dumps(sys.executable) + "\n",
+        "AGI_PYTHON_UV_SPEC=" + json.dumps(sys.executable) + "\n"
+        # These release proofs download dependencies; offline qualification is separate.
+        'AGI_INTERNET_ON="1"\n',
         encoding="utf-8",
     )
     return home_root
@@ -59,6 +69,23 @@ def _load_module(path: Path, name: str):
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def test_clone_proof_online_home_preserves_the_callers_offline_home(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    import tomllib
+
+    caller_home = tmp_path / "caller-home"
+    caller_env = caller_home / ".agilab/.env"
+    caller_env.parent.mkdir(parents=True)
+    caller_env.write_text('AGI_INTERNET_ON="0"\n')
+    monkeypatch.setenv("HOME", str(caller_home))
+    proof_home = _prepare_clone_proof_home(tmp_path / "proof-home")
+    proof_env = tomllib.loads((proof_home / ".agilab/.env").read_text())
+    assert proof_env["AGI_INTERNET_ON"] == "1"
+    assert os.environ["HOME"] == str(caller_home)
+    assert caller_env.read_text() == 'AGI_INTERNET_ON="0"\n'
 
 
 def _is_git_lfs_pointer_file(path: Path) -> bool:
@@ -298,7 +325,91 @@ def _clone_proof_failure_message(
     )
 
 
-def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
+@contextmanager
+def _clone_sdk_candidate_environment(
+    clone_root: Path,
+) -> Iterator[tuple[dict[str, str], dict[str, str]]]:
+    """Keep the clone's unpublished SDK wheels alive for both release proofs."""
+    builder = _load_module(ROOT / "tools/builtin_app_tests.py", "source_clone_sdk_builder")
+    with tempfile.TemporaryDirectory(prefix="source-clone-sdk-") as directory:
+        projects = {
+            name: clone_root / "src/agilab/core" / name for name in builder.SDK_PACKAGES
+        }
+        projects["agi-web"] = clone_root / "src/agilab/lib/agi-web"
+        build_environment = {
+            key: value for key, value in os.environ.items()
+            if key not in CLONE_UV_ENV_RESET_KEYS
+        }
+        build_environment.update(
+            UV_INDEX_URL="https://pypi.org/simple", AGI_INTERNET_ON="1",
+        )
+        wheels, versions = builder.prepare_project_wheels(
+            Path(directory), projects, build_environment=build_environment,
+        )
+        # An explicit registry keeps the SDK resolver online for third-party packages.
+        # UV_FIND_LINKS alone intentionally selects its offline wheelhouse mode.
+        yield {
+            "UV_FIND_LINKS": str(wheels),
+            "UV_INDEX_URL": "https://pypi.org/simple",
+            "AGI_INTERNET_ON": "1",
+        }, versions
+
+
+@pytest.mark.parametrize("proof_fails", [False, True])
+def test_clone_sdk_candidates_remain_alive_until_both_proofs_finish(
+    tmp_path: Path, monkeypatch, proof_fails: bool,
+) -> None:
+    from types import SimpleNamespace
+
+    clone = tmp_path / "fresh-clone"
+    sdk_names = ("agi-env", "agi-node", "agi-cluster", "agi-core")
+    expected = {"agi-core": "2026.10.10.1", "agi-web": "2026.10.10.1"}
+    for key in CLONE_UV_ENV_RESET_KEYS:
+        monkeypatch.setenv(key, "1")
+    monkeypatch.setenv("AGI_INTERNET_ON", "0")
+
+    def prepare(root: Path, projects: Mapping[str, Path], *, build_environment):
+        assert projects == {
+            **{name: clone / "src/agilab/core" / name for name in sdk_names},
+            "agi-web": clone / "src/agilab/lib/agi-web",
+        }
+        assert not (set(CLONE_UV_ENV_RESET_KEYS) - {"UV_INDEX_URL"}) & build_environment.keys()
+        assert build_environment["UV_INDEX_URL"] == "https://pypi.org/simple"
+        assert build_environment["AGI_INTERNET_ON"] == "1"
+        wheels = root / "wheels"
+        wheels.mkdir()
+        for name, version in expected.items():
+            (wheels / f"{name.replace('-', '_')}-{version}-py3-none-any.whl").write_text("owned candidate")
+        return wheels, expected
+
+    monkeypatch.setattr(
+        sys.modules[__name__], "_load_module",
+        lambda path, name: SimpleNamespace(
+            prepare_project_wheels=prepare, SDK_PACKAGES=sdk_names,
+        ),
+    )
+    wheels = None
+    try:
+        with _clone_sdk_candidate_environment(clone) as (environment, versions):
+            wheels = Path(environment["UV_FIND_LINKS"])
+            assert wheels.is_dir()
+            assert versions == expected
+            assert environment["AGI_INTERNET_ON"] == "1"
+            assert environment["UV_INDEX_URL"] == "https://pypi.org/simple"
+            # The notebook proof shares this still-live directory after installation.
+            assert len(list(wheels.glob("*.whl"))) == len(expected)
+            if proof_fails:
+                raise RuntimeError("proof failed")
+    except RuntimeError:
+        assert proof_fails
+    assert wheels is not None and not wheels.exists()
+    assert all(os.environ[key] == "1" for key in CLONE_UV_ENV_RESET_KEYS)
+    assert os.environ["AGI_INTERNET_ON"] == "0"
+
+
+def _run_clone_newcomer_proof(
+    clone_root: Path, *, sdk_environment: Mapping[str, str] | None = None,
+) -> dict[str, object]:
     active_app = (
         clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"
     )
@@ -312,8 +423,9 @@ def _run_clone_newcomer_proof(clone_root: Path) -> dict[str, object]:
     }
     # A fresh source clone proof must not inherit the caller's active venv.
     # Nested uv commands intentionally choose the clone/app environments.
-    for key in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH"):
+    for key in CLONE_UV_ENV_RESET_KEYS:
         env.pop(key, None)
+    env.update(sdk_environment or {})
     completed = subprocess.run(
         [
             "uv",
@@ -372,6 +484,8 @@ def test_run_clone_newcomer_proof_reports_structured_bounded_failure(
 
     def _fake_run(cmd, **kwargs):
         assert kwargs["check"] is False
+        assert kwargs["env"]["UV_FIND_LINKS"] == str(tmp_path / "candidate-wheels")
+        assert kwargs["env"]["UV_INDEX_URL"] == "https://pypi.org/simple"
         return subprocess.CompletedProcess(
             cmd,
             returncode=1,
@@ -382,7 +496,13 @@ def test_run_clone_newcomer_proof_reports_structured_bounded_failure(
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
     with pytest.raises(AssertionError) as caught:
-        _run_clone_newcomer_proof(tmp_path / "clone")
+        _run_clone_newcomer_proof(
+            tmp_path / "clone",
+            sdk_environment={
+                "UV_FIND_LINKS": str(tmp_path / "candidate-wheels"),
+                "UV_INDEX_URL": "https://pypi.org/simple",
+            },
+        )
 
     message = str(caught.value)
     assert "failed_step=flight install smoke" in message
@@ -419,7 +539,9 @@ def _extract_marked_json(stdout: str, marker: str) -> dict[str, object]:
     raise AssertionError(f"missing {marker} marker in output:\n{stdout[-4000:]}")
 
 
-def _run_clone_notebook_import_proof(clone_root: Path) -> dict[str, object]:
+def _run_clone_notebook_import_proof(
+    clone_root: Path, *, sdk_environment: Mapping[str, str] | None = None,
+) -> dict[str, object]:
     notebook_home = _prepare_clone_proof_home(
         clone_root / "home-notebook-import"
     )
@@ -432,8 +554,9 @@ def _run_clone_notebook_import_proof(clone_root: Path) -> dict[str, object]:
         "OPENAI_API_KEY": "sk-test-source-clone-notebook-proof-000000000000",
         "PYTHONUNBUFFERED": "1",
     }
-    for key in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "UV_RUN_RECURSION_DEPTH"):
+    for key in CLONE_UV_ENV_RESET_KEYS:
         env.pop(key, None)
+    env.update(sdk_environment or {})
     proof_code = r"""
 import importlib.util
 import json
@@ -976,8 +1099,29 @@ def test_full_regression_passes_from_a_fresh_source_clone(tmp_path: Path) -> Non
 )
 def test_newcomer_first_proof_passes_from_fresh_source_clone(tmp_path: Path) -> None:
     clone_root = _materialize_fresh_source_clone(tmp_path)
-    proof_payload = _run_clone_newcomer_proof(clone_root)
-    notebook_payload = _run_clone_notebook_import_proof(clone_root)
+    with _clone_sdk_candidate_environment(clone_root) as (sdk_environment, candidate_versions):
+        proof_payload = _run_clone_newcomer_proof(
+            clone_root, sdk_environment=sdk_environment,
+        )
+        active_app = Path(proof_payload["active_app"])
+        manager_python = active_app / ".venv" / (
+            "Scripts/python.exe" if os.name == "nt" else "bin/python"
+        )
+        version_probe = subprocess.run(
+            [str(manager_python), "-c",
+             "import importlib.metadata as m,json,sys; "
+             "print(json.dumps({n:m.version(n) for n in json.loads(sys.argv[1])}))",
+             json.dumps(candidate_versions)],
+            cwd=clone_root, check=True, capture_output=True, text=True,
+        )
+        from packaging.version import Version
+
+        assert {name: Version(version) for name, version in json.loads(version_probe.stdout).items()} == {
+            name: Version(version) for name, version in candidate_versions.items()
+        }
+        notebook_payload = _run_clone_notebook_import_proof(
+            clone_root, sdk_environment=sdk_environment,
+        )
 
     assert proof_payload["active_app"] == str(
         clone_root / "src" / "agilab" / "apps" / "builtin" / "flight_telemetry_project"

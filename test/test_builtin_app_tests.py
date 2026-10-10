@@ -134,15 +134,25 @@ def _write_sdk_wheel(output, name, version, metadata=None):
     return wheel
 
 
-def test_candidate_sdk_builds_are_owned_and_do_not_mutate_source(monkeypatch, tmp_path, sdk_sources):
+@pytest.mark.parametrize("explicit_online_environment", [False, True])
+def test_candidate_sdk_builds_are_owned_and_do_not_mutate_source(
+    monkeypatch, tmp_path, sdk_sources, explicit_online_environment,
+):
     sources, versions = sdk_sources
     originals = {path: path.read_bytes() for path in sources.glob("*/pyproject.toml")}
     calls = []
     monkeypatch.setenv("UV_FIND_LINKS", "/unrelated/wheels")
+    monkeypatch.setenv("UV_OFFLINE", "1")
+    monkeypatch.setenv("UV_NO_INDEX", "1")
+    build_environment = {"UV_INDEX_URL": "https://pypi.org/simple"}
 
     def build(command, *, check, env):
         assert check is True
         assert "UV_FIND_LINKS" not in env
+        if explicit_online_environment:
+            assert env == build_environment
+        else:
+            assert env["UV_OFFLINE"] == env["UV_NO_INDEX"] == "1"
         copied_source = Path(command[command.index("--wheel") + 1])
         assert copied_source.is_relative_to(tmp_path / "candidate")
         assert not (copied_source / ".venv").exists()
@@ -154,12 +164,61 @@ def test_candidate_sdk_builds_are_owned_and_do_not_mutate_source(monkeypatch, tm
     monkeypatch.setattr(builtin_app_tests.subprocess, "run", build)
     candidate = tmp_path / "candidate"
     candidate.mkdir()
-    wheels, actual_versions = builtin_app_tests.prepare_sdk_wheels(candidate)
+    if explicit_online_environment:
+        wheels, actual_versions = builtin_app_tests.prepare_project_wheels(
+            candidate, {name: sources / name for name in versions},
+            build_environment=build_environment,
+        )
+    else:
+        wheels, actual_versions = builtin_app_tests.prepare_sdk_wheels(candidate)
 
     assert actual_versions == versions
     assert len(calls) == len(list(wheels.glob("*.whl"))) == 4
     assert all(path.read_bytes() == original for path, original in originals.items())
     assert builtin_app_tests.os.environ["UV_FIND_LINKS"] == "/unrelated/wheels"
+
+
+@pytest.mark.parametrize("default_source", ["missing", "decoy"])
+def test_candidate_sdk_build_uses_explicit_source_root(monkeypatch, tmp_path, sdk_sources, default_source):
+    sources, versions = sdk_sources
+    originals = {path: path.read_bytes() for path in sources.glob("*/pyproject.toml")}
+    unused_default = tmp_path / "unused-default-sdk"
+    if default_source == "decoy":
+        for name in versions:
+            project = unused_default / name
+            project.mkdir(parents=True)
+            (project / "pyproject.toml").write_text(
+                f'[project]\nname = "{name}"\nversion = "2000.1.1"\n'
+            )
+    monkeypatch.setattr(builtin_app_tests, "SDK_PROJECTS_ROOT", unused_default)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    built = []
+
+    def build(command, *, check, env):
+        assert check is True
+        copied_source = Path(command[command.index("--wheel") + 1])
+        assert copied_source.is_relative_to(candidate / "sources")
+        assert (copied_source / "pyproject.toml").read_bytes() == originals[
+            sources / copied_source.name / "pyproject.toml"
+        ]
+        (copied_source / "pyproject.toml").write_text("backend changes stay in the copy")
+        _write_sdk_wheel(
+            Path(command[command.index("--out-dir") + 1]),
+            copied_source.name,
+            versions[copied_source.name],
+        )
+        built.append(copied_source.name)
+
+    monkeypatch.setattr(builtin_app_tests.subprocess, "run", build)
+    wheels, actual_versions = builtin_app_tests.prepare_sdk_wheels(
+        candidate, sdk_projects_root=sources
+    )
+
+    assert actual_versions == versions
+    assert set(built) == set(versions)
+    assert len(list(wheels.glob("*.whl"))) == 4
+    assert all(path.read_bytes() == original for path, original in originals.items())
 
 
 @pytest.mark.parametrize("bad_output", ["missing", "wrong-name", "wrong-version", "missing-version", "corrupt"])
