@@ -1,5 +1,5 @@
 [project]
-version = "2026.10.04"
+version = "2026.10.10"
 name = "agi-app-sklearn-pipeline"
 description = "AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
 requires-python = ">=3.12"

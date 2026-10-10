@@ -1,6 +1,6 @@
 [project]
 name = "uav_queue_project"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILAB UAV queue resilience simulation app"
 readme = "README.md"
 requires-python = ">=3.13"

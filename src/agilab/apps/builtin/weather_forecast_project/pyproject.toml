@@ -1,6 +1,6 @@
 [project]
 name = "weather_forecast_project"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILAB current weather forecasting app with notebook-import evidence"
 readme = "README.md"
 requires-python = ">=3.12"

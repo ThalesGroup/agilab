@@ -23,6 +23,22 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Dynamic worker loading and installed app contracts
+
+- Require the SDK's dynamic loader for app-worker entrypoints. The PyTorch
+  playground refresh action now follows that loader instead of importing its
+  worker class directly.
+- Include agi-core in the 14 builtin manager manifests and five creation
+  templates. Remove development-only SDK source paths from packaged apps so
+  installed managers resolve their SDK dependencies from packages.
+- Reject direct worker imports in the mandatory public app-contract checks;
+  the private apps reuse the same guard from their pinned AGILAB source.
+- Use the SDK local-Python mode in new workflow templates and translate the
+  former `local` label when replaying shorthand notebook stages. Preserve the
+  execution of edited Python cells, including CSV transformations.
+- Prepare the affected app, web, page and umbrella packages at 2026.10.10.
+  The unchanged SDK packages retain their current versions.
+
 ## [2026.10.08] - 2026-10-08
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08

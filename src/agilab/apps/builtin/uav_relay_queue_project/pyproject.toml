@@ -1,6 +1,6 @@
 [project]
 name = "uav_relay_queue_project"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILAB UAV relay service training and queue policy app"
 readme = "README.md"
 requires-python = ">=3.13"

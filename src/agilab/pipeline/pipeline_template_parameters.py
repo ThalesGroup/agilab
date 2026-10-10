@@ -19,7 +19,10 @@ _FIELD_LABELS = {
     "apps_path": ("Apps folder", "Folder containing the app projects; relative paths are kept as entered."),
     "data_in": ("Input path", "File or folder read by the stage; the path is kept as entered."),
     "data_out": ("Output path", "File or folder written by the stage; the path is kept as entered."),
-    "mode": ("Execution mode", "Keep the mode supported by your app, for example local."),
+    "mode": (
+        "Execution mode",
+        "Use 0 for local Python; SDK mode integers and d/c/r/p flags are also supported.",
+    ),
     "reset_target": ("Reset existing output", "Allow the stage to reset its existing target."),
     "action": ("Action name", "Named action declared by the selected app."),
     "artifact_dir": ("Evidence folder", "Folder used for the evidence and summary files."),

@@ -4756,74 +4756,104 @@ beam_width = 3
     assert "RUN_MODE = json.loads('0')" in captured["script"]
 
 
-def test_notebook_helper_respects_explicit_mode_in_shorthand(tmp_path):
-    export_dir = tmp_path / "export" / "demo_project"
-    export_dir.mkdir(parents=True, exist_ok=True)
-    toml_path = export_dir / "lab_stages.toml"
+
+@pytest.mark.parametrize("mode_source", ["explicit", "app_settings"])
+@pytest.mark.parametrize(
+    "mode, emitted_mode, sdk_mode",
+    [
+        (0, 0, 0),
+        (3, 3, 3),
+        ("local", 0, 0),
+        ("dc", "dc", 6),
+        ("pcdr", "pcdr", 15),
+        ("unknown", "unknown", None),
+        ("LOCAL", "LOCAL", None),
+        (64, 64, None),
+    ],
+)
+def test_notebook_helper_preserves_sdk_mode_contract_for_explicit_and_inherited_modes(
+    tmp_path, monkeypatch, mode_source, mode, emitted_mode, sdk_mode,
+):
+    import asyncio
+
+    from agi_cluster.agi_distributor import AGI, RunRequest
+    from agi_cluster.agi_distributor.runtime import runtime_misc_support
+    from agi_env import AgiEnv
+
     app_root = tmp_path / "apps" / "demo_project"
-    (app_root / "src").mkdir(parents=True, exist_ok=True)
-    (app_root / "pyproject.toml").write_text("[project]\nname='demo_project'\n", encoding="utf-8")
-
-    context = notebook_export_support.NotebookExportContext(
-        project_name="demo_project",
-        module_path="demo_project",
-        artifact_dir=str(export_dir),
-        active_app=str(app_root),
-        app_settings_file=str(app_root / "src" / "app_settings.toml"),
-        pages_root="",
-        repo_root=str(tmp_path / "repo"),
-        related_pages=(),
+    (app_root / "src").mkdir(parents=True)
+    (app_root / "pyproject.toml").write_text(
+        "[project]\nname='demo_project'\n", encoding="utf-8",
     )
-
-    pipeline_editor.toml_to_notebook(
-        {
-            "demo_project": [
-                {
-                    "D": "Run trainer stack",
-                    "Q": "Select a single trainer.",
-                    "M": "",
-                    "C": (
-                        "APP = 'demo_project'\n"
-                        "trainer = 'ppo'\n"
-                        "data_in = 'demo/in'\n"
-                        "data_out = 'demo/out'\n"
-                        "mode = 3\n"
-                    ),
-                    "R": "runpy",
-                }
-            ]
-        },
-        toml_path,
-        export_context=context,
+    code_text = "APP = 'demo_project'\ndata_in = 'demo/in'\ndata_out = 'demo/out'\n"
+    if mode_source == "explicit":
+        code_text += f"mode = {mode!r}\n"
+    else:
+        (app_root / "src" / "app_settings.toml").write_text(
+            f"[args]\nmode = {json.dumps(mode)}\n", encoding="utf-8",
+        )
+    helper_namespace = {}
+    exec(
+        notebook_export_support._helper_cell({
+            "active_app": str(app_root),
+            "project_name": "demo_project",
+            "app_settings_file": str(app_root / "src" / "app_settings.toml"),
+        }),
+        helper_namespace,
     )
+    script = helper_namespace["_build_shorthand_agi_script"](
+        {"runtime": "AGI.run"}, code_text,
+    )
+    assert script is not None
+    script_namespace = {"__name__": "agilab_notebook_mode_contract"}
+    exec(script, script_namespace)
+    assert script_namespace["RUN_MODE"] == emitted_mode
 
-    notebook = json.loads(toml_path.with_suffix(".ipynb").read_text(encoding="utf-8"))
-    helper_source = "".join(notebook["cells"][1]["source"])
-    namespace: dict[str, object] = {}
-    exec(helper_source, namespace)
+    sdk_env = SimpleNamespace(mode2int=AgiEnv.mode2int)
+    runtime_state = SimpleNamespace(_RAPIDS_SET=AGI._RAPIDS_SET)
+    captured = {}
 
-    captured: dict[str, str] = {}
+    async def validate_sdk_request(app_env, *, request):
+        assert isinstance(request, RunRequest)
+        captured["mode"] = request.mode
+        return runtime_misc_support.configure_runtime_mode(
+            runtime_state, app_env, request.mode,
+        )
 
-    class _Result:
-        stdout = ""
-        stderr = ""
+    monkeypatch.setattr(AGI, "run", validate_sdk_request)
+    script_namespace["AgiEnv"] = lambda **kwargs: sdk_env
+    if sdk_mode is None:
+        with pytest.raises(ValueError, match="must only contain the letters|not implemented"):
+            asyncio.run(script_namespace["main"]())
+    else:
+        assert asyncio.run(script_namespace["main"]()) == sdk_mode
+    assert captured["mode"] == emitted_mode
 
-        @staticmethod
-        def check_returncode() -> None:
-            return None
 
-    def _fake_run(cmd, **kwargs):
-        captured["script"] = Path(cmd[1]).read_text(encoding="utf-8")
-        return _Result()
+def test_notebook_helper_executes_mixed_python_source_without_dropping_csv_edits(tmp_path):
+    import pandas as pd
 
-    original_run = namespace["subprocess"].run
-    try:
-        namespace["subprocess"].run = _fake_run
-        namespace["run_agilab_stage"](0, capture_output=False)
-    finally:
-        namespace["subprocess"].run = original_run
-
-    assert "RUN_MODE = json.loads('3')" in captured["script"]
+    input_path = tmp_path / "input.csv"
+    output_path = tmp_path / "edited.csv"
+    pd.DataFrame({"x": range(1_000)}).to_csv(input_path, index=False)
+    code_text = (
+        "APP = 'demo_project'\n"
+        f"data_in = {str(input_path)!r}\n"
+        f"data_out = {str(output_path)!r}\n"
+        "mode = 0\n"
+        "import pandas as pd\n"
+        "df = pd.read_csv(data_in)\n"
+        "df['notebook_edited_value'] = df['x'] * 2 + 1\n"
+        "df.to_csv(data_out, index=False)\n"
+    )
+    namespace = {}
+    exec(notebook_export_support._helper_cell({}), namespace)
+    script = namespace["_stage_script_text"]({"runtime": "runpy"}, code_text)
+    assert script == code_text
+    exec(script, {})
+    result = pd.read_csv(output_path)
+    assert len(result) == 1_000
+    assert result["notebook_edited_value"].tolist() == [x * 2 + 1 for x in range(1_000)]
 
 
 def test_toml_to_notebook_plain_export_uses_local_source_checkout_mirror(tmp_path):

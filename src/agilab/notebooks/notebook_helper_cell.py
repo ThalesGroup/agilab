@@ -988,6 +988,10 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     inherited_mode = run_args.pop("mode", None)
                     if inherited_mode not in (None, ""):
                         run_mode = inherited_mode
+                # Older Workflow templates used this label for SDK local Python.
+                # Other values keep the SDK's own validation and mode semantics.
+                if run_mode == "local":
+                    run_mode = 0
             run_params = dict(run_args)
             run_stages_payload = run_params.pop("stages", []) or []
             if "args" in run_params:

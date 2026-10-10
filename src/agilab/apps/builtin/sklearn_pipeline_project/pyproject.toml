@@ -1,6 +1,6 @@
 [project]
 name = "sklearn_pipeline_project"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILAB scikit-learn pipeline app with model, metrics, predictions, and evidence manifest"
 readme = "README.md"
 requires-python = ">=3.12"
