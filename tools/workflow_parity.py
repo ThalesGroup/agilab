@@ -724,7 +724,9 @@ def _agi_gui_specialized_coverage_steps(label: str) -> list[tuple[list[str], int
                     f"--coverage-data-file={data_file}",
                     "--junit-dir=test-results",
                 ],
-                16 * 60,
+                # More than 260 isolated test processes share this deadline.
+                # Keep the full suite and leave room for coverage on CI hosts.
+                25 * 60,
             )
         ]
     if label == "builtin":

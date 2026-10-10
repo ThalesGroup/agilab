@@ -880,7 +880,7 @@ def test_agi_gui_profile_covers_actual_workflow_matrix_and_specialized_lanes() -
     assert set(module.AGI_GUI_COVERAGE_CHUNKS) == set(matrix_chunks)
     general_steps = module._agi_gui_specialized_coverage_steps("general")
     general, timeout = general_steps[0]
-    assert len(general_steps) == 1 and timeout == 16 * 60
+    assert len(general_steps) == 1 and timeout == 25 * 60
     assert "--unclassified" in general
     assert _has_with_dependency(general, "tiktoken==0.14.0")
     assert {"ui", "viz", "notebook"} <= set(_option_values(general, "--extra"))
