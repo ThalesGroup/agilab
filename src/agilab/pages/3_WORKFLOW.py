@@ -657,7 +657,7 @@ def _render_notebook_download_button(
             key=key,
         )
         if pycharm_path is not None:
-            target.caption(f"PyCharm notebook: `{pycharm_path}`")
+            target.caption(f"Editable notebook: `{pycharm_path}`")
     except (OSError, UIError) as exc:
         target.error(f"Failed to prepare notebook export: {exc}")
 

@@ -329,3 +329,163 @@ test("image descriptions and stretch widths reach the rendered plot", async () =
   assert.equal(images[2].getAttribute("alt"), "", "Only an explicit decorative alt may be empty.");
   assert.equal(images[3].hasAttribute("alt"), false, "An empty caption must not mark an undescribed plot decorative.");
 });
+
+
+test("file popovers retain controls during rerenders and close with Escape or outside interaction", async () => {
+  const disclosure = revision => {
+    const item = node("dataset-picker", "popover", {
+      label: revision === 1 ? "Choose dataset" : "Dataset selected",
+      help: "Choose a CSV under the project", width: "stretch",
+    });
+    item.children = [
+      node("dataset-filter", "text_input", { label: "Filter files", value: "input", key: "filter" }),
+      node("dataset-select", "button", { label: "Select dataset", key: "choose" }),
+    ];
+    return item;
+  };
+  const actions = [];
+  const element = await mount(payload(1, [disclosure(1)]), {
+    action: async action => { actions.push(action); return payload(2, [disclosure(2)]); },
+  });
+  const trigger = element.querySelector(".py-popover-trigger");
+  const panel = element.querySelector(".py-popover-panel");
+  const input = element.querySelector("#dataset-filter");
+  assert.equal(trigger.tagName, "BUTTON", "Use native keyboard activation.");
+  assert.equal(trigger.getAttribute("aria-expanded"), "false");
+  assert.equal(trigger.getAttribute("aria-controls"), panel.id);
+  assert.equal(panel.getAttribute("role"), "dialog");
+  assert.equal(panel.hidden, true);
+  assert.equal(element.querySelector(".py-popover").style.width, "100%");
+  await act(() => trigger.click());
+  assert.equal(panel.hidden, false);
+  assert.equal(trigger.getAttribute("aria-expanded"), "true");
+  assert.equal(actions.length, 0, "Opening a disclosure needs no server roundtrip.");
+  input.focus();
+  await act(() => input.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+  assert.equal(panel.hidden, false);
+  await act(() => input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  assert.equal(panel.hidden, true);
+  assert.equal(document.activeElement, trigger);
+  await act(() => trigger.click());
+  await act(async () => element.querySelector("#dataset-select").click());
+  assert.equal(actions.length, 1);
+  assert.equal(actions[0].id, "dataset-select");
+  assert.equal(element.querySelector(".py-popover-trigger"), trigger);
+  assert.equal(trigger.textContent, "Dataset selected");
+  assert.equal(panel.hidden, false);
+  assert.equal(element.querySelector("#dataset-filter"), input);
+  assert.equal(input.value, "input");
+  const outside = document.createElement("button");
+  document.body.append(outside);
+  await act(() => outside.focus());
+  assert.equal(panel.hidden, true, "Leaving the popover by keyboard closes it.");
+  await act(() => trigger.click());
+  assert.equal(panel.hidden, false);
+  await act(() => outside.dispatchEvent(new Event("pointerdown", { bubbles: true })));
+  assert.equal(panel.hidden, true);
+  assert.equal(document.activeElement, outside, "Closing outside must not steal focus.");
+});
+
+test("disabled popovers keep their child controls hidden", async () => {
+  const item = node("disabled-picker", "popover", { label: "Unavailable", disabled: true });
+  item.children = [node("disabled-child", "text_input", { label: "Hidden child", value: "" })];
+  const element = await mount(payload(1, [item]), { action: async () => assert.fail("Unexpected server action") });
+  const trigger = element.querySelector(".py-popover-trigger");
+  assert.equal(trigger.disabled, true);
+  await act(() => trigger.click());
+  assert.equal(trigger.getAttribute("aria-expanded"), "false");
+  assert.equal(element.querySelector(".py-popover-panel").hidden, true);
+});
+
+
+test("the packaged production bundle renders an interactive file popover", async () => {
+  const packaged = new URL("../src/agi_web/react_python_host_assets/agilab_react_python_host.js", import.meta.url);
+  const module = path.join(scratch, "agilab_native_packaged_popover_host_exact_bytes.mjs");
+  await copyFile(packaged, module);
+  assert.deepEqual(await readFile(module), await readFile(packaged));
+  const { mountPythonView: mountPackaged } = await import(pathToFileURL(module).href);
+  const item = node("packaged-picker", "popover", { label: "Choose CSV", width: "stretch" });
+  item.children = [node("packaged-filter", "text_input", { label: "Filter files", value: "" })];
+  const element = document.createElement("div"); document.body.append(element);
+  cleanup = mountPackaged(element, { initialPayload: payload(1, [item]), transport: {
+    action: async () => assert.fail("Popover interactions must stay local"),
+  } });
+  const waitFor = async predicate => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+    assert.fail("The packaged popover did not reach its expected state.");
+  };
+  await waitFor(() => element.querySelector(".py-popover-trigger"));
+  const trigger = element.querySelector(".py-popover-trigger");
+  const panel = element.querySelector(".py-popover-panel");
+  assert.equal(panel.hidden, true);
+  trigger.click();
+  await waitFor(() => !panel.hidden);
+  const input = element.querySelector("#packaged-filter");
+  input.focus();
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await waitFor(() => panel.hidden);
+  assert.equal(document.activeElement, trigger);
+});
+
+
+test("packaged nested popovers retain state on rerender and Escape closes only the deepest panel", async () => {
+  const packaged = new URL("../src/agi_web/react_python_host_assets/agilab_react_python_host.js", import.meta.url);
+  const module = path.join(scratch, "agilab_native_packaged_nested_popover_host_exact_bytes.mjs");
+  await copyFile(packaged, module);
+  assert.deepEqual(await readFile(module), await readFile(packaged));
+  const { mountPythonView: mountPackaged } = await import(pathToFileURL(module).href);
+  const nested = revision => {
+    const parent = node("outer-picker", "popover", { label: revision === 1 ? "Choose dataset" : "Dataset selected" });
+    const child = node("inner-picker", "popover", { label: "Advanced" });
+    child.children = [
+      node("inner-filter", "text_input", { label: "Filter files", value: "input" }),
+      node("inner-apply", "button", { label: "Apply filter" }),
+    ];
+    parent.children = [child];
+    return payload(revision, [parent]);
+  };
+  const element = document.createElement("div"); document.body.append(element);
+  const actions = [];
+  cleanup = mountPackaged(element, { initialPayload: nested(1), transport: {
+    action: async action => { actions.push(action); return nested(2); },
+  } });
+  const waitFor = async predicate => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (predicate()) return;
+      await new Promise(resolve => setTimeout(resolve, 1));
+    }
+    assert.fail("The packaged nested popovers did not reach their expected state.");
+  };
+  await waitFor(() => element.querySelector("#outer-picker-popover"));
+  const parentPanel = element.querySelector("#outer-picker-popover");
+  const childPanel = element.querySelector("#inner-picker-popover");
+  const parentTrigger = element.querySelector('[aria-controls="outer-picker-popover"]');
+  const childTrigger = element.querySelector('[aria-controls="inner-picker-popover"]');
+  parentTrigger.focus();
+  parentTrigger.click();
+  await waitFor(() => !parentPanel.hidden);
+  childTrigger.focus();
+  childTrigger.click();
+  await waitFor(() => !childPanel.hidden);
+  const input = element.querySelector("#inner-filter");
+  input.focus();
+  element.querySelector("#inner-apply").click();
+  await waitFor(() => parentTrigger.textContent === "Dataset selected");
+  assert.equal(actions.length, 1);
+  assert.equal(element.querySelector("#inner-filter"), input);
+  assert.equal(document.activeElement, input);
+  assert.equal(childPanel.hidden, false, "The nested panel stays open across the Python rerender.");
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await waitFor(() => childPanel.hidden);
+  assert.equal(parentPanel.hidden, false, "Escape first closes only the deepest panel.");
+  assert.equal(document.activeElement, childTrigger);
+  assert.equal(parentTrigger.getAttribute("aria-expanded"), "true");
+  assert.equal(childTrigger.getAttribute("aria-expanded"), "false");
+  childTrigger.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await waitFor(() => parentPanel.hidden);
+  assert.equal(document.activeElement, parentTrigger);
+  assert.equal(parentTrigger.getAttribute("aria-expanded"), "false");
+});

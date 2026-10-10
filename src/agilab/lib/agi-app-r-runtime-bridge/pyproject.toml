@@ -1,5 +1,5 @@
 [project]
-version = "2026.10.04"
+version = "2026.10.10"
 name = "agi-app-r-runtime-bridge"
 description = "Built-in AGILAB Rscript JSON and artifact stage bridge"
 requires-python = ">=3.12"
@@ -29,7 +29,7 @@ keywords = [
     "workflow-orchestration",
 ]
 
-dependencies = ["agi-env>=2026.10.04,<2027.0", "agi-node>=2026.10.04,<2027.0", "agi-web>=2026.10.04,<2027.0"]
+dependencies = ["agi-env>=2026.10.04,<2027.0", "agi-node>=2026.10.04,<2027.0", "agi-web>=2026.10.10,<2027.0"]
 
 [project.urls]
 Documentation = "https://thalesgroup.github.io/agilab"

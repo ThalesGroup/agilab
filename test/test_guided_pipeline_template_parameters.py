@@ -39,6 +39,21 @@ def _stage_app(stage: dict) -> AppTest:
     return AppTest.from_function(page).run()
 
 
+def test_workflow_local_python_default_is_saved_as_an_sdk_integer() -> None:
+    stage = REGISTRY.saved_stage("generic.configure")
+    app = _stage_app(stage)
+    assert not app.exception
+    assert _control(app, "text_input", "Execution mode").value == "0"
+    _control(app, "button", "Apply template parameters").click().run()
+    assert not app.exception
+    saved = app.session_state["stage"]
+    namespace = {}
+    exec(saved["C"], namespace)
+    assert namespace["mode"] == 0
+    assert type(namespace["mode"]) is int
+    assert saved["template_payload"]["parameters"]["mode"] == 0
+
+
 @pytest.mark.parametrize("template_id,labels", [
     ("generic.configure", ["App", "Input path", "Output path", "Execution mode"]),
     ("generic.execute", ["App"]),

@@ -1,6 +1,6 @@
 [project]
 name = "execution_pandas_worker"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILab execution playground using PandasWorker"
 requires-python = ">=3.12"
 dependencies = ["agi-env>=2026.10.04", "agi-node>=2026.10.04", "numpy>=2.2,<3", "pandas>=2.3.0,<4", "pydantic>=2.12,<2.13"]

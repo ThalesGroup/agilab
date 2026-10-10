@@ -246,6 +246,45 @@ function LinkAction({node}) {
   return <PythonLinkAction node={node} view={useContext(View)}/>;
 }
 
+function Popover({node}) {
+  const p = node.props, [open, setOpen] = useState(false), element = useRef(null), trigger = useRef(null), panel = useRef(null);
+  const visible = open && !p.disabled, panelId = `${node.id}-popover`, helpId = `${node.id}-help`;
+  useEffect(() => {
+    if (!visible) return;
+    const outside = event => { if (!element.current?.contains(event.target)) setOpen(false); };
+    const escape = event => {
+      // A nested panel handles Escape first, even when its document listener
+      // was registered after ours. Hidden panels may still await effect cleanup.
+      if (event.key === "Escape" && panel.current && !panel.current.closest("[hidden]")
+        && !Array.from(panel.current.querySelectorAll(".py-popover-panel:not([hidden])"))
+          .some(child => !child.closest("[hidden]"))) {
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        trigger.current?.focus();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("focusin", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("focusin", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [visible]);
+  return <div ref={element} className="py-popover" data-widget-kind="popover" data-widget-key={p.key}
+    style={{width: p.width === "stretch" ? "100%" : typeof p.width === "number" ? p.width : undefined}}>
+    <button ref={trigger} type="button" className="py-popover-trigger" disabled={p.disabled} title={p.help || undefined}
+      aria-expanded={visible} aria-controls={panelId} aria-haspopup="dialog" aria-describedby={p.help ? helpId : undefined}
+      onClick={() => setOpen(value => !value)}>{p.label}</button>
+    {p.help ? <span id={helpId} hidden>{p.help}</span> : null}
+    <div ref={panel} id={panelId} className="py-popover-panel" role="dialog" aria-label={p.label} hidden={!visible}>
+      <Nodes nodes={node.children}/>
+    </div>
+  </div>;
+}
+
 // Pure traversal stays outside View so local controls do not repaint heavy siblings.
 const Node = memo(function Node({node}) {
   const p = node.props, content = <Nodes nodes={node.children}/>;
@@ -253,6 +292,7 @@ const Node = memo(function Node({node}) {
   if (node.kind === "component") return <Island node={node}/>;
   if (node.kind === "columns") return <div className="py-columns" style={{gridTemplateColumns: p.weights.map(weight => `${weight}fr`).join(" ")}}>{content}</div>;
   if (node.kind === "tabs") return <Tabs node={node}/>;
+  if (node.kind === "popover") return <Popover node={node}/>;
   if (node.kind === "expander" || node.kind === "status") return <details className="py-expander" data-widget-kind={node.kind} data-widget-key={p.key} data-state={p.state} open={p.expanded}><summary>{p.label}</summary>{content}</details>;
   if (node.kind === "form") return <Form node={node}/>;
   if (node.kind === "dialog") return <div className="py-dialog-backdrop"><section role="dialog" aria-modal="true" aria-label={p.title}><h2>{p.title}</h2>{content}</section></div>;

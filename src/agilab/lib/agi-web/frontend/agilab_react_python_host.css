@@ -19,3 +19,5 @@
 .py-options input {flex-shrink:0}
 .py-app figure img {display:block}
 .py-table-pagination{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;padding:.5rem 0}.py-table-pagination [role=status]{font-variant-numeric:tabular-nums}
+
+.py-popover{position:relative;width:fit-content}.py-popover-trigger{width:100%;text-align:left;overflow-wrap:anywhere}.py-popover-trigger[aria-expanded=true]{border-color:var(--py-accent)}.py-popover-trigger:focus-visible{outline:2px solid var(--py-accent);outline-offset:2px}.py-popover-panel{position:absolute;inset-block-start:calc(100% + .4rem);inset-inline-start:0;z-index:50;width:100%;max-width:34rem;box-sizing:border-box;max-height:70vh;overflow:auto;padding:1rem;border:1px solid var(--py-border);border-radius:.65rem;background:var(--py-surface);box-shadow:0 .5rem 1.5rem #18334826}.py-popover-panel[hidden]{display:none}

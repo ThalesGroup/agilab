@@ -335,6 +335,7 @@ def default_pipeline_stage_templates() -> tuple[PipelineStageTemplate, ...]:
         ),
         PipelineStageTemplate(
             template_id="generic.configure",
+            version=2,
             title="Configure Workflow Inputs",
             description="Define app, input, output, and runtime parameters for a Workflow stage.",
             question="Configure the app inputs and runtime values for this Workflow stage.",
@@ -342,7 +343,7 @@ def default_pipeline_stage_templates() -> tuple[PipelineStageTemplate, ...]:
                 "APP = 'your_project'\n"
                 "data_in = 'input/path'\n"
                 "data_out = 'output/path'\n"
-                "mode = 'local'\n"
+                "mode = 0\n"
             ),
             tags=("generic", "configuration"),
         ),

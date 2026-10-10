@@ -57,6 +57,7 @@ import_agilab_symbols(
         "build_manager_install_snippet": "build_manager_install_snippet",
         "build_run_snippet": "build_run_snippet",
         "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE": "DEPLOY_WORKERS_AGI_INSTALL_RATIONALE",
+        "app_declares_workerless": "app_declares_workerless",
         "available_benchmark_modes": "available_benchmark_modes",
         "BENCHMARK_MODE_LEGEND_MARKDOWN": "BENCHMARK_MODE_LEGEND_MARKDOWN",
         "benchmark_dataframe_column_config": "benchmark_dataframe_column_config",
@@ -92,6 +93,8 @@ import_agilab_symbols(
     fallback_path=Path(__file__).resolve().parents[1] / "orchestrate_page_support.py",
     fallback_name="agilab_orchestrate_page_support_fallback",
 )
+# Keep the guarded dynamic binding explicit for static name analysis.
+app_declares_workerless: Callable[[Any], bool] = globals()["app_declares_workerless"]
 import_agilab_symbols(
     globals(),
     "agilab.orchestrate_page_state",
@@ -1696,7 +1699,8 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
         if not install_status.get("worker_exists"):
             return (
                 "Needs deployment",
-                "Worker environment has not been created yet. Run Deploy scheduler & workers before RUN.",
+                "Worker environment has not been created yet. SDK RUN needs a deployed worker, including mode 0 (local Python). "
+                "Use Resources > Deploy scheduler & workers before RUN.",
             )
         return "Needs deployment", install_status.get(
             "worker_problem"
@@ -1714,12 +1718,12 @@ def _runtime_status_label(install_status: dict[str, Any]) -> tuple[str, str]:
 
 
 def _run_mode_requires_worker_environment(run_mode: Any) -> bool:
-    if isinstance(run_mode, (list, tuple, set)):
-        return any(_run_mode_requires_worker_environment(mode) for mode in run_mode)
-    try:
-        return int(run_mode) != 0
-    except (TypeError, ValueError):
-        return True
+    """Every SDK RUN mode uses a deployed worker, including local Python mode 0.
+
+    Ordinary Python stages and explicitly workerless manager snippets execute
+    independently of AGI.run; a mode value is never a workerless declaration.
+    """
+    return True
 
 
 def _install_ready_for_run(
@@ -2921,8 +2925,9 @@ async def page() -> None:
     _consume_first_proof_action_query_seed(st.session_state, st.query_params, env=env)
 
     install_status = _app_install_status(env)
-    worker_required_for_run = _run_mode_requires_worker_environment(
-        st.session_state.get("mode", 0)
+    worker_required_for_run = (
+        not app_declares_workerless(env)
+        and _run_mode_requires_worker_environment(st.session_state.get("mode", 0))
     )
     installed = _install_ready_for_run(
         install_status, worker_required=worker_required_for_run
@@ -2969,8 +2974,9 @@ async def page() -> None:
         show_install=show_install,
         install_status=install_status,
     )
-    worker_required_for_run = _run_mode_requires_worker_environment(
-        st.session_state.get("mode", 0)
+    worker_required_for_run = (
+        not app_declares_workerless(env)
+        and _run_mode_requires_worker_environment(st.session_state.get("mode", 0))
     )
     installed = _install_ready_for_run(
         install_status, worker_required=worker_required_for_run
@@ -2991,8 +2997,9 @@ async def page() -> None:
             show_run=show_run,
             verbose=verbose,
         )
-    worker_required_for_run = _run_mode_requires_worker_environment(
-        st.session_state.get("mode", 0)
+    worker_required_for_run = (
+        not app_declares_workerless(env)
+        and _run_mode_requires_worker_environment(st.session_state.get("mode", 0))
     )
     installed = _install_ready_for_run(
         install_status, worker_required=worker_required_for_run

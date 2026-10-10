@@ -261,7 +261,7 @@ def test_render_notebook_download_button_renders_bytes(tmp_path, monkeypatch):
         }
     ]
     assert errors == []
-    assert captions == [f"PyCharm notebook: `{pycharm_path}`"]
+    assert captions == [f"Editable notebook: `{pycharm_path}`"]
 
 
 def test_render_notebook_download_button_reports_streamlit_failure(tmp_path, monkeypatch):

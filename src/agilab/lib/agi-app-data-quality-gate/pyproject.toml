@@ -1,5 +1,5 @@
 [project]
-version = "2026.10.04"
+version = "2026.10.10"
 name = "agi-app-data-quality-gate"
 description = "AGILAB deterministic data contract, drift, leakage, and promotion gate"
 requires-python = ">=3.12"

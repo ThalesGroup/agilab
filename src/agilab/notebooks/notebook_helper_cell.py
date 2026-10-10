@@ -8,9 +8,8 @@
 `_helper_cell` is a single ~1250-line f-string holding the Python that exported
 notebooks run to locate their app, rebuild stage context, and render analysis
 pages. It carried a third of notebook_export_support.py while sharing nothing
-with it -- the only value interpolated from the caller is `payload_literal`, and
-every other brace in the template is `{{`-escaped and belongs to the generated
-code.
+with it -- the caller payload and the shared deployment instructions are embedded
+as literals. Braces belonging to the generated Python are `{{`-escaped.
 
 Keeping it here leaves the export logic readable and lets this file be reviewed
 as what it is: emitted source, not control flow.
@@ -21,6 +20,14 @@ from __future__ import annotations
 import json
 import textwrap
 from typing import Any
+
+
+SDK_WORKER_DEPLOYMENT_HANDOFF = (
+    "SDK run stages using `AGI.run` (including app shorthand) need deployed manager and worker environments, "
+    "including mode `0` (local Python). Before running them, use **ORCHESTRATE → Resources → Deploy scheduler & workers**, "
+    "or include an explicit `AGI.install` stage in your plan. Export preserves your plan and does not add an installation stage. "
+    "Python stages that do not call `AGI.run` remain independently editable and executable with their own dependencies."
+)
 
 
 def _helper_cell(payload: dict[str, Any]) -> str:
@@ -356,6 +363,10 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                 "2. Run one runner cell or run_agilab_pipeline().",
                 "3. Render related analysis pages if configured.",
                 "4. If you edit stage code, re-import the notebook into AGILAB when you want lab_stages.toml to become the source of truth again.",
+                "",
+                "## SDK deployment prerequisites",
+                "",
+                {SDK_WORKER_DEPLOYMENT_HANDOFF!r},
                 "",
                 "## Paths",
                 "",
@@ -988,6 +999,10 @@ def _helper_cell(payload: dict[str, Any]) -> str:
                     inherited_mode = run_args.pop("mode", None)
                     if inherited_mode not in (None, ""):
                         run_mode = inherited_mode
+                # Older Workflow templates used this label for SDK local Python.
+                # Other values keep the SDK's own validation and mode semantics.
+                if run_mode == "local":
+                    run_mode = 0
             run_params = dict(run_args)
             run_stages_payload = run_params.pop("stages", []) or []
             if "args" in run_params:

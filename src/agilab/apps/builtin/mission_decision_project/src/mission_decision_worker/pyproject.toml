@@ -1,6 +1,6 @@
 [project]
 name = "mission_decision_worker"
-version = "2026.10.04"
+version = "2026.10.10"
 description = "Built-in AGILAB Mission Decision autonomous demo"
 requires-python = ">=3.12"
 dependencies = ["agi-env>=2026.10.04", "agi-node>=2026.10.04", "pandas>=2.3.0,<4", "pydantic>=2.12,<2.13"]

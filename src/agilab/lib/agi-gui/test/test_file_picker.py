@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import agi_web.python_ui
+from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -263,7 +263,7 @@ def test_agi_file_picker_selects_dataframe_row(tmp_path: Path, monkeypatch) -> N
     selected_file.write_text("a\n", encoding="utf-8")
     (tmp_path / "beta.txt").write_text("b\n", encoding="utf-8")
     fake_st = _FakeStreamlit(dataframe_state={"selection": {"rows": [0]}})
-    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setattr(import_module("agi_web"), "python_ui", fake_st, raising=False)
 
     result = agi_file_picker(
         "Browse",
@@ -294,7 +294,7 @@ def test_agi_file_picker_handles_multi_root_empty_search_and_manual_error(tmp_pa
         button_values={"picker:use_manual_path": True},
         pills_value="unknown",
     )
-    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setattr(import_module("agi_web"), "python_ui", fake_st, raising=False)
 
     result = agi_file_picker(
         "Browse",
@@ -315,7 +315,7 @@ def test_agi_file_picker_manual_path_updates_selection(tmp_path: Path, monkeypat
         text_values={"picker:manual_path": str(selected_file)},
         button_values={"picker:use_manual_path": True},
     )
-    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setattr(import_module("agi_web"), "python_ui", fake_st, raising=False)
 
     result = agi_file_picker("Browse", roots={"Project": tmp_path}, key="picker")
 
@@ -330,7 +330,7 @@ def test_agi_file_picker_upload_saves_files(tmp_path: Path, monkeypatch) -> None
     fake_st = _FakeStreamlit(
         uploads=[_UploadedFile("nested/new.csv", b"payload")],
     )
-    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setattr(import_module("agi_web"), "python_ui", fake_st, raising=False)
 
     result = agi_file_picker(
         "Upload",
