@@ -1,8 +1,15 @@
 from __future__ import annotations
 
 import importlib.util
+import importlib.metadata
+import json
+import runpy
+import subprocess
 import sys
+import zipfile
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,3 +103,160 @@ def test_coverage_command_keeps_app_isolation_and_collects_parallel_data(tmp_pat
     assert "--parallel-mode" in command
     assert f"--junitxml={junit}" in command
     assert command[command.index("python") + 1:command.index("python") + 4] == ["-m", "coverage", "run"]
+
+
+@pytest.fixture
+def sdk_sources(monkeypatch, tmp_path):
+    root = tmp_path / "sdk-projects"
+    versions = {
+        "agi-env": "2026.10.04", "agi-node": "2026.10.05",
+        "agi-cluster": "2026.10.10.1", "agi-core": "2026.10.10.1",
+    }
+    for name, version in versions.items():
+        source = root / name
+        source.mkdir(parents=True)
+        (source / "pyproject.toml").write_text(f'[project]\nname = "{name}"\nversion = "{version}"\n')
+        (source / ".venv").mkdir()
+        (source / ".venv" / "do-not-copy").write_text("ambient environment")
+    monkeypatch.setattr(builtin_app_tests, "SDK_PROJECTS_ROOT", root)
+    return root, versions
+
+
+def _write_sdk_wheel(output, name, version, metadata=None):
+    version = ".".join(str(int(part)) for part in version.split("."))
+    stem = f'{name.replace("-", "_")}-{version}'
+    wheel = output / f"{stem}-py3-none-any.whl"
+    with zipfile.ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            f"{stem}.dist-info/METADATA",
+            metadata if metadata is not None else f"Name: {name}\nVersion: {version}\n",
+        )
+    return wheel
+
+
+def test_candidate_sdk_builds_are_owned_and_do_not_mutate_source(monkeypatch, tmp_path, sdk_sources):
+    sources, versions = sdk_sources
+    originals = {path: path.read_bytes() for path in sources.glob("*/pyproject.toml")}
+    calls = []
+    monkeypatch.setenv("UV_FIND_LINKS", "/unrelated/wheels")
+
+    def build(command, *, check, env):
+        assert check is True
+        assert "UV_FIND_LINKS" not in env
+        copied_source = Path(command[command.index("--wheel") + 1])
+        assert copied_source.is_relative_to(tmp_path / "candidate")
+        assert not (copied_source / ".venv").exists()
+        assert copied_source != sources / copied_source.name
+        (copied_source / "pyproject.toml").write_text("build backend writes stay in the copy")
+        _write_sdk_wheel(Path(command[command.index("--out-dir") + 1]), copied_source.name, versions[copied_source.name])
+        calls.append(command)
+
+    monkeypatch.setattr(builtin_app_tests.subprocess, "run", build)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    wheels, actual_versions = builtin_app_tests.prepare_sdk_wheels(candidate)
+
+    assert actual_versions == versions
+    assert len(calls) == len(list(wheels.glob("*.whl"))) == 4
+    assert all(path.read_bytes() == original for path, original in originals.items())
+    assert builtin_app_tests.os.environ["UV_FIND_LINKS"] == "/unrelated/wheels"
+
+
+@pytest.mark.parametrize("bad_output", ["missing", "wrong-name", "wrong-version", "missing-version", "corrupt"])
+def test_candidate_sdk_build_rejects_missing_or_bad_wheels(monkeypatch, tmp_path, sdk_sources, bad_output):
+    _, versions = sdk_sources
+
+    def build(command, **kwargs):
+        output = Path(command[command.index("--out-dir") + 1])
+        if bad_output == "missing":
+            return
+        if bad_output == "corrupt":
+            (output / "agi_env-2026.10.4-py3-none-any.whl").write_bytes(b"invalid ZIP")
+            return
+        metadata = {
+            "wrong-name": "Name: wrong-package\nVersion: 2026.10.4\n",
+            "wrong-version": "Name: agi-env\nVersion: 2026.9.1\n",
+            "missing-version": "Name: agi-env\n",
+        }[bad_output]
+        _write_sdk_wheel(output, "agi-env", versions["agi-env"], metadata)
+
+    monkeypatch.setattr(builtin_app_tests.subprocess, "run", build)
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    with pytest.raises((ValueError, zipfile.BadZipFile)):
+        builtin_app_tests.prepare_sdk_wheels(candidate)
+
+
+@pytest.mark.parametrize("actual", ["2026.10.5", "2026.10.11"])
+def test_resolved_sdk_guard_rejects_older_or_newer_core_before_pytest(monkeypatch, actual):
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: actual)
+    monkeypatch.setattr(sys, "argv", ["-c", json.dumps({"agi-core": "2026.10.10.1"}), "-m", "pytest", "test"])
+    monkeypatch.setattr(runpy, "run_module", lambda *args, **kwargs: pytest.fail("pytest must not start on the wrong SDK"))
+    with pytest.raises(SystemExit, match="SDK candidate version mismatch"):
+        exec(builtin_app_tests.SDK_VERSION_GUARD, {})
+
+
+@pytest.mark.parametrize("instrumented", [False, True])
+def test_resolved_sdk_guard_preserves_module_and_forwarded_arguments(monkeypatch, instrumented):
+    forwarded = ["coverage", "run", "--parallel-mode", "-m", "pytest", "-k", "weather"] if instrumented else ["pytest", "-k", "weather"]
+    versions = {"agi-env": "2026.10.04", "agi-core": "2026.10.10.1"}
+    monkeypatch.setattr(importlib.metadata, "version", lambda name: versions[name].replace(".04", ".4"))
+    monkeypatch.setattr(sys, "argv", ["-c", json.dumps(versions), "-m", *forwarded])
+    calls = []
+    monkeypatch.setattr(runpy, "run_module", lambda *args, **kwargs: calls.append((args, kwargs, sys.argv.copy())))
+
+    exec(builtin_app_tests.SDK_VERSION_GUARD, {})
+
+    assert calls == [((forwarded[0],), {"run_name": "__main__", "alter_sys": True}, forwarded)]
+
+
+def test_main_prepares_sdk_once_and_scopes_find_links_to_apps(monkeypatch, tmp_path):
+    module = builtin_app_tests
+    targets = [module.BuiltinAppTestTarget(name, tmp_path / name) for name in ("a_project", "b_project")]
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "discover_builtin_app_tests", lambda: targets)
+    preparation = []
+    versions = {"agi-core": "2026.10.10.1"}
+    calls = []
+    monkeypatch.setenv("UV_FIND_LINKS", "/ambient/wheels")
+
+    def prepare(root):
+        preparation.append(root)
+        return root / "wheels", versions
+
+    def run(command, *, cwd, check, env):
+        calls.append((command, cwd, env))
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module, "prepare_sdk_wheels", prepare)
+    monkeypatch.setattr(module.subprocess, "run", run)
+
+    assert module.main([]) == 0
+    assert len(preparation) == 1
+    assert len(calls) == 2
+    for command, cwd, env in calls:
+        assert cwd in [target.path for target in targets]
+        assert env["UV_FIND_LINKS"] == str(preparation[0] / "wheels")
+        python_index = command.index("python")
+        assert command[python_index + 1:python_index + 3] == ["-c", module.SDK_VERSION_GUARD]
+        assert json.loads(command[python_index + 3]) == versions
+    assert not preparation[0].exists()
+    assert module.os.environ["UV_FIND_LINKS"] == "/ambient/wheels"
+
+
+def test_main_does_not_run_tests_if_sdk_build_fails(monkeypatch, tmp_path):
+    module = builtin_app_tests
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "discover_builtin_app_tests", lambda: [module.BuiltinAppTestTarget("a_project", tmp_path / "a_project")])
+    monkeypatch.setattr(module, "prepare_sdk_wheels", lambda root: (_ for _ in ()).throw(subprocess.CalledProcessError(1, ["uv", "build"])))
+    monkeypatch.setattr(module.subprocess, "run", lambda *args, **kwargs: pytest.fail("pytest must not start after a failed build"))
+    assert module.main([]) == 1
+
+
+@pytest.mark.parametrize("args", [["--list"], ["--dry-run"]])
+def test_inspection_does_not_build_sdk_candidates(monkeypatch, tmp_path, args):
+    module = builtin_app_tests
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "discover_builtin_app_tests", lambda: [module.BuiltinAppTestTarget("a_project", tmp_path / "a_project")])
+    monkeypatch.setattr(module, "prepare_sdk_wheels", lambda root: pytest.fail("inspection must not build SDK wheels"))
+    assert module.main(args) == 0

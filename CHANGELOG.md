@@ -14,6 +14,9 @@ releases are preserved for auditability; they are not the intended steady-state
 delivery rhythm. Normal feature or behavior changes should use a deliberate new
 date-based release. Same-day fixes use `YYYY.MM.DD.N` package versions and a
 `vYYYY.MM.DD_N` tag; `.postN` is no longer accepted by the release policy.
+If that tag is already occupied by an unpublished attempt, the publisher selects
+a new immutable attempt tag such as `vYYYY.MM.DD_N-2` while retaining the
+unpublished package versions. Earlier tags keep their original source commits.
 
 ## Release Link Note
 
@@ -51,6 +54,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   isolated test processes. Both publication preflights for the unpublished
   2026.10.10 candidate reached the former 16-minute limit. Preserve its tag
   and prepare the hotfix under the new v2026.10.10_1 tag.
+- Build the candidate SDK wheels once for the builtin test preflight and make
+  them available to the isolated app resolvers before publication. Check the
+  resolved SDK versions before running each suite, preserve authored app
+  manifests, and keep actual PyPI installation qualification separate.
 
 ## [2026.10.08] - 2026-10-08
 

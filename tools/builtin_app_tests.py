@@ -5,14 +5,19 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import os
+import shutil
 import shlex
 import subprocess
 import sys
 import tempfile
+import tomllib
+import zipfile
 from collections.abc import Iterator
+from email.parser import BytesParser
 from pathlib import Path
-from typing import NamedTuple, Sequence
+from typing import Mapping, NamedTuple, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -27,11 +32,78 @@ DEFAULT_PYTEST_ARGS = (
 )
 DEFAULT_APP_TEST_ENVS_ROOT = REPO_ROOT / ".venv-builtin-app-tests"
 APP_TEST_ENV_ROOT_ENV = "AGILAB_BUILTIN_APP_TEST_ENV_ROOT"
+SDK_PROJECTS_ROOT = REPO_ROOT / "src" / "agilab" / "core"
+SDK_PACKAGES = ("agi-env", "agi-node", "agi-cluster", "agi-core")
+SDK_VERSION_GUARD = """\
+import importlib.metadata as metadata
+import json, runpy, sys
+from packaging.version import Version
+expected = json.loads(sys.argv.pop(1))
+for name, version in expected.items():
+    actual = metadata.version(name)
+    if Version(actual) != Version(version):
+        raise SystemExit(f"SDK candidate version mismatch: {name}=={actual}, expected {version}")
+if sys.argv.pop(1) != "-m":
+    raise SystemExit("expected a Python module after SDK validation")
+module = sys.argv.pop(1)
+sys.argv[0] = module
+runpy.run_module(module, run_name="__main__", alter_sys=True)
+"""
 
 
 class BuiltinAppTestTarget(NamedTuple):
     name: str
     path: Path
+
+
+def _release_parts(version: str | None) -> tuple[int, ...]:
+    """Compare numeric release versions after wheel normalization of leading zeros."""
+    if not isinstance(version, str):
+        raise ValueError("missing SDK release version")
+    return tuple(int(part) for part in version.split("."))
+
+
+def prepare_sdk_wheels(root: Path) -> tuple[Path, dict[str, str]]:
+    """Build prepublication SDK candidates in an owned temporary directory."""
+
+    wheels = root / "wheels"
+    wheels.mkdir()
+    versions: dict[str, str] = {}
+    build_env = os.environ.copy()
+    for key in ("VIRTUAL_ENV", "UV_RUN_RECURSION_DEPTH", "UV_FIND_LINKS"):
+        build_env.pop(key, None)
+    for name in SDK_PACKAGES:
+        source = SDK_PROJECTS_ROOT / name
+        project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
+        if project["name"] != name:
+            raise ValueError(f"unexpected SDK project name in {source}")
+        version = project["version"]
+        copied_source = root / "sources" / name
+        shutil.copytree(
+            source, copied_source,
+            ignore=shutil.ignore_patterns(
+                ".venv", "build", "dist", "*.egg-info", "__pycache__",
+                ".pytest_cache", ".ruff_cache", ".git",
+            ),
+        )
+        before = set(wheels.glob("*.whl"))
+        subprocess.run(
+            ["uv", "--no-cache", "build", "--wheel", str(copied_source),
+             "--out-dir", str(wheels)],
+            check=True, env=build_env,
+        )
+        created = set(wheels.glob("*.whl")) - before
+        if len(created) != 1:
+            raise ValueError(f"expected one candidate wheel for {name}, got {len(created)}")
+        with zipfile.ZipFile(created.pop()) as archive:
+            metadata_files = [path for path in archive.namelist() if path.endswith(".dist-info/METADATA")]
+            if len(metadata_files) != 1:
+                raise ValueError(f"expected one METADATA record for {name}")
+            metadata = BytesParser().parsebytes(archive.read(metadata_files[0]))
+        if metadata["Name"] != name or _release_parts(metadata["Version"]) != _release_parts(version):
+            raise ValueError(f"candidate wheel metadata does not match {name}=={version}")
+        versions[name] = version
+    return wheels, versions
 
 
 def discover_builtin_app_tests(root: Path = BUILTIN_APPS_ROOT) -> list[BuiltinAppTestTarget]:
@@ -50,6 +122,7 @@ def discover_builtin_app_tests(root: Path = BUILTIN_APPS_ROOT) -> list[BuiltinAp
 def build_pytest_command(
     pytest_args: Sequence[str] = (), *, coverage_data_file: Path | None = None,
     junit_path: Path | None = None,
+    sdk_versions: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Build the app-local pytest command used for each built-in app."""
 
@@ -69,6 +142,9 @@ def build_pytest_command(
         ]
     if junit_path is not None:
         forwarded.append(f"--junitxml={junit_path.resolve()}")
+    python = ["python"]
+    if sdk_versions is not None:
+        python.extend(["-c", SDK_VERSION_GUARD, json.dumps(dict(sdk_versions))])
     return [
         "uv",
         "--no-cache",
@@ -82,7 +158,7 @@ def build_pytest_command(
         "--with",
         "pytest-asyncio",
         *dependencies,
-        "python",
+        *python,
         *instrumentation,
         "-m",
         "pytest",
@@ -91,7 +167,8 @@ def build_pytest_command(
 
 
 def subprocess_env(
-    target: BuiltinAppTestTarget, env_root: Path | None = None
+    target: BuiltinAppTestTarget, env_root: Path | None = None,
+    sdk_wheels: Path | None = None,
 ) -> dict[str, str]:
     """Return an isolated uv environment for one built-in app test target."""
 
@@ -103,6 +180,9 @@ def subprocess_env(
     env["UV_PROJECT_ENVIRONMENT"] = str(env_root / target.name)
     # Ignored app-local .venv links must not override the repo test interpreter.
     env["UV_PYTHON"] = sys.executable
+    if sdk_wheels is not None:
+        # Source preflight only; actual registry qualification rejects find-links.
+        env["UV_FIND_LINKS"] = str(sdk_wheels)
     return env
 
 
@@ -178,11 +258,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     failures: list[str] = []
     if args.coverage_data_file is not None and not args.dry_run:
         args.coverage_data_file.parent.mkdir(parents=True, exist_ok=True)
-    with app_test_env_root() as env_root:
+    with app_test_env_root() as env_root, contextlib.ExitStack() as stack:
+        sdk_wheels = None
+        sdk_versions = None
+        if not args.dry_run and targets:
+            sdk_root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="agilab-builtin-sdk-wheels-")))
+            try:
+                sdk_wheels, sdk_versions = prepare_sdk_wheels(sdk_root)
+            except (OSError, ValueError, zipfile.BadZipFile, subprocess.CalledProcessError) as exc:
+                print(f"Could not prepare built-in test SDK candidates: {exc}", file=sys.stderr)
+                return 1
         for target in targets:
             command = build_pytest_command(
                 args.pytest_args, coverage_data_file=args.coverage_data_file,
                 junit_path=(args.junit_dir / f"junit-agi-gui-builtin-{target.name}.xml") if args.junit_dir is not None else None,
+                sdk_versions=sdk_versions,
             )
             print(f"\n== {target.path.relative_to(REPO_ROOT)} ==", flush=True)
             if args.dry_run:
@@ -192,7 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 command,
                 cwd=target.path,
                 check=False,
-                env=subprocess_env(target, env_root),
+                env=subprocess_env(target, env_root, sdk_wheels),
             )
             if result.returncode:
                 failures.append(target.name)
