@@ -46,7 +46,11 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   checkout is present. Only explicit source environments may select the
   checkout SDK projects; retain protection against rewriting local projects.
 - Prepare the affected app, web, page, umbrella, agi-cluster and agi-core
-  packages at 2026.10.10. Unchanged agi-env and agi-node retain their versions.
+  packages at 2026.10.10.1. Unchanged agi-env and agi-node retain their versions.
+- Give the GUI general coverage group 25 minutes for its more than 260
+  isolated test processes. Both publication preflights for the unpublished
+  2026.10.10 candidate reached the former 16-minute limit. Preserve its tag
+  and prepare the hotfix under the new v2026.10.10_1 tag.
 
 ## [2026.10.08] - 2026-10-08
 

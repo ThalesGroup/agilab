@@ -1,6 +1,6 @@
 [project]
 name = "flight_telemetry_worker"
-version = "2026.10.10"
+version = "2026.10.10.1"
 description = ""
 requires-python = ">=3.12,<3.15"
 readme = "README.md"
