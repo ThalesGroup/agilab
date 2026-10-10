@@ -446,3 +446,90 @@ def test_component_duplicate_keys_config_and_private_secret_files(session, monke
     assert ui.secrets.fixture == ui.secrets["fixture"] == "synthetic fixture value"
     with pytest.raises(AttributeError):
         _ = ui.secrets.missing
+
+
+def test_popover_context_and_container_passthrough_keep_children_scoped(session):
+    outer = ui.container(key="file-picker")
+    with outer.popover("Choose dataset", help="Choose a CSV", width="stretch", key="datasets"):
+        ui.text_input("Filter files", key="dataset-filter")
+        with ui.popover("Advanced", disabled=True):
+            ui.caption("Nested details")
+    ui.text("Outside")
+    disclosure = outer.node["children"][0]
+    assert disclosure["kind"] == "popover"
+    assert disclosure["props"]["label"] == "Choose dataset"
+    assert disclosure["props"]["help"] == "Choose a CSV"
+    assert disclosure["props"]["width"] == "stretch"
+    assert disclosure["children"][0]["kind"] == "text_input"
+    assert disclosure["children"][1]["kind"] == "popover"
+    assert disclosure["children"][1]["props"]["disabled"] is True
+    assert disclosure["children"][1]["children"][0]["kind"] == "caption"
+    assert session.roots["main"][-1]["props"]["body"] == "Outside"
+    assert len(session.stack) == 1
+
+
+def test_real_file_picker_csv_controls_select_filter_roots_manual_path_and_upload(tmp_path):
+    from agi_gui.file_picker import agi_file_picker
+
+    first = tmp_path / "datasets"
+    second = tmp_path / "exports"
+    first.mkdir()
+    second.mkdir()
+    dataset = first / "input_1000_rows.csv"
+    dataset.write_text("x,y\n" + "".join(f"{row},{row * 2}\n" for row in range(1_000)))
+    exported = second / "export.csv"
+    exported.write_text("x,y\n1,2\n")
+
+    def page():
+        ui.session_state["selected_csv"] = agi_file_picker(
+            "Dataset", key="dataset-picker", roots={"Datasets": first, "Exports": second},
+            patterns="*.csv", allow_dirs=False, container=ui.container(),
+            allow_upload=True, upload_dir=first, upload_types=["csv"],
+        )
+
+    app = AppTest.from_function(page).run()
+    assert not app.exception
+    assert len(app.get("popover")) == 1
+    assert app.get("pills")[0].value == "Datasets"
+    table = app.get("dataframe")[0]
+    assert len(table.node["props"]["rows"]) == 1
+    table.set_value(ui.SessionState(selection=ui.SessionState(rows=[0], columns=[]))).run()
+    assert not app.exception
+    assert app.session_state["selected_csv"] == str(dataset)
+    app.get("text_input")[0].input("no matching CSV").run()
+    assert not app.exception
+    assert not app.get("dataframe")
+    assert any("No matching files" in item.value for item in app.get("caption"))
+    app.get("text_input")[0].input("").run()
+    app.get("pills")[0].select("Exports").run()
+    assert not app.exception
+    assert app.get("dataframe")[0].node["props"]["rows"][0][0] == "export.csv"
+    app.get("text_input")[1].input(str(exported)).run()
+    next(item for item in app.get("button") if item.label == "Use path").click().run()
+    assert not app.exception
+    assert app.session_state["selected_csv"] == str(exported)
+    app.get("pills")[0].select("Datasets").run()
+    app.get("file_uploader")[0].upload("uploaded.csv", b"x,y\n3,6\n", "text/csv").run()
+    assert not app.exception
+    uploaded = first / "uploaded.csv"
+    assert uploaded.read_bytes() == b"x,y\n3,6\n"
+    assert app.session_state["selected_csv"] == str(uploaded)
+    assert app.session_state["dataset-picker:upload"] == []
+    app.run()
+    assert not app.exception
+    assert app.session_state["selected_csv"] == str(uploaded)
+    app.get("file_uploader")[0].upload("next_upload.csv", b"x,y\n4,8\n", "text/csv").run()
+    assert not app.exception
+    next_upload = first / "next_upload.csv"
+    assert next_upload.read_bytes() == b"x,y\n4,8\n"
+    assert app.session_state["selected_csv"] == str(next_upload)
+    assert uploaded.read_bytes() == b"x,y\n3,6\n"
+    app.get("dataframe")[0].set_value(ui.SessionState(selection=ui.SessionState(rows=[0], columns=[]))).run()
+    assert app.session_state["selected_csv"] == str(dataset)
+    app.get("text_input")[1].input(str(next_upload)).run()
+    next(item for item in app.get("button") if item.label == "Use path").click().run()
+    assert not app.exception
+    assert app.session_state["selected_csv"] == str(next_upload)
+    app.run()
+    assert not app.exception
+    assert app.session_state["selected_csv"] == str(next_upload)

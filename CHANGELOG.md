@@ -36,6 +36,9 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Use the SDK local-Python mode in new workflow templates and translate the
   former `local` label when replaying shorthand notebook stages. Preserve the
   execution of edited Python cells, including CSV transformations.
+- Support the native file-picker popover in workflow pages, including inside
+  containers, so CSV selection no longer interrupts notebook export. Consume
+  completed upload events once to preserve selection without repeated reruns.
 - Prepare the affected app, web, page and umbrella packages at 2026.10.10.
   The unchanged SDK packages retain their current versions.
 

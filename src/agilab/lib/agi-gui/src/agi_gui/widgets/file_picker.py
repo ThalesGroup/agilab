@@ -229,7 +229,7 @@ def agi_file_picker(
     help: str | None = None,
     container: Any | None = None,
 ) -> str | list[str] | None:
-    """Render a Streamlit popover file picker and return selected absolute paths."""
+    """Render a native popover file picker and return selected absolute paths."""
 
     if selection_mode not in {"single", "multi"}:
         raise ValueError("selection_mode must be 'single' or 'multi'")
@@ -339,6 +339,7 @@ def agi_file_picker(
                 st.error(str(exc))
             else:
                 st.session_state[state_key] = [str(selected_manual)]
+                st.session_state.pop(table_key, None)
                 st.rerun()
 
         if allow_upload:
@@ -352,6 +353,8 @@ def agi_file_picker(
                 saved_paths = _save_uploaded_files(uploaded_files, upload_dir, root_items)
                 if saved_paths:
                     st.session_state[state_key] = saved_paths[:1] if selection_mode == "single" else saved_paths
+                    st.session_state.pop(table_key, None)
+                    st.session_state[upload_key] = []
                     st.rerun()
 
     final_selection = _validated_selection(st.session_state.get(state_key), root_items, selection_mode)

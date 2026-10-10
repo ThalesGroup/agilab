@@ -151,6 +151,13 @@ def expander(label, expanded=False, **kwargs):
     return Container(_node("expander", label=str(label), expanded=expanded, **kwargs))
 
 
+def popover(label, *, help=None, disabled=False, width="content", key=None, **kwargs):
+    return Container(current_session().add_node(
+        "popover", {"label": str(label), "help": help, "disabled": bool(disabled),
+                    "width": width, "key": key, **kwargs}, key=key,
+    ))
+
+
 def form(key, *, clear_on_submit=False, **kwargs):
     if current_session().form_stack:
         raise UIError("Forms cannot be nested.")
