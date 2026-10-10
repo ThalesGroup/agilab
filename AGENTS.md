@@ -31,7 +31,7 @@ Use this runbook whenever you:
   bind an application worker class directly, even inside a function or through
   a literal `importlib` call. Preserve SDK base declarations, declared cross-app
   inheritance, scientific helpers and serialized-model provider registration.
-  `./dev app-contracts` enforces `tools/worker_dynamic_import_contract.py` in CI.
+  `./dev app-contracts` enforces `tools/app_contracts/worker_dynamic_import_contract.py` in CI.
   A loader change needs regressions for all supported execution modes and cache
   invalidation; an interface change must prove it uses the SDK-selected class.
 - **Main React interface**: `src/agilab/main_page.py` uses `agi_web.python_ui`

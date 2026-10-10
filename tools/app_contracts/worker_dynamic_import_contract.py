@@ -316,7 +316,7 @@ def inspect_roots(repo_root: Path, apps_roots: Sequence[Path] | None = None, sou
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument("--apps-root", type=Path, action="append")
     parser.add_argument("--source-root", type=Path, action="append")
     parser.add_argument("--output", type=Path)

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-09T15:39:02Z",
+  "generated_at_utc": "2026-10-10T11:50:21Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 308,
+    "evidence_schema_count": 309,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -3125,6 +3125,12 @@
       "schema": "agilab.worker_artifacts.v1",
       "sources": [
         "src/agilab/core/agi-node/src/agi_node/artifact_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.worker_dynamic_import_contract.v1",
+      "sources": [
+        "tools/app_contracts/worker_dynamic_import_contract.py"
       ]
     },
     {

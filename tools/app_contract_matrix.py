@@ -1613,7 +1613,7 @@ def build_report(
     project_paths = discover_builtin_projects(repo_root)
     checks: list[Check] = []
     guard = _load_module(
-        REPO_ROOT, Path("tools/worker_dynamic_import_contract.py"),
+        REPO_ROOT, Path("tools/app_contracts/worker_dynamic_import_contract.py"),
         "agilab_worker_dynamic_import_contract",
     )
     try:
@@ -1624,7 +1624,7 @@ def build_report(
         "worker_dynamic_imports", "Dynamic application worker loading",
         worker_imports["passed"],
         "production managers, interfaces, and workers preserve SDK worker selection",
-        evidence=("tools/worker_dynamic_import_contract.py",), details=worker_imports,
+        evidence=("tools/app_contracts/worker_dynamic_import_contract.py",), details=worker_imports,
     ))
     checks.append(
         _check(

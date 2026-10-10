@@ -58,7 +58,7 @@ original class names. Module aliases remain supported.
 importing application code. To check an external or private repository, run:
 
 ```bash
-python tools/worker_dynamic_import_contract.py --repo-root /path/to/apps-repository
+python tools/app_contracts/worker_dynamic_import_contract.py --repo-root /path/to/apps-repository
 ```
 
 This rejects explicit worker-class bindings and literal imports used for worker

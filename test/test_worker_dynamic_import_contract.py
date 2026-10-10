@@ -8,7 +8,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = importlib.util.spec_from_file_location("worker_dynamic_import_contract_tests", ROOT / "tools/worker_dynamic_import_contract.py")
+SPEC = importlib.util.spec_from_file_location("worker_dynamic_import_contract_tests", ROOT / "tools/app_contracts/worker_dynamic_import_contract.py")
 assert SPEC is not None and SPEC.loader is not None
 guard = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = guard
@@ -117,7 +117,9 @@ def test_cli_fails_on_bypass_and_empty_inventory(app_repo, capsys):
     capsys.readouterr()
 
 
-def test_real_production_sources_obey_worker_dispatch_contract():
+def test_real_production_sources_obey_worker_dispatch_contract(capsys):
     report = guard.inspect_roots(ROOT)
     assert report["worker_packages_checked"] >= 14
     assert report["passed"], report["findings"]
+    assert guard.main([]) == 0
+    capsys.readouterr()
