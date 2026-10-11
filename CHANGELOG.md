@@ -26,6 +26,17 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.11] - 2026-10-11
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11
+
+### Changed
+
+- Published AGILAB `2026.10.11` to PyPI for `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
+
+
 ## [2026.10.10.1] - 2026-10-11
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.10_1-3
@@ -1309,3 +1320,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.07.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
 [2026.10.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08
 [2026.10.10.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.10_1-3
+[2026.10.11]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11
