@@ -26,6 +26,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.10.1] - 2026-10-11
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.10_1-3
+
 ### Dynamic worker loading and installed app contracts
 
 - Require the SDK's dynamic loader for app-worker entrypoints. The PyTorch
@@ -66,6 +70,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   offline wheelhouse policy and qualify offline installation separately.
   Isolate inherited resolver settings before building those candidates as well
   as before running the proofs, without changing the caller's environment.
+
+### Changed
+
+- Published AGILAB `2026.10.10.1` to PyPI for `agi-gui`, `agi-web`, `agi-pages`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-multi-dag`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-data-quality-gate`, `agi-app-pytorch-playground`, `agi-app-learning-assessment`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.08] - 2026-10-08
 
@@ -1298,3 +1308,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.07]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07
 [2026.10.07.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.07_1
 [2026.10.08]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.08
+[2026.10.10.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.10_1-3
