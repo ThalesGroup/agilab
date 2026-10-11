@@ -3,15 +3,52 @@
 
 > Current source UI: React with the native `agi_web` Python view host and embedded
 > Jupyter widgets. See [Native React UI and notebook export](../agilab-native-react-ui-notebook-export.rst).
-> The implementation chronology and former provider references below remain
-> historical; they do not prescribe a current dependency or publication status.
+> Shipped baselines below explain where the remaining work starts. Source
+> completion, public publication and environment qualification are separate claims.
 
-This page tracks planned work only.
+This page tracks remaining work and the delivered baseline for each theme.
 
 - For current shipped capabilities, see {doc}`../features`.
 - For toolchain fit and framework comparison, see {doc}`../agilab-mlops-positioning`.
 
-The goal here is to rank future work, not to restate the current feature set.
+The goal here is to rank the next acceptance criteria without reopening delivered
+work as a new feature request.
+
+## Delivery checkpoint — 2026-10-11
+
+The published root release is
+[`2026.10.11`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11).
+See {doc}`../release-proof` for the package, hosted demonstration and evidence
+boundaries. Later CI or documentation fixes do not imply a new package release.
+
+| Theme | Baseline and source status | Remaining work |
+| --- | --- | --- |
+| [P0 release integrity](https://github.com/ThalesGroup/agilab/issues/560) | Published release and explicit release-proof/approval contracts | Keep each subsequent release, package scope, coverage and hosted proof aligned |
+| [P1 first-run UX](https://github.com/ThalesGroup/agilab/issues/561) | Native React entry points and local first-proof route | Qualify newcomer flows and responsiveness on smaller Linux machines |
+| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution and the 1,000-row GUI-to-notebook macOS round trip | Additional environments, app scenarios and larger inputs |
+| [P3 security](https://github.com/ThalesGroup/agilab/issues/563) | Documented boundaries and supply-chain/release guardrails | Environment-specific shared-deployment and dependency qualification |
+| [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing cluster controls and dynamic `agi-core` worker-loading guards | Real platform, degraded-network and team-operation qualification |
+| [Pinned private apps](https://github.com/ThalesGroup/agilab/issues/565) | Pinned validation contracts and scoped private app checks | Broader scientific workload qualification without publishing private source |
+| [Multi-app DAG](https://github.com/ThalesGroup/agilab/issues/566) | Two-app artifact handoff, retry, partial rerun, durable state and WORKFLOW controls | Larger graphs, more apps, placement and operator consolidation |
+| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Qualified source MVP: seven profiles, a server command registry and four snapshot panes; desktop/mobile navigation, reviewed switching and per-project layout evidence | Publication, actual palette install/scientific-run qualification, broader discovery/actions, cluster scenarios and smaller-machine measurements |
+| [Data connectors](https://github.com/ThalesGroup/agilab/issues/568) | Catalog, resolution, health-action, adapter and view contracts | Prepared live endpoints: IAM, network, quota, latency and provider behavior |
+
+These nine issues were opened as roadmap themes in June 2026. They and the
+[central discussion](https://github.com/ThalesGroup/agilab/issues/2) remain an
+index for voting and acceptance criteria, rather than a count of absent features.
+Update their remaining scope from verified deliveries; do not close a broad theme
+solely because one contract report passes.
+
+Audience bridge command MVPs are also delivered. The next step is qualification
+with the relevant optional tools and services; see [Audience bridges](audience-bridges.md).
+Neither public builtin proofs nor scoped private checks certify every private
+scientific app or every deployment environment.
+
+The workbench source MVP is not included in the published `agilab 2026.10.11`
+package or the current hosted demonstration. Backend tests exercise its native
+install/run queue contract. The browser proof covers navigation, palette
+keyboard behavior, action review/cancellation, reviewed project switching and
+desktop/mobile layout; it did not install or execute scientific workloads.
 
 ## Professional target
 
@@ -817,6 +854,18 @@ use this order after the P0-P2 professionalization gates are under control:
    - future apps/templates must opt in when they produce durable worker
      summaries
 5. **Intent-first operator workbench**
+   - qualified source MVP: seven route-derived profiles, an allowlisted command
+     palette and four compact snapshot panes with per-project browser preferences
+   - navigation opens existing workspaces; reviewed install, run and project
+     switch commands reuse the current native lifecycle and AGI SDK
+   - browser proof covers keyboard palette behavior, navigation, action
+     review/cancellation, reviewed project switching and desktop/mobile layout
+   - backend tests cover the install/run queue contract; real installation and
+     scientific execution through the palette remain a qualification task
+   - this MVP is not included in the published `agilab 2026.10.11` package or
+     current hosted demonstration
+   - the deeper discovery, workspace and action criteria below remain the
+     productization scope beyond these compact snapshots
    - draw inspiration from Windows Terminal 1.0's product pattern: one stable
      host for fragmented execution environments, with profiles, panes, a
      command palette, preview/stable channels, and explicit launch contracts
@@ -834,8 +883,8 @@ use this order after the P0-P2 professionalization gates are under control:
    - keep raw terminal/log behavior out of the default product surface: compact
      signal-first diagnostics stay the default, while raw logs remain artifacts
      for explicit debugging
-   - treat this as roadmap work until the profile schema, command registry,
-     pane layout state, and robot evidence exist
+   - keep the broader workbench theme open for the remaining criteria above;
+     source qualification does not imply package or hosted publication
 6. **Elasticity and active mesh optimization**
    - keep the current public claim bounded: a compact Active Mesh Optimization
      teaching route exists, but it is centralized-policy evidence, not full
@@ -866,9 +915,8 @@ Why this order:
 
 ## Native React and Python AGILab views
 
-The most promising Streamlit-style view patterns for AGILab are not generic
-gallery clones. They are focused application views that reinforce AGILab's core
-value: orchestration, evidence, and domain-specific interaction.
+The next React and Python views should reinforce AGILab's core value:
+orchestration, evidence, and domain-specific interaction.
 
 ### 1. Experiment Cockpit
 
@@ -1160,8 +1208,8 @@ Why it matters:
 
 - the report gives AGILab a clearer product story than isolated per-app
   pipelines without overclaiming execution
-- live UI state is still needed before the orchestration layer is fully visible
-  to operators and reviewers
+- larger graphs and additional apps still need operator usability and placement
+  evidence beyond the shipped two-app controls
 
 ### 8. Bidirectional notebook interop
 
@@ -1412,8 +1460,8 @@ Completed baseline:
   static JSON+HTML evidence
 - `tools/data_connector_live_ui_report.py --compact` wires connector state and
   connector-derived provenance into the Release Decision native Python view in
-  `streamlit_render_contract_only` mode (the retained render-contract alias;
-  the report does not import Streamlit)
+  the retained render-contract compatibility mode, without importing the former
+  UI runtime
 - `tools/data_connector_view_surface_report.py --compact` verifies the
   connector-aware Release Decision panels for state/provenance, health
   boundary, import/export provenance, and external artifact traceability in
@@ -1668,9 +1716,8 @@ Current shipped baseline:
   state/provenance, connector health/status boundary, import/export
   provenance, and external artifact traceability
 - the evidence reads local page source plus the connector live-UI render
-  contract, uses the existing `StreamlitCallRecorder` test adapter without importing
-  Streamlit, and keeps command execution
-  and network probes at zero
+  contract through the retained Python call-recorder adapter, and keeps command
+  execution and network probes at zero
 - the KPI evidence bundle includes this as
   `data_connector_view_surface_report_contract`
 
@@ -1814,16 +1861,12 @@ Constraints or dependencies: <blocking items, staffing, sequencing>
 - Intent-first operator workbench
 - Data connector facility and connector-aware views
 
-If the `roadmap` label is not visible yet in GitHub, the issue form still
-works. The repository workflow will create or update that label on the next
-successful run.
+Use the linked issues in the delivery checkpoint for votes and remaining
+acceptance criteria. Record the delivered baseline and evidence before deciding
+whether a theme should remain open or be split into narrower follow-up issues.
 
 ## Reference URLs
 
-- Streamlit gallery: <https://streamlit.io/gallery>
-- `st.metric`: <https://docs.streamlit.io/develop/api-reference/data/st.metric>
-- `st.fragment`: <https://docs.streamlit.io/develop/api-reference/execution-flow/st.fragment>
-- `st.pydeck_chart`: <https://docs.streamlit.io/develop/api-reference/charts/st.pydeck_chart>
 - OpenSearch FAQ: <https://docs.opensearch.org/faq/>
 - AWS OpenSearch background: <https://docs.aws.amazon.com/opensearch-service/latest/developerguide/rename.html>
 - Grafana Elasticsearch datasource: <https://grafana.com/docs/grafana/latest/datasources/elasticsearch/>
