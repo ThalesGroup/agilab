@@ -13,23 +13,20 @@ from typing import Sequence
 ROOT = Path(__file__).resolve().parents[1]
 HANDOFF_DIR = ROOT / "tools" / "release_handoffs"
 PROOF_MANIFEST = ROOT / "docs" / "source" / "data" / "release_proof.toml"
-TAG_RE = re.compile(r"v\d{4}\.\d{2}\.\d{2}(?:(?:-|\.|_)\d+)?")
+TAG_RE = re.compile(
+    r"v(?P<year>\d{4})\.(?P<month>\d{2})\.(?P<day>\d{2})"
+    r"(?:[._](?P<hotfix>\d+))?(?:-(?P<attempt>\d+))?"
+)
 
 
-def _tag_key(tag: str) -> tuple[int, int, int, int]:
-    body = tag.removeprefix("v")
-    suffix = 0
-    for separator in ("-", "_"):
-        if separator in body:
-            body, raw_suffix = body.rsplit(separator, 1)
-            suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
-            break
-    parts = body.split(".")
-    if len(parts) == 4:
-        raw_suffix = parts.pop()
-        suffix = int(raw_suffix) if raw_suffix.isdigit() else 0
-    year, month, day = (int(part) for part in parts)
-    return year, month, day, suffix
+def _tag_key(tag: str) -> tuple[int, int, int, int, int]:
+    match = TAG_RE.fullmatch(tag)
+    if match is None:
+        raise ValueError(f"Invalid AGILAB release tag: {tag}")
+    return tuple(
+        int(match.group(field) or 0)
+        for field in ("year", "month", "day", "hotfix", "attempt")
+    )
 
 
 def latest_release_tag(manifest: Path = PROOF_MANIFEST) -> str:

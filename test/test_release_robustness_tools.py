@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 import sys
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -263,6 +265,56 @@ def test_release_handoff_guard_accepts_underscore_hotfix_release_tags(tmp_path: 
         handoff_dir=tmp_path,
         latest_tag="v2026.06.04_1",
     ) == [handoff]
+
+
+
+@pytest.mark.parametrize(
+    "tag",
+    (
+        "v2026.10.10",
+        "v2026.10.10-3",
+        "v2026.10.10_1",
+        "v2026.10.10.1",
+        "v2026.10.10_1-3",
+        "v2026.10.10.1-3",
+    ),
+)
+def test_release_handoff_manifest_accepts_publication_attempts(tmp_path: Path, tag: str) -> None:
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(f'[release]\ngithub_release_tag = "{tag}"\n', encoding="utf-8")
+
+    assert release_handoff_guard.latest_release_tag(manifest) == tag
+
+
+def test_release_handoff_orders_hotfix_before_publication_attempt(tmp_path: Path) -> None:
+    tags = (
+        "v2026.10.10-99",
+        "v2026.10.10_1-2",
+        "v2026.10.10_1-3",
+        "v2026.10.10_2",
+    )
+    paths = []
+    for tag in tags:
+        path = tmp_path / f"{tag}-handoff.md"
+        path.write_text(f"# AGILAB release handoff for {tag}\n", encoding="utf-8")
+        paths.append(path)
+
+    assert [release_handoff_guard.handoff_tag(path) for path in paths] == list(tags)
+    assert release_handoff_guard.stale_handoffs(
+        handoff_dir=tmp_path, latest_tag="v2026.10.10_1-3"
+    ) == paths[:2]
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ("v2026.10.10_1-3-extra", "v2026.10.10_1_3", "v2026.10.10-3_1", "v2026.10.10_"),
+)
+def test_release_handoff_manifest_rejects_malformed_attempts(tmp_path: Path, tag: str) -> None:
+    manifest = tmp_path / "release_proof.toml"
+    manifest.write_text(f'[release]\ngithub_release_tag = "{tag}"\n', encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="could not determine latest release tag"):
+        release_handoff_guard.latest_release_tag(manifest)
 
 
 def test_pending_publisher_confirm_url_freshness_blocks_stale_variable() -> None:
