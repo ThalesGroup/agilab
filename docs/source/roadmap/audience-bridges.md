@@ -1,6 +1,7 @@
 # Audience bridges
 
-Status: dependency-light bridge MVPs are shipped for the commands listed below.
+Status reviewed on 2026-10-11: dependency-light bridge MVPs are shipped for the
+commands listed below. Remaining work is qualification and deeper integration.
 They are adoption and evidence handoff surfaces, not a production R-native worker
 rewrite and not replacements for Quarto, MLflow, Hugging Face, DuckDB, Airflow,
 Dagster, VS Code, or MCP-native tooling.
@@ -12,7 +13,7 @@ Quarto / R / notebook bridge.
 
 In one sentence:
 
-> Build `agilab export quarto` and `agilab run quarto` so researchers can turn
+> Qualify and extend `agilab export quarto` and `agilab run quarto` so researchers can turn
 > an AGILAB run into a reproducible Quarto report, and Quarto/R users can run
 > AGILAB stages without leaving their normal workflow.
 
@@ -52,6 +53,9 @@ an external R payload through the `Rscript` + JSON + artifact contract. Live
 Rscript tests are skipped when R is not installed.
 
 ## Bridge priority ranking
+
+This ranking orders the next qualification and integration work. The command
+MVPs above already exist; the ranking is not a list of missing exporters.
 
 | Priority | Bridge | Audience gained | Why it fits AGILAB |
 |---:|---|---|---|
@@ -376,7 +380,11 @@ AGILAB validates and proves the workflow.
 Airflow or Dagster schedules it in production.
 ```
 
-## Recommended implementation order
+## Recommended qualification order
+
+Keep these audiences in order while deepening the shipped MVPs. Separate
+successful artifact generation from execution by an installed external tool or
+deployment to an external service.
 
 Phase 1: reproducible reporting audience
 
@@ -434,12 +442,19 @@ test/test_audience_bridges.py
 docs/source/quarto-users.rst
 ```
 
-Validation:
+Focused contract validation:
 
 ```bash
 pytest -q test/test_audience_bridges.py
 pytest -q test/test_r_runtime_bridge_project.py
 ```
+
+Live Rscript cases require R and can be skipped when it is absent. Quarto
+rendering, optional DuckDB execution, live MLflow import and deployment of an
+exported Hugging Face Space each need their own prepared environment and result.
+An exported Airflow DAG or Dagster job is a handoff artifact until that tool has
+actually imported and run it. Record those outcomes separately from command
+contract tests; do not infer production qualification from an MVP export.
 
 ## Product story
 

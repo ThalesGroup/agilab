@@ -17,6 +17,21 @@ The current public contract is intentionally conservative:
 This is not a second experiment tracker, model registry, or storage UI. It is
 the data-access contract around AGILAB workflows.
 
+Delivery Checkpoint — 2026-10-11
+----------------------------------
+
+The catalog, connector-ID resolution, health-probe plans, explicit operator
+health actions, runtime adapter contracts, builtin app catalogs and
+connector-aware Release Decision views already exist. The remaining roadmap
+work is to qualify real endpoints in prepared operator environments and extend
+the panels when additional pages need them.
+
+Local SQLite execution and emulator/contract evidence do not establish real
+endpoint IAM, firewall behavior, quota, latency or managed-service compatibility.
+Track those results against
+`roadmap issue #568 <https://github.com/ThalesGroup/agilab/issues/568>`__, naming
+the provider, account policy and environment actually exercised.
+
 Connector Maturity Levels
 -------------------------
 

@@ -431,8 +431,10 @@ jobs:
         run: |
           set -e
           rm -f .coverage.agi-web coverage-agi-web.xml
+          # Native file-picker integration uses the separate Python helper package.
           COVERAGE_FILE=.coverage.agi-web uv run --no-project \
             --with-editable "./src/agilab/lib/agi-web[notebook]" \
+            --with-editable "./src/agilab/lib/agi-gui" \
             --with pytest \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \

@@ -1,9 +1,14 @@
-"""Main React interface backed by the existing Streamlit routes and AgiEnv."""
+"""Main React interface backed by the existing native Python routes and AgiEnv."""
 
 from pathlib import Path
 from typing import Any, Mapping
 
 from agilab.ui.page_project_selector import _refresh_project_names
+from agilab.ui.operator_workbench import (
+    queue_workbench_execution,
+    resolve_workbench_command,
+    workbench_data,
+)
 
 
 SHELL_ACTIVE_KEY = "_agilab_react_shell_active"
@@ -29,7 +34,7 @@ def interface_data(streamlit: Any, env: Any, routes: Mapping[str, Any], page: An
     if project and project not in projects:
         projects = sorted([*projects, project], key=lambda name: (name.casefold(), name))
     route = next((key for key in _ROUTE_CONTENT if routes.get(key) is page), "home")
-    return {
+    data = {
         "brand": "AGILAB",
         "welcome_title": "Run a project, explore its results",
         "project": project,
@@ -46,11 +51,15 @@ def interface_data(streamlit: Any, env: Any, routes: Mapping[str, Any], page: An
             if key in routes
         ],
     }
+    data["workbench"] = workbench_data(
+        data, session_state=streamlit.session_state, query_params=streamlit.query_params,
+    )
+    return data
 
 
 def handle_interface_action(
     action: Any, *, data: Mapping[str, Any], routes: Mapping[str, Any],
-    navigate: Any, select_project: Any,
+    navigate: Any, select_project: Any, queue_action: Any = None,
 ) -> bool:
     """Reject stale or forged actions before invoking existing Python lifecycle."""
     if not isinstance(action, dict) or action.get("project") != data["project"] or action.get("route") != data["route"]:
@@ -58,6 +67,17 @@ def handle_interface_action(
     kind, value = action.get("kind"), action.get("value")
     if not isinstance(value, str):
         return False
+    if kind == "workbench_command":
+        command = resolve_workbench_command(action, data)
+        if command is None:
+            return False
+        kind, value = command["kind"], command["value"]
+        if kind == "orchestrate_action":
+            if queue_action is None or value not in {"install", "run"} or "orchestrate" not in routes:
+                return False
+            queue_action(value)
+            navigate(routes["orchestrate"])
+            return True
     if kind == "navigate" and value in _ROUTE_CONTENT and value in routes:
         if value == data["route"] and not data.get("has_child_surface"):
             return False
@@ -123,4 +143,5 @@ def render_interface(streamlit: Any, env: Any, routes: Mapping[str, Any], page: 
         getattr(result, "action", None), data=data, routes=routes,
         navigate=lambda target: streamlit.switch_page(target, query_params={"active_app": str(active_app_store_path(env))}),
         select_project=select_project,
+        queue_action=lambda action: queue_workbench_execution(streamlit.session_state, action),
     )

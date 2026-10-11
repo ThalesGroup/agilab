@@ -33,6 +33,78 @@ Open **Tools** from the workspace header. Press **Escape** to close it and
 return focus to its disclosure. Option groups expose each option's own name,
 and long project titles and analysis filenames wrap on mobile.
 
+Operator profiles, panes and commands
+-------------------------------------
+
+.. note::
+
+   At the 2026-10-11 checkpoint, this workbench is a qualified source MVP. It is
+   not included in the published ``agilab 2026.10.11`` package or the hosted
+   demonstration recorded at that checkpoint. Browser
+   evidence covers desktop/mobile navigation, the palette, review/cancellation,
+   project switching and separate project layout preferences. Install/run queues
+   have backend test evidence; scientific execution and installation were not
+   performed through this palette in the browser proof. Consult
+   :doc:`release-proof` for subsequent publication checkpoints.
+
+Select a project, then choose a **Profile** in the operator workbench. Use
+**Open** beside the profile description to enter the existing workspace.
+Profiles organize navigation and its context pane; review the execution settings
+in ORCHESTRATE before launching a local or cluster run.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 22 54
+
+   * - Profile
+     - Workspace
+     - Use
+   * - Local app
+     - ORCHESTRATE
+     - Configure and run the selected app locally.
+   * - Cluster app
+     - ORCHESTRATE
+     - Review resources, deployment and distributed execution settings.
+   * - Notebook
+     - WORKFLOW
+     - Edit the pipeline and export editable Python cells to Jupyter.
+   * - Run evidence
+     - ANALYSIS
+     - Select a view to inspect outputs, provenance and comparisons.
+   * - Worker environment
+     - ORCHESTRATE
+     - Inspect and deploy the worker environment through the AGI SDK.
+   * - Public demo
+     - AGENT DEMO
+     - Open the demonstration and its proof controls.
+   * - Release proof
+     - ANALYSIS
+     - Select Release Decision to review promotion evidence.
+
+Use **Show pane**, then **Pane**, to display **Project context**, **Compact
+diagnostics**, **Available commands** or **Execution evidence** beside the
+profile description. **Hide pane** returns to the compact layout. The browser
+remembers the profile, pane and layout separately for each project. These panels
+show compact host snapshots; pipeline execution stays in the existing Python
+workspace and AGI SDK lifecycle.
+
+Open **Commands** or press **Cmd+K** on macOS, **Ctrl+K** elsewhere. Type part of
+the command name, use the arrow keys to select a result, and press **Enter**.
+**Escape** closes the palette and returns focus. Navigation commands open their
+workspace directly. Disabled commands show why they are unavailable.
+
+**Install selected app**, **Run configured project** and project-switch commands
+first show **Review command** with the action and target project. Choose
+**Execute** to submit that action, or close the palette to cancel. Installation
+can download dependencies. Installation and execution use ORCHESTRATE's existing
+pending-action queue, readiness checks and AGI SDK; discovery and opening a
+profile do not queue a run.
+
+**Last execution** is a compact indicator from this browser session: it reports
+the failure flag or **Not recorded in this session**. Use ORCHESTRATE for full
+resource checks and run logs, and ANALYSIS for recorded project evidence. Treat
+the pane as context for those workspaces rather than a complete run history.
+
 Install and launch
 ------------------
 

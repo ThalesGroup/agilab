@@ -63,6 +63,37 @@
 .agilab-card-title { font-weight:650; }
 .agilab-card-link { margin-top:auto; color:var(--st-primary-color, #2451a6); font-size:13px; }
 .agilab-notebook-note { font-size:14px; opacity:.75; }
+.agilab-operator-workbench { margin:14px 0; font-size:14px; }
+.agilab-workbench-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.agilab-workbench-toolbar select { color:inherit; background:var(--st-background-color, #fff); border:1px solid var(--st-border-color, #dce2eb); border-radius:9px; padding:9px; max-width:100%; }
+.agilab-workbench-toolbar kbd { font:inherit; opacity:.65; margin-left:5px; }
+.agilab-workbench-layout { display:grid; gap:14px; margin-top:10px; }
+.agilab-workbench-layout--split { grid-template-columns:minmax(0,1fr) minmax(240px,1fr); align-items:start; }
+.agilab-workbench-intent { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; min-width:0; }
+.agilab-workbench-intent p { margin:0; flex:1; min-width:min(240px,100%); }
+.agilab-workbench-intent button { flex-shrink:0; }
+.agilab-workbench-pane { min-width:0; padding:14px; border:1px solid var(--st-border-color, #dce2eb); border-radius:12px; background:var(--st-secondary-background-color, #f3f6fa); overflow-wrap:anywhere; }
+.agilab-workbench-pane h2 { font-size:16px; margin:0 0 8px; }
+.agilab-workbench-pane p { margin:6px 0; }
+.agilab-workbench-diagnostics { margin:10px 0 0; }
+.agilab-workbench-diagnostics > div { display:grid; grid-template-columns:minmax(80px,1fr) minmax(0,2fr); gap:10px; margin:6px 0; }
+.agilab-workbench-diagnostics dt { opacity:.7; }
+.agilab-workbench-diagnostics dd { margin:0; }
+.agilab-workbench-pane-commands { display:flex; flex-wrap:wrap; gap:8px; }
+.agilab-command-palette { color:var(--st-text-color, #172033); background:var(--st-background-color, #fff); border:1px solid var(--st-border-color, #dce2eb); border-radius:14px; padding:20px; width:min(640px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); overflow:auto; box-shadow:0 20px 80px #0003; }
+.agilab-command-palette::backdrop { background:#17203388; }
+.agilab-command-palette-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.agilab-command-palette-heading h2 { font-size:21px; margin:0; }
+.agilab-command-palette input { display:block; width:100%; color:inherit; background:var(--st-background-color, #fff); font:inherit; border:1px solid var(--st-border-color, #dce2eb); border-radius:9px; padding:12px; margin:6px 0 12px; }
+.agilab-command-palette input:focus-visible { outline:3px solid var(--st-primary-color, #2563eb); outline-offset:2px; }
+.agilab-command-palette ul { list-style:none; margin:0; padding:0; max-height:340px; overflow:auto; }
+.agilab-command-palette li { margin:6px 0; }
+.agilab-command-palette li button { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:4px; width:100%; }
+.agilab-command-palette li[aria-selected="true"] button { border-color:var(--st-primary-color, #2563eb); background:var(--st-secondary-background-color, #f3f6fa); }
+.agilab-command-palette li span, .agilab-command-palette-help { font-size:13px; opacity:.75; }
+.agilab-command-palette li small { color:var(--st-primary-color, #2563eb); }
+.agilab-command-review-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
+@media(max-width:700px) { .agilab-workbench-layout--split { grid-template-columns:1fr; } }
 @media(max-width:600px) {
   .agilab-project-picker { flex-basis:100%; }
   .agilab-version { display:none; }
