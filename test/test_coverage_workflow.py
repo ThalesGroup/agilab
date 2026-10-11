@@ -301,6 +301,54 @@ def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None
     )
 
 
+def test_agi_gui_general_ci_deadlines_cover_local_parity_budget() -> None:
+    spec = importlib.util.spec_from_file_location(
+        "workflow_parity_coverage_budget_contract", Path("tools/workflow_parity.py")
+    )
+    assert spec and spec.loader
+    parity = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = parity
+    spec.loader.exec_module(parity)
+
+    general_branch = re.search(
+        r'(?ms)^\s*if\s+\[\s*"\$label"\s*=\s*general\s*\];\s*then(.*?)^\s*fi\b',
+        _agi_gui_run_block(),
+    )
+    assert general_branch is not None
+    shell_timeout = re.search(
+        r"\btimeout\s+(\d+)([smh])\s+uv\b", general_branch.group(1)
+    )
+    assert shell_timeout is not None
+    shell_seconds = int(shell_timeout.group(1)) * {
+        "s": 1,
+        "m": 60,
+        "h": 3600,
+    }[shell_timeout.group(2)]
+    local_seconds = sum(
+        timeout for _, timeout in parity._agi_gui_specialized_coverage_steps("general")
+    )
+    assert shell_seconds >= local_seconds, (
+        "CI must allow the established local budget for all isolated general tests"
+    )
+
+    gui_header = _workflow_text().split("\n  agi-gui:\n", 1)[1].split("\n    strategy:", 1)[0]
+    job_timeout = re.search(r"(?m)^\s*timeout-minutes:\s*(.+)$", gui_header)
+    assert job_timeout is not None
+    value = job_timeout.group(1).strip()
+    if value.isdecimal():
+        job_minutes = int(value)
+    else:
+        conditional = re.fullmatch(
+            r"\$\{\{\s*matrix\.chunk\s*==\s*'([^']+)'\s*&&\s*(\d+)\s*\|\|\s*(\d+)\s*\}\}",
+            value,
+        )
+        assert conditional is not None
+        job_minutes = int(conditional.group(2 if conditional.group(1) == "general" else 3))
+    assert job_minutes * 60 >= shell_seconds + 5 * 60, (
+        "The job must leave setup and diagnostic artifact time outside the test deadline"
+    )
+
+
 def test_agi_gui_coverage_parallelizes_chunks_before_combining() -> None:
     workflow_text = _workflow_text()
 
