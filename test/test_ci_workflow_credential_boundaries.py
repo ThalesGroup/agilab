@@ -304,7 +304,7 @@ def test_hf_secret_and_github_release_write_credentials_are_compartmentalized() 
     assert "HF_TOKEN" in json.dumps(hf_sync, sort_keys=True)
     assert "HF_TOKEN" not in json.dumps(proof, sort_keys=True)
     assert proof["permissions"] == {
-        "actions": "write",
+        "actions": "read",
         "artifact-metadata": "write",
         "attestations": "write",
         "contents": "write",

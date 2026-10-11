@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import json
+import os
 import re
+import shlex
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -437,14 +443,183 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert 'git push --set-upstream origin "$release_branch"' not in text
     assert "RELEASE_COMMIT: ${{ steps.release-proof.outputs.release_commit }}" in text
     assert "gh pr create" in text
-    assert "gh workflow run ci.yml --ref \"$RELEASE_BRANCH\"" in text
-    assert "gh workflow run root-test-suite.yml --ref \"$RELEASE_BRANCH\"" in text
-    assert "gh workflow run docs-source-guard.yaml --ref \"$RELEASE_BRANCH\"" in text
+    proof = yaml.safe_load(text)["jobs"]["publish-release-proof"]
+    report = next(
+        step
+        for step in proof["steps"]
+        if step.get("name")
+        == "Open release evidence pull request and report required CI"
+    )
+    assert report["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert "gh workflow run" not in report["run"]
+    assert "GITHUB_STEP_SUMMARY" in report["run"]
+    assert "Approve workflows to run" in report["run"]
+    assert "gh run list" in report["run"]
+    assert '--commit "$RELEASE_COMMIT"' in report["run"]
+    assert "--event pull_request" in report["run"]
     assert "release-proof-assets/${proof_basename}.toml" in text
     assert "release-proof-assets/${proof_basename}.rst" in text
     assert "${proof_basename}-SHA256SUMS.txt" in text
     assert "Existing immutable release asset differs" in text
     assert "subject-path: release-proof-assets/**" in text
+
+
+@pytest.mark.parametrize("metadata_mode", ["available", "not_visible", "unavailable"])
+def test_release_proof_pr_reports_actual_approval_required_ci_without_dispatch(
+    tmp_path: Path, metadata_mode: str
+) -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    report = next(
+        step
+        for step in workflow["jobs"]["publish-release-proof"]["steps"]
+        if step.get("name")
+        == "Open release evidence pull request and report required CI"
+    )
+    bash = shutil.which("bash")
+    jq = shutil.which("jq")
+    if bash is None or jq is None:
+        pytest.skip("The native workflow contract requires local bash and jq binaries")
+    pr_url = "https://github.com/ThalesGroup/agilab/pull/987"
+    branch = "automation/release-evidence-2026.10.11-12345-1"
+    commit = "b" * 40
+    run_names = ("repo-guardrails", "root-test-suite", "docs-source-guard")
+    runs = [
+        {
+            "workflowName": name,
+            "url": f"https://github.com/ThalesGroup/agilab/actions/runs/{100 + index}",
+            "status": "completed",
+            "conclusion": "action_required",
+        }
+        for index, name in enumerate((*run_names, "unrelated-workflow"))
+    ]
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls_path = tmp_path / "release_proof_ci_gh_calls.jsonl"
+    summary_path = tmp_path / "release_proof_ci_step_summary.md"
+    stub = tmp_path / "release_proof_ci_fake_gh.py"
+    stub.write_text(
+        """import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+arguments = sys.argv[1:]
+entry = {"arguments": arguments}
+if arguments[:2] == ["pr", "create"]:
+    body_path = Path(arguments[arguments.index("--body-file") + 1])
+    entry["pr_body"] = body_path.read_text(encoding="utf-8")
+with Path(os.environ["GH_REPORT_TEST_CALLS"]).open("a", encoding="utf-8") as log:
+    log.write(json.dumps(entry) + "\\n")
+if arguments[:2] == ["pr", "create"]:
+    print(os.environ["GH_REPORT_TEST_PR_URL"])
+elif arguments[:2] == ["run", "list"]:
+    mode = os.environ["GH_REPORT_TEST_METADATA_MODE"]
+    if mode == "unavailable":
+        print("simulated read-only metadata outage", file=sys.stderr)
+        sys.exit(1)
+    payload = "[]" if mode == "not_visible" else os.environ["GH_REPORT_TEST_RUNS"]
+    expression = arguments[arguments.index("--jq") + 1]
+    selected = subprocess.run(
+        [os.environ["GH_REPORT_TEST_JQ"], "-r", expression],
+        input=payload,
+        text=True,
+        capture_output=True,
+        timeout=5,
+    )
+    sys.stdout.write(selected.stdout)
+    sys.stderr.write(selected.stderr)
+    sys.exit(selected.returncode)
+else:
+    print("Unexpected gh command in CI reporting step", file=sys.stderr)
+    sys.exit(64)
+""",
+        encoding="utf-8",
+    )
+    fake_gh = bin_dir / "gh"
+    fake_gh.write_text(
+        "#!/bin/sh\n"
+        f"exec {shlex.quote(sys.executable)} -I -S -B "
+        f"{shlex.quote(str(stub))} \"$@\"\n",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o700)
+    completed = subprocess.run(
+        [bash, "-c", report["run"]],
+        cwd=tmp_path,
+        env={
+            "PATH": str(bin_dir) + os.pathsep + os.defpath,
+            "GH_TOKEN": "hermetic-test-token",
+            "GITHUB_REPOSITORY": "ThalesGroup/agilab",
+            "GITHUB_SERVER_URL": "https://github.com",
+            "GITHUB_STEP_SUMMARY": str(summary_path),
+            "RELEASE_BRANCH": branch,
+            "RELEASE_VERSION": "2026.10.11",
+            "RELEASE_COMMIT": commit,
+            "GH_REPORT_TEST_CALLS": str(calls_path),
+            "GH_REPORT_TEST_PR_URL": pr_url,
+            "GH_REPORT_TEST_METADATA_MODE": metadata_mode,
+            "GH_REPORT_TEST_RUNS": json.dumps(runs),
+            "GH_REPORT_TEST_JQ": jq,
+        },
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert completed.returncode == 0, completed.stderr
+    calls = [
+        json.loads(line)
+        for line in calls_path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert len(calls) == 2
+    assert [call["arguments"][:2] for call in calls] == [
+        ["pr", "create"],
+        ["run", "list"],
+    ]
+    pr_arguments, run_arguments = (call["arguments"] for call in calls)
+
+    def flag_value(arguments: list[str], flag: str) -> str:
+        return arguments[arguments.index(flag) + 1]
+
+    assert flag_value(pr_arguments, "--repo") == "ThalesGroup/agilab"
+    assert flag_value(pr_arguments, "--base") == "main"
+    assert flag_value(pr_arguments, "--head") == branch
+    assert flag_value(run_arguments, "--repo") == "ThalesGroup/agilab"
+    assert flag_value(run_arguments, "--branch") == branch
+    assert flag_value(run_arguments, "--commit") == commit
+    assert flag_value(run_arguments, "--event") == "pull_request"
+    assert set(flag_value(run_arguments, "--json").split(",")) == {
+        "workflowName",
+        "url",
+        "status",
+        "conclusion",
+    }
+    body = calls[0]["pr_body"]
+    assert "approval" in body.lower()
+    assert (
+        "GITHUB_TOKEN-created PRs do not trigger those workflows automatically"
+        not in body
+    )
+    summary = summary_path.read_text(encoding="utf-8")
+    assert pr_url in summary
+    assert pr_url + "/checks" in summary
+    assert commit in summary
+    assert "Approve workflows to run" in summary
+    assert "unrelated-workflow" not in summary
+    assert runs[-1]["url"] not in summary
+    if metadata_mode == "available":
+        for run in runs[:3]:
+            assert run["workflowName"] in summary
+            assert run["url"] in summary
+        assert "action_required" in summary
+        assert "not visible yet" not in summary.lower()
+        assert "metadata unavailable" not in summary.lower()
+    else:
+        assert not any(run["url"] in summary for run in runs)
+        expected_notice = (
+            "not visible yet" if metadata_mode == "not_visible" else "metadata unavailable"
+        )
+        assert expected_notice in summary.lower()
 
 
 def test_pypi_publish_has_one_human_approval_gate_for_every_mutating_job() -> None:
