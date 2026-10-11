@@ -41,16 +41,20 @@ def test_build_selection_prioritizes_direct_impact_tests() -> None:
 
     assert "test/test_orchestrate_page_support.py" in result.selected_tests
     assert "test/test_orchestrate_page_support.py" in result.required_tests
-    assert result.command[:8] == (
+    pytest_index = result.command.index("pytest")
+    assert result.command[:4] == (
         "uv",
         "--preview-features",
         "extra-build-dependencies",
         "run",
+    )
+    assert result.command[pytest_index : pytest_index + 4] == (
         "pytest",
         "-q",
         "-o",
         "addopts=",
     )
+    assert result.command[pytest_index + 4 :] == result.selected_tests
 
 
 def test_package_local_test_is_required_and_cannot_be_budget_pruned() -> None:
@@ -245,7 +249,7 @@ def test_orchestrate_gui_change_stays_in_gui_regression_slice() -> None:
     assert "test/test_orchestrate_page_state.py" in result.required_tests
     assert all(not path.startswith("src/agilab/core/") for path in result.selected_tests)
     assert all("global_pipeline" not in path for path in result.selected_tests)
-    assert len(result.selected_tests) <= 10
+    assert result.estimated_seconds <= result.budget_seconds
 
 
 def test_selection_is_deterministic_for_same_seed() -> None:
