@@ -1122,7 +1122,7 @@ jobs:
             --json
 
   # Keep the Hugging Face secret out of the job that can write GitHub refs,
-  # releases, attestations, and workflow dispatches. The immutable HF commit is
+  # releases and attestations. The immutable HF commit is
   # the only value crossing this credential boundary.
   publish-release-proof:
     if: ${{ always() && needs.release-approval.result == 'success' && (needs.sync-hf-space.result == 'success' || github.event.inputs.proof_publication_run != '') }}
@@ -1133,7 +1133,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
+      actions: read
       pull-requests: write
       id-token: write
       attestations: write
@@ -1310,7 +1310,7 @@ jobs:
             fi
           done
 
-      - name: Open release evidence pull request and dispatch checks
+      - name: Open release evidence pull request and report required CI
         if: steps.release-proof.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1330,7 +1330,8 @@ jobs:
 
           - release proof render and live GitHub-run checks passed in the publishing workflow
           - GitHub verified the server-signed commit ${RELEASE_COMMIT}, its parent and exact evidence blobs
-          - repository, root-test, and docs-source workflows are dispatched below for this exact commit; GITHUB_TOKEN-created PRs do not trigger those workflows automatically
+          - GitHub creates approval-required pull_request runs for this GITHUB_TOKEN-created PR; select "Approve workflows to run" in the PR to start its required checks
+          - workflow_dispatch checks do not satisfy the PR ruleset; required checks must succeed on this exact head before merge
 
           ## Agent Metadata
 
@@ -1340,11 +1341,33 @@ jobs:
           - Reasoning effort: not used
           - Fast mode: not used
           EOF
-          gh pr create \
+          PR_URL="$(gh pr create \
+            --repo "$GITHUB_REPOSITORY" \
             --base main \
             --head "$RELEASE_BRANCH" \
             --title "docs(release): record ${RELEASE_VERSION} evidence" \
-            --body-file release-evidence-pr.md
-          gh workflow run ci.yml --ref "$RELEASE_BRANCH"
-          gh workflow run root-test-suite.yml --ref "$RELEASE_BRANCH"
-          gh workflow run docs-source-guard.yaml --ref "$RELEASE_BRANCH"
+            --body-file release-evidence-pr.md)"
+          {
+            echo "## Release evidence pull request"
+            echo
+            printf 'Pull request: %s\n\n' "$PR_URL"
+            printf 'Reviewed evidence head: `%s`\n\n' "$RELEASE_COMMIT"
+            printf 'Open [PR checks](%s/checks) and select **Approve workflows to run** to start the approval-required pull_request workflows.\n\n' "$PR_URL"
+            echo "Only eligible PR checks on this head satisfy the merge ruleset; workflow_dispatch runs do not."
+            echo
+            if RUN_LINKS="$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --branch "$RELEASE_BRANCH" \
+              --commit "$RELEASE_COMMIT" \
+              --event pull_request \
+              --json workflowName,url,status,conclusion \
+              --jq '.[] | select(.workflowName == "repo-guardrails" or .workflowName == "root-test-suite" or .workflowName == "docs-source-guard") | "- [\(.workflowName)](\(.url)): \(.status)\(if (.conclusion // "") == "" then "" else " / " + .conclusion end)"')"; then
+              if [[ -n "$RUN_LINKS" ]]; then
+                printf '%s\n' "$RUN_LINKS"
+              else
+                echo "The pull-request workflow runs are not visible yet. Use the PR checks link above once GitHub displays them."
+              fi
+            else
+              echo "Workflow run metadata unavailable. Use the PR checks link above to approve and inspect the required runs."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
