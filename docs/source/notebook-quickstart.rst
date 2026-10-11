@@ -89,6 +89,14 @@ How this maps back to the web UI
 - The output path under ``~/log/execute/minimal_app`` is the same family of artifacts
   the UI writes and reuses.
 
+The **ORCHESTRATE → Notebook** export uses ``await main()`` for Deploy scheduler
+& workers, CHECK distribute and RUN. These cells run in Jupyter's existing
+event loop. The generated Python snippets retain ``asyncio.run(main())`` for
+execution as standalone scripts.
+When this notebook is imported into WORKFLOW, the generated async entrypoint
+is adapted back to standalone Python execution while preserving edits made
+to the cell body and arguments.
+
 Advanced notebook routes
 ------------------------
 

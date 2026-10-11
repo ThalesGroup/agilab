@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 from concurrent.futures import ThreadPoolExecutor
 import importlib
@@ -8,6 +9,7 @@ import json
 from importlib.machinery import ModuleSpec
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path, PosixPath
@@ -879,6 +881,217 @@ def test_orchestrate_notebook_document_mentions_distribute_only_when_present():
         "CHECK distribute previews work" in "".join(cell["source"])
         for cell in document["cells"]
     )
+
+
+def _async_orchestrate_notebook_recipe(module):
+    env = SimpleNamespace(apps_path="/tmp/apps", app="demo_project", is_source_env=False)
+    snippets = [
+        (
+            "Deploy scheduler & workers",
+            module.build_install_snippet(
+                env=env, verbose=1, mode=0, scheduler="None", workers="None",
+                workers_data_path="None",
+            ),
+        ),
+        (
+            "CHECK distribute",
+            module.build_distribution_snippet(
+                env=env, verbose=1, scheduler="None", workers="None",
+                args_serialized="data_in='/tmp/input', data_out='/tmp/output'",
+            ),
+        ),
+        (
+            "RUN",
+            module.build_run_snippet(
+                env=env, verbose=1, run_mode=0, scheduler="None", workers="None",
+                run_args={"data_in": "/tmp/input", "data_out": "/tmp/output"},
+            ),
+        ),
+    ]
+    return snippets, module._orchestrate_notebook_document(env, snippets)
+
+
+def test_orchestrate_notebook_awaits_all_async_cells_and_preserves_scripts():
+    module = _load_orchestrate_module()
+    snippets, document = _async_orchestrate_notebook_recipe(module)
+    code_cells = [cell for cell in document["cells"] if cell["cell_type"] == "code"]
+
+    assert len(code_cells) == 3
+    for (_, snippet), cell in zip(snippets, code_cells, strict=True):
+        compile(snippet, "orchestrate-script.py", "exec")
+        assert snippet.endswith('if __name__ == "__main__":\n    asyncio.run(main())')
+        source = "".join(cell["source"])
+        assert source == snippet.rsplit('\nif __name__ == "__main__":', 1)[0] + "\nawait main()\n"
+        compile(source, "orchestrate-notebook-cell", "exec", ast.PyCF_ALLOW_TOP_LEVEL_AWAIT)
+        assert "asyncio.run(main())" not in source
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "print('plain Python')",
+        "%%time\nprint('notebook magic')",
+        "async def main():\n    print(",
+        'def main():\n    return 1\nif __name__ == "__main__":\n    main()',
+        'async def main():\n    return 1\nif __name__ == "__main__":\n    asyncio.run(other())',
+        'async def main():\n    return 1\nif __name__ == "__main__":\n    asyncio.run(main())\nelse:\n    print("imported")',
+        'async def main():\n    return 1\ntext = \'if __name__ == "__main__":\\n    asyncio.run(main())\'',
+    ],
+)
+def test_orchestrate_notebook_preserves_other_entrypoints(source):
+    assert _load_orchestrate_module()._orchestrate_notebook_source(source) == source
+
+
+def _orchestrate_notebook_sdk_bootstrap():
+    return '''import asyncio, sys, types
+calls = []
+class Request:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+class FakeAGI:
+    @staticmethod
+    async def install(env, **kwargs):
+        await asyncio.sleep(0)
+        calls.append(("install", kwargs))
+        return "installed"
+    @staticmethod
+    async def get_distrib(env, **kwargs):
+        await asyncio.sleep(0)
+        calls.append(("get_distrib", kwargs))
+        return "distributed"
+    @staticmethod
+    async def run(env, *, request):
+        await asyncio.sleep(0)
+        calls.append(("run", request.__dict__))
+        return "ran"
+for name in ("agi_cluster", "agi_cluster.agi_distributor", "agi_env", "agi_env.source", "agi_env.source.snippet_contract"):
+    sys.modules[name] = types.ModuleType(name)
+sys.modules["agi_cluster.agi_distributor"].AGI = FakeAGI
+sys.modules["agi_cluster.agi_distributor"].RunRequest = Request
+sys.modules["agi_cluster.agi_distributor"].StageRequest = Request
+sys.modules["agi_env"].AgiEnv = Request
+sys.modules["agi_env.source.snippet_contract"].require_supported_snippet_api = lambda api: None
+'''
+
+
+@pytest.mark.parametrize("preserve_state", [False, True])
+def test_orchestrate_notebook_import_executes_edited_async_cells(preserve_state):
+    from agilab.notebooks.notebook_pipeline_import import (
+        build_lab_stages_preview,
+        build_notebook_import_preflight,
+        build_notebook_pipeline_import,
+    )
+
+    snippets, document = _async_orchestrate_notebook_recipe(_load_orchestrate_module())
+    for cell in document["cells"]:
+        if cell["cell_type"] == "code":
+            # Author edits in the exported notebook must remain authoritative.
+            source = "".join(cell["source"]).replace("/tmp/input", "/tmp/edited-input")
+            source = source.replace("    print(res)", "    print('author edit', res)")
+            cell["source"] = source.splitlines(keepends=True)
+    original_document = json.dumps(document, sort_keys=True)
+    imported = build_notebook_pipeline_import(notebook=document, source_notebook="orchestrate.ipynb")
+    preflight = build_notebook_import_preflight(imported)
+    assert not any(item["rule"] == "invalid_python_cell" for item in preflight["risks"])
+    stages = build_lab_stages_preview(
+        imported, module_name="demo", preserve_notebook_state=preserve_state
+    )["demo"]
+    assert len(stages) == (1 if preserve_state else 3)
+    adapted_sources = (
+        [cell["source"] for cell in stages[0]["NB_SOURCE_CELLS"]]
+        if preserve_state else [stage["C"] for stage in stages]
+    )
+    for (_, script), adapted in zip(snippets, adapted_sources, strict=True):
+        expected = script.rsplit('if __name__ == "__main__":', 1)[0] + "asyncio.run(main())\n"
+        expected = expected.replace("/tmp/input", "/tmp/edited-input")
+        expected = expected.replace("    print(res)", "    print('author edit', res)")
+        assert adapted == expected
+    assert json.dumps(document, sort_keys=True) == original_document
+    program = _orchestrate_notebook_sdk_bootstrap() + "\n"
+    for stage in stages:
+        program += stage["C"] + "\n"
+    program += """assert [name for name, _ in calls] == ["install", "get_distrib", "run"]
+assert calls[1][1]["data_in"] == calls[2][1]["data_in"] == "/tmp/edited-input"
+assert calls[1][1]["data_out"] == calls[2][1]["data_out"] == "/tmp/output"
+print("imported stages awaited")
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", program], capture_output=True, text=True, timeout=30
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.count("author edit") == 3
+    assert result.stdout.endswith("imported stages awaited\n")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "",
+        "print('plain Python')",
+        "import asyncio\ndef main():\n    return 1\nawait main()",
+        "import asyncio\nasync def main():\n    return 1\nawait other()",
+        "import asyncio\nasync def main():\n    return 1\nawait main(1)",
+        "async def main():\n    return 1\nawait main()",
+        "import asyncio as aio\nasync def main():\n    return 1\nawait main()",
+        "import asyncio\nasync def main():\n    return 1\nprint('keep'); await main()",
+        "import asyncio\nasync def main():\n    return 1\nawait main()\nprint('after')",
+        "import asyncio\nasync def main():\n    return 1\ntext = 'await main()'",
+        "%%time\nawait main()",
+    ],
+)
+def test_orchestrate_notebook_import_preserves_other_entrypoints(source):
+    from agilab.notebooks.notebook_pipeline_import import _source_from_stage
+
+    assert _source_from_stage({"source_lines": [source]}) == source
+
+
+def test_orchestrate_notebook_async_cells_execute_in_fresh_ipython_kernel(tmp_path):
+    nbformat = pytest.importorskip("nbformat")
+    nbclient = pytest.importorskip("nbclient")
+    pytest.importorskip("ipykernel")
+    from jupyter_client import KernelManager
+    from jupyter_client.kernelspec import KernelSpecManager
+
+    _, document = _async_orchestrate_notebook_recipe(_load_orchestrate_module())
+    # Test the actual exported SDK call sites while keeping deployment and user
+    # configuration outside this event-loop regression.
+    bootstrap = _orchestrate_notebook_sdk_bootstrap() + "\nassert asyncio.get_running_loop().is_running()\n"
+    sources = ["".join(cell["source"]) for cell in document["cells"] if cell["cell_type"] == "code"]
+    verify = '''assert [name for name, _ in calls] == ["install", "get_distrib", "run"]
+assert calls[1][1]["data_in"] == calls[2][1]["data_in"] == "/tmp/input"
+assert calls[1][1]["data_out"] == calls[2][1]["data_out"] == "/tmp/output"
+print("all three exported async cells awaited")
+'''
+    notebook = nbformat.v4.new_notebook(
+        cells=[nbformat.v4.new_code_cell(source) for source in [bootstrap, *sources, verify]]
+    )
+    kernel_name = "agilab-orchestrate-notebook-await-regression"
+    spec_dir = tmp_path / "kernels" / kernel_name
+    spec_dir.mkdir(parents=True)
+    (spec_dir / "kernel.json").write_text(
+        json.dumps({"argv": [sys.executable, "-I", "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+                    "display_name": "AGILAB notebook await regression", "language": "python"}),
+        encoding="utf-8",
+    )
+    manager = KernelManager(
+        kernel_name=kernel_name,
+        kernel_spec_manager=KernelSpecManager(kernel_dirs=[str(spec_dir.parent)]),
+    )
+    kernel_env = {
+        key: value for key, value in os.environ.items()
+        if key not in {"PYTHONPATH", "PYTHONHOME", "IPYTHONDIR", "JUPYTER_CONFIG_DIR"}
+    }
+    kernel_env.update(IPYTHONDIR=str(tmp_path / "ipython"), JUPYTER_CONFIG_DIR=str(tmp_path / "jupyter"))
+    try:
+        result = nbclient.NotebookClient(
+            notebook, km=manager, timeout=45, startup_timeout=45,
+            resources={"metadata": {"path": str(tmp_path)}},
+        ).execute(env=kernel_env)
+    finally:
+        if manager.has_kernel:
+            manager.shutdown_kernel(now=True)
+        manager.cleanup_resources()
+    assert result.cells[-1].outputs[0].text.strip() == "all three exported async cells awaited"
 
 
 def test_orchestrate_notebook_snippet_store_and_empty_render(monkeypatch):

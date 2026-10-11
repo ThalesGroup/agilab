@@ -1803,7 +1803,33 @@ def _store_orchestrate_notebook_snippet(
         st.session_state.pop(key, None)
 
 
+def _orchestrate_notebook_source(source: str) -> str:
+    """Await the generated async entrypoint in Jupyter's existing event loop."""
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source
+    if not any(
+        isinstance(node, ast.AsyncFunctionDef) and node.name == "main"
+        for node in tree.body
+    ):
+        return source
+    script_entrypoint = ast.parse(
+        'if __name__ == "__main__":\n    asyncio.run(main())\n'
+    ).body[0]
+    entrypoint = tree.body[-1]
+    if ast.dump(entrypoint) != ast.dump(script_entrypoint):
+        return source
+    lines = source.splitlines(keepends=True)
+    lines[entrypoint.lineno - 1 : entrypoint.end_lineno] = ["await main()\n"]
+    return "".join(lines)
+
+
 def _orchestrate_notebook_cell(cell_type: str, source: str) -> dict[str, Any]:
+    if cell_type == "code":
+        source = _orchestrate_notebook_source(source)
     lines = [
         line if line.endswith("\n") else line + "\n" for line in source.splitlines()
     ]

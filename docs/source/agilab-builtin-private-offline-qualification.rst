@@ -7,7 +7,7 @@ n'installe aucune dépendance. Les manifestes, les données et les reçus privé
 restent dans un répertoire de qualification extérieur au dépôt public.
 
 Manifeste et commande
---------------------
+---------------------
 
 Le schéma est ``agilab.offline_app_qualification_manifest.v1``. Chaque source
 déclare un ``root`` absolu, sa révision Git exacte de 40 caractères et des
@@ -59,7 +59,7 @@ exécutées restent non qualifiées. Une reprise crée de nouveaux reçus ; les
 échecs et les contrôles ignorés précédents restent intacts.
 
 Réseau et processus
-------------------
+-------------------
 
 Le backend actuel nécessite macOS et ``sandbox-exec``. ``deny_all`` refuse le
 réseau, y compris la boucle locale. ``loopback`` autorise la boucle locale et les
@@ -74,7 +74,7 @@ un processus vivant reste un échec. Ce mécanisme ne garantit pas le confinemen
 d'un descendant très rapidement daemonisé avant son observation.
 
 Provisionnement et portée vérifiée le 8 octobre 2026
---------------------------------------------------
+----------------------------------------------------
 
 Provisionner les fermetures de dépendances des gestionnaires, travailleurs et
 contrôles choisis dans des environnements et caches dédiés hors dépôt. Les

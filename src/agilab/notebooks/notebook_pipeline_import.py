@@ -1472,7 +1472,29 @@ def _context_summary(context_ids: list[str], contexts: Mapping[str, str]) -> str
 
 
 def _source_from_stage(stage: Mapping[str, Any]) -> str:
-    return "".join(_coerce_source_lines(stage.get("source_lines", [])))
+    source = "".join(_coerce_source_lines(stage.get("source_lines", [])))
+    # Notebook cells run inside Jupyter's loop; imported Python stages own theirs.
+    # Adapt the current editable cell, never a saved copy of the exported script.
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source
+    if not any(
+        isinstance(node, ast.AsyncFunctionDef) and node.name == "main"
+        for node in tree.body
+    ) or not any(
+        isinstance(node, ast.Import)
+        and any(alias.name == "asyncio" and alias.asname is None for alias in node.names)
+        for node in tree.body
+    ):
+        return source
+    entrypoint = tree.body[-1]
+    notebook_entrypoint = ast.parse("await main()").body[0]
+    if entrypoint.col_offset != 0 or ast.dump(entrypoint) != ast.dump(notebook_entrypoint):
+        return source
+    lines = source.splitlines(keepends=True)
+    lines[entrypoint.lineno - 1 : entrypoint.end_lineno] = ["asyncio.run(main())\n"]
+    return "".join(lines)
 
 
 def _default_imported_stage_question(stage: Mapping[str, Any]) -> str:

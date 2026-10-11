@@ -39,6 +39,8 @@ Use this runbook whenever you:
   explicit ORCHESTRATE Resources action or authored `AGI.install` stage; notebook
   export must preserve the author's plan. Ordinary Python stages and explicitly
   workerless manager snippets that do not call `AGI.run` remain independent.
+  ORCHESTRATE notebook cells await the generated async entrypoint inside
+  Jupyter's event loop; standalone Python snippets keep `asyncio.run`.
 - **Installed SDK deployment**: SDK source selection must follow
   `env.is_source_env`. A checkout marker may protect project files from
   rewriting; it must not redirect an installed app to local SDK dependencies.
