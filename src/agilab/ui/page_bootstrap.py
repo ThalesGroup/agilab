@@ -22,7 +22,13 @@ def _default_page_title(page_label: str) -> str:
 
 def _session_state_get(session_state: Any, key: str) -> Any:
     try:
-        return session_state.get(key)
+        value = session_state.get(key)
+    except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+        value = None
+    if value is not None:
+        return value
+    try:
+        return getattr(session_state, key, None)
     except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
         return None
 
