@@ -234,6 +234,14 @@ The flag scopes are declared in
 <a href="codecov.yml"><code>codecov.yml</code></a>; see the
 <a href="https://docs.codecov.com/docs/about-code-coverage">Codecov calculation</a>.</sub>
 
+<sub>The <code>agi-gui</code> flag includes page bundles, the canonical
+<code>orchestrate</code>, <code>pipeline</code>, <code>ui</code>,
+<code>about_page</code>, and <code>notebooks</code> packages under
+<code>src/agilab</code>, and their retained forwarding modules. Shared browser
+and notebook components use <code>agi-web</code>; SDK packages have their own
+flags. These processed flag reports have a different scope from the complete
+uploaded GUI XML.</sub>
+
 <details>
 <summary>More project badges</summary>
 

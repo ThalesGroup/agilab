@@ -53,11 +53,17 @@ coverage:
         threshold: 5%
 flags:
   agi-gui:
-    # App-layer surface: Python pages, app bundles, and orchestration/pipeline helpers.
+    # App-layer surface: page bundles, canonical helpers, and legacy forwarding modules.
     # The README "agilab" badge is the repo-wide aggregate; this flag isolates the GUI/app layer.
+    # Cover implementation packages as well as their retained root-level shims.
     paths:
       - src/agilab/pages
       - src/agilab/apps-pages
+      - src/agilab/orchestrate
+      - src/agilab/pipeline
+      - src/agilab/ui
+      - src/agilab/about_page
+      - src/agilab/notebooks
       - src/agilab/orchestrate_cluster.py
       - src/agilab/orchestrate_distribution.py
       - src/agilab/orchestrate_execute.py
@@ -69,7 +75,6 @@ flags:
       - src/agilab/pipeline_openai.py
       - src/agilab/pipeline_runtime.py
       - src/agilab/pipeline_sidebar.py
-      - src/agilab/pipeline_steps.py
       - src/agilab/pipeline_views.py
   agi-web:
     paths:
