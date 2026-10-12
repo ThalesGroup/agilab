@@ -2069,7 +2069,7 @@ def _analysis_cell(page: RelatedPageExport) -> str:
     return textwrap.dedent(
         f"""
         page = {page.module!r}
-        render_analysis_page(page)
+        _agi_rendered_analysis_page = render_analysis_page(page)
         """
     ).strip() + "\n"
 

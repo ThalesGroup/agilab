@@ -26,6 +26,22 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Operator workbench and shared React interface
+
+- Add seven operator profiles, four context panes, and a searchable Cmd/Ctrl+K
+  palette; preserve the selected project and pane layout between browser visits.
+- Render each exported notebook map and curve once, retaining the returned
+  view for inspection and preserving authored Python stages and result variables.
+- Keep installation, execution, and project switching behind explicit review,
+  reject stale targets, and consume each approved action once.
+- Include the updated shared React interface assets in the package release while
+  retaining editable, executable notebook exports and SDK-selected app workers.
+- Repair the web coverage environment and the general GUI test deadline, cover
+  notebook and execution recovery contracts, and measure the current GUI package
+  paths instead of retired flat module locations.
+- Prepare a coordinated `2026.10.12` release of `agilab`, `agi-web`, `agi-gui`,
+  and `agi-pages`; preserve the existing SDK and scientific app package versions.
+
 ## [2026.10.11] - 2026-10-11
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11

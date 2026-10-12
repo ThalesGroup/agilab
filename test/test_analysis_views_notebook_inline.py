@@ -4,6 +4,9 @@ import builtins
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +15,11 @@ import pandas as pd
 import pytest
 from IPython.display import Markdown
 
-from agilab.notebooks.notebook_export_support import build_notebook_export_context
+from agilab.notebooks.notebook_export_support import (
+    RelatedPageExport,
+    _analysis_cell,
+    build_notebook_export_context,
+)
 from agilab.notebooks.notebook_helper_cell import _helper_cell
 
 PAGES_ROOT = Path("src/agilab/apps-pages").resolve()
@@ -421,3 +428,176 @@ def test_missing_widget_dependencies_keeps_export_in_the_notebook(
         assert any(hasattr(item, "to_plotly_json") for item in outputs) is not without_plotly
     finally:
         _notebook_widget_class.cache_clear()
+
+
+_IPYTHON_WIDGET_OUTPUT_PROBE = r"""
+import contextlib
+import io
+import json
+import sys
+from types import ModuleType
+
+from IPython.core.interactiveshell import InteractiveShell
+from traitlets.config import Config
+
+request = json.load(sys.stdin)
+shell = InteractiveShell.instance(
+    config=Config({"HistoryManager": {"enabled": False}, "InteractiveShell": {"colors": "nocolor"}})
+)
+namespace = shell.user_ns
+with contextlib.redirect_stdout(io.StringIO()):
+    exec(request["helper"], namespace)
+
+class WidgetProbe:
+    def __init__(self, model_id):
+        self.model_id = model_id
+
+    def _repr_mimebundle_(self, include=None, exclude=None):
+        return {
+            "application/vnd.jupyter.widget-view+json": {
+                "version_major": 2,
+                "version_minor": 0,
+                "model_id": self.model_id,
+            },
+            "text/plain": "Analysis widget " + self.model_id,
+        }
+
+widgets = [WidgetProbe(request["page"] + "-model-" + str(index)) for index in range(2)]
+returned = {
+    "widget": widgets[0],
+    "text": "Analysis details",
+    "list": widgets,
+    "tuple": tuple(widgets),
+    "none": None,
+}[request["result_kind"]]
+author_result = {"source": "editable author stage"}
+namespace["analysis_result"] = author_result
+record = {
+    "module": request["page"],
+    "script_path": request["native_script"],
+    "inline_renderer": "probe:render_inline" if request["render_path"] == "inline" else "",
+}
+namespace["_page_record"] = lambda page: record
+namespace["_load_inline_renderer"] = lambda target: lambda **kwargs: returned
+namespace["resolve_active_app_root"] = lambda: request["generic_app"]
+native_module = ModuleType("agi_web.notebook_python_view")
+native_module.render_python_view = lambda *args, **kwargs: returned
+sys.modules["agi_web.notebook_python_view"] = native_module
+
+outputs = []
+shell.display_pub.publish = lambda data, metadata=None, **kwargs: outputs.append(
+    {"output_type": "display_data", "data": data}
+)
+shell.displayhook.write_output_prompt = lambda: None
+shell.displayhook.write_format_data = lambda data, metadata=None: outputs.append(
+    {"output_type": "execute_result", "data": data}
+)
+
+reports = {}
+for label, source in (
+    ("legacy", "page = " + repr(request["page"]) + "\nrender_analysis_page(page)\n"),
+    ("generated", request["analysis_cell"]),
+):
+    outputs.clear()
+    namespace.pop("_agi_rendered_analysis_page", None)
+    execution = shell.run_cell(source, store_history=False)
+    assert execution.success, execution.error_before_exec or execution.error_in_exec
+    reports[label] = {
+        "outputs": list(outputs),
+        "return_handle_preserved": namespace.get("_agi_rendered_analysis_page", object()) is returned,
+        "author_result_preserved": namespace["analysis_result"] is author_result,
+    }
+print("IPYTHON_ANALYSIS_OUTPUT_REPORT=" + json.dumps(reports))
+"""
+
+
+def _execute_generated_analysis_cell_in_ipython(
+    tmp_path, *, page: str, render_path: str, result_kind: str
+) -> dict:
+    """Exercise explicit display plus real IPython final-expression display."""
+    native_script = tmp_path / "analysis_widget_native_fixture.py"
+    native_script.write_text("pass\n", encoding="utf-8")
+    source = _analysis_cell(RelatedPageExport(module=page))
+    request = {
+        "page": page,
+        "render_path": render_path,
+        "result_kind": result_kind,
+        "analysis_cell": source,
+        "native_script": str(native_script),
+        "generic_app": str(tmp_path / "generic-analysis-app"),
+        "helper": _helper_cell(
+            {
+                "schema": "agilab.notebook_export.v1",
+                "version": 1,
+                "project_name": "analysis-widget-probe",
+                "module_path": "analysis-widget-probe",
+                "artifact_dir": str(tmp_path),
+                "stages": [],
+                "related_pages": [],
+            }
+        ),
+    }
+    subprocess_env = dict(os.environ)
+    subprocess_env["IPYTHONDIR"] = str(tmp_path / "isolated-ipython-profile")
+    subprocess_env["PYTHONNOUSERSITE"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-c", _IPYTHON_WIDGET_OUTPUT_PROBE],
+        input=json.dumps(request),
+        text=True,
+        capture_output=True,
+        env=subprocess_env,
+        timeout=30,
+        check=True,
+    )
+    report_line = next(
+        line for line in completed.stdout.splitlines()
+        if line.startswith("IPYTHON_ANALYSIS_OUTPUT_REPORT=")
+    )
+    return json.loads(report_line.partition("=")[2])
+
+
+@pytest.mark.parametrize("page", ["view_maps", "view_curves"])
+@pytest.mark.parametrize("render_path", ["inline", "native"])
+def test_generated_analysis_cell_displays_widget_once_in_real_ipython(
+    page, render_path, tmp_path
+):
+    report = _execute_generated_analysis_cell_in_ipython(
+        tmp_path, page=page, render_path=render_path, result_kind="widget"
+    )
+    widget_mime = "application/vnd.jupyter.widget-view+json"
+    old_widget_outputs = [
+        output for output in report["legacy"]["outputs"]
+        if widget_mime in output["data"]
+    ]
+    new_widget_outputs = [
+        output for output in report["generated"]["outputs"]
+        if widget_mime in output["data"]
+    ]
+    assert [output["output_type"] for output in old_widget_outputs] == [
+        "display_data", "execute_result"
+    ]
+    assert [output["output_type"] for output in new_widget_outputs] == ["display_data"]
+    assert old_widget_outputs[0]["data"][widget_mime] == old_widget_outputs[1]["data"][widget_mime]
+    assert new_widget_outputs[0]["data"][widget_mime] == old_widget_outputs[0]["data"][widget_mime]
+    assert report["generated"]["return_handle_preserved"] is True
+    assert report["generated"]["author_result_preserved"] is True
+
+
+@pytest.mark.parametrize("render_path", ["inline", "native"])
+@pytest.mark.parametrize(
+    ("result_kind", "explicit_outputs"),
+    [("text", 1), ("list", 2), ("tuple", 2), ("none", 0)],
+)
+def test_generated_analysis_cell_keeps_explicit_outputs_and_author_stage_result(
+    render_path, result_kind, explicit_outputs, tmp_path
+):
+    report = _execute_generated_analysis_cell_in_ipython(
+        tmp_path, page="view_analysis", render_path=render_path, result_kind=result_kind
+    )
+    assert len(report["generated"]["outputs"]) == explicit_outputs
+    assert all(
+        output["output_type"] == "display_data"
+        for output in report["generated"]["outputs"]
+    )
+    assert report["generated"]["return_handle_preserved"] is True
+    assert report["generated"]["author_result_preserved"] is True
