@@ -3,28 +3,17 @@ name: pypi-release-retention
 on:
   workflow_dispatch:
     inputs:
-      runner:
-        description: "Runner label. Use self-hosted/static-IP for unattended PyPI web deletion."
-        required: false
-        type: choice
-        default: "ubuntu-latest"
-        options:
-          - ubuntu-latest
-          - self-hosted
-      protect_version:
-        description: "PyPI release version to keep. Older releases are deleted."
+      delete_releases:
+        description: "Plan only: exact package==version targets, one per line. No releases are deleted."
         required: true
-      packages:
-        description: "Optional comma- or space-separated package names. Default: release packages where the protected version is visible."
-        required: false
+        type: string
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
-  retention:
-    runs-on: ${{ inputs.runner }}
+  cleanup-plan:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,81 +25,38 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Set up locked PyPI web dependencies
+      - name: Set up locked PyPI planning dependencies
         uses: ./.github/actions/setup-locked-python-tools
         with:
           requirements: .github/requirements/ci-pypi-web.txt
 
-      - name: Validate retention inputs
+      - name: Produce exact cleanup plan without authentication or deletion
         env:
-          PROTECT_VERSION: ${{ inputs.protect_version }}
-          RELEASE_PACKAGES: ${{ inputs.packages }}
+          DELETE_RELEASES: ${{ inputs.delete_releases }}
         run: |
           set -euo pipefail
+          mkdir -p test-results/pypi-cleanup-plan
           python - <<'PY'
+          import contextlib
           import os
-          import re
+          from pathlib import Path
+          from tools.pypi_release_retention import main
 
-          version = os.environ.get("PROTECT_VERSION", "")
-          version_pattern = r"\d+\.\d+\.\d+(?:\.\d+)?(?:(?:a|b|rc)\d+)?(?:\.post\d+)?"
-          if re.fullmatch(version_pattern, version, flags=re.IGNORECASE) is None:
-              raise SystemExit("Invalid protected PyPI version format")
-
-          package_pattern = re.compile(
-              r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,198}[A-Za-z0-9])?"
-          )
-          packages = os.environ.get("RELEASE_PACKAGES", "")
-          for package in re.split(r"[\s,]+", packages.strip()):
-              if package and package_pattern.fullmatch(package) is None:
-                  raise SystemExit(f"Invalid PyPI package name: {package!r}")
+          specs = os.environ["DELETE_RELEASES"].splitlines()
+          if not specs or any(not spec.strip() for spec in specs):
+              raise SystemExit("Provide exact package==version targets, one per line.")
+          args = ["--repo-root", ".", "--dry-run", "--json"]
+          for spec in specs:
+              args.extend(["--delete-release", spec.strip()])
+          output = Path("test-results/pypi-cleanup-plan/agilab_pypi_explicit_cleanup_plan.json")
+          with output.open("w", encoding="utf-8") as handle, contextlib.redirect_stdout(handle):
+              raise SystemExit(main(args))
           PY
 
-      - name: Delete older PyPI releases and keep the protected release only
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PROTECT_VERSION: ${{ inputs.protect_version }}
-          PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
-          PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
-          PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
-          PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
-          PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
-          RELEASE_PACKAGES: ${{ inputs.packages }}
-        run: |
-          set -euo pipefail
-          test -n "${PYPI_CONFIRM_READER_TOKEN:-}" || {
-            echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
-            exit 2
-          }
-          packages="$RELEASE_PACKAGES"
-          package_file="$(mktemp)"
-          if [[ -z "$packages" ]]; then
-            python - <<'PY' > "$package_file"
-          from tools.release_plan import release_plan
-
-          for package in release_plan()["provenance_packages"]:
-              print(package)
-          PY
-          else
-            python - "$packages" > "$package_file" <<'PY'
-          import re
-          import sys
-
-          for package in re.split(r"[\s,]+", sys.argv[1].strip()):
-              if package:
-                  print(package)
-          PY
-          fi
-          python tools/pypi_release_retention.py \
-            --repo pypi \
-            --packages-file "$package_file" \
-            --protect-version "$PROTECT_VERSION" \
-            --select-visible-protected-packages \
-            --confirm-delete \
-            --direct-web-only \
-            --json \
-            --github-step-summary "$GITHUB_STEP_SUMMARY" \
-            --github-confirm-login-repository "$GITHUB_REPOSITORY" \
-            --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL" \
-            --github-confirm-login-timeout 1800 \
-            --github-confirm-login-poll-delay 5 \
-            --github-token "$PYPI_CONFIRM_READER_TOKEN"
+      - name: Upload reviewable cleanup plan
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: agilab-pypi-explicit-cleanup-plan
+          path: test-results/pypi-cleanup-plan
+          if-no-files-found: error
+          retention-days: 90

@@ -265,7 +265,7 @@ final release.
 By default, the GitHub PyPI workflow asks ``tools/release_plan.py`` to omit
 selected PyPI packages whose expected wheel/sdist artifacts for the committed
 project version already exist on PyPI. Those skipped packages are not sent to
-the build/upload matrix, PyPI provenance verification, release retention, or
+the build/upload matrix, PyPI provenance verification, cleanup planning, or
 GitHub release-asset assembly. This keeps split packages independent in
 practice: unchanged packages do not need a new version and do not trigger slow
 PyPI web cleanup. Use the manual ``include_existing_pypi=true`` dispatch input
@@ -299,25 +299,38 @@ The local release helper has the same selector for preparing a release commit:
 Use the printed package list as the release bump scope. Do not bump unchanged
 package ``pyproject.toml`` files just to keep a global version number aligned.
 
-After PyPI provenance passes, the release workflow attempts to keep one retained
-PyPI release per selected PyPI project that still needs publication in the
-optimized release plan. ``tools/pypi_release_retention.py`` reads the selected
-release-plan projects, confirms that each package's own committed project
-version is visible, then tries to delete older releases before GitHub release
-assets are published. This allows split packages to advance independently while
-keeping retention from deleting another package's current version. This is a
-destructive PyPI web-management operation, separate from
-Trusted Publishing, so the workflow uses ``PYPI_RELEASE_PRUNE_USERNAME`` and
-``PYPI_RELEASE_PRUNE_PASSWORD`` repository secrets. PyPI accounts with two-factor
-authentication can use non-interactive authentication through
-``PYPI_RELEASE_PRUNE_TOTP_SECRET``. ``PYPI_RELEASE_PRUNE_OTP`` exists only as a
-short-lived manual rerun fallback. PyPI may require unrecognized-login email
-confirmation from the same IP address before accepting destructive
-web-management actions, so the release workflow polls the temporary
-``PYPI_CONFIRM_LOGIN_URL`` Actions variable for a bounded confirmation window.
-If old releases remain after that window, the retention job fails and blocks
-GitHub release assets and Hugging Face sync. A missing selected package version
-or any remaining stale release is a hard failure.
+PyPI cleanup is separate from publication. The release workflow performs
+builds, Trusted Publishing, provenance checks, GitHub assets and Hugging Face
+sync without deleting historical releases or waiting for web-login cleanup.
+
+The manual ``pypi-release-retention`` workflow produces a reviewable plan only.
+Its required ``delete_releases`` input lists exact ``package==version`` targets,
+one per line. It has read-only repository permissions, no PyPI credentials and
+no deletion step. The local ``tools/pypi_release_retention.py`` command uses the
+same exact selection, defaults to planning, and rejects implicit package-wide
+cleanup, duplicate targets, unknown packages or versions, current project
+versions, exact first-party dependency pins and each project's latest release.
+
+Before a deletion, review consumers and save every wheel and source archive.
+Use ``--backup-dir`` during planning to create an archive and hash manifest.
+Confirmed local deletion requires that existing backup, ``--confirm-delete``,
+fresh official metadata and matching hashes for the complete file set. The
+command rechecks protections, the complete current file set and saved bytes
+after web authentication and immediately before each selected deletion, stops
+on authentication failure and verifies that selected releases are absent while
+unselected releases remain present. It never reports an authentication warning
+as successful cleanup.
+
+PyPI web-management authentication is independent of OIDC uploads. An unknown
+device can require email confirmation. Prefer a confirmed browser session on
+the maintainer's machine; a passkey or security key can avoid the extra
+unknown-device check used with TOTP. A browser session does not authenticate
+the command's separate HTTP session. Complete any authentication in PyPI,
+without weakening repository approval gates or exposing credentials.
+PyPI deletion is irreversible: archived files remain available locally, but
+the deleted release cannot be restored and its files cannot be uploaded again. The local command
+examples and browser procedure are maintained in
+`tools/README.pypi-cleanup.md <https://github.com/ThalesGroup/agilab/blob/main/tools/README.pypi-cleanup.md>`_.
 
 The required preflight is the place to catch synchronization drift. It should
 validate package metadata, internal pins, dependency-policy hygiene, docs mirror

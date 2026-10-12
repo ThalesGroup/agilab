@@ -639,8 +639,7 @@ def test_pypi_publish_has_one_human_approval_gate_for_every_mutating_job() -> No
     for job, next_job in (
         ("publish-library-packages", "build-agilab"),
         ("publish-agilab", "pypi-provenance-evidence"),
-        ("publish-release-assets", "pypi-release-retention"),
-        ("pypi-release-retention", "publish-dataset-release-assets"),
+        ("publish-release-assets", "publish-dataset-release-assets"),
         ("publish-dataset-release-assets", "sync-hf-space"),
         ("sync-hf-space", "publish-release-proof"),
         ("publish-release-proof", ""),
@@ -652,91 +651,10 @@ def test_pypi_publish_has_one_human_approval_gate_for_every_mutating_job() -> No
         assert "needs.release-approval.result == 'success'" in block, job
 
 
-def test_pypi_publish_attempts_previous_pypi_release_pruning_before_release_assets() -> None:
-    text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    retention_block = text[
-        text.index("  pypi-release-retention:") : text.index("  publish-dataset-release-assets:")
-    ]
-
-    assert "pypi-release-retention:" in text
-    assert "actions: write" in retention_block
-    assert "(github.event.inputs.include_existing_pypi || 'false') != 'true'" in text
-    assert "needs.pypi-provenance-evidence.result == 'success'" in text
-    assert "PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}" in text
-    assert "PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}" in text
-    assert "PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}" in text
-    assert "PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}" in text
-    assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
-    assert "PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}" in text
-    assert (
-        '      pypi_retention_min_published_releases:\n'
-        '        description: "Minimum visible PyPI releases before retention prunes older releases."\n'
-        "        required: false\n"
-        "        type: string\n"
-        '        default: "11"'
-    ) in text
-    assert "PYPI_RETENTION_MIN_PUBLISHED_RELEASES" in text
-    assert "vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES" in text
-    assert "must be an integer >= 2" in text
-    assert "Delete older PyPI releases once package history exceeds configured threshold" in text
-    assert "requirements: .github/requirements/ci-pypi-web.txt" in retention_block
-    assert "tools/pypi_release_retention.py" in text
-    assert "--confirm-delete" in text
-    assert "--direct-web-only" in text
-    assert '--min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES"' in text
-    assert "--min-published-releases 11" not in text
-    assert "--verify-attempts 17" in retention_block
-    assert "--retry-delay 60" in retention_block
-    assert "retention_log=\"$(mktemp)\"" in text
-    assert "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." in text
-    assert "--github-confirm-login-repository \"$GITHUB_REPOSITORY\"" in text
-    assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
-    assert "--github-confirm-login-timeout 1800" in text
-    assert "--github-confirm-login-poll-delay 5" in text
-    assert "PYPI_CONFIRM_READER_TOKEN secret is required" in text
-    assert "--github-token \"$PYPI_CONFIRM_READER_TOKEN\"" in text
-    assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" not in text
-    assert "Clear temporary PyPI confirmation variable" in retention_block
-    assert "if: ${{ always() }}" in retention_block
-    assert "_cleanup_github_confirm_login_variable" in retention_block
-    assert "--protect-versions-from-projects" in text
-    assert "--repo-root ." in text
-    assert "--protect-version \"$current_version\"" not in text
-    assert "root pyproject.toml has no project version" not in text
-    assert "needs.pypi-release-retention.result == 'success'" in text
-    assert "needs.pypi-release-retention.result == 'skipped'" in text
-    assert "      - pypi-release-retention" in text
 
 
-def test_dedicated_pypi_retention_workflow_can_read_confirmation_variable() -> None:
-    text = PYPI_RELEASE_RETENTION_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert "permissions:\n  contents: read\n  actions: read" in text
-    assert "PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}" in text
-    assert "PYPI_CONFIRM_READER_TOKEN secret is required" in text
-    assert "--github-confirm-login-variable \"PYPI_CONFIRM_LOGIN_URL\"" in text
-    assert "--github-token \"$PYPI_CONFIRM_READER_TOKEN\"" in text
-    assert "--github-token \"${PYPI_CONFIRM_READER_TOKEN:-$GITHUB_TOKEN}\"" not in text
 
 
-def test_pypi_publish_repair_mode_skips_retention_without_blocking_release_assets() -> None:
-    text = WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    retention_match = re.search(r"pypi-release-retention:\n    if: \$\{\{ (?P<expr>.*?) \}\}", text)
-    assert retention_match is not None
-    retention_expr = retention_match.group("expr")
-    assert "(github.event.inputs.include_existing_pypi || 'false') != 'true'" in retention_expr
-    assert "needs.pypi-provenance-evidence.result == 'success'" in retention_expr
-    assert "needs.publish-library-packages.result == 'success'" in retention_expr
-    assert "needs.publish-agilab.result == 'success'" in retention_expr
-
-    assets_match = re.search(r"publish-release-assets:\n    if: \$\{\{ (?P<expr>.*?) \}\}", text)
-    assert assets_match is not None
-    assets_expr = assets_match.group("expr")
-    assert "needs.pypi-release-retention.result == 'success'" in assets_expr
-    assert "needs.pypi-release-retention.result == 'skipped'" in assets_expr
-    assert "needs.pypi-release-retention.result == 'failure'" not in assets_expr
-    assert "      - pypi-release-retention" in text
 
 
 def test_pypi_publish_does_not_recreate_legacy_single_pypi_environment() -> None:
@@ -917,3 +835,40 @@ def test_pypi_publication_requires_a_preexisting_tag_on_the_exact_workflow_sourc
     assert '--expected-commit "$GITHUB_SHA"' in asset_steps[1]["run"]
     upload = next(step for step in asset_steps if step["name"] == "Upload supply-chain assets to GitHub Release")
     assert "--verify-tag" in upload["run"]
+
+
+def test_pypi_publication_has_no_cleanup_job_inputs_credentials_or_dependency() -> None:
+    text = WORKFLOW_PATH.read_text(encoding="utf-8")
+    payload = yaml.load(text, Loader=yaml.BaseLoader)
+    assert "pypi-release-retention" not in payload["jobs"]
+    assert "pypi_retention_min_published_releases" not in payload["on"]["workflow_dispatch"]["inputs"]
+    assert "PYPI_RELEASE_PRUNE_" not in text
+    assert "PYPI_CONFIRM_" not in text
+    assert "tools/pypi_release_retention.py" not in text
+    assert "pypi-release-retention" not in payload["jobs"]["publish-release-assets"]["needs"]
+
+
+def test_manual_cleanup_workflow_only_plans_exact_targets_without_secrets() -> None:
+    text = PYPI_RELEASE_RETENTION_WORKFLOW_PATH.read_text(encoding="utf-8")
+    payload = yaml.load(text, Loader=yaml.BaseLoader)
+    assert set(payload["on"]) == {"workflow_dispatch"}
+    assert set(payload["on"]["workflow_dispatch"]["inputs"]) == {"delete_releases"}
+    assert payload["permissions"] == {"contents": "read"}
+    assert set(payload["jobs"]) == {"cleanup-plan"}
+    assert "--delete-release" in text
+    assert "--dry-run" in text
+    assert "--confirm-delete" not in text
+    assert "secrets." not in text
+    assert "environment:" not in text
+    assert "pypi-release-prune" not in text
+    assert "agilab_pypi_explicit_cleanup_plan.json" in text
+
+
+def test_release_assets_remain_gated_by_approval_and_provenance_without_cleanup() -> None:
+    payload = yaml.load(WORKFLOW_PATH.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+    assets = payload["jobs"]["publish-release-assets"]
+    assert "release-approval" in assets["needs"]
+    assert "pypi-provenance-evidence" in assets["needs"]
+    assert "needs.release-approval.result == 'success'" in assets["if"]
+    assert "needs.pypi-provenance-evidence.result == 'success'" in assets["if"]
+    assert "retention" not in assets["if"]

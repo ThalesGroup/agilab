@@ -107,9 +107,12 @@ Release friction discipline
 
 Split packages should not force unnecessary PyPI operations. The release plan
 supports skip-existing behavior so packages whose wheel and source
-distribution already exist can be omitted from build, upload, provenance, and
-retention steps. Keep that behavior guarded because it avoids noisy cleanup and
-reduces release risk.
+distribution already exist can be omitted from build, upload and provenance
+steps. Keep that behavior guarded because it reduces unnecessary release work.
+Historical release cleanup is a separate maintenance operation: require an exact
+reviewed version list, consumer checks and complete verified backups. The manual
+cleanup workflow plans only; authentication or deletion must never block
+publication. See :doc:`package-publishing-policy` for the guarded local procedure.
 
 Bottom line
 -----------

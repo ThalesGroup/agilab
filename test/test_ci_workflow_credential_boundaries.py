@@ -17,10 +17,6 @@ LOCKED_TOOL_JOBS = {
         "build-library-packages",
     ): ".github/requirements/ci-publish.txt",
     ("pypi-publish.yaml", "build-agilab"): ".github/requirements/ci-publish.txt",
-    (
-        "pypi-publish.yaml",
-        "pypi-release-retention",
-    ): ".github/requirements/ci-pypi-web.txt",
     ("pypi-publish.yaml", "sync-hf-space"): ".github/requirements/ci-hf-release.txt",
     (
         "pypi-publish.yaml",
@@ -32,7 +28,7 @@ LOCKED_TOOL_JOBS = {
     ): ".github/requirements/ci-pypi-web.txt",
     (
         "pypi-release-retention.yaml",
-        "retention",
+        "cleanup-plan",
     ): ".github/requirements/ci-pypi-web.txt",
     (
         "test-pypi-publish.yaml",
@@ -79,7 +75,6 @@ EXPECTED_DIRECT_PINS = {
     ],
     "ci-pypi-web.in": [
         "packaging==26.2",
-        "pypi-cleanup==0.1.10",
         "requests==2.34.2",
     ],
 }
@@ -148,16 +143,12 @@ def test_dispatch_inputs_are_not_interpolated_in_credentialed_run_scripts() -> N
 
 
 def test_privileged_dispatch_runner_inputs_are_type_restricted() -> None:
-    for workflow_name in (
-        "pypi-pending-trusted-publisher.yaml",
-        "pypi-release-retention.yaml",
-    ):
-        workflow_path = WORKFLOW_ROOT / workflow_name
-        workflow = _load_yaml(workflow_path)
-        trigger = workflow.get("on") or workflow.get(True)
-        runner = trigger["workflow_dispatch"]["inputs"]["runner"]
-        assert runner["type"] == "choice", workflow_path
-        assert set(runner["options"]) == {"ubuntu-latest", "self-hosted"}, workflow_path
+    workflow_path = WORKFLOW_ROOT / "pypi-pending-trusted-publisher.yaml"
+    workflow = _load_yaml(workflow_path)
+    trigger = workflow.get("on") or workflow.get(True)
+    runner = trigger["workflow_dispatch"]["inputs"]["runner"]
+    assert runner["type"] == "choice", workflow_path
+    assert set(runner["options"]) == {"ubuntu-latest", "self-hosted"}, workflow_path
 
 
 def test_privileged_dispatch_values_are_validated_before_secret_steps() -> None:
@@ -179,23 +170,28 @@ def test_privileged_dispatch_values_are_validated_before_secret_steps() -> None:
     assert '--workflow-filename "$PUBLISHER_WORKFLOW"' in pending_secret["run"]
     assert '--environment "$PYPI_ENVIRONMENT"' in pending_secret["run"]
 
-    retention = _load_yaml(WORKFLOW_ROOT / "pypi-release-retention.yaml")
-    retention_steps = retention["jobs"]["retention"]["steps"]
-    retention_validation = next(
-        step for step in retention_steps if step["name"] == "Validate retention inputs"
-    )
-    retention_secret = next(
-        step
-        for step in retention_steps
-        if step["name"]
-        == "Delete older PyPI releases and keep the protected release only"
-    )
-    assert retention_steps.index(retention_validation) < retention_steps.index(
-        retention_secret
-    )
-    assert "re.fullmatch" in retention_validation["run"]
-    assert 'packages="$RELEASE_PACKAGES"' in retention_secret["run"]
-    assert '--protect-version "$PROTECT_VERSION"' in retention_secret["run"]
+def test_cleanup_plan_dispatch_has_no_credentials_or_destructive_authority() -> None:
+    workflow = _load_yaml(WORKFLOW_ROOT / "pypi-release-retention.yaml")
+    trigger = workflow.get("on") or workflow.get(True)
+    inputs = trigger["workflow_dispatch"]["inputs"]
+    assert set(inputs) == {"delete_releases"}
+    assert inputs["delete_releases"]["type"] == "string"
+    assert inputs["delete_releases"]["required"] is True
+    assert workflow["permissions"] == {"contents": "read"}
+    serialized = json.dumps(workflow)
+    assert "secrets." not in serialized
+    assert "github.token" not in serialized
+    assert "id-token" not in serialized
+    assert set(workflow["jobs"]) == {"cleanup-plan"}
+
+    job = workflow["jobs"]["cleanup-plan"]
+    assert job["runs-on"] == "ubuntu-latest"
+    assert "environment" not in job
+    assert job.get("permissions", workflow["permissions"]) == {"contents": "read"}
+    run_text = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    assert 'args = ["--repo-root", ".", "--dry-run", "--json"]' in run_text
+    assert "--confirm-delete" not in run_text
+    assert "--do-it" not in run_text
 
 
 def test_release_workflow_defaults_to_read_only_and_limits_oidc_jobs() -> None:

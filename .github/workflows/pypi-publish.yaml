@@ -39,11 +39,6 @@ on:
         required: false
         type: boolean
         default: false
-      pypi_retention_min_published_releases:
-        description: "Minimum visible PyPI releases before retention prunes older releases."
-        required: false
-        type: string
-        default: "11"
   push:
     tags:
       - "v*.*.*"
@@ -57,7 +52,6 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.13"
-  PYPI_RETENTION_MIN_PUBLISHED_RELEASES: ${{ github.event.inputs.pypi_retention_min_published_releases || vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES || '11' }}
 
 jobs:
   release-audit:
@@ -814,14 +808,13 @@ jobs:
           retention-days: 90
 
   publish-release-assets:
-    if: ${{ always() && needs.release-approval.result == 'success' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.pypi-release-retention.result == 'success' || needs.pypi-release-retention.result == 'skipped') && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
+    if: ${{ always() && needs.release-approval.result == 'success' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.supply-chain-evidence.result == 'success' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
     needs:
       - release-approval
       - release-plan
       - publish-library-packages
       - publish-agilab
       - pypi-provenance-evidence
-      - pypi-release-retention
       - supply-chain-evidence
     runs-on: ubuntu-latest
     permissions:
@@ -903,111 +896,6 @@ jobs:
               --notes "$notes"
           fi
           gh release upload "$release_tag" github-release-assets/* --clobber
-
-  pypi-release-retention:
-    if: ${{ always() && needs.release-approval.result == 'success' && (github.event.inputs.include_existing_pypi || 'false') != 'true' && needs.release-plan.outputs.pypi_publish_selected == 'true' && needs.pypi-provenance-evidence.result == 'success' && (needs.publish-library-packages.result == 'success' || needs.publish-library-packages.result == 'skipped') && (needs.publish-agilab.result == 'success' || needs.publish-agilab.result == 'skipped') }}
-    needs:
-      - release-approval
-      - release-plan
-      - publish-library-packages
-      - publish-agilab
-      - pypi-provenance-evidence
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write
-    env:
-      PYPI_RETENTION_PACKAGES: ${{ needs.release-plan.outputs.provenance_packages }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Set up locked PyPI web dependencies
-        uses: ./.github/actions/setup-locked-python-tools
-        with:
-          requirements: .github/requirements/ci-pypi-web.txt
-
-      - name: Delete older PyPI releases once package history exceeds configured threshold
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PYPI_CONFIRM_READER_TOKEN: ${{ secrets.PYPI_CONFIRM_READER_TOKEN }}
-          PYPI_RELEASE_PRUNE_USERNAME: ${{ secrets.PYPI_RELEASE_PRUNE_USERNAME }}
-          PYPI_RELEASE_PRUNE_PASSWORD: ${{ secrets.PYPI_RELEASE_PRUNE_PASSWORD }}
-          PYPI_RELEASE_PRUNE_TOTP_SECRET: ${{ secrets.PYPI_RELEASE_PRUNE_TOTP_SECRET }}
-          PYPI_RELEASE_PRUNE_OTP: ${{ secrets.PYPI_RELEASE_PRUNE_OTP }}
-        run: |
-          set -euo pipefail
-          test -n "${PYPI_CONFIRM_READER_TOKEN:-}" || {
-            echo "PYPI_CONFIRM_READER_TOKEN secret is required to read the temporary PyPI confirmation variable." >&2
-            exit 2
-          }
-          case "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES" in
-            ''|*[!0-9]*)
-              echo "PYPI_RETENTION_MIN_PUBLISHED_RELEASES must be an integer >= 2." >&2
-              exit 2
-              ;;
-          esac
-          if [[ "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES" -lt 2 ]]; then
-            echo "PYPI_RETENTION_MIN_PUBLISHED_RELEASES must be an integer >= 2." >&2
-            exit 2
-          fi
-          args=(
-            --repo pypi
-            --repo-root .
-            --protect-versions-from-projects
-            --min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES"
-            --verify-attempts 17
-            --retry-delay 60
-            --confirm-delete
-            --direct-web-only
-            --json
-            --github-step-summary "$GITHUB_STEP_SUMMARY"
-            --github-confirm-login-repository "$GITHUB_REPOSITORY"
-            --github-confirm-login-variable "PYPI_CONFIRM_LOGIN_URL"
-            --github-confirm-login-timeout 1800
-            --github-confirm-login-poll-delay 5
-            --github-token "$PYPI_CONFIRM_READER_TOKEN"
-          )
-          for package in ${PYPI_RETENTION_PACKAGES}; do
-            args+=(--package "$package")
-          done
-          retention_log="$(mktemp)"
-          if python tools/pypi_release_retention.py "${args[@]}" 2> >(tee "$retention_log" >&2); then
-            rm -f "$retention_log"
-          else
-            if grep -Fq "PyPI redirected back to login while opening the release delete page after password/TOTP authentication." "$retention_log"; then
-              echo "::warning title=PyPI release retention::Hosted-runner PyPI deletion needs a confirmed device; continuing release and leaving stale releases for manual cleanup."
-            else
-              rm -f "$retention_log"
-              exit 1
-            fi
-            rm -f "$retention_log"
-          fi
-
-      - name: Clear temporary PyPI confirmation variable
-        if: ${{ always() }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import os
-
-          from tools.pypi_release_retention import _cleanup_github_confirm_login_variable
-
-          _cleanup_github_confirm_login_variable(
-              repository=os.environ["GITHUB_REPOSITORY"],
-              variable="PYPI_CONFIRM_LOGIN_URL",
-              token=os.environ["GITHUB_TOKEN"],
-          )
-          PY
 
   publish-dataset-release-assets:
     if: ${{ !cancelled() && needs.release-approval.result == 'success' && needs.release-plan.result == 'success' && needs.release-audit.result == 'success' && (needs.test.result == 'success' || needs.test.result == 'skipped') }}
