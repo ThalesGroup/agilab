@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shlex
 import sys
@@ -600,6 +601,82 @@ def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
         assert flag in config["flags"]
     assert config["flags"]["agi-web"]["paths"] == ["src/agilab/lib/agi-web"]
 
+
+
+def _flag_routes_source(path: PurePosixPath, prefixes: tuple[PurePosixPath, ...]) -> bool:
+    return any(path == prefix or prefix in path.parents for prefix in prefixes)
+
+
+def test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets() -> None:
+    """Coverage follows real app modules rather than their former flat names."""
+    import yaml
+
+    config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
+    gui_paths = tuple(PurePosixPath(path) for path in config["flags"]["agi-gui"]["paths"])
+    app_root = Path("src/agilab")
+    canonical_sources = {
+        PurePosixPath(path.as_posix())
+        for package in ("orchestrate", "pipeline", "ui", "about_page", "notebooks")
+        for path in (app_root / package).rglob("*.py")
+    }
+    assert canonical_sources, "The canonical GUI source inventory must not be empty"
+
+    # Parse declarations only: importing a shim could activate product dependencies
+    # or SDK-selected workers. Covered legacy entrypoints must keep covering their
+    # declared implementation when that implementation moves to another package.
+    forwarding_targets: dict[PurePosixPath, PurePosixPath] = {}
+    for shim in app_root.glob("*.py"):
+        shim_path = PurePosixPath(shim.as_posix())
+        if not _flag_routes_source(shim_path, gui_paths):
+            continue
+        tree = ast.parse(shim.read_text(encoding="utf-8"), filename=str(shim))
+        for statement in tree.body:
+            if not isinstance(statement, ast.Assign):
+                continue
+            if not any(
+                isinstance(target, ast.Name) and target.id == "_TARGET_MODULE"
+                for target in statement.targets
+            ):
+                continue
+            target = statement.value
+            assert isinstance(target, ast.Constant) and isinstance(target.value, str), (
+                f"{shim} must declare its forwarding target as a module name"
+            )
+            forwarding_targets[shim_path] = PurePosixPath(
+                "src", *target.value.split(".")
+            ).with_suffix(".py")
+    assert forwarding_targets, "Existing GUI forwarding shims must stay routed"
+    missing_targets = {
+        str(shim): str(target)
+        for shim, target in forwarding_targets.items()
+        if not Path(target).is_file() or not _flag_routes_source(target, gui_paths)
+    }
+    missing_sources = sorted(
+        str(path) for path in canonical_sources if not _flag_routes_source(path, gui_paths)
+    )
+    assert not missing_targets and not missing_sources, (
+        f"agi-gui drops canonical sources: {missing_sources}; "
+        f"legacy forwarding targets: {missing_targets}"
+    )
+
+
+def test_agi_gui_flag_paths_exist_and_exclude_sdk_and_shared_web_sources() -> None:
+    import yaml
+
+    config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
+    gui_paths = tuple(PurePosixPath(path) for path in config["flags"]["agi-gui"]["paths"])
+    assert gui_paths
+    assert all(Path(path).exists() for path in gui_paths), (
+        "Remove stale GUI paths when their legacy module no longer exists"
+    )
+    for excluded in (
+        PurePosixPath("src/agilab/core"),
+        PurePosixPath("src/agilab/lib/agi-web"),
+    ):
+        assert not _flag_routes_source(excluded, gui_paths)
+        assert not any(path == excluded or excluded in path.parents for path in gui_paths), (
+            f"agi-gui must not absorb separately gated sources under {excluded}"
+        )
 
 def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
     for step_name in (
