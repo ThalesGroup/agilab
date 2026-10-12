@@ -30,6 +30,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 - Add seven operator profiles, four context panes, and a searchable Cmd/Ctrl+K
   palette; preserve the selected project and pane layout between browser visits.
+- Render each exported notebook map and curve once, retaining the returned
+  view for inspection and preserving authored Python stages and result variables.
 - Keep installation, execution, and project switching behind explicit review,
   reject stale targets, and consume each approved action once.
 - Include the updated shared React interface assets in the package release while
