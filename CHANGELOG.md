@@ -32,6 +32,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   palette; preserve the selected project and pane layout between browser visits.
 - Render each exported notebook map and curve once, retaining the returned
   view for inspection and preserving authored Python stages and result variables.
+- Keep verified demo evidence and downloads available in minimal UI installations;
+  explain the optional scientific dependencies before starting a demo.
 - Keep installation, execution, and project switching behind explicit review,
   reject stale targets, and consume each approved action once.
 - Include the updated shared React interface assets in the package release while

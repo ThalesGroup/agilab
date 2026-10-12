@@ -16,6 +16,7 @@ from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
+from agilab.demos.notebook_app_runtime import missing_demo_dependencies, render_demo_dependency_guidance
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "notebook_agent_demo"
 LOCAL_DEMO_ROOT = DEMO_ROOT.with_name("notebook_agent_local_demo")
@@ -237,6 +238,7 @@ def render() -> None:
             "One request turned Géron's decision-tree notebook into the interactive app below. "
             "Tokki coordinated the agent and verification; AGILAB imported the resulting workflow."
         )
+    missing = missing_demo_dependencies(selected)
     with st.expander("The request and the proof"):
         st.markdown(
             "> Turn the Iris decision-tree example into an interactive decision lab. "
@@ -249,7 +251,7 @@ def render() -> None:
         st.write("Checks passed: held-out model tests, notebook execution, app startup and slider interaction.")
         st.download_button("Download the generated app and workflow", _zip_bundle(payload),
                            f"tokki-agilab-{selected}-decision-lab.zip", "application/zip")
-        if st.button("Run model and app checks", icon=":material/fact_check:"):
+        if st.button("Run model and app checks", icon=":material/fact_check:", disabled=bool(missing)):
             with st.spinner("Running model, notebook and interface checks…"):
                 verifier = Path(__file__).parents[1] / "agent_runtime" / "notebook_verifier.py"
                 try:
@@ -263,6 +265,9 @@ def render() -> None:
                 except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as exc:
                     st.error(f"Verification could not complete: {type(exc).__name__}")
     st.divider()
+    if missing:
+        render_demo_dependency_guidance(st, missing)
+        return
     _run_verified_app(payload, demo_root=demo_root)
 
 

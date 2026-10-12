@@ -40,6 +40,12 @@ Each demo preserves its autonomous build receipt and downloadable workflow. New
 autonomous builds run locally through [Tokki](https://github.com/jpmorard/tokki-public)
 with your configured provider.
 
+A minimal UI installation keeps demo evidence and workflow downloads available.
+Running the scientific demos also requires the `notebook-agent` extra in the
+same AGILAB environment. Each demo checks its dependencies before loading the
+app and gives an installation command when they are missing; restart AGILAB
+after installing them.
+
 ### Build from your own notebook
 
 With [Tokki installed locally](https://github.com/jpmorard/tokki-public/blob/main/RELEASES.md),

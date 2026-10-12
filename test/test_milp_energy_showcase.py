@@ -109,7 +109,10 @@ def test_import_state_and_lock_are_restored_after_app_error(monkeypatch):
     showcase._APP_LOCK.release()
 
 
-def test_fifth_demo_opens_without_running_a_benchmark():
+def test_fifth_demo_opens_without_running_a_benchmark(monkeypatch):
+    # Qualify the controls without loading a solver; missing-package admission
+    # has its own negative and ready-path coverage for every selectable variant.
+    monkeypatch.setattr(showcase, "missing_demo_dependencies", lambda _demo: ())
     at = AppTest.from_file(notebook_showcase.__file__, default_timeout=30)
     at.query_params["demo"] = "milp"
     at.run()

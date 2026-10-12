@@ -92,6 +92,12 @@ hosted Hugging Face with shared browser/notebook component contracts.
 
 ## Demo Routes
 
+A minimal UI installation keeps demo evidence and workflow downloads available.
+Running the scientific demos also requires the `notebook-agent` extra in the
+same AGILAB environment. Each demo checks its dependencies before loading the
+app and gives an installation command when they are missing; restart AGILAB
+after installing them.
+
 Start with the route that matches the proof you want to show:
 
 | Goal | Demo route | What it proves |

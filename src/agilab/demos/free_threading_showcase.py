@@ -14,6 +14,7 @@ import zipfile
 from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
+from agilab.demos.notebook_app_runtime import missing_demo_dependencies, render_demo_dependency_guidance
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 from agilab.demos.notebook_app_runtime import app_session_state
 
@@ -173,6 +174,9 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
                    "It does not certify the whole AGILAB dependency stack for free-threaded Python.")
         st.download_button("Download the free-threading app and workflow", _zip_bundle(payload),
                            "tokki-agilab-free-threading-rtx.zip" if rtx else "tokki-agilab-free-threading-astra.zip" if astra else "tokki-agilab-free-threading.zip", "application/zip", key="threading_bundle_rtx" if rtx else "threading_bundle_astra" if astra else "threading_bundle")
+    if missing := missing_demo_dependencies("threading_rtx" if rtx else "threading_astra" if astra else "threading"):
+        render_demo_dependency_guidance(st, missing)
+        return
     if rtx:
         _run_verified_app(payload, rtx=True)
     elif astra:

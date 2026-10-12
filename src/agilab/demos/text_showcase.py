@@ -14,6 +14,7 @@ import zipfile
 from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
+from agilab.demos.notebook_app_runtime import missing_demo_dependencies, render_demo_dependency_guidance
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, app_session_state
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "text_notebook_demo"
@@ -157,6 +158,9 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
                    "Artifact hashes are checked before execution and download.")
         st.download_button("Download the text app and workflow", _zip_bundle(payload),
                            "tokki-agilab-text-atlas-rtx.zip" if rtx else "tokki-agilab-text-atlas-astra.zip" if astra else "tokki-agilab-text-atlas.zip", "application/zip", key="text_bundle_rtx" if rtx else "text_bundle_astra" if astra else "text_bundle")
+    if missing := missing_demo_dependencies("text_rtx" if rtx else "text_astra" if astra else "text"):
+        render_demo_dependency_guidance(st, missing)
+        return
     if rtx:
         _run_verified_app(payload, rtx=True)
     elif astra:

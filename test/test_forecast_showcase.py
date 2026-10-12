@@ -49,6 +49,9 @@ def local_model(tmp_path, monkeypatch):
 
 @pytest.fixture
 def demo_bundle(tmp_path, monkeypatch, local_model):
+    # This fixture supplies a dependency-free fake forecast app/model. Real
+    # optional-package admission is qualified in the dedicated minimal-UI suite.
+    monkeypatch.setattr(showcase, "missing_demo_dependencies", lambda _demo: ())
     monkeypatch.setattr(showcase, "_prepare_model", lambda _path: local_model)
     tmp_path = tmp_path / "public-demo"
     tmp_path.mkdir()
