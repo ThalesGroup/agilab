@@ -90,3 +90,32 @@ def test_ci_tool_lock_integrity_requires_hash_for_direct_pin(tmp_path: Path) -> 
         match="has no SHA256 hash",
     ):
         ci_tool_lock_integrity.validate_lock_pair(input_path, lock_path)
+
+def test_pypi_web_workflow_smoke_executes_the_supported_guarded_cli() -> None:
+    import os
+    import shlex
+    import subprocess
+    import sys
+
+    import yaml
+
+    workflow = yaml.load(
+        Path(".github/workflows/ci-tool-lock-integrity.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+    step = next(
+        item for item in workflow["jobs"]["verify-locks"]["steps"]
+        if item.get("name") == "Import-smoke PyPI web tools"
+    )
+    # Execute the real workflow entrypoint, so removed binaries cannot remain
+    # in the clean-install smoke after their dependency is removed.
+    command = shlex.split(step["run"].strip().splitlines()[-1].removesuffix(">/dev/null"))
+    assert command[0] == "python"
+    command[0] = sys.executable
+    result = subprocess.run(
+        command, check=True, capture_output=True, text=True,
+        env={**os.environ, "PIP_NO_INDEX": "1", "PYTHONNOUSERSITE": "1"},
+    )
+    assert "--delete-release" in result.stdout
+    assert "--backup-dir" in result.stdout
+    assert "--confirm-delete" in result.stdout
