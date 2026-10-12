@@ -7,6 +7,8 @@ import re
 import shlex
 import sys
 
+import pytest
+
 
 WORKFLOW_PATH = Path(".github/workflows/coverage.yml")
 CODECOV_CONFIG_PATH = Path("codecov.yml")
@@ -603,8 +605,9 @@ def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
 
 
 
-def _flag_routes_source(path: PurePosixPath, prefixes: tuple[PurePosixPath, ...]) -> bool:
-    return any(path == prefix or prefix in path.parents for prefix in prefixes)
+def _flag_routes_source(path: PurePosixPath, prefixes: tuple[str, ...]) -> bool:
+    """Match configured literal prefixes as Codecov's processed report does."""
+    return any(path.as_posix().startswith(prefix) for prefix in prefixes)
 
 
 def test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets() -> None:
@@ -612,7 +615,7 @@ def test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets() -
     import yaml
 
     config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
-    gui_paths = tuple(PurePosixPath(path) for path in config["flags"]["agi-gui"]["paths"])
+    gui_paths = tuple(config["flags"]["agi-gui"]["paths"])
     app_root = Path("src/agilab")
     canonical_sources = {
         PurePosixPath(path.as_posix())
@@ -622,12 +625,13 @@ def test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets() -
     assert canonical_sources, "The canonical GUI source inventory must not be empty"
 
     # Parse declarations only: importing a shim could activate product dependencies
-    # or SDK-selected workers. Covered legacy entrypoints must keep covering their
-    # declared implementation when that implementation moves to another package.
+    # or SDK-selected workers. Explicitly retained entrypoints must keep covering
+    # their declared implementation after relocation. Incidental prefix matches
+    # do not transfer ownership of shared implementations into the GUI flag.
     forwarding_targets: dict[PurePosixPath, PurePosixPath] = {}
     for shim in app_root.glob("*.py"):
         shim_path = PurePosixPath(shim.as_posix())
-        if not _flag_routes_source(shim_path, gui_paths):
+        if shim_path.as_posix() not in gui_paths:
             continue
         tree = ast.parse(shim.read_text(encoding="utf-8"), filename=str(shim))
         for statement in tree.body:
@@ -645,7 +649,7 @@ def test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets() -
             forwarding_targets[shim_path] = PurePosixPath(
                 "src", *target.value.split(".")
             ).with_suffix(".py")
-    assert forwarding_targets, "Existing GUI forwarding shims must stay routed"
+    assert forwarding_targets, "Explicitly retained GUI forwarding shims must stay routed"
     missing_targets = {
         str(shim): str(target)
         for shim, target in forwarding_targets.items()
@@ -664,7 +668,7 @@ def test_agi_gui_flag_paths_exist_and_exclude_sdk_and_shared_web_sources() -> No
     import yaml
 
     config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
-    gui_paths = tuple(PurePosixPath(path) for path in config["flags"]["agi-gui"]["paths"])
+    gui_paths = tuple(config["flags"]["agi-gui"]["paths"])
     assert gui_paths
     assert all(Path(path).exists() for path in gui_paths), (
         "Remove stale GUI paths when their legacy module no longer exists"
@@ -672,11 +676,111 @@ def test_agi_gui_flag_paths_exist_and_exclude_sdk_and_shared_web_sources() -> No
     for excluded in (
         PurePosixPath("src/agilab/core"),
         PurePosixPath("src/agilab/lib/agi-web"),
+        PurePosixPath("src/agilab/apps"),
     ):
         assert not _flag_routes_source(excluded, gui_paths)
-        assert not any(path == excluded or excluded in path.parents for path in gui_paths), (
+        assert not any(
+            PurePosixPath(prefix) == excluded or excluded in PurePosixPath(prefix).parents
+            for prefix in gui_paths
+        ), (
             f"agi-gui must not absorb separately gated sources under {excluded}"
         )
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    (
+        ("src/agilab/ui/page_bootstrap.py", True),
+        ("src/agilab/orchestrate_page_support.py", True),
+        ("src/agilab/pipeline_runtime.py", True),
+        ("src/agilab/ui_public_bind_guard.py", True),
+        ("src/agilab/core/agi-env/src/agi_env/app_env.py", False),
+        ("src/agilab/lib/agi-web/src/agi_web/python_ui.py", False),
+        ("src/agilab/apps/builtin/weather_forecast_project/src/weather_forecast/weather_forecast.py", False),
+    ),
+)
+def test_gui_flag_prefix_selection_includes_flat_ui_aliases_without_absorbing_other_layers(
+    source: str, expected: bool
+) -> None:
+    import yaml
+
+    config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
+    gui_paths = tuple(config["flags"]["agi-gui"]["paths"])
+
+    if expected:
+        assert Path(source).is_file(), "Positive cases must be existing GUI entrypoints"
+    assert _flag_routes_source(PurePosixPath(source), gui_paths) is expected
+
+
+def test_gui_source_inventory_rejects_stale_config_without_canonical_targets(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import yaml
+
+    stale = tmp_path / "stale_gui_flag_config.yml"
+    stale.write_text(
+        yaml.safe_dump(
+            {
+                "flags": {
+                    "agi-gui": {
+                        "paths": [
+                            "src/agilab/lib/agi-gui",
+                            "src/agilab/orchestrate_page_support.py",
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setitem(globals(), "CODECOV_CONFIG_PATH", stale)
+
+    with pytest.raises(AssertionError, match="agi-gui drops canonical sources") as failure:
+        test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets()
+    assert "src/agilab/orchestrate/orchestrate_page_support.py" in str(failure.value)
+
+
+def test_gui_explicit_forwarder_guard_rejects_a_target_relocated_outside_flag(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import yaml
+
+    app_root = tmp_path / "src" / "agilab"
+    packages = ("orchestrate", "pipeline", "ui", "about_page", "notebooks")
+    for package in packages:
+        source = app_root / package / "covered.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("value = 1\n", encoding="utf-8")
+    target = app_root / "security" / "relocated_guard.py"
+    target.parent.mkdir()
+    target.write_text("value = 2\n", encoding="utf-8")
+    shim = app_root / "retained_entrypoint.py"
+    shim.write_text(
+        '_TARGET_MODULE = "agilab.security.relocated_guard"\n', encoding="utf-8"
+    )
+    config = tmp_path / "gui_flag_config.yml"
+    config.write_text(
+        yaml.safe_dump(
+            {
+                "flags": {
+                    "agi-gui": {
+                        "paths": [
+                            *(f"src/agilab/{package}" for package in packages),
+                            "src/agilab/retained_entrypoint.py",
+                        ]
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setitem(globals(), "CODECOV_CONFIG_PATH", config)
+
+    with pytest.raises(AssertionError, match="legacy forwarding targets") as failure:
+        test_agi_gui_flag_routes_canonical_sources_and_legacy_forwarding_targets()
+    assert "canonical sources: []" in str(failure.value)
+    assert "src/agilab/security/relocated_guard.py" in str(failure.value)
+
 
 def test_coverage_artifacts_have_short_retention_for_cost_control() -> None:
     for step_name in (

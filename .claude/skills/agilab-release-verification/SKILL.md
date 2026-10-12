@@ -345,44 +345,54 @@ Then inspect:
 Do not call docs aligned until the Pages workflow has succeeded and the public
 page shows the expected version/tag/HF commit.
 
-When manually refreshing release proof after a failed or rerun deployment, edit
-the canonical docs source, not only the public mirror:
+Release and UI evidence is owned by the public repository. These three
+paths are excluded from the canonical-source mirror:
+
+- `docs/source/data/release_proof.toml`
+- `docs/source/release-proof.rst`
+- `docs/source/data/ui_robot_evidence.json`
+
+For a new unpublished source version, retain the previous published package,
+tag, workflow and Hugging Face evidence and set only
+`source_version_relation = "ahead"` in the public release-proof TOML. Do not
+claim that candidate source has already been published.
+
+When manually refreshing proof after a failed or rerun deployment, edit the
+public TOML and use `tools/release_proof_report.py --docs-source docs/source`
+with the required refresh options. Then render and check the proof, refresh
+only the allowed release-proof paths, and independently verify the canonical
+source:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
-  --docs-source ../thales_agilab/docs/source \
-  --refresh-from-local \
-  --refresh-from-github \
-  --github-workflow repo-guardrails \
-  --github-workflow docs-source-guard \
-  --github-workflow docs-publish \
-  --github-workflow coverage \
-  --github-workflow pypi-publish \
-  --github-release-tag <tag> \
-  --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
-  --hf-space-commit <space-sha> \
-  --render \
-  --check \
-  --check-github-runs \
-  --compact
+  --docs-source docs/source --render --check --compact
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --source ../thales_agilab/docs/source \
-  --target docs/source \
-  --apply \
-  --delete
+  --target docs/source --refresh-target-integrity-stamp
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --source <verified-canonical-docs-source> --target docs/source --verify-stamp
 ```
 
-If a release workflow pushed a release-proof docs commit with `GITHUB_TOKEN`,
-do not assume it triggered the Pages workflow. Check for a matching
-`docs-publish` run on the pushed commit; dispatch `docs-publish.yaml` manually
-when no run exists.
+The restricted stamp refresh accepts only the release-proof TOML and its
+generated RST; it rejects UI-evidence drift and preserves the existing
+canonical provenance. Its CLI does not perform a fresh canonical-source check,
+so the separate `--source ... --verify-stamp` command is required.
+
+Use a full canonical sync only for actual changes to managed documentation,
+after the restricted proof refresh. Editing proof in the canonical source and
+running `--apply --delete` cannot propagate these public-owned files. A full
+sync also refuses to bless unverified public-evidence changes.
+
+The release workflow opens a signed release-evidence PR. Verify its exact-head
+required PR checks, merge it, and then check the Pages run on the merge commit.
+Do not assume a workflow-created proof branch or commit triggered Pages;
+dispatch `docs-publish.yaml` manually only when no matching run exists.
 
 After publishing, grep the public page for the expected version, tag, HF Space
 commit, and the current release workflow run IDs, especially `pypi-publish`. A
 page can contain the right release row while stale CI evidence rows still point
 to the previous release. Treat "new version with old run IDs" as a release-proof
-failure until the canonical docs source, managed mirror, Pages deployment, and
-live HTML all agree.
+failure until the public-owned release proof, verified managed mirror, Pages
+deployment and live HTML agree on their respective ownership contracts.
 
 ### Hugging Face Space
 
