@@ -20,18 +20,18 @@ related_pages = [
 
 [release]
 package_name = "agilab"
-package_version = "2026.10.11"
-source_version_relation = "ahead"
+package_version = "2026.10.12"
+source_version_relation = "exact"
 package_extras = [
   "examples",
 ]
 pypi_url = "https://pypi.org/project/agilab/"
-github_release_tag = "v2026.10.11"
-github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11"
-github_release_commit = "740bc31797a7cca7005af5b563f082dddf31d31f"
+github_release_tag = "v2026.10.12"
+github_release_url = "https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.12"
+github_release_commit = "bb343922fc2d54c59a54e9521526dc66f1bd2de3"
 hf_space_label = "jpmorard/agilab"
 hf_space_url = "https://huggingface.co/spaces/jpmorard/agilab"
-hf_space_commit = "e59c2363690ee4f740df7d9eb766dbd3214835d8"
+hf_space_commit = "67f5b7b9d2c1f34c98722002a374d1d0b3c8180a"
 dataset_release_tag = "datasets-82d4b1accb144409"
 dataset_manifest_sha256 = "82d4b1accb144409af883b3600dab54400aa30cb65034e2c122307020b070d75"
 dataset_count = 13
@@ -81,9 +81,9 @@ summary = "passed component coverage and badge freshness checks"
 id = "pypi-publish"
 label = "PyPI publish"
 workflow = "pypi-publish"
-run_id = "38142824862"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/38142824862/attempts/1"
-head_sha = "740bc31797a7cca7005af5b563f082dddf31d31f"
+run_id = "38258041613"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/38258041613/attempts/1"
+head_sha = "bb343922fc2d54c59a54e9521526dc66f1bd2de3"
 summary = "publication workflow for the recorded release commit; see the linked attempt for its final result"
 attempt = "1"
 
