@@ -14,6 +14,7 @@ import zipfile
 from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
+from agilab.demos.notebook_app_runtime import missing_demo_dependencies, render_demo_dependency_guidance
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK, app_session_state
 
 DEMO_ROOT = Path(__file__).parent / "resources" / "milp_energy_demo"
@@ -191,6 +192,9 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
                    "per scenario. It does not measure distributed execution or acceleration of one MILP.")
         st.download_button("Download the MILP energy lab and workflow", _zip_bundle(payload),
                            "tokki-agilab-milp-energy-rtx.zip" if rtx else "tokki-agilab-milp-energy-astra.zip" if astra else "tokki-agilab-milp-energy.zip", "application/zip", key="milp_energy_bundle_rtx" if rtx else "milp_energy_bundle_astra" if astra else "milp_energy_bundle")
+    if missing := missing_demo_dependencies("milp_rtx" if rtx else "milp_astra" if astra else "milp"):
+        render_demo_dependency_guidance(st, missing)
+        return
     if rtx:
         _run_verified_app(payload, rtx=True)
     elif astra:

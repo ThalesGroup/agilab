@@ -15,6 +15,7 @@ import zipfile
 from agi_web import python_ui as st
 
 from agilab.demos.notebook_demo_evidence import render_build_evidence
+from agilab.demos.notebook_app_runtime import missing_demo_dependencies, render_demo_dependency_guidance
 from agilab.demos.notebook_app_runtime import APP_EXECUTION_LOCK as _APP_LOCK
 from agilab.demos.notebook_app_runtime import app_session_state
 
@@ -249,6 +250,9 @@ def render(*, astra: bool = False, rtx: bool = False) -> None:
     st.divider()
     if (report["model"]["id"], report["model"]["revision"]) != (MODEL_ID, MODEL_REVISION):
         st.error("Forecast demo unavailable: unsupported model revision.")
+        return
+    if missing := missing_demo_dependencies("forecast_rtx" if rtx else "forecast_astra" if astra else "forecast"):
+        render_demo_dependency_guidance(st, missing)
         return
     try:
         with st.spinner("Preparing Chronos-2 Small · the first visit downloads about 112 MB"):
