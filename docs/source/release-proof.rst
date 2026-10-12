@@ -26,13 +26,13 @@ Current public release
    * - Hosted demo
      - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``67f5b7b9d2c1f34c98722002a374d1d0b3c8180a``
    * - Public guardrails
-     - `repo-guardrails run 34586112200 <https://github.com/ThalesGroup/agilab/actions/runs/34586112200>`__ at commit ``a98b63c77d37`` passed repository guardrails; skipped jobs remain out of scope unless separately evidenced
+     - `repo-guardrails run 38274133339 <https://github.com/ThalesGroup/agilab/actions/runs/38274133339>`__ at commit ``a331e22acc1f`` passed repository guardrails for the release-proof metadata merge; skipped jobs remain out of scope unless separately evidenced
    * - Docs source guard
-     - `docs-source-guard run 34501192329 <https://github.com/ThalesGroup/agilab/actions/runs/34501192329>`__ at commit ``5dd3651b8ed8`` passed docs mirror and release-proof consistency checks; canonical private-source drift is not checked by public CI
+     - `docs-source-guard run 38274133146 <https://github.com/ThalesGroup/agilab/actions/runs/38274133146>`__ at commit ``a331e22acc1f`` passed docs mirror and release-proof consistency checks for the release-proof metadata merge; canonical private-source drift is not checked by public CI
    * - Docs publish
-     - `docs-publish run 34501192332 <https://github.com/ThalesGroup/agilab/actions/runs/34501192332>`__ at commit ``5dd3651b8ed8`` built the public documentation from the managed docs mirror
+     - `docs-publish run 38274133371 <https://github.com/ThalesGroup/agilab/actions/runs/38274133371>`__ at commit ``a331e22acc1f`` deployed the release-proof metadata merge to public documentation
    * - Coverage
-     - `coverage run 34577976386 <https://github.com/ThalesGroup/agilab/actions/runs/34577976386>`__ at commit ``1dc1002246fa`` passed component coverage and badge freshness checks
+     - `coverage run 38254954532 <https://github.com/ThalesGroup/agilab/actions/runs/38254954532>`__ at commit ``bb343922fc2d`` qualified the published code commit with six fresh component coverage flags; project coverage 95.08%, agi-gui 95.92%; documentation-only follow-up commits retain this code baseline
    * - PyPI publish
      - `pypi-publish run 38258041613 <https://github.com/ThalesGroup/agilab/actions/runs/38258041613/attempts/1>`__ at commit ``bb343922fc2d`` publication workflow for the recorded release commit; see the linked attempt for its final result
 
@@ -50,6 +50,9 @@ What was proved
   coverage, and release-publication workflows at their exact commits. A
   successful workflow is not presented as proof for jobs that the workflow
   skipped.
+- The coverage run is bound to the published code commit. Repository and
+  documentation runs record the later release-proof metadata merge; their
+  displayed commits identify the exact inputs each run checked.
 - The release proof records the hosted Hugging Face Space URL and commit. Live
   public-demo availability is checked only when a public-demo-smoke run is
   pinned or supplied separately.

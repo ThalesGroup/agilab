@@ -5,6 +5,7 @@ intro = [
 ]
 proof_bullets = [
   "The pinned GitHub Actions rows record successful repository, documentation, coverage, and release-publication workflows at their exact commits. A successful workflow is not presented as proof for jobs that the workflow skipped.",
+  "The coverage run is bound to the published code commit. Repository and documentation runs record the later release-proof metadata merge; their displayed commits identify the exact inputs each run checked.",
   "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
   "The checked-in ``docs/source/data/ui_robot_evidence.json`` records a successful historical UI robot baseline. It is not release-bound UI proof for this release because its commit is not the release tag commit, even when its exact app inventory matches the {expected_app_count}-app release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout.",
   "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and aligned with the packaged examples catalog.",
@@ -45,37 +46,37 @@ expected_app_count = 14
 id = "release-guardrails"
 label = "Public guardrails"
 workflow = "repo-guardrails"
-run_id = "34586112200"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/34586112200"
-head_sha = "a98b63c77d37633cb41744f22edc6e7c4c356596"
-summary = "passed repository guardrails; skipped jobs remain out of scope unless separately evidenced"
+run_id = "38274133339"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/38274133339"
+head_sha = "a331e22acc1f38e75c7d94cd7a9000f6fa12759e"
+summary = "passed repository guardrails for the release-proof metadata merge; skipped jobs remain out of scope unless separately evidenced"
 
 [[ci_runs]]
 id = "docs-source-guard"
 label = "Docs source guard"
 workflow = "docs-source-guard"
-run_id = "34501192329"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/34501192329"
-head_sha = "5dd3651b8ed88e111917bcb37b9fdf395eb76c77"
-summary = "passed docs mirror and release-proof consistency checks; canonical private-source drift is not checked by public CI"
+run_id = "38274133146"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/38274133146"
+head_sha = "a331e22acc1f38e75c7d94cd7a9000f6fa12759e"
+summary = "passed docs mirror and release-proof consistency checks for the release-proof metadata merge; canonical private-source drift is not checked by public CI"
 
 [[ci_runs]]
 id = "docs-publish"
 label = "Docs publish"
 workflow = "docs-publish"
-run_id = "34501192332"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/34501192332"
-head_sha = "5dd3651b8ed88e111917bcb37b9fdf395eb76c77"
-summary = "built the public documentation from the managed docs mirror"
+run_id = "38274133371"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/38274133371"
+head_sha = "a331e22acc1f38e75c7d94cd7a9000f6fa12759e"
+summary = "deployed the release-proof metadata merge to public documentation"
 
 [[ci_runs]]
 id = "coverage"
 label = "Coverage"
 workflow = "coverage"
-run_id = "34577976386"
-url = "https://github.com/ThalesGroup/agilab/actions/runs/34577976386"
-head_sha = "1dc1002246fa4e6ff94411cf5a2ca1263217bffd"
-summary = "passed component coverage and badge freshness checks"
+run_id = "38254954532"
+url = "https://github.com/ThalesGroup/agilab/actions/runs/38254954532"
+head_sha = "bb343922fc2d54c59a54e9521526dc66f1bd2de3"
+summary = "qualified the published code commit with six fresh component coverage flags; project coverage 95.08%, agi-gui 95.92%; documentation-only follow-up commits retain this code baseline"
 
 [[ci_runs]]
 id = "pypi-publish"
