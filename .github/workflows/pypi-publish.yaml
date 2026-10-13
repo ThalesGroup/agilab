@@ -210,7 +210,7 @@ jobs:
             --compact
 
       - name: Upload sample external evidence artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: public-evidence-sample
           path: ${{ runner.temp }}/public-evidence-sample
@@ -294,7 +294,7 @@ jobs:
             --run
 
       - name: Upload supply-chain release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: supply-chain-release-evidence
           path: test-results/supply-chain
@@ -561,7 +561,7 @@ jobs:
 
       - name: Upload ${{ matrix.package }} public release distribution evidence
         if: matrix.publish_to_pypi == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-dist-${{ matrix.package }}
           path: |
@@ -573,7 +573,7 @@ jobs:
 
       - name: Upload ${{ matrix.package }} workflow-only distribution evidence
         if: matrix.publish_to_pypi != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: workflow-dist-${{ matrix.package }}
           path: |
@@ -709,7 +709,7 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
       - name: Upload agilab release distribution evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-dist-agilab
           path: |
@@ -800,7 +800,7 @@ jobs:
 
       - name: Upload PyPI provenance evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: pypi-provenance-evidence
           path: test-results/pypi-provenance

@@ -103,7 +103,7 @@ jobs:
 
       - name: Archive agi-env coverage XML
         if: always() && hashFiles('coverage-agi-env.xml') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-env-xml
           path: coverage-agi-env.xml
@@ -231,7 +231,7 @@ jobs:
 
       - name: Archive agi-node coverage XML
         if: always() && hashFiles('coverage-agi-node.xml') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-node-xml
           path: coverage-agi-node.xml
@@ -240,7 +240,7 @@ jobs:
 
       - name: Archive agi-cluster coverage XML
         if: always() && hashFiles('coverage-agi-cluster.xml') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-cluster-xml
           path: coverage-agi-cluster.xml
@@ -395,7 +395,7 @@ jobs:
 
       - name: Archive agi-gui chunk coverage
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-gui-chunk-${{ matrix.chunk }}
           path: test-results/coverage-agi-gui-${{ matrix.chunk }}.db*
@@ -404,7 +404,7 @@ jobs:
 
       - name: Upload agi-gui chunk JUnit
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-gui-junit-${{ matrix.chunk }}
           path: test-results/junit-agi-gui-${{ matrix.chunk }}*.xml
@@ -463,7 +463,7 @@ jobs:
 
       - name: Archive agi-web coverage XML
         if: always() && hashFiles('coverage-agi-web.xml') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-web-xml
           path: coverage-agi-web.xml
@@ -557,7 +557,7 @@ jobs:
 
       - name: Upload JUnit results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-gui-junit
           path: test-results/junit-agi-gui-*.xml
@@ -588,7 +588,7 @@ jobs:
 
       - name: Upload agi-gui timing report
         if: always() && hashFiles('test-results/coverage-agi-gui-timing.*') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-gui-timing-report
           path: test-results/coverage-agi-gui-timing.*
@@ -615,7 +615,7 @@ jobs:
 
       - name: Archive agi-gui coverage XML
         if: always() && hashFiles('coverage-agi-gui.xml') != ''
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: coverage-agi-gui-xml
           path: |
