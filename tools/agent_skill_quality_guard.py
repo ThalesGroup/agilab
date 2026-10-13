@@ -95,19 +95,19 @@ def _is_text_file(path: Path) -> bool:
 
 
 def skill_dirs(roots: Iterable[Path], explicit: Iterable[Path]) -> list[Path]:
-    selected = [path for path in explicit if (path / "SKILL.md").exists()]
+    selected = list(explicit)
     if selected:
         return sorted({path.resolve() for path in selected})
     dirs: list[Path] = []
     for root in roots:
-        if not root.exists():
+        if not root.is_dir():
             continue
         dirs.extend(path for path in root.iterdir() if path.is_dir() and not path.name.startswith("."))
     return sorted({path.resolve() for path in dirs})
 
 
 def changed_skill_dirs(base_ref: str, roots: Iterable[Path]) -> list[Path]:
-    root_args = [root.relative_to(REPO_ROOT).as_posix() for root in roots if root.exists()]
+    root_args = [root.relative_to(REPO_ROOT).as_posix() for root in roots if root.is_dir()]
     if not root_args:
         return []
     result = subprocess.run(
@@ -489,9 +489,27 @@ def render_markdown(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--roots", nargs="+", type=Path, default=list(DEFAULT_ROOTS))
-    parser.add_argument("--skill-dir", action="append", type=Path, default=[])
-    parser.add_argument("--changed-only", action="store_true")
+    parser.add_argument(
+        "--roots",
+        nargs="+",
+        type=Path,
+        default=None,
+        help="Skill roots to scan; explicitly requested roots must exist as directories "
+        "(default: available repo skill roots).",
+    )
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument(
+        "--skill-dir",
+        action="append",
+        type=Path,
+        default=[],
+        help="Explicit skill directory to audit (repeatable); cannot be combined with --changed-only.",
+    )
+    selection.add_argument(
+        "--changed-only",
+        action="store_true",
+        help="Audit skills changed since --base-ref; cannot be combined with --skill-dir.",
+    )
     parser.add_argument("--base-ref", default="origin/main")
     parser.add_argument("--json-output", type=Path)
     parser.add_argument("--markdown-output", type=Path)
@@ -513,10 +531,31 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    roots = [path if path.is_absolute() else REPO_ROOT / path for path in args.roots]
-    explicit = [path if path.is_absolute() else REPO_ROOT / path for path in args.skill_dir]
-    scanned = changed_skill_dirs(args.base_ref, roots) if args.changed_only else skill_dirs(roots, explicit)
+    roots = [
+        path if path.is_absolute() else REPO_ROOT / path
+        for path in (args.roots or DEFAULT_ROOTS)
+    ]
+    explicit = [
+        path if path.is_absolute() else REPO_ROOT / path for path in args.skill_dir
+    ]
+    scanned = (
+        changed_skill_dirs(args.base_ref, roots)
+        if args.changed_only
+        else skill_dirs(roots, explicit)
+    )
     local_findings = scan(scanned)
+    if args.roots is not None:
+        local_findings.extend(
+            Finding(
+                root.name,
+                "critical",
+                "missing-skill-root",
+                f"Requested skill root is not a directory: {_rel(root)}",
+                _rel(root),
+            )
+            for root in roots
+            if not root.is_dir()
+        )
     external_status, external_findings = run_external_validator(
         roots,
         mode=args.external_validator,
@@ -524,7 +563,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     findings = sorted(
         [*local_findings, *external_findings],
-        key=lambda item: (-severity_rank(item.severity), item.skill, item.rule, item.path),
+        key=lambda item: (
+            -severity_rank(item.severity),
+            item.skill,
+            item.rule,
+            item.path,
+        ),
     )
 
     payload = {
