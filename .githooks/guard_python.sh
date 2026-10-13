@@ -7,6 +7,10 @@
 # exists, then the main checkout's environment, then plain python3 for the
 # stdlib-only guards.
 run_guard_python() {
+  if [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
+    "$ROOT_DIR/.venv/Scripts/python.exe" "$@"
+    return
+  fi
   if [[ -x "$ROOT_DIR/.venv/bin/python" ]]; then
     "$ROOT_DIR/.venv/bin/python" "$@"
     return
@@ -20,5 +24,9 @@ run_guard_python() {
     return
   fi
   echo "[agilab hooks] no project venv found; falling back to python3" >&2
-  python3 "$@"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 "$@"
+  else
+    python "$@"
+  fi
 }
