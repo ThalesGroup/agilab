@@ -94,27 +94,12 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   operator's verified email/key; invented noreply addresses can cause `unknown_key`.
   Run `python3 tools/agent_commit_provenance_guard.py --check-config` before commits
   and verify new signatures on GitHub. Record the operator separately in PR metadata.
-- PR cleanup must preserve the intended work. Requests such as `remove PRs`,
-  `clean`, or `zero open PRs` do not by themselves authorize abandoning unmerged
-  changes. Recover the prior session decision and inspect each PR diff, current
-  main, and outstanding validation before deciding its disposition. Continue
-  already-authorized fixes and validation toward merge; if abandonment versus
-  integration remains ambiguous, ask that specific question before closing the PR.
-  Close without merge only for explicitly authorized abandonment or a verified
-  duplicate/superseded change, with a recorded reason and replacement evidence
-  where applicable. A recovery bundle preserves work but does not integrate it.
-  Green generic CI does not resolve missing dependency-boundary or runtime checks.
-  Report merged, superseded, explicitly abandoned, and still-pending work
-  separately; never use `zero open PRs` or `clean workspace` as proof that all
-  requested work is complete. When answering why an earlier PR was closed,
-  inspect the prior session and maintenance report before inferring the reason
-  from GitHub state alone.
-- When `gh pr merge --delete-branch` fails because another local worktree owns
-  `main`, check the remote PR state before retrying. Prefer a remote-only
-  retry from outside the checkout, for example `gh pr merge <n> --repo
-  ThalesGroup/agilab --merge --delete-branch` from `/tmp`; if the PR already
-  merged, delete the remote feature branch separately and report the local
-  cleanup failure as local-only.
+- PR cleanup must preserve intended work: `clean` or `zero open PRs` do not authorize abandonment. Recover prior decisions, compare each PR with current main and outstanding validation, then complete authorized fixes toward merge.
+  Close without merge only for explicit abandonment or verified duplication/supersession, recording reasons and replacement evidence. Backups preserve work but do not integrate it; green generic CI does not replace required runtime or dependency checks.
+  Report merged, superseded, explicitly abandoned and pending work separately. Clarify ambiguous disposition before closing; inspect prior-session evidence before explaining an earlier closure. A clean workspace alone does not prove completion.
+- When `gh pr merge --delete-branch` fails because another local worktree owns `main`, check remote PR state before retrying.
+  Prefer a remote-only retry from outside the checkout: `gh pr merge <n> --repo ThalesGroup/agilab --merge --delete-branch` from `/tmp`.
+  If the PR already merged, delete its remote feature branch separately and report the local cleanup failure as local-only.
 - When auditing commit provenance, do not infer the worker from a signature or
   configured author name alone. Inventory author, committer, signature identity,
   GitHub actor, PR metadata, and timestamps before attributing work.
