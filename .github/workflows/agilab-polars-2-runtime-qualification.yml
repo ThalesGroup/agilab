@@ -1,0 +1,108 @@
+name: agilab-polars-2-runtime-qualification
+
+on:
+  pull_request:
+    branches: ["**"]
+    paths:
+      - ".github/workflows/agilab-polars-2-runtime-qualification.yml"
+      - ".github/scripts/agilab_polars_2_runtime_qualification.py"
+      - "pyproject.toml"
+      - "src/agilab/core/**"
+      - "src/agilab/lib/agi-web/**"
+      - "src/agilab/apps/builtin/**"
+      - "src/agilab/apps/templates/**"
+      - "test/test_agilab_polars_2_runtime_qualification.py"
+      - "test/test_execution_polars_runtime_contracts.py"
+      - "test/test_worker_dynamic_import_contract.py"
+      - "test/test_app_args.py"
+      - "test/test_app_args_form_normalization.py"
+      - "test/test_streamlit_args.py"
+      - "tools/testing/pytest_entrypoint.py"
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/agilab-polars-2-runtime-qualification.yml"
+      - ".github/scripts/agilab_polars_2_runtime_qualification.py"
+      - "pyproject.toml"
+      - "src/agilab/core/**"
+      - "src/agilab/lib/agi-web/**"
+      - "src/agilab/apps/builtin/**"
+      - "src/agilab/apps/templates/**"
+      - "test/test_agilab_polars_2_runtime_qualification.py"
+      - "test/test_execution_polars_runtime_contracts.py"
+      - "test/test_worker_dynamic_import_contract.py"
+      - "test/test_app_args.py"
+      - "test/test_app_args_form_normalization.py"
+      - "test/test_streamlit_args.py"
+      - "tools/testing/pytest_entrypoint.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  polars-2-runtime-qualification:
+    name: polars-2-runtime (${{ matrix.os }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout qualification source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up matrix Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Qualify exact dependency versions and record same-process evidence
+        shell: bash
+        env:
+          AGILAB_DISABLE_BACKGROUND_SERVICES: "1"
+          PYTHONDONTWRITEBYTECODE: "1"
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+          QUALIFICATION_SOURCE_SHA: ${{ github.sha }}
+          QUALIFICATION_PYTHON: ${{ matrix.python }}
+          QUALIFICATION_PLATFORM: ${{ runner.os == 'Windows' && 'Windows' || 'Linux' }}
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --isolated --no-project \
+            --python "$QUALIFICATION_PYTHON" \
+            --with-editable ./src/agilab/core/agi-env \
+            --with-editable ./src/agilab/core/agi-node \
+            --with-editable ./src/agilab/core/agi-cluster \
+            --with-editable ./src/agilab/core/agi-core \
+            --with-editable ./src/agilab/lib/agi-web \
+            --with polars==2.0.0 --with pydantic==2.14.0 \
+            --with "pytest>=9,<10" --with "pytest-asyncio>=1.3,<2" \
+            --with sqlalchemy --with fastparquet \
+            python .github/scripts/agilab_polars_2_runtime_qualification.py \
+            --source-sha "$QUALIFICATION_SOURCE_SHA" \
+            --expected-python "$QUALIFICATION_PYTHON" \
+            --expected-platform "$QUALIFICATION_PLATFORM" \
+            --output-dir test-results/polars-2-runtime
+
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agilab-polars-2-runtime-${{ matrix.os }}-python-${{ matrix.python }}-${{ github.run_attempt }}
+          path: test-results/polars-2-runtime/
+          if-no-files-found: error
+          retention-days: 14
