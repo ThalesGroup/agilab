@@ -106,6 +106,7 @@ references, and example projects.
    Product architecture <architecture>
    Architecture scorecard <architecture-scorecard>
    Maintenance playbook <maintenance-playbook>
+   Polars 2 runtime qualification <agilab-polars-2-runtime-qualification>
    Extension contracts <extension-contracts>
    Architecture decisions <adr/index>
    AGI Core architecture <agi-core-architecture>
