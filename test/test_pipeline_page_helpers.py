@@ -484,3 +484,96 @@ def test_pipeline_page_raises_mixed_checkout_error(monkeypatch, tmp_path):
 
     with pytest.raises(ImportError, match="Mixed AGILAB checkout detected"):
         _load_pipeline_module_with_mixed_checkout(monkeypatch, stale_root)
+
+
+def test_notebook_import_preview_stays_in_main_workspace_and_preserves_drafts(tmp_path, monkeypatch):
+    from agi_web import python_ui
+    from agi_web.testing import AppTest
+
+    module = _load_pipeline_module()
+    preview_renderer = module.render_notebook_import_preview
+    editor_globals = preview_renderer.__globals__
+    monkeypatch.setattr(module, "st", python_ui)
+    monkeypatch.setitem(editor_globals, "st", python_ui)
+    monkeypatch.setattr(module, "_resolve_active_app_project_dir", lambda *_args: tmp_path)
+    monkeypatch.setattr(module, "build_notebook_export_context", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(module, "refresh_notebook_export", lambda *_args, **_kwargs: None)
+
+    stages_file = tmp_path / "lab_stages.toml"
+    original_stages = b'[[demo_project]]\nid = "existing"\nD = "Existing stage"\nQ = "Saved prompt"\nC = "print(1)"\nR = "runpy"\n'
+    stages_file.write_bytes(original_stages)
+    uploaded = SimpleNamespace(
+        name="pending.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: json.dumps({"cells": [
+            {"cell_type": "code", "source": ["print('pending notebook cell')\n"]},
+        ]}).encode("utf-8"),
+    )
+    preview = editor_globals["build_notebook_import_preview"](uploaded, tmp_path)
+    stage_id = editor_globals["_notebook_import_stage_options"](preview)[0]["id"]
+    preview = editor_globals["_notebook_import_preview_with_runtime_roles"](
+        preview, {stage_id: "manager"},
+    )
+    assert editor_globals["_notebook_import_preview_is_safe"](preview)
+    index_page = "pending_import"
+    preview_key = f"{index_page}__notebook_import_preview"
+    draft_key = f"{index_page}_q__0"
+    plan_key = f"{index_page}__engine_map"
+    pending_plan = {0: "runpy"}
+    pending_draft = "Unsaved stage prompt"
+
+    def render_actions():
+        python_ui.sidebar.text_input("Existing Tools draft", key="tools_draft")
+        module._render_notebook_actions(
+            SimpleNamespace(), tmp_path, stages_file, index_page, project_name="demo_project",
+        )
+
+    app = AppTest.from_function(render_actions)
+    app.session_state[preview_key] = preview
+    app.session_state[draft_key] = pending_draft
+    app.session_state[plan_key] = pending_plan.copy()
+    app.session_state["tools_draft"] = "Unsaved Tools value"
+    app.run()
+    assert not app.exception
+
+    # A display-only rerun must keep the pending import and both editor drafts.
+    app.run()
+    assert not app.exception
+    assert stages_file.read_bytes() == original_stages
+    assert app.session_state[preview_key] == preview
+    assert app.session_state[draft_key] == pending_draft
+    assert app.session_state[plan_key] == pending_plan
+    assert app.sidebar.text_input[0].value == "Unsaved Tools value"
+
+    notebook = next(expander for expander in app.main.expander if expander.label == "Notebook")
+    notebook_buttons = {button.key: button for button in notebook.get("button")}
+    assert f"{index_page}__confirm_notebook_import" in notebook_buttons
+    assert notebook_buttons[f"{index_page}__confirm_notebook_import"].label == "Import all runnable cells"
+    assert notebook_buttons[f"{index_page}__confirm_notebook_import"].disabled is False
+    assert f"{index_page}__cancel_notebook_import" in notebook_buttons
+    assert any(str(caption.value).startswith("Notebook preview: 1 stage(s)")
+               for caption in notebook.get("caption"))
+    assert not any(button.key in {
+        f"{index_page}__confirm_notebook_import", f"{index_page}__cancel_notebook_import",
+    } for button in app.sidebar.button)
+
+    uploader = next(control for control in notebook.get("file_uploader")
+                    if control.label == "Import notebook")
+    original_upload_key = uploader.key
+    app.session_state[original_upload_key] = python_ui.UploadedFile(
+        uploaded.read(), uploaded.name, uploaded.type,
+    )
+    notebook_buttons[f"{index_page}__cancel_notebook_import"].click().run()
+    assert not app.exception
+    assert preview_key not in app.session_state
+    assert not any(button.key in {
+        f"{index_page}__confirm_notebook_import", f"{index_page}__cancel_notebook_import",
+    } for button in app.main.button)
+    replacement_uploader = next(control for control in app.main.file_uploader
+                                if control.label == "Import notebook")
+    assert replacement_uploader.key != original_upload_key
+    assert original_upload_key not in app.session_state
+    assert stages_file.read_bytes() == original_stages
+    assert app.session_state[draft_key] == pending_draft
+    assert app.session_state[plan_key] == pending_plan
+    assert app.sidebar.text_input[0].value == "Unsaved Tools value"

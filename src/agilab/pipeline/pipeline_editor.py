@@ -9,7 +9,7 @@ import logging
 import os
 import re
 import tempfile
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -2141,6 +2141,8 @@ def render_notebook_import_preview(
     index_page: str,
     *,
     view_manifest_dir: Path | None = None,
+    container: Any | None = None,
+    on_cancel: Callable[[], None] | None = None,
 ) -> None:
     """Render confirm/cancel controls for the current notebook import preview."""
     preview = st.session_state.get(_notebook_import_preview_key(index_page))
@@ -2149,8 +2151,8 @@ def render_notebook_import_preview(
     preflight = preview.get("preflight", {})
     summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
     risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
-    sidebar = getattr(st, "sidebar", st)
-    caption = getattr(sidebar, "caption", None)
+    target = container if container is not None else getattr(st, "sidebar", st)
+    caption = getattr(target, "caption", None)
     if callable(caption):
         caption(
             "Notebook preview: "
@@ -2160,10 +2162,10 @@ def render_notebook_import_preview(
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
         )
     if not _notebook_import_preview_is_safe(preview):
-        error = getattr(sidebar, "error", None)
+        error = getattr(target, "error", None)
         if callable(error):
             error(f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}")
-    button = getattr(sidebar, "button", None)
+    button = getattr(target, "button", None)
     if not callable(button):
         return
     selected_stage_ids: list[str] | None = None
@@ -2171,12 +2173,12 @@ def render_notebook_import_preview(
     role_detail = ""
     if _notebook_import_preview_is_safe(preview):
         runtime_roles = _render_notebook_import_runtime_role_controls(
-            sidebar,
+            target,
             preview,
             index_page,
         )
         stage_options = _notebook_import_stage_options(preview)
-        selectbox = getattr(sidebar, "selectbox", None)
+        selectbox = getattr(target, "selectbox", None)
         if stage_options and callable(selectbox):
             all_label = "All runnable cells"
             labels = [all_label, *[str(option["label"]) for option in stage_options]]
@@ -2204,10 +2206,10 @@ def render_notebook_import_preview(
                         caption(_notebook_import_stage_detail(selected_option["stage"]))
         preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
         preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
-        _render_notebook_import_write_preview(sidebar, preview_to_write, stages_file)
+        _render_notebook_import_write_preview(target, preview_to_write, stages_file)
         role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
         if role_detail:
-            warning = getattr(sidebar, "warning", None)
+            warning = getattr(target, "warning", None)
             if callable(warning):
                 warning(f"Runtime review required: {role_detail}")
     import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
@@ -2227,6 +2229,8 @@ def render_notebook_import_preview(
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
+        if on_cancel is not None:
+            on_cancel()
 
 
 def refresh_notebook_export(

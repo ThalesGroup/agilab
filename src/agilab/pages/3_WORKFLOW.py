@@ -723,7 +723,17 @@ def _render_notebook_actions(
             "`.ipynb` so the work remains reusable outside AGILAB."
         )
 
+        upload_revision_key = index_page_str + "__notebook_import_upload_revision"
+        upload_revision = st.session_state.get(upload_revision_key, 0)
         key = index_page_str + "import_notebook"
+        if upload_revision:
+            key += f"__{upload_revision}"
+
+        def reset_notebook_upload() -> None:
+            st.session_state.pop(key, None)
+            st.session_state[upload_revision_key] = upload_revision + 1
+            st.rerun()
+
         import_module_dir = stages_file.parent
         view_manifest_dir = _resolve_active_app_project_dir(env, project_name)
         st.markdown("##### Import")
@@ -747,6 +757,8 @@ def _render_notebook_actions(
             stages_file,
             index_page_str,
             view_manifest_dir=view_manifest_dir,
+            container=st,
+            on_cancel=reset_notebook_upload,
         )
 
         export_context = build_notebook_export_context(

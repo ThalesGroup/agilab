@@ -146,6 +146,13 @@ with st.sidebar:
                 document.body.append(host);
                 host.attachShadow({mode: "open"}).innerHTML = '<button>Shadow action</button>';
             }""")
+            tools = page.get_by_role("button", name="Tools", exact=True)
+            assert tools.get_attribute("aria-expanded") == "false"
+            widgets = page.evaluate(robot.WIDGET_COLLECTOR_JS)
+            assert not any(item["label"] == "Sidebar action" for item in widgets)
+            tools.click()
+            page.get_by_role("button", name="Sidebar action", exact=True).wait_for(state="visible")
+            assert tools.get_attribute("aria-expanded") == "true"
             widgets = page.evaluate(robot.WIDGET_COLLECTOR_JS)
             assert {"radio", "selectbox", "multiselect", "slider", "file_uploader", "download_button", "date_input"} <= {item["kind"] for item in widgets}
             assert any(item["label"] == "Shadow action" for item in widgets)
@@ -167,6 +174,11 @@ with st.sidebar:
             exported = tmp_path / pending.value.suggested_filename
             pending.value.save_as(exported)
             assert exported.read_bytes() == b"native proof bytes"
+            tools.click()
+            page.get_by_role("button", name="Sidebar action", exact=True).wait_for(state="hidden")
+            assert tools.get_attribute("aria-expanded") == "false"
+            assert not any(item["label"] == "Sidebar action"
+                           for item in page.evaluate(robot.WIDGET_COLLECTOR_JS))
             report_root = REPO_ROOT / "reports/agilab_native_widget_robot_browser_smoke"
             report_root.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(report_root / "agilab_native_widget_robot_browser_preview.png"))
