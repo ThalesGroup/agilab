@@ -84,6 +84,81 @@ def baseline(repo):
     )
 
 
+def git_fixture(repo, *args):
+    return subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
+def commit_objects(repo):
+    objects = git_fixture(
+        repo, "cat-file", "--batch-all-objects", "--batch-check"
+    ).stdout.splitlines()
+    return {line.split()[0] for line in objects if line.split()[1] == "commit"}
+
+
+def incoming_operation(repo, operation, text):
+    """Prepare an isolated incoming commit before installing the tested hooks."""
+    stage(repo, "baseline.txt", "ordinary baseline\n")
+    baseline(repo)
+    initial = git_fixture(repo, "rev-parse", "HEAD").stdout.strip()
+    git_fixture(repo, "switch", "-c", "incoming")
+    stage(repo, "scan-me.txt", text)
+    baseline(repo)
+    incoming = git_fixture(repo, "rev-parse", "HEAD").stdout.strip()
+    git_fixture(repo, "switch", "-c", "receiver", initial)
+    stage(repo, "receiver.txt", "ordinary independent change\n")
+    baseline(repo)
+    if operation == "commit":
+        stage(repo, "scan-me.txt", text)
+        return ["commit", "-m", "Check staged scan completion"]
+    if operation == "merge":
+        return ["merge", "--no-ff", "--no-edit", incoming]
+    if operation == "cherry-pick":
+        return ["cherry-pick", incoming]
+    if operation == "am":
+        patch = repo.parent / "staged-scan-incoming.patch"
+        patch.write_text(
+            git_fixture(repo, "format-patch", "--stdout", "-1", incoming).stdout,
+            encoding="utf-8",
+        )
+        return ["am", str(patch)]
+    git_fixture(repo, "switch", "incoming")
+    return ["rebase", "--" + operation.removeprefix("rebase-"), "receiver"]
+
+
+def install_project_hooks(repo, rejecting_sentinel=False):
+    project = SCRIPT.parents[2]
+    tools = repo / "tools" / "security"
+    hooks = repo / ".githooks"
+    tools.mkdir(parents=True)
+    hooks.mkdir()
+    if rejecting_sentinel:
+        (tools / SCRIPT.name).write_text(
+            "import json, sys\n"
+            "assert sys.argv[1:3] == ['staged', '--root']\n"
+            "print(json.dumps({'status': 'error', "
+            "'message': 'isolated-staged-scan-sentinel'}))\n"
+            "raise SystemExit(42)\n",
+            encoding="utf-8",
+        )
+    else:
+        shutil.copy2(SCRIPT, tools / SCRIPT.name)
+    for name in (
+        "pre-commit",
+        "prepare-commit-msg",
+        "pre-applypatch",
+        "guard_python.sh",
+    ):
+        shutil.copy2(project / ".githooks" / name, hooks / name)
+        if name != "guard_python.sh":
+            (hooks / name).chmod(0o755)
+    git_fixture(repo, "config", "core.hooksPath", ".githooks")
+
+
 def prototype():
     # Generated syntax test data; never an issued credential or a source literal.
     alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -290,20 +365,7 @@ def test_git_hook_blocks_secret_even_when_other_local_guards_are_skipped(
     repo, scanner, monkeypatch
 ):
     configured(monkeypatch, scanner)
-    project = SCRIPT.parents[2]
-    tools = repo / "tools" / "security"
-    hooks = repo / ".githooks"
-    tools.mkdir(parents=True)
-    hooks.mkdir()
-    shutil.copy2(SCRIPT, tools / SCRIPT.name)
-    for name in ("pre-commit", "guard_python.sh"):
-        original = project / ".githooks" / name
-        if original.exists():
-            shutil.copy2(original, hooks / name)
-    (hooks / "pre-commit").chmod(0o755)
-    subprocess.run(
-        ["git", "-C", str(repo), "config", "core.hooksPath", ".githooks"], check=True
-    )
+    install_project_hooks(repo)
     monkeypatch.setenv("AGILAB_SKIP_LOCAL_GUARDS", "1")
     value = prototype()
     stage(repo, "config.env", "OPENAI_API_KEY=" + value)
@@ -333,3 +395,88 @@ def test_bom_encoded_windows_configuration_cannot_hide_a_secret(
     path.write_bytes(("OPENAI_API_KEY=" + prototype() + "\n").encode(encoding))
     subprocess.run(["git", "-C", str(repo), "add", "config.xml"], check=True)
     assert module.scan_staged(repo)["status"] == "fail"
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["commit", "merge", "cherry-pick", "am", "rebase-merge", "rebase-apply"],
+)
+def test_git_commit_paths_require_the_staged_scan(repo, monkeypatch, operation):
+    command = incoming_operation(repo, operation, "ordinary sentinel input\n")
+    install_project_hooks(repo, rejecting_sentinel=True)
+    monkeypatch.setenv("AGILAB_SKIP_LOCAL_GUARDS", "1")
+    before = commit_objects(repo)
+    result = subprocess.run(
+        ["git", "-C", str(repo), *command], capture_output=True, text=True
+    )
+    assert result.returncode != 0
+    assert "isolated-staged-scan-sentinel" in result.stdout + result.stderr
+    assert commit_objects(repo) == before
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["commit", "merge", "cherry-pick", "am", "rebase-merge", "rebase-apply"],
+)
+@pytest.mark.parametrize("credential_shaped", [False, True])
+def test_git_commit_paths_scan_real_staged_blobs(
+    repo, scanner, monkeypatch, operation, credential_shaped
+):
+    configured(monkeypatch, scanner)
+    value = prototype() if credential_shaped else "EXAMPLE_ONLY_NOT_A_REAL_KEY"
+    command = incoming_operation(repo, operation, "OPENAI_API_KEY=" + value + "\n")
+    install_project_hooks(repo)
+    monkeypatch.setenv("AGILAB_SKIP_LOCAL_GUARDS", "1")
+    before = commit_objects(repo)
+    result = subprocess.run(
+        ["git", "-C", str(repo), *command], capture_output=True, text=True
+    )
+    if credential_shaped:
+        assert result.returncode != 0
+        assert '"status": "fail"' in result.stdout + result.stderr
+        assert value not in result.stdout + result.stderr
+        assert commit_objects(repo) == before
+    else:
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert len(commit_objects(repo) - before) == 1
+
+
+def test_native_timer_cannot_turn_an_incomplete_scan_into_success(
+    repo, monkeypatch, capsys
+):
+    module = load_guard()
+    stage(repo, "safe.txt", "ordinary staged content\n")
+    executable = repo.parent / "fake-scanner"
+    monkeypatch.setattr(module, "verified_binary", lambda: executable)
+    original = subprocess.run
+    calls = []
+
+    def incomplete_scanner(command, **kwargs):
+        if command[0] != str(executable):
+            return original(command, **kwargs)
+        calls.append((command, kwargs))
+        report = Path(command[command.index("--report-path") + 1])
+        report.write_text("[]", encoding="utf-8")
+        if any(arg.startswith("--timeout") for arg in command):
+            # Model Gitleaks' silent native-timer cancellation: a false clean report.
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+        raise subprocess.TimeoutExpired(
+            command,
+            kwargs["timeout"],
+            output=b"partial-private-output",
+            stderr=b"partial-private-diagnostic",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", incomplete_scanner)
+    assert module.main(["staged", "--root", str(repo)]) == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert json.loads(output.err) == {
+        "status": "error",
+        "message": "Secret scan could not complete; commit is blocked.",
+    }
+    assert len(calls) == 1
+    command, options = calls[0]
+    assert not any(arg.startswith("--timeout") for arg in command)
+    assert options["timeout"] == 130
+    assert options["capture_output"] is True

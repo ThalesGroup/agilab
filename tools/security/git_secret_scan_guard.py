@@ -253,11 +253,12 @@ def scan_staged(root):
                 "--report-format=json",
                 "--report-path",
                 str(report),
-                "--timeout=120",
             ],
             cwd=base,
             env=env,
             capture_output=True,
+            # A native Gitleaks timeout may return a clean but partial report.
+            # Only the process deadline establishes a completed scan or fails closed.
             timeout=130,
         )
         # Do not relay scanner stdout/stderr: only validated non-secret metadata.
