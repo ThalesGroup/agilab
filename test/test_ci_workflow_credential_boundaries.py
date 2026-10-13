@@ -8,7 +8,7 @@ WORKFLOW_ROOT = Path(".github/workflows")
 LOCKED_TOOLS_ACTION = Path(".github/actions/setup-locked-python-tools/action.yml")
 LOCK_INTEGRITY_WORKFLOW = WORKFLOW_ROOT / "ci-tool-lock-integrity.yml"
 REQUIREMENTS_ROOT = Path(".github/requirements")
-SETUP_UV_SHA = "c18668ad3cf93ea998bef934396af7bb5c839dc7"
+SETUP_UV_SHA = "1c37ad07a6a961277cf70c0d37d6f313000f5884"
 
 LOCKED_TOOL_JOBS = {
     ("pypi-publish.yaml", "release-plan"): ".github/requirements/ci-publish.txt",
@@ -236,7 +236,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
     release = _load_yaml(WORKFLOW_ROOT / "pypi-publish.yaml")
     test_pypi = _load_yaml(WORKFLOW_ROOT / "test-pypi-publish.yaml")
     allowed_release_actions = {
-        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
         "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
     }
 
@@ -278,7 +278,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
     test_job = test_pypi["jobs"]["publish-testpypi"]
     assert all("run" not in step for step in test_job["steps"])
     assert [step["uses"] for step in test_job["steps"]] == [
-        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
         "pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33",
     ]
     assert "environment" not in test_job

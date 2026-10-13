@@ -167,7 +167,7 @@ def test_ci_enforces_native_react_interaction_regressions_with_a_locked_compatib
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
     steps = workflow["jobs"]["local-only-policy"]["steps"]
     setup = next(step for step in steps if str(step.get("uses", "")).startswith("actions/setup-node@"))
-    assert setup["uses"] == "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38"
+    assert setup["uses"] == "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1"
     assert setup["with"] == {"node-version": "24", "check-latest": True}
     regressions = next(step for step in steps if "npm run test:controls" in step.get("run", ""))
     assert regressions["working-directory"] == "src/agilab/lib/agi-web/frontend"
@@ -499,11 +499,11 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     )
     assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7" in text
     assert (
-        "astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0"
+        "astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0"
         in text
     )
     assert "prune-cache: true" in text
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
+    assert "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2" in text
 
 
 def test_clean_public_install_uses_release_proof_installer_without_mutable_bootstrap() -> None:
@@ -709,14 +709,14 @@ def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
     assert '--shard "${ROBOT_SHARD}"' in text
     assert "failure_samples" in text
     assert "GITHUB_STEP_SUMMARY" in text
-    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7" in text
+    assert "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2" in text
     assert "ui-robot-matrix-${{ matrix.shard }}-${{ github.run_attempt }}" in text
     assert "test-results/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "screenshots/ui-robot-matrix/${{ matrix.shard }}/**" in text
     assert "aggregate-ui-robot-matrix:" in text
     assert "- plan_ui_robot_matrix" in text
     assert "- ui-robot-matrix" in text
-    assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1" in text
+    assert "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2" in text
     assert "actions: read" in text
     assert "github-token: ${{ github.token }}" in text
     assert "repository: ${{ github.repository }}" in text
