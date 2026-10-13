@@ -174,6 +174,131 @@ def configured(monkeypatch, scanner):
     return load_guard()
 
 
+@pytest.fixture
+def synthetic_scanner(tmp_path, monkeypatch):
+    """Keep Git real while reporting a generated credential from selected blobs."""
+    module = load_guard()
+    executable = tmp_path / "synthetic-staged-scanner"
+    value = prototype()
+    calls = []
+    original = subprocess.run
+
+    def scan(command, **kwargs):
+        if command[0] != str(executable):
+            return original(command, **kwargs)
+        payload = Path(command[command.index("dir") + 1])
+        files = sorted(path for path in payload.rglob("*") if path.is_file())
+        calls.append([path.relative_to(payload).as_posix() for path in files])
+        findings = [
+            {"RuleID": "synthetic-credential", "StartLine": 1, "File": str(path)}
+            for path in files
+            if value.encode() in path.read_bytes()
+        ]
+        report = Path(command[command.index("--report-path") + 1])
+        report.write_text(json.dumps(findings), encoding="utf-8")
+        return subprocess.CompletedProcess(command, int(bool(findings)), b"", b"")
+
+    monkeypatch.setattr(module, "verified_binary", lambda: executable)
+    monkeypatch.setattr(module.subprocess, "run", scan)
+    return module, calls, value
+
+
+def test_staged_symlink_to_regular_file_type_change_is_scanned(
+    repo, synthetic_scanner, capsys
+):
+    module, calls, value = synthetic_scanner
+    stage(repo, "config.env", "ordinary-link-target")
+    original_blob = git_fixture(repo, "rev-parse", ":config.env").stdout.strip()
+    # Index modes exercise the same Git type change without OS symlink privileges.
+    git_fixture(repo, "update-index", "--cacheinfo", "120000", original_blob, "config.env")
+    baseline(repo)
+    stage(repo, "config.env", "OPENAI_API_KEY=" + value + "\n")
+    staged_blob = git_fixture(repo, "rev-parse", ":config.env").stdout.strip()
+    git_fixture(repo, "update-index", "--cacheinfo", "100644", staged_blob, "config.env")
+    assert git_fixture(repo, "diff", "--cached", "--name-status").stdout == "T\tconfig.env\n"
+
+    assert module.main(["staged", "--root", str(repo)]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "fail"
+    assert result["files_scanned"] == 1
+    assert result["findings"] == [
+        {"file": "config.env", "line": 1, "rule": "synthetic-credential"}
+    ]
+    assert calls == [["config.env"]]
+
+
+@pytest.mark.parametrize("change", ["delete", "gitlink", "rename"])
+def test_changed_path_selection_preserves_existing_file_boundaries(
+    repo, synthetic_scanner, capsys, change
+):
+    module, calls, value = synthetic_scanner
+    stage(repo, "config.env", "OPENAI_API_KEY=" + value + "\n")
+    baseline(repo)
+    if change == "delete":
+        git_fixture(repo, "rm", "--", "config.env")
+    elif change == "gitlink":
+        commit = git_fixture(repo, "rev-parse", "HEAD").stdout.strip()
+        git_fixture(repo, "update-index", "--add", "--cacheinfo", "160000", commit, "worker")
+    else:
+        git_fixture(repo, "mv", "config.env", "renamed.env")
+
+    assert module.main(["staged", "--root", str(repo)]) == int(change == "rename")
+    result = json.loads(capsys.readouterr().out)
+    assert result["files_scanned"] == int(change == "rename")
+    if change == "rename":
+        assert result["status"] == "fail"
+        assert result["findings"][0]["file"] == "renamed.env"
+        assert calls == [["renamed.env"]]
+    else:
+        assert result["status"] == "pass"
+        assert result["findings"] == []
+        assert calls == ([] if change == "delete" else [[]])
+
+
+@pytest.mark.parametrize("suffix", ["", " ", "\t", "\n", " \n"])
+def test_repository_root_whitespace_keeps_the_selected_index(
+    repo, synthetic_scanner, capsys, suffix
+):
+    if os.name == "nt" and suffix:
+        pytest.skip("Windows directory names do not support these trailing characters.")
+    module, calls, value = synthetic_scanner
+    selected = repo
+    if suffix:
+        selected = repo.rename(repo.with_name(repo.name + suffix))
+        repo.mkdir()
+        subprocess.run(["git", "init", "--quiet", str(repo)], check=True)
+    filename = "config.env"
+    stage(selected, filename, "OPENAI_API_KEY=" + value + "\n")
+
+    assert module.main(["staged", "--root", str(selected)]) == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["status"] == "fail"
+    assert result["files_scanned"] == 1
+    assert result["findings"][0]["file"] == filename
+    assert calls == [[filename]]
+
+
+@pytest.mark.parametrize(
+    "output", [b"", b"\n", b"relative\n", b"/invalid\0root\n", b"/truncated"]
+)
+def test_malformed_git_repository_root_cannot_pass_the_scan(
+    repo, synthetic_scanner, monkeypatch, output
+):
+    module, calls, value = synthetic_scanner
+    stage(repo, "config.env", "OPENAI_API_KEY=" + value + "\n")
+    original = module.git
+
+    def malformed_root(root, *args):
+        if args == ("rev-parse", "--show-toplevel"):
+            return output
+        return original(root, *args)
+
+    monkeypatch.setattr(module, "git", malformed_root)
+    with pytest.raises(module.GuardError, match="repository root"):
+        module.scan_staged(repo)
+    assert calls == []
+
+
 def test_explicit_dummy_password_and_api_key_are_accepted(repo, scanner, monkeypatch):
     module = configured(monkeypatch, scanner)
     stage(
