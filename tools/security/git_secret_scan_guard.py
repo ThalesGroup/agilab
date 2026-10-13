@@ -188,7 +188,7 @@ def changed_paths(root):
     return [
         p
         for p in git(
-            root, "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"
+            root, "diff", "--cached", "--name-only", "--diff-filter=ACMRT", "-z"
         ).split(b"\0")
         if p
     ]
@@ -196,9 +196,16 @@ def changed_paths(root):
 
 def scan_staged(root):
     root = Path(root).resolve()
-    root = Path(
-        os.fsdecode(git(root, "rev-parse", "--show-toplevel")).strip()
-    ).resolve()
+    top_level = git(root, "rev-parse", "--show-toplevel")
+    if not top_level.endswith(b"\n") or b"\0" in top_level:
+        raise GuardError("Git returned an invalid repository root.")
+    # Remove Git's line terminator, preserving whitespace belonging to the path.
+    # CR is not a valid Windows path character, but remains meaningful on Unix.
+    terminator_bytes = 2 if os.name == "nt" and top_level.endswith(b"\r\n") else 1
+    root = Path(os.fsdecode(top_level[:-terminator_bytes]))
+    if not root.is_absolute():
+        raise GuardError("Git returned an invalid repository root.")
+    root = root.resolve()
     before, entries = index_entries(root)
     changed = changed_paths(root)
     if not changed:
