@@ -126,7 +126,7 @@ jobs:
           import tools.pypi_pending_trusted_publisher
           import tools.pypi_release_retention
           PY
-          pypi-cleanup --help >/dev/null
+          python tools/pypi_release_retention.py --help >/dev/null
 
       - name: Clean-install Hugging Face release lock
         uses: ./.github/actions/setup-locked-python-tools

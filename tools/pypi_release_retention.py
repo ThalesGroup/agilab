@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Enforce PyPI release retention after a successful trusted publish."""
+"""Plan or delete an explicit, backed-up list of first-party PyPI releases."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ import json
 import os
 import re
 import struct
-import subprocess
 import sys
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -26,12 +26,14 @@ from typing import Any, Sequence
 from urllib.parse import quote, urljoin, urlparse
 
 from packaging.version import InvalidVersion, Version
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 try:
-    from pypi_release_version_policy import selected_public_versions
+    from pypi_release_version_policy import public_package_entries, selected_public_versions
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.*
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from pypi_release_version_policy import selected_public_versions
+    from pypi_release_version_policy import public_package_entries, selected_public_versions
 
 
 PYPI_JSON_URLS = {
@@ -105,7 +107,8 @@ def normalize_version(version: str) -> str:
 
 
 def exact_release_regex(version: str) -> str:
-    return f"^{re.escape(normalize_version(version))}$"
+    normalize_version(version)
+    return f"^{re.escape(version)}$"
 
 
 def split_packages(values: Sequence[str] | None) -> list[str]:
@@ -203,7 +206,7 @@ def split_package_versions(values: Sequence[str] | None) -> dict[str, str]:
                 )
             normalized = normalize_version(version)
             previous = package_versions.get(package)
-            if previous is not None and previous != normalized:
+            if previous is not None and Version(previous) != Version(normalized):
                 raise SystemExit(
                     f"ERROR: conflicting protected versions for {package}: "
                     f"{previous} and {normalized}"
@@ -266,8 +269,12 @@ def resolve_protect_versions(
 
 def fetch_releases(package: str, repo: str, *, timeout: int = 15) -> list[str]:
     url = PYPI_JSON_URLS[repo].format(package=package)
+    request = urllib.request.Request(
+        f"{url}?agilab_cache_bust={time.time_ns()}",
+        headers={"Cache-Control": "no-cache, no-store", "Accept": "application/json"},
+    )
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             data = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
@@ -316,7 +323,7 @@ def probe_exact_release_version(
         observed_normalized = str(Version(observed))
     except InvalidVersion:
         return EXACT_RELEASE_ERROR, None
-    if observed_normalized != normalized:
+    if Version(observed_normalized) != Version(normalized):
         return EXACT_RELEASE_ERROR, None
     return EXACT_RELEASE_PRESENT, normalized
 
@@ -852,7 +859,10 @@ def delete_release_via_pypi_web(
     totp_secret: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
     session_factory: Callable[[], Any] | None = None,
+    before_delete: Callable[[], None] | None = None,
 ) -> None:
+    if not callable(before_delete):
+        raise SystemExit("ERROR: deletion requires a guard immediately before the destructive POST")
     import requests
 
     base_url = PYPI_HOSTS[repo].rstrip("/")
@@ -990,6 +1000,7 @@ def delete_release_via_pypi_web(
             package=package,
             version=version,
         )
+        before_delete()
         response = session.post(
             urljoin(base_url, delete_form.action or delete_path),
             data=delete_data,
@@ -1014,99 +1025,24 @@ def delete_release(
     auth_code: str | None = None,
     totp_secret: str | None = None,
     confirm_login_url_provider: Callable[[], str | None] | None = None,
+    before_delete: Callable[[], None] | None = None,
     direct_web_only: bool = False,
     verbose: bool = False,
 ) -> None:
-    if direct_web_only:
-        print(
-            "[pypi-retention] using direct PyPI web deletion",
-            file=sys.stderr,
+    # An external subprocess cannot revalidate after its own authentication.
+    # Always keep authentication and the guarded destructive POST in one process.
+    if not callable(before_delete):
+        raise SystemExit("ERROR: deletion requires a guard immediately before the destructive POST")
+    try:
+        delete_release_via_pypi_web(
+            package=package, version=version, repo=repo,
+            username=username, password=password, auth_code=auth_code,
+            totp_secret=totp_secret,
+            confirm_login_url_provider=confirm_login_url_provider,
+            before_delete=before_delete,
         )
-        try:
-            delete_release_via_pypi_web(
-                package=package,
-                version=version,
-                repo=repo,
-                username=username,
-                password=password,
-                auth_code=auth_code,
-                totp_secret=totp_secret,
-                confirm_login_url_provider=confirm_login_url_provider,
-            )
-        except Exception as exc:
-            raise SystemExit(
-                "ERROR: direct PyPI web deletion failed for "
-                f"{package} {version}: {exc}"
-            ) from exc
-        return
-
-    cmd = [
-        "pypi-cleanup",
-        "--version-regex",
-        exact_release_regex(version),
-        "--do-it",
-        "-y",
-        "--host",
-        PYPI_HOSTS[repo],
-        "--package",
-        package,
-        "--username",
-        username,
-    ]
-    if verbose:
-        cmd.append("-v")
-    env = os.environ.copy()
-    env.update(
-        {
-            "PYPI_USERNAME": username,
-            "PYPI_PASSWORD": password,
-            "PYPI_CLEANUP_PASSWORD": password,
-        }
-    )
-    completed = subprocess.run(
-        cmd,
-        check=False,
-        text=True,
-        env=env,
-        input=f"{auth_code}\n" if auth_code else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    output = _redact_auth_code(completed.stdout or "", auth_code)
-    if output:
-        print(output, end="" if output.endswith("\n") else "\n", file=sys.stderr)
-    if completed.returncode == 0:
-        return
-    if auth_code is None and ("Authentication code:" in output or "EOFError" in output):
-        raise SystemExit(
-            "ERROR: PyPI release pruning reached a 2FA prompt. Add repository secret "
-            "PYPI_RELEASE_PRUNE_TOTP_SECRET for non-interactive TOTP generation, or "
-            "PYPI_RELEASE_PRUNE_OTP for a one-time manual rerun."
-        )
-    if "No CSFR found" in output or "No CSRF found" in output:
-        print(
-            "[pypi-retention] pypi-cleanup could not parse the delete form; "
-            "using direct PyPI web fallback",
-            file=sys.stderr,
-        )
-        try:
-            delete_release_via_pypi_web(
-                package=package,
-                version=version,
-                repo=repo,
-                username=username,
-                password=password,
-                auth_code=auth_code,
-                totp_secret=totp_secret,
-                confirm_login_url_provider=confirm_login_url_provider,
-            )
-        except Exception as exc:
-            raise SystemExit(
-                "ERROR: direct PyPI web deletion fallback failed for "
-                f"{package} {version}: {exc}"
-            ) from exc
-        return
-    raise SystemExit(f"ERROR: pypi-cleanup failed for {package} {version} with exit code {completed.returncode}")
+    except Exception as exc:
+        raise SystemExit(f"ERROR: guarded PyPI web deletion failed for {package} {version}: {exc}") from exc
 
 
 
@@ -1230,302 +1166,324 @@ def append_step_summary(path: Path, summary: dict[str, Any]) -> None:
         handle.write("\n".join(lines) + "\n")
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Delete old PyPI releases for selected projects while keeping the "
-            "current release version."
-        )
+
+@dataclass(frozen=True)
+class ExplicitReleasePlan:
+    package: str
+    versions: tuple[str, ...]
+    published_versions: tuple[str, ...]
+    protected_versions: tuple[str, ...]
+
+
+def parse_delete_releases(values: Sequence[str]) -> dict[str, tuple[str, ...]]:
+    """Accept only literal package==version selections, without implicit expansion."""
+    selected: dict[str, list[str]] = {}
+    seen: set[tuple[str, Version]] = set()
+    for value in values:
+        if value.count("==") != 1:
+            raise SystemExit("ERROR: --delete-release must contain exactly package==version")
+        package, version = value.split("==")
+        if not PYPI_PROJECT_NAME_RE.fullmatch(package) or not version or version != version.strip():
+            raise SystemExit("ERROR: --delete-release must contain exactly package==version")
+        package = canonicalize_name(package)
+        normalized = normalize_version(version)
+        identity = (package, Version(normalized))
+        if identity in seen:
+            raise SystemExit(f"ERROR: duplicate deletion selection: {package}=={normalized}")
+        seen.add(identity)
+        selected.setdefault(package, []).append(normalized)
+    if not selected:
+        raise SystemExit("ERROR: an explicit --delete-release package==version is required; broad cleanup is disabled")
+    return {package: tuple(versions) for package, versions in selected.items()}
+
+
+def current_project_protections(repo_root: Path) -> dict[str, set[str]]:
+    """Keep every current public package version and its exact first-party pins."""
+    current = selected_public_versions(repo_root)
+    protections = {
+        canonicalize_name(package): {normalize_version(version)}
+        for package, version in current.items()
+    }
+    for entry in public_package_entries(repo_root=repo_root):
+        project = repo_root / entry["project"] / "pyproject.toml"
+        data = tomllib.loads(project.read_text(encoding="utf-8"))
+        metadata = data.get("project") or {}
+        requirements = list(metadata.get("dependencies") or [])
+        for group in (metadata.get("optional-dependencies") or {}).values():
+            requirements.extend(group)
+        for text in requirements:
+            requirement = Requirement(text)
+            name = canonicalize_name(requirement.name)
+            if name in protections:
+                for specifier in requirement.specifier:
+                    if specifier.operator in {"==", "==="} and "*" not in specifier.version:
+                        protections[name].add(normalize_version(specifier.version))
+    return protections
+
+
+def fresh_release_metadata(package: str, repo: str, version: str) -> dict[str, Any]:
+    url = PYPI_RELEASE_JSON_URLS[repo].format(
+        package=quote(package, safe=""), version=quote(version, safe="")
     )
+    request = urllib.request.Request(
+        f"{url}?agilab_cache_bust={time.time_ns()}",
+        headers={"Cache-Control": "no-cache, no-store", "Accept": "application/json"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        metadata = json.loads(response.read().decode("utf-8"))
+    info = metadata.get("info") or {}
+    if (canonicalize_name(str(info.get("name", ""))) != package
+            or Version(normalize_version(str(info.get("version", "")))) != Version(version)):
+        raise SystemExit(f"ERROR: exact release metadata does not match {package}=={version}")
+    return metadata
+
+
+def build_explicit_plans(
+    selected: dict[str, tuple[str, ...]], *, repo: str, repo_root: Path,
+    extra_protections: Sequence[str] = (),
+) -> list[ExplicitReleasePlan]:
+    protections = {package: {Version(str(version)) for version in versions}
+                   for package, versions in current_project_protections(repo_root).items()}
+    unknown = set(selected) - set(protections)
+    if unknown:
+        raise SystemExit("ERROR: unknown first-party package(s): " + ", ".join(sorted(unknown)))
+    extra = split_package_versions(extra_protections)
+    for package, version in extra.items():
+        name = canonicalize_name(package)
+        if name not in protections:
+            raise SystemExit(f"ERROR: unknown protected first-party package: {package}")
+        protections[name].add(Version(version))
+    plans: list[ExplicitReleasePlan] = []
+    for package, versions in selected.items():
+        published = fetch_releases(package, repo)
+        indexed = {Version(version): version for version in published}
+        if len(indexed) != len(published):
+            raise SystemExit(f"ERROR: ambiguous equivalent published versions for {package}")
+        if not indexed:
+            raise SystemExit(f"ERROR: no published releases found for {package}")
+        protections[package].add(max(indexed))
+        selected_versions = {Version(version) for version in versions}
+        unknown_versions = selected_versions - set(indexed)
+        if unknown_versions:
+            raise SystemExit(f"ERROR: unknown published version(s) for {package}: {', '.join(map(str, sorted(unknown_versions)))}")
+        blocked = selected_versions & protections[package]
+        if blocked:
+            raise SystemExit(f"ERROR: refusing current, latest or pinned version(s) for {package}: {', '.join(map(str, sorted(blocked)))}")
+        server_versions = tuple(indexed[Version(version)] for version in versions)
+        for version in server_versions:
+            fresh_release_metadata(package, repo, version)
+        plans.append(ExplicitReleasePlan(
+            package, server_versions, tuple(published),
+            tuple(map(str, sorted(protections[package])))
+        ))
+    return plans
+
+
+BACKUP_SCHEMA = "agilab.pypi_explicit_cleanup_backup.v1"
+BACKUP_MANIFEST = "agilab_pypi_explicit_cleanup_backup_manifest.json"
+
+
+def release_archive_entries(metadata: dict[str, Any], *, repo: str) -> list[dict[str, Any]]:
+    entries = metadata.get("urls")
+    if not isinstance(entries, list) or not entries:
+        raise SystemExit("ERROR: release has no downloadable files to back up")
+    allowed_hosts = {"files.pythonhosted.org"} if repo == "pypi" else {
+        "test-files.pythonhosted.org", "files.pythonhosted.org"
+    }
+    seen: set[str] = set()
+    for entry in entries:
+        filename = entry.get("filename", "")
+        url = urlparse(entry.get("url", ""))
+        digest = (entry.get("digests") or {}).get("sha256", "")
+        if (not isinstance(filename, str) or not filename or Path(filename).name != filename
+                or "/" in filename or "\\" in filename
+                or filename in {".", ".."} or filename in seen
+                or url.scheme != "https" or url.hostname not in allowed_hosts
+                or url.username or url.password or url.port not in {None, 443}
+                or not re.fullmatch(r"[0-9a-f]{64}", digest)
+                or not isinstance(entry.get("size"), int) or entry["size"] < 0):
+            raise SystemExit("ERROR: invalid or duplicate PyPI archive metadata")
+        seen.add(filename)
+    return entries
+
+
+def archive_path(root: Path, package: str, version: str, filename: str) -> Path:
+    path = root / package / version / filename
+    if (not path.resolve().is_relative_to(root.resolve())
+            or any(parent.is_symlink() for parent in (path, *path.parents) if parent != root.parent)):
+        raise SystemExit("ERROR: backup archive path must stay inside the backup directory without symlinks")
+    return path
+
+
+def prepare_release_backups(plans: Sequence[ExplicitReleasePlan], *, repo: str, directory: Path) -> None:
+    """Create a new, complete archive; existing backups are never silently replaced."""
+    if directory.exists():
+        raise SystemExit("ERROR: --backup-dir already exists; use a new directory for a new backup")
+    directory.mkdir(parents=True)
+    releases = []
+    for plan in plans:
+        for version in plan.versions:
+            metadata = fresh_release_metadata(plan.package, repo, version)
+            entries = release_archive_entries(metadata, repo=repo)
+            files = []
+            for entry in entries:
+                path = archive_path(directory, plan.package, version, entry["filename"])
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with urllib.request.urlopen(entry["url"], timeout=60) as response:
+                    payload = response.read()
+                digest = hashlib.sha256(payload).hexdigest()
+                if len(payload) != entry["size"] or digest != entry["digests"]["sha256"]:
+                    raise SystemExit(f"ERROR: downloaded archive failed its size/hash check: {entry['filename']}")
+                path.write_bytes(payload)
+                files.append({"filename": entry["filename"], "sha256": digest, "size": len(payload)})
+            releases.append({"package": plan.package, "version": version, "files": files})
+    manifest = {"schema": BACKUP_SCHEMA, "repo": repo, "releases": releases}
+    (directory / BACKUP_MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def verify_release_backups(
+    plans: Sequence[ExplicitReleasePlan], *, repo: str, directory: Path,
+    current_target: tuple[str, str] | None = None,
+) -> None:
+    """Bind the saved bytes and complete file set to fresh official release metadata."""
+    manifest_path = archive_path(directory, "", "", BACKUP_MANIFEST)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise SystemExit("ERROR: readable backup manifest is required before deletion") from exc
+    selected = {(plan.package, Version(version)) for plan in plans for version in plan.versions}
+    releases = manifest.get("releases") or []
+    identities = [(canonicalize_name(entry.get("package", "")),
+                   Version(normalize_version(entry.get("version", "")))) for entry in releases]
+    if (manifest.get("schema") != BACKUP_SCHEMA or manifest.get("repo") != repo
+            or len(identities) != len(selected) or set(identities) != selected):
+        raise SystemExit("ERROR: backup manifest must match the exact deletion selection and repository")
+    target = ((current_target[0], Version(current_target[1]))
+              if current_target else None)
+    if target is not None and target not in selected:
+        raise SystemExit("ERROR: backup verification target is outside the original exact selection")
+    for release, identity in zip(releases, identities):
+        if target is not None and identity != target:
+            continue
+        package, version = identity[0], release["version"]
+        metadata = fresh_release_metadata(package, repo, version)
+        expected = {
+            entry["filename"]: (entry["digests"]["sha256"], entry["size"])
+            for entry in release_archive_entries(metadata, repo=repo)
+        }
+        files = release.get("files") or []
+        observed = {
+            entry.get("filename"): (entry.get("sha256"), entry.get("size"))
+            for entry in files
+        }
+        if observed != expected or len(files) != len(expected):
+            raise SystemExit("ERROR: backup file set must match every official release archive")
+        for filename, (digest, size) in expected.items():
+            path = archive_path(directory, package, version, filename)
+            if not path.is_file() or path.stat().st_size != size or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+                raise SystemExit(f"ERROR: backup archive is missing or changed: {package}=={version}/{filename}")
+
+
+def verify_explicit_cleanup(plans: Sequence[ExplicitReleasePlan], *, repo: str, attempts: int, retry_delay: float) -> bool:
+    for attempt in range(max(1, attempts)):
+        complete = True
+        for plan in plans:
+            for version in plan.versions:
+                state, _ = probe_exact_release_version(plan.package, repo, version)
+                complete = complete and state == EXACT_RELEASE_ABSENT
+            published = {Version(version) for version in fetch_releases(plan.package, repo)}
+            retained = {Version(version) for version in plan.published_versions} - {Version(version) for version in plan.versions}
+            for version in retained - published:
+                state, _ = probe_exact_release_version(plan.package, repo, str(version))
+                if state != EXACT_RELEASE_PRESENT:
+                    raise SystemExit(f"ERROR: unselected release is no longer confirmed: {plan.package}=={version}")
+        if complete:
+            return True
+        if attempt + 1 < attempts:
+            time.sleep(max(0.0, retry_delay))
+    return False
+
+
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Plan exact first-party PyPI release deletions; deletion requires verified backups and explicit confirmation.")
     parser.add_argument("--repo", choices=tuple(PYPI_JSON_URLS), default="pypi")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--package", action="append", default=[])
-    parser.add_argument(
-        "--packages",
-        action="append",
-        default=[],
-        help="Comma- or space-separated package names.",
-    )
-    parser.add_argument(
-        "--packages-file",
-        action="append",
-        type=Path,
-        default=[],
-        help=(
-            "Read package names from a file, one package per non-empty line. "
-            "Use '-' to read from stdin."
-        ),
-    )
-    parser.add_argument(
-        "--protect-version",
-        help="Single version to protect for every selected package. Kept for legacy aligned releases.",
-    )
-    parser.add_argument(
-        "--select-visible-protected-packages",
-        action="store_true",
-        help=(
-            "Use the release-plan public package set, then keep only packages "
-            "where --protect-version is already visible on PyPI. This avoids "
-            "manually copying long package lists for partial aligned releases."
-        ),
-    )
-    parser.add_argument(
-        "--protect-package-version",
-        action="append",
-        default=[],
-        help="Per-package protected version as package=version. Can be repeated or comma-separated.",
-    )
-    parser.add_argument(
-        "--protect-versions-from-projects",
-        action="store_true",
-        help="Read protected versions from each selected release-plan project pyproject.toml.",
-    )
+    parser.add_argument("--delete-release", action="append", default=[], metavar="PACKAGE==VERSION")
+    parser.add_argument("--protect-package-version", action="append", default=[])
+    parser.add_argument("--backup-dir", type=Path, help="Create a new backup during planning; verify an existing backup before confirmed deletion.")
+    parser.add_argument("--confirm-delete", action="store_true")
+    parser.add_argument("--dry-run", action="store_true", help="Plan only (also the default without --confirm-delete).")
     parser.add_argument("--username")
     parser.add_argument("--password")
     parser.add_argument("--otp-code")
     parser.add_argument("--totp-secret")
-    parser.add_argument("--confirm-delete", action="store_true")
-    parser.add_argument(
-        "--allow-delete-failure-warning",
-        action="store_true",
-        help=(
-            "Return success after recording stale releases when PyPI web deletion "
-            "needs interactive cleanup. Missing protected releases still fail."
-        ),
-    )
-    parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--direct-web-only", action="store_true", help="Compatibility option: deletion always uses the guarded in-process web flow.")
     parser.add_argument("--verbose", action="store_true")
-    parser.add_argument(
-        "--min-published-releases",
-        type=int,
-        default=2,
-        help=(
-            "Only delete old releases after a package has at least this many "
-            "published releases. The default keeps the existing strict "
-            "single-current-release cleanup behavior."
-        ),
-    )
-    parser.add_argument(
-        "--direct-web-only",
-        action="store_true",
-        help=(
-            "Use the in-process PyPI web deletion flow directly instead of "
-            "trying pypi-cleanup first. This keeps unrecognized-login "
-            "confirmation tied to the deletion session."
-        ),
-    )
+    parser.add_argument("--json", action="store_true")
     parser.add_argument("--verify-attempts", type=int, default=6)
     parser.add_argument("--retry-delay", type=float, default=10.0)
-    parser.add_argument(
-        "--github-confirm-login-repository",
-        default=os.environ.get("GITHUB_REPOSITORY"),
-        help="GitHub repository whose Actions variable carries a temporary PyPI confirmation URL.",
-    )
-    parser.add_argument(
-        "--github-confirm-login-variable",
-        help="GitHub Actions variable name containing the temporary PyPI confirmation URL.",
-    )
-    parser.add_argument(
-        "--github-confirm-login-timeout",
-        type=float,
-        default=0.0,
-        help="Seconds to wait for the temporary PyPI confirmation URL variable.",
-    )
-    parser.add_argument(
-        "--github-confirm-login-poll-delay",
-        type=float,
-        default=5.0,
-    )
-    parser.add_argument("--github-token", default=os.environ.get("GITHUB_TOKEN"))
-    parser.add_argument(
-        "--github-step-summary",
-        nargs="?",
-        const=os.environ.get("GITHUB_STEP_SUMMARY"),
-    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
-    if args.min_published_releases < 2:
-        raise SystemExit("ERROR: --min-published-releases must be at least 2")
-    packages = resolve_package_selection(
-        package_values=args.package,
-        packages_values=args.packages,
-        packages_files=args.packages_file,
-    )
-    if args.select_visible_protected_packages:
-        if not args.protect_version:
-            raise SystemExit(
-                "ERROR: --select-visible-protected-packages requires --protect-version"
-            )
-        candidates = packages or release_plan_package_names(args.repo_root)
-        packages, skipped = filter_packages_with_visible_protect_version(
-            packages=candidates,
-            repo=args.repo,
-            protect_version=args.protect_version,
-        )
-        if skipped:
-            print(
-                "[pypi-retention] skipped packages without protected version "
-                f"{normalize_version(args.protect_version)} visible on {args.repo}: "
-                + ", ".join(skipped),
-                file=sys.stderr,
-            )
-    if not packages:
-        raise SystemExit(
-            "ERROR: at least one --package, --packages, or --packages-file value is required"
-            + (
-                ", or use --select-visible-protected-packages with a protected version "
-                "that is visible on PyPI"
-                if args.select_visible_protected_packages
-                else ""
-            )
-        )
-    protect_versions = resolve_protect_versions(
-        packages=packages,
-        protect_version=args.protect_version,
-        protect_package_versions=args.protect_package_version,
-        protect_versions_from_projects=args.protect_versions_from_projects,
-        repo_root=args.repo_root,
-    )
-
-    plans = wait_for_package_protected_releases(
-        package_versions=protect_versions,
-        repo=args.repo,
-        attempts=args.verify_attempts,
-        retry_delay=args.retry_delay,
-        min_published_releases=args.min_published_releases,
-    )
-    missing = [
-        f"{plan.package}={plan.protect_version}"
-        for plan in plans
-        if plan.missing_protected_version
-    ]
-    if missing:
-        raise SystemExit(
-            "ERROR: protected package versions are not visible on "
-            f"{args.repo}: {', '.join(missing)}"
-        )
-
-    pending_deletes = [
-        (plan.package, version)
-        for plan in plans
-        for version in plan.delete_versions
-    ]
-    if pending_deletes and not args.dry_run:
-        if not args.confirm_delete:
-            raise SystemExit("ERROR: destructive PyPI retention requires --confirm-delete")
-        username, password = require_credentials(
-            args.username,
-            args.password,
-            repo_name=args.repo,
-        )
-        confirm_provider = None
-        if args.github_confirm_login_variable and args.github_confirm_login_timeout > 0:
-            if not args.github_confirm_login_repository or not args.github_token:
-                raise SystemExit(
-                    "ERROR: GitHub confirmation polling needs GITHUB_REPOSITORY "
-                    "and GITHUB_TOKEN."
-                )
-
-            def confirm_provider() -> str | None:
-                print(
-                    "Waiting for PyPI login confirmation URL in GitHub Actions "
-                    f"variable {args.github_confirm_login_variable!r}...",
-                    file=sys.stderr,
-                )
-                return _wait_for_github_confirm_login_url(
-                    repository=args.github_confirm_login_repository,
-                    variable=args.github_confirm_login_variable,
-                    token=args.github_token,
-                    timeout=args.github_confirm_login_timeout,
-                    poll_delay=args.github_confirm_login_poll_delay,
-                )
-
-            def cleanup_confirm_provider() -> None:
-                _cleanup_github_confirm_login_variable(
-                    repository=args.github_confirm_login_repository,
-                    variable=args.github_confirm_login_variable,
-                    token=args.github_token,
-                )
-
-            confirm_provider.cleanup = cleanup_confirm_provider  # type: ignore[attr-defined]
-        elif os.environ.get("PYPI_CONFIRM_LOGIN_URL"):
-
-            def confirm_provider() -> str | None:
-                return os.environ.get("PYPI_CONFIRM_LOGIN_URL")
-
-        delete_blocked = False
-        rotating_totp_secret = _rotating_totp_secret(args.otp_code, args.totp_secret)
-        previous_auth_code: str | None = None
-        for package, version in pending_deletes:
-            print(f"[pypi-retention] deleting {package} {version}", file=sys.stderr)
-            if rotating_totp_secret:
-                auth_code = _fresh_totp_code(
-                    previous_auth_code,
-                    secret=rotating_totp_secret,
-                )
-            else:
-                auth_code = resolve_auth_code(args.otp_code, args.totp_secret)
-            try:
-                delete_release(
-                    package=package,
-                    version=version,
-                    repo=args.repo,
-                    username=username,
-                    password=password,
-                    auth_code=auth_code,
-                    totp_secret=rotating_totp_secret,
-                    confirm_login_url_provider=confirm_provider,
-                    direct_web_only=args.direct_web_only,
-                    verbose=args.verbose,
-                )
-                if rotating_totp_secret:
-                    previous_auth_code = generate_totp(rotating_totp_secret)
-                else:
-                    previous_auth_code = auth_code
-            except SystemExit as exc:
-                if not args.allow_delete_failure_warning:
-                    raise
-                delete_blocked = True
-                message = str(exc).replace("\n", " ")
-                print(
-                    "::warning title=PyPI release retention::"
-                    f"Old PyPI releases remain for {package}: {message}",
-                    file=sys.stderr,
-                )
-                break
-        plans = verify_package_retention(
-            package_versions=protect_versions,
-            repo=args.repo,
-            attempts=args.verify_attempts,
-            retry_delay=args.retry_delay,
-            min_published_releases=args.min_published_releases,
-        )
+    selected = parse_delete_releases(args.delete_release)
+    if args.confirm_delete and args.dry_run:
+        raise SystemExit("ERROR: --confirm-delete and --dry-run are mutually exclusive")
+    plans = build_explicit_plans(selected, repo=args.repo, repo_root=args.repo_root, extra_protections=args.protect_package_version)
+    dry_run = not args.confirm_delete
+    if dry_run:
+        if args.backup_dir:
+            prepare_release_backups(plans, repo=args.repo, directory=args.backup_dir)
     else:
-        delete_blocked = False
-
-    summary = render_summary(plans, dry_run=args.dry_run)
-    if args.github_step_summary:
-        append_step_summary(Path(args.github_step_summary), summary)
+        if args.backup_dir is None:
+            raise SystemExit("ERROR: deletion requires --backup-dir containing verified release archives")
+        verify_release_backups(plans, repo=args.repo, directory=args.backup_dir)
+        username, password = require_credentials(args.username, args.password, repo_name=args.repo)
+        rotating_secret = _rotating_totp_secret(args.otp_code, args.totp_secret)
+        previous_code = None
+        for plan in plans:
+            for version in plan.versions:
+                def guard_selected_delete(package=plan.package, selected_version=version):
+                    # This callback runs inside the authenticated web session immediately
+                    # before its destructive POST, after all login/MFA/TOTP waits.
+                    fresh = build_explicit_plans(
+                        {package: (selected_version,)}, repo=args.repo,
+                        repo_root=args.repo_root,
+                        extra_protections=args.protect_package_version,
+                    )
+                    if fresh[0].versions != (selected_version,):
+                        raise SystemExit("ERROR: published target spelling changed; prepare a new exact plan")
+                    verify_release_backups(
+                        plans, repo=args.repo, directory=args.backup_dir,
+                        current_target=(package, selected_version),
+                    )
+                auth_code = (_fresh_totp_code(previous_code, secret=rotating_secret)
+                             if rotating_secret else resolve_auth_code(args.otp_code, args.totp_secret))
+                delete_release(package=plan.package, version=version, repo=args.repo,
+                               username=username, password=password, auth_code=auth_code,
+                               totp_secret=rotating_secret,
+                               before_delete=guard_selected_delete,
+                               direct_web_only=args.direct_web_only, verbose=args.verbose)
+                previous_code = auth_code
+        if not verify_explicit_cleanup(plans, repo=args.repo, attempts=args.verify_attempts, retry_delay=args.retry_delay):
+            raise SystemExit("ERROR: selected release deletion is not confirmed by its exact endpoint")
+    summary = {
+        "schema": "agilab.pypi_explicit_cleanup.v1", "success": True, "dry_run": dry_run,
+        "packages": [
+            {"package": plan.package, "delete_versions": list(plan.versions),
+             "published_versions": list(plan.published_versions),
+             "protected_versions": list(plan.protected_versions),
+             "retained_versions": [version for version in plan.published_versions if Version(version) not in {Version(target) for target in plan.versions}]}
+            for plan in plans
+        ],
+    }
     if args.json:
         print(json.dumps(summary, indent=2, sort_keys=True))
     else:
-        for package in summary["packages"]:
-            old_versions = package["delete_versions"] or package["retained_versions"]
-            deleted = ", ".join(old_versions) or "(none)"
-            skipped = (
-                f" retention_skipped={package['retention_skipped_reason']}"
-                if package.get("retention_skipped_reason")
-                else ""
-            )
-            print(
-                f"{package['package']}: keep={package['protect_version']} "
-                f"published={len(package['published_versions'])} old={deleted}{skipped}"
-            )
-    return 0 if summary["success"] or args.dry_run or delete_blocked else 1
+        for plan in plans:
+            print(f"{plan.package}: {'planned' if dry_run else 'deleted'}={','.join(plan.versions)} protected={','.join(plan.protected_versions)}")
+    return 0
 
 
 if __name__ == "__main__":

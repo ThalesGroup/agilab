@@ -332,57 +332,8 @@ def test_resolve_protect_versions_rejects_missing_package_version() -> None:
         )
 
 
-def test_main_reads_package_file_one_package_per_line(monkeypatch, tmp_path: Path, capsys) -> None:
-    module = _load_module()
-
-    packages_file = tmp_path / "packages.txt"
-    packages_file.write_text(
-        "# AGILAB packages selected for cleanup\n"
-        "agilab\n"
-        "agi-core\n",
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    status = module.main(
-        [
-            "--packages-file",
-            str(packages_file),
-            "--protect-version",
-            "2026.05.17",
-            "--dry-run",
-            "--json",
-        ]
-    )
-
-    assert status == 0
-    captured = capsys.readouterr()
-    assert '"package": "agilab"' in captured.out
-    assert '"package": "agi-core"' in captured.out
 
 
-def test_main_rejects_wrapped_package_fragment_before_pypi_lookup(monkeypatch) -> None:
-    module = _load_module()
-
-    def fail_fetch_releases(package, repo):  # pragma: no cover - must not be called
-        raise AssertionError("unexpected PyPI lookup")
-
-    monkeypatch.setattr(module, "fetch_releases", fail_fetch_releases)
-
-    with pytest.raises(SystemExit, match="line-wrapped inside a package name"):
-        module.main(
-            [
-                "--packages",
-                "agi-app-flight-\ntelemetry",
-                "--protect-version",
-                "2026.05.17",
-                "--dry-run",
-            ]
-        )
 
 
 def test_package_file_rejects_wrapped_line(tmp_path: Path) -> None:
@@ -395,181 +346,18 @@ def test_package_file_rejects_wrapped_line(tmp_path: Path) -> None:
         module.read_packages_file(packages_file)
 
 
-def test_main_auto_selects_packages_with_visible_protected_version(monkeypatch, capsys, tmp_path: Path) -> None:
-    module = _load_module()
-    releases = {
-        "agilab": ["2026.06.12", "2026.06.14.1"],
-        "agi-core": ["2026.06.12", "2026.06.14.1"],
-        "agi-old-only": ["2026.06.12"],
-    }
-
-    monkeypatch.setattr(
-        module,
-        "selected_public_versions",
-        lambda repo_root: {
-            "agilab": "2026.06.14.1",
-            "agi-core": "2026.06.14.1",
-            "agi-old-only": "2026.06.12",
-        },
-    )
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
-    monkeypatch.setattr(
-        module,
-        "fetch_exact_release_version",
-        lambda package, repo, version: (
-            None if package == "agi-old-only" else module.normalize_version(version)
-        ),
-    )
-
-    status = module.main(
-        [
-            "--repo-root",
-            str(tmp_path),
-            "--protect-version",
-            "2026.06.14.1",
-            "--select-visible-protected-packages",
-            "--dry-run",
-            "--json",
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert status == 0
-    assert '"package": "agilab"' in captured.out
-    assert '"package": "agi-core"' in captured.out
-    assert '"package": "agi-old-only"' not in captured.out
-    assert "skipped packages without protected version 2026.6.14.1" in captured.err
 
 
-def test_main_auto_select_requires_protect_version() -> None:
-    module = _load_module()
-
-    with pytest.raises(SystemExit, match="requires --protect-version"):
-        module.main(["--select-visible-protected-packages", "--dry-run"])
 
 
-def test_main_auto_select_fails_when_no_protected_package_is_visible(monkeypatch, tmp_path: Path) -> None:
-    module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "selected_public_versions",
-        lambda repo_root: {"agi-old-only": "2026.06.12"},
-    )
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.06.12"])
-    monkeypatch.setattr(module, "fetch_exact_release_version", lambda package, repo, version: None)
-
-    with pytest.raises(SystemExit, match="visible on PyPI"):
-        module.main(
-            [
-                "--repo-root",
-                str(tmp_path),
-                "--protect-version",
-                "2026.06.14.1",
-                "--select-visible-protected-packages",
-                "--dry-run",
-            ]
-        )
 
 
-def test_main_refuses_to_delete_without_confirmation(monkeypatch, capsys) -> None:
-    module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    with pytest.raises(SystemExit, match="requires --confirm-delete"):
-        module.main(["--package", "agilab", "--protect-version", "2026.05.17"])
-
-    assert capsys.readouterr().out == ""
 
 
-def test_main_skips_credentials_below_min_published_release_threshold(monkeypatch, capsys) -> None:
-    module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    def fail_require_credentials(*args, **kwargs):  # pragma: no cover - must not be called
-        raise AssertionError("credentials should not be requested below threshold")
-
-    monkeypatch.setattr(module, "require_credentials", fail_require_credentials)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--protect-version",
-            "2026.05.17",
-            "--min-published-releases",
-            "11",
-            "--json",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert status == 0
-    assert '"success": true' in captured.out
-    assert '"retained_versions": [\n        "2026.04.16"\n      ]' in captured.out
-    assert "below cleanup threshold 11" in captured.out
 
 
-def test_main_retries_until_protected_release_is_visible(monkeypatch, capsys) -> None:
-    module = _load_module()
-    calls = 0
-
-    def fake_fetch_exact_release(package, repo, version):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return None
-        return module.normalize_version(version)
-
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
-    monkeypatch.setattr(module, "fetch_exact_release_version", fake_fetch_exact_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--protect-version",
-            "2026.05.17",
-            "--dry-run",
-            "--json",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    assert status == 0
-    assert calls == 2
-    assert '"missing_protected_version": false' in capsys.readouterr().out
 
 
-def test_main_requires_web_cleanup_credentials_for_deletion(monkeypatch, tmp_path: Path) -> None:
-    module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-    monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.delenv("PYPI_RELEASE_PRUNE_USERNAME", raising=False)
-    monkeypatch.delenv("PYPI_RELEASE_PRUNE_PASSWORD", raising=False)
-    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
-    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
-
-    with pytest.raises(SystemExit, match="cleanup web-login credentials"):
-        module.main(["--package", "agilab", "--protect-version", "2026.05.17", "--confirm-delete"])
 
 
 def test_require_credentials_reads_pypirc_cleanup_section(monkeypatch, tmp_path: Path) -> None:
@@ -622,132 +410,12 @@ def test_totp_generation_matches_rfc_vector() -> None:
     ) == "287082"
 
 
-def test_delete_release_feeds_and_redacts_non_interactive_otp(monkeypatch, capsys) -> None:
-    module = _load_module()
-    calls = []
-
-    def fake_run(cmd, **kwargs):
-        calls.append((cmd, kwargs))
-        return module.subprocess.CompletedProcess(
-            cmd,
-            0,
-            stdout="Authentication code 123456 accepted\nDeleted\n",
-        )
-
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
-
-    module.delete_release(
-        package="agilab",
-        version="2026.05.17",
-        repo="pypi",
-        username="maintainer",
-        password="secret",
-        auth_code="123456",
-    )
-
-    assert calls[0][1]["input"] == "123456\n"
-    assert "123456" not in capsys.readouterr().err
 
 
-def test_delete_release_reports_missing_non_interactive_2fa_secret(monkeypatch) -> None:
-    module = _load_module()
-
-    def fake_run(cmd, **kwargs):
-        return module.subprocess.CompletedProcess(
-            cmd,
-            1,
-            stdout="Authentication code: Traceback\nEOFError: EOF when reading a line\n",
-        )
-
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
-
-    with pytest.raises(SystemExit, match="PYPI_RELEASE_PRUNE_TOTP_SECRET"):
-        module.delete_release(
-            package="agilab",
-            version="2026.05.17",
-            repo="pypi",
-            username="maintainer",
-            password="secret",
-        )
 
 
-def test_delete_release_falls_back_when_pypi_cleanup_cannot_parse_delete_form(monkeypatch, capsys) -> None:
-    module = _load_module()
-    fallback_calls = []
-
-    def fake_run(cmd, **kwargs):
-        return module.subprocess.CompletedProcess(
-            cmd,
-            1,
-            stdout="ValueError: No CSFR found in /manage/project/agilab/release/2026.5.17/\n",
-        )
-
-    def fake_fallback(**kwargs):
-        fallback_calls.append(kwargs)
-
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
-    monkeypatch.setattr(module, "delete_release_via_pypi_web", fake_fallback)
-
-    module.delete_release(
-        package="agilab",
-        version="2026.05.17",
-        repo="pypi",
-        username="maintainer",
-        password="secret",
-        auth_code="123456",
-    )
-
-    assert fallback_calls == [
-        {
-            "package": "agilab",
-            "version": "2026.05.17",
-            "repo": "pypi",
-            "username": "maintainer",
-            "password": "secret",
-            "auth_code": "123456",
-            "totp_secret": None,
-            "confirm_login_url_provider": None,
-        }
-    ]
-    assert "direct PyPI web fallback" in capsys.readouterr().err
 
 
-def test_delete_release_can_use_direct_web_only(monkeypatch, capsys) -> None:
-    module = _load_module()
-    fallback_calls = []
-
-    def fail_run(*args, **kwargs):
-        raise AssertionError("pypi-cleanup should not run in direct-web-only mode")
-
-    def fake_fallback(**kwargs):
-        fallback_calls.append(kwargs)
-
-    monkeypatch.setattr(module.subprocess, "run", fail_run)
-    monkeypatch.setattr(module, "delete_release_via_pypi_web", fake_fallback)
-
-    module.delete_release(
-        package="agilab",
-        version="2026.05.17",
-        repo="pypi",
-        username="maintainer",
-        password="secret",
-        auth_code="123456",
-        direct_web_only=True,
-    )
-
-    assert fallback_calls == [
-        {
-            "package": "agilab",
-            "version": "2026.05.17",
-            "repo": "pypi",
-            "username": "maintainer",
-            "password": "secret",
-            "auth_code": "123456",
-            "totp_secret": None,
-            "confirm_login_url_provider": None,
-        }
-    ]
-    assert "direct PyPI web deletion" in capsys.readouterr().err
 
 
 def test_direct_pypi_delete_treats_missing_manage_release_as_already_deleted(
@@ -814,6 +482,7 @@ def test_direct_pypi_delete_treats_missing_manage_release_as_already_deleted(
         username="maintainer",
         password="secret",
         session_factory=lambda: session,
+        before_delete=lambda: None,
     )
 
     assert session.posts[0][1]["data"]["username"] == "maintainer"
@@ -923,6 +592,7 @@ def test_direct_pypi_delete_submits_reauth_before_delete_form() -> None:
         username="maintainer",
         password="secret",
         session_factory=lambda: session,
+        before_delete=lambda: None,
     )
 
     assert session.posts[0][1]["data"] == {
@@ -1023,6 +693,7 @@ def test_direct_pypi_delete_consumes_confirm_login_url_after_runner_login_redire
         password="secret",
         confirm_login_url_provider=ConfirmProvider(),
         session_factory=lambda: session,
+        before_delete=lambda: None,
     )
 
     assert confirm_url in session.get_urls
@@ -1130,6 +801,7 @@ def test_direct_pypi_delete_reuses_confirmed_session_when_login_form_disappears(
         password="secret",
         confirm_login_url_provider=ConfirmProvider(),
         session_factory=lambda: session,
+        before_delete=lambda: None,
     )
 
     assert confirm_url in session.get_urls
@@ -1204,339 +876,450 @@ def test_fresh_totp_code_waits_until_reused_code_changes(monkeypatch) -> None:
     assert sleeps == [1, 1]
 
 
-def test_main_deletes_old_versions_and_verifies_retention(monkeypatch, capsys) -> None:
+def _explicit_module(monkeypatch):
     module = _load_module()
-    releases = {
-        "agilab": ["2026.04.16", "2026.05.17"],
-        "agi-core": ["2026.04.16", "2026.05.17"],
-    }
-    deletes: list[tuple[str, str, str, str]] = []
-
-    def fake_delete_release(
-        *,
-        package,
-        version,
-        repo,
-        username,
-        password,
-        auth_code=None,
-        totp_secret=None,
-        confirm_login_url_provider=None,
-        direct_web_only=False,
-        verbose=False,
-    ):
-        deletes.append((package, version, username, password, auth_code))
-        releases[package] = [item for item in releases[package] if item != version]
-
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
-    monkeypatch.setattr(module, "delete_release", fake_delete_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--package",
-            "agi-core",
-            "--protect-version",
-            "2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--otp-code",
-            "123456",
-            "--confirm-delete",
-            "--json",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    assert status == 0
-    assert deletes == [
-        ("agilab", "2026.04.16", "maintainer", "secret", "123456"),
-        ("agi-core", "2026.04.16", "maintainer", "secret", "123456"),
-    ]
-    assert '"success": true' in capsys.readouterr().out
+    monkeypatch.setattr(module, "current_project_protections", lambda root: {"agi-gui": {"2026.10.12"}, "agi-web": {"2026.10.12"}})
+    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.6.19", "2026.6.20", "2026.10.12"])
+    monkeypatch.setattr(module, "fresh_release_metadata", lambda package, repo, version: {
+        "info": {"name": package, "version": version},
+        "urls": [{"filename": "archive.whl", "url": "https://files.pythonhosted.org/archive.whl",
+                  "digests": {"sha256": module.hashlib.sha256(b"wheel").hexdigest()}, "size": 5}],
+    })
+    return module
 
 
-def test_main_uses_local_confirm_login_url_provider(monkeypatch) -> None:
+@pytest.mark.parametrize("spec", ["agi-gui", "agi-gui=2026.6.19", "*==2026.6.19", "agi-gui==*", "agi-gui==2026.*", "agi-gui== 2026.6.19", "agi-gui==2026.6.19,agi-web==2026.6.19"])
+def test_explicit_selection_rejects_nonliteral_specs(spec):
     module = _load_module()
-    releases = {"agilab": ["2026.04.16", "2026.05.17"]}
-    provider_values: list[str | None] = []
-
-    def fake_delete_release(
-        *,
-        package,
-        version,
-        repo,
-        username,
-        password,
-        auth_code=None,
-        totp_secret=None,
-        confirm_login_url_provider=None,
-        direct_web_only=False,
-        verbose=False,
-    ):
-        provider_values.append(confirm_login_url_provider())
-        releases[package] = [item for item in releases[package] if item != version]
-
-    monkeypatch.setenv(
-        "PYPI_CONFIRM_LOGIN_URL",
-        "https://pypi.org/account/confirm-login/?token=token",
-    )
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
-    monkeypatch.setattr(module, "delete_release", fake_delete_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--protect-version",
-            "2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--confirm-delete",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    assert status == 0
-    assert provider_values == ["https://pypi.org/account/confirm-login/?token=token"]
+    with pytest.raises(SystemExit):
+        module.parse_delete_releases([spec])
 
 
-def test_main_deletes_old_versions_with_disaligned_protected_versions(monkeypatch, capsys) -> None:
+def test_explicit_selection_canonicalizes_names_and_versions_and_rejects_alias_duplicates():
     module = _load_module()
-    releases = {
-        "agilab": ["2026.04.16", "2026.05.18"],
-        "agi-core": ["2026.04.16", "2026.05.17"],
-    }
-    deletes: list[tuple[str, str]] = []
-
-    def fake_delete_release(
-        *,
-        package,
-        version,
-        repo,
-        username,
-        password,
-        auth_code=None,
-        totp_secret=None,
-        confirm_login_url_provider=None,
-        direct_web_only=False,
-        verbose=False,
-    ):
-        deletes.append((package, version))
-        releases[package] = [item for item in releases[package] if item != version]
-
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
-    monkeypatch.setattr(module, "delete_release", fake_delete_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--package",
-            "agi-core",
-            "--protect-package-version",
-            "agilab=2026.05.18",
-            "--protect-package-version",
-            "agi-core=2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--confirm-delete",
-            "--json",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert status == 0
-    assert deletes == [("agilab", "2026.04.16"), ("agi-core", "2026.04.16")]
-    assert '"package": "agilab"' in captured.out
-    assert '"protect_version": "2026.5.18"' in captured.out
-    assert '"package": "agi-core"' in captured.out
-    assert '"protect_version": "2026.5.17"' in captured.out
+    assert module.parse_delete_releases(["AGI_gui==2026.06.19"]) == {"agi-gui": ("2026.6.19",)}
+    with pytest.raises(SystemExit, match="duplicate"):
+        module.parse_delete_releases(["agi-gui==2026.6.19", "AGI_gui==2026.06.19"])
 
 
-def test_main_rotates_totp_between_package_deletions(monkeypatch) -> None:
+def test_main_refuses_broad_cleanup_before_network_or_authentication(monkeypatch):
     module = _load_module()
-    releases = {
-        "agilab": ["2026.04.16", "2026.05.17"],
-        "agi-core": ["2026.04.16", "2026.05.17"],
-    }
-    generated_codes = iter(["111111", "111111", "111111", "222222", "222222"])
-    deletes: list[tuple[str, str | None, str | None]] = []
-    sleeps = []
-
-    def fake_delete_release(
-        *,
-        package,
-        version,
-        repo,
-        username,
-        password,
-        auth_code=None,
-        totp_secret=None,
-        confirm_login_url_provider=None,
-        direct_web_only=False,
-        verbose=False,
-    ):
-        deletes.append((package, auth_code, totp_secret))
-        releases[package] = [item for item in releases[package] if item != version]
-
-    monkeypatch.setenv("PYPI_RELEASE_PRUNE_TOTP_SECRET", "seed")
-    monkeypatch.setattr(module, "generate_totp", lambda secret: next(generated_codes))
-    monkeypatch.setattr(module.time, "sleep", lambda seconds: sleeps.append(seconds))
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: releases[package])
-    monkeypatch.setattr(module, "delete_release", fake_delete_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--package",
-            "agi-core",
-            "--protect-version",
-            "2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--confirm-delete",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    assert status == 0
-    assert deletes == [("agilab", "111111", "seed"), ("agi-core", "222222", "seed")]
-    assert sleeps == [1]
+    monkeypatch.setattr(module, "build_explicit_plans", lambda *a, **k: pytest.fail("must reject before network"))
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: pytest.fail("must not authenticate"))
+    with pytest.raises(SystemExit, match="explicit --delete-release"):
+        module.main(["--confirm-delete"])
 
 
-def test_main_blocks_when_cleanup_failure_remains(monkeypatch) -> None:
+def test_main_plans_one_exact_version_by_default_without_credentials(monkeypatch, capsys):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: pytest.fail("plan must not authenticate"))
+    monkeypatch.setattr(module, "delete_release", lambda **k: pytest.fail("plan must not delete"))
+    assert module.main(["--delete-release", "AGI_gui==2026.06.19", "--json"]) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["success"] is True
+    assert summary["dry_run"] is True
+    assert summary["packages"][0]["delete_versions"] == ["2026.6.19"]
+    assert summary["packages"][0]["retained_versions"] == ["2026.6.20", "2026.10.12"]
+
+
+@pytest.mark.parametrize(("spec", "message"), [
+    ("unknown==2026.6.19", "unknown first-party"),
+    ("agi-gui==2025.1.1", "unknown published"),
+    ("agi-gui==2026.10.12", "current, latest or pinned"),
+])
+def test_explicit_plan_rejects_unknown_and_protected_targets(monkeypatch, spec, message):
+    module = _explicit_module(monkeypatch)
+    with pytest.raises(SystemExit, match=message):
+        module.main(["--delete-release", spec])
+
+
+def test_explicit_plan_keeps_future_latest_and_extra_protected_version(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "fetch_releases", lambda *a: ["2026.6.19", "2026.10.12", "2026.10.13"])
+    for spec, extra in [("agi-gui==2026.10.13", []), ("agi-gui==2026.6.19", ["agi-gui=2026.6.19"])]:
+        with pytest.raises(SystemExit, match="current, latest or pinned"):
+            module.build_explicit_plans(module.parse_delete_releases([spec]), repo="pypi", repo_root=REPO_ROOT, extra_protections=extra)
+
+
+def test_current_project_protections_keep_exact_first_party_dependency_pins(monkeypatch, tmp_path):
     module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    def fail_delete_release(**kwargs):
-        raise SystemExit("cleanup failed")
-
-    monkeypatch.setattr(module, "delete_release", fail_delete_release)
-
-    with pytest.raises(SystemExit, match="cleanup failed"):
-        module.main(
-            [
-                "--package",
-                "agilab",
-                "--protect-version",
-                "2026.05.17",
-                "--username",
-                "maintainer",
-                "--password",
-                "secret",
-                "--confirm-delete",
-                "--json",
-            ]
-        )
+    (tmp_path / "pyproject.toml").write_text('[project]\nname="agilab"\nversion="2026.10.12"\ndependencies=["agi-gui==2026.6.19"]\n[project.optional-dependencies]\nui=["agi-web==2026.6.20"]\n', encoding="utf-8")
+    monkeypatch.setattr(module, "selected_public_versions", lambda root: {"agilab": "2026.10.12", "agi-gui": "2026.10.12", "agi-web": "2026.10.12"})
+    monkeypatch.setattr(module, "public_package_entries", lambda **k: [{"project": "."}])
+    protections = module.current_project_protections(tmp_path)
+    assert protections["agi-gui"] == {"2026.6.19", "2026.10.12"}
+    assert protections["agi-web"] == {"2026.6.20", "2026.10.12"}
 
 
-def test_main_can_warn_when_cleanup_requires_interactive_pypi(monkeypatch, capsys) -> None:
+def _saved_explicit_backup(module, tmp_path, monkeypatch):
+    import io
+    directory = tmp_path / "saved_release"
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b"wheel"))
+    plans = module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT)
+    module.prepare_release_backups(plans, repo="pypi", directory=directory)
+    return directory, plans
+
+
+def test_backups_bind_complete_file_set_and_fresh_official_hashes(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, plans = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    module.verify_release_backups(plans, repo="pypi", directory=directory)
+    (directory / "agi-gui" / "2026.6.19" / "archive.whl").write_bytes(b"WRONG")
+    with pytest.raises(SystemExit, match="missing or changed"):
+        module.verify_release_backups(plans, repo="pypi", directory=directory)
+
+
+def test_backup_manifest_cannot_substitute_another_target_or_file_set(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, plans = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    manifest_path = directory / module.BACKUP_MANIFEST
+    original = json.loads(manifest_path.read_text())
+    changed = json.loads(json.dumps(original))
+    changed["releases"][0]["version"] = "2026.6.20"
+    manifest_path.write_text(json.dumps(changed))
+    with pytest.raises(SystemExit, match="exact deletion selection"):
+        module.verify_release_backups(plans, repo="pypi", directory=directory)
+    changed = json.loads(json.dumps(original))
+    changed["releases"][0]["files"] = []
+    manifest_path.write_text(json.dumps(changed))
+    with pytest.raises(SystemExit, match="every official release archive"):
+        module.verify_release_backups(plans, repo="pypi", directory=directory)
+
+
+def test_confirmed_deletion_requires_backup_before_authentication(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: pytest.fail("backup guard must run first"))
+    with pytest.raises(SystemExit, match="requires --backup-dir"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete"])
+
+
+def test_failed_authentication_is_fail_closed_without_delete_or_success(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, _ = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    def no_auth(*args, **kwargs):
+        raise SystemExit("authentication failed")
+    monkeypatch.setattr(module, "require_credentials", no_auth)
+    monkeypatch.setattr(module, "delete_release", lambda **k: pytest.fail("must not delete after failed authentication"))
+    with pytest.raises(SystemExit, match="authentication failed"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory)])
+
+
+def test_confirmed_cleanup_deletes_only_allowed_target_and_retains_other_old_versions(monkeypatch, tmp_path, capsys):
+    module = _explicit_module(monkeypatch)
+    directory, _ = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    deleted = []
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: None)
+    def guarded_delete(**kwargs):
+        kwargs["before_delete"]()
+        deleted.append((kwargs["package"], kwargs["version"]))
+    monkeypatch.setattr(module, "delete_release", guarded_delete)
+    monkeypatch.setattr(module, "probe_exact_release_version", lambda package, repo, version: (
+        module.EXACT_RELEASE_ABSENT if (package, version) in deleted else module.EXACT_RELEASE_PRESENT, version
+    ))
+    assert module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory), "--json"]) == 0
+    assert deleted == [("agi-gui", "2026.6.19")]
+    assert json.loads(capsys.readouterr().out)["dry_run"] is False
+
+
+def test_failed_device_confirmation_stops_before_next_selected_delete(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    selected = {"agi-gui": ("2026.6.19", "2026.6.20")}
+    plans = module.build_explicit_plans(selected, repo="pypi", repo_root=REPO_ROOT)
+    import io
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b"wheel"))
+    directory = tmp_path / "two_release_backup"
+    module.prepare_release_backups(plans, repo="pypi", directory=directory)
+    calls = []
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: None)
+    def blocked(**kwargs):
+        calls.append((kwargs["package"], kwargs["version"]))
+        raise SystemExit("device confirmation required")
+    monkeypatch.setattr(module, "delete_release", blocked)
+    with pytest.raises(SystemExit, match="device confirmation required"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--delete-release", "agi-gui==2026.6.20", "--confirm-delete", "--backup-dir", str(directory)])
+    assert calls == [("agi-gui", "2026.6.19")]
+
+
+def test_post_delete_checks_selected_absence_and_preserves_unselected_releases(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    plans = module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT)
+    monkeypatch.setattr(module, "fetch_releases", lambda *a: ["2026.10.12"])
+    monkeypatch.setattr(module, "probe_exact_release_version", lambda *a: (module.EXACT_RELEASE_ABSENT, None))
+    with pytest.raises(SystemExit, match="unselected release"):
+        module.verify_explicit_cleanup(plans, repo="pypi", attempts=1, retry_delay=0)
+
+
+def test_post_delete_never_accepts_endpoint_error_as_absence(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    plans = module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT)
+    monkeypatch.setattr(module, "probe_exact_release_version", lambda *a: (module.EXACT_RELEASE_ERROR, None))
+    assert module.verify_explicit_cleanup(plans, repo="pypi", attempts=1, retry_delay=0) is False
+
+
+@pytest.mark.parametrize("filename", ["../escape.whl", r"..\escape.whl"])
+def test_backup_rejects_nonportable_or_escaping_filenames(monkeypatch, filename):
+    module = _explicit_module(monkeypatch)
+    metadata = module.fresh_release_metadata("agi-gui", "pypi", "2026.6.19")
+    metadata["urls"][0]["filename"] = filename
+    with pytest.raises(SystemExit, match="archive metadata"):
+        module.release_archive_entries(metadata, repo="pypi")
+
+@pytest.mark.parametrize("equivalent", ["2026.6.19.0", "2026.06.19.00"])
+def test_explicit_selection_rejects_pep440_equivalent_duplicates(equivalent):
     module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    def fail_delete_release(**kwargs):
-        raise SystemExit("PyPI redirected back to login")
-
-    monkeypatch.setattr(module, "delete_release", fail_delete_release)
-
-    status = module.main(
-        [
-            "--package",
-            "agilab",
-            "--protect-version",
-            "2026.05.17",
-            "--username",
-            "maintainer",
-            "--password",
-            "secret",
-            "--confirm-delete",
-            "--allow-delete-failure-warning",
-            "--json",
-            "--retry-delay",
-            "0",
-        ]
-    )
-
-    captured = capsys.readouterr()
-    assert status == 0
-    assert "::warning title=PyPI release retention::" in captured.err
-    assert '"success": false' in captured.out
-    assert '"delete_versions": [\n        "2026.04.16"\n      ]' in captured.out
+    with pytest.raises(SystemExit, match="duplicate"):
+        module.parse_delete_releases(["agi-gui==2026.6.19", f"agi-gui=={equivalent}"])
 
 
-def test_main_fails_closed_when_cleanup_requires_interactive_pypi_by_default(monkeypatch) -> None:
+@pytest.mark.parametrize("protection_source", ["current", "dependency", "extra"])
+def test_explicit_plan_blocks_equivalent_current_dependency_and_extra_protections(monkeypatch, protection_source):
+    module = _explicit_module(monkeypatch)
+    if protection_source in {"current", "dependency"}:
+        monkeypatch.setattr(module, "current_project_protections", lambda root: {"agi-gui": {"2026.6.19.0", "2026.10.12"}})
+    extra = ["agi-gui=2026.6.19.0"] if protection_source == "extra" else []
+    with pytest.raises(SystemExit, match="current, latest or pinned"):
+        module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT, extra_protections=extra)
+
+
+def test_exact_selection_uses_published_spelling_and_regex_for_equivalent_input(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "fetch_releases", lambda *a: ["2026.06.19", "2026.10.12.0"])
+    plans = module.build_explicit_plans({"agi-gui": ("2026.6.19.0",)}, repo="pypi", repo_root=REPO_ROOT)
+    assert plans[0].versions == ("2026.06.19",)
+    assert module.exact_release_regex(plans[0].versions[0]) == r"^2026\.06\.19$"
+    with pytest.raises(SystemExit, match="current, latest or pinned"):
+        module.build_explicit_plans({"agi-gui": ("2026.10.12",)}, repo="pypi", repo_root=REPO_ROOT)
+
+
+def _authenticated_guard_session(module, monkeypatch, *, on_auth=lambda: None, on_delete=lambda version: None):
+    import requests
+    from urllib.parse import urlparse
+    events = []
+    class Response:
+        def __init__(self, url, text):
+            self.url, self.text = url, text
+        def raise_for_status(self):
+            pass
+    def form(action, *fields):
+        return '<form method="post" action="' + action + '">' + ''.join(
+            '<input name="' + field + '" value="test">' for field in ("csrf_token", *fields)
+        ) + '</form>'
+    class Session:
+        def __init__(self):
+            self.headers = {}
+            self.version = None
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return None
+        def get(self, url):
+            path = urlparse(url).path
+            if path == "/account/login/":
+                return Response(url, form(path))
+            self.version = path.rstrip("/").split("/")[-1]
+            return Response(url, form("/account/reauthenticate/", "password", "next_route", "next_route_matchdict"))
+        def post(self, url, **kwargs):
+            path = urlparse(url).path
+            if path == "/account/login/":
+                events.append("login")
+                return Response("https://pypi.org/account/two-factor/", form("/account/two-factor/"))
+            if path == "/account/two-factor/":
+                events.append("mfa")
+                return Response("https://pypi.org/manage/projects/", "")
+            if path == "/account/reauthenticate/":
+                events.append("reauth")
+                on_auth()
+                delete_path = f"/manage/project/agi-gui/release/{self.version}/"
+                return Response("https://pypi.org" + delete_path, form(delete_path, "confirm_delete_version"))
+            events.append("delete:" + self.version)
+            on_delete(self.version)
+            return Response("https://pypi.org/manage/project/agi-gui/releases/", "")
+    monkeypatch.setattr(requests, "Session", Session)
+    monkeypatch.setattr(module, "_fresh_totp_code", lambda *a, **k: events.append("totp-wait") or "123456")
+    return events
+
+
+def test_guarded_web_post_runs_callback_after_password_totp_mfa_and_reauth(monkeypatch):
     module = _load_module()
-
-    monkeypatch.setattr(
-        module,
-        "fetch_releases",
-        lambda package, repo: ["2026.04.16", "2026.05.17"],
-    )
-
-    def fail_delete_release(**kwargs):
-        raise SystemExit("PyPI redirected back to login")
-
-    monkeypatch.setattr(module, "delete_release", fail_delete_release)
-
-    with pytest.raises(SystemExit, match="PyPI redirected back to login"):
-        module.main(
-            [
-                "--package",
-                "agilab",
-                "--protect-version",
-                "2026.05.17",
-                "--username",
-                "maintainer",
-                "--password",
-                "secret",
-                "--confirm-delete",
-                "--json",
-                "--retry-delay",
-                "0",
-            ]
-        )
+    events = _authenticated_guard_session(module, monkeypatch)
+    module.delete_release(package="agi-gui", version="2026.6.19", repo="pypi",
+                          username="user", password="example", auth_code="123456",
+                          before_delete=lambda: events.append("guard"))
+    assert events == ["login", "totp-wait", "mfa", "reauth", "guard", "delete:2026.6.19"]
 
 
-def test_main_rejects_missing_protected_release(monkeypatch) -> None:
+@pytest.mark.parametrize("entrypoint", ["delete_release", "delete_release_via_pypi_web"])
+def test_low_level_deletion_without_callback_cannot_authenticate_or_spawn(monkeypatch, entrypoint):
     module = _load_module()
+    import requests
+    monkeypatch.setattr(requests, "Session", lambda: pytest.fail("must reject before authentication"))
+    assert not hasattr(module, "subprocess")
+    with pytest.raises(SystemExit, match="guard immediately before"):
+        getattr(module, entrypoint)(package="agi-gui", version="2026.6.19", repo="pypi", username="user", password="example")
 
-    monkeypatch.setattr(module, "fetch_releases", lambda package, repo: ["2026.04.16"])
-    monkeypatch.setattr(module, "fetch_exact_release_version", lambda package, repo, version: None)
 
-    with pytest.raises(SystemExit, match="agilab=2026.5.17"):
-        module.main(
-            [
-                "--package",
-                "agilab",
-                "--protect-version",
-                "2026.05.17",
-                "--verify-attempts",
-                "1",
-            ]
-        )
+@pytest.mark.parametrize("change", ["new_archive", "changed_backup", "new_protected_pin"])
+def test_main_revalidates_current_target_after_authentication_before_post(monkeypatch, tmp_path, change):
+    module = _explicit_module(monkeypatch)
+    metadata = module.fresh_release_metadata("agi-gui", "pypi", "2026.6.19")
+    monkeypatch.setattr(module, "fresh_release_metadata", lambda *a: metadata)
+    protections = {"agi-gui": {"2026.10.12"}}
+    monkeypatch.setattr(module, "current_project_protections", lambda root: protections)
+    directory, _ = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    def during_auth():
+        if change == "new_archive":
+            metadata["urls"].append({"filename": "extra.whl", "url": "https://files.pythonhosted.org/extra.whl", "digests": {"sha256": module.hashlib.sha256(b"more").hexdigest()}, "size": 4})
+        elif change == "changed_backup":
+            (directory / "agi-gui" / "2026.6.19" / "archive.whl").write_bytes(b"WRONG")
+        else:
+            protections["agi-gui"].add("2026.6.19.0")
+    events = _authenticated_guard_session(module, monkeypatch, on_auth=during_auth)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: "123456")
+    with pytest.raises(SystemExit, match="archive|pinned"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory)])
+    assert "reauth" in events
+    assert not any(event.startswith("delete:") for event in events)
+
+
+def test_second_target_backup_guard_sees_new_archive_after_first_delete(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    originals = {version: module.fresh_release_metadata("agi-gui", "pypi", version) for version in ("2026.6.19", "2026.6.20")}
+    deleted = []
+    def metadata(package, repo, version):
+        if version in deleted:
+            pytest.fail("must not refetch an already deleted release while guarding another target")
+        return originals[version]
+    monkeypatch.setattr(module, "fresh_release_metadata", metadata)
+    import io
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(b"wheel"))
+    plans = module.build_explicit_plans({"agi-gui": ("2026.6.19", "2026.6.20")}, repo="pypi", repo_root=REPO_ROOT)
+    directory = tmp_path / "saved_two_targets"
+    module.prepare_release_backups(plans, repo="pypi", directory=directory)
+    def first_delete(version):
+        deleted.append(version)
+        originals["2026.6.20"]["urls"].append({"filename": "extra.whl", "url": "https://files.pythonhosted.org/extra.whl", "digests": {"sha256": module.hashlib.sha256(b"more").hexdigest()}, "size": 4})
+    events = _authenticated_guard_session(module, monkeypatch, on_delete=first_delete)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: "123456")
+    with pytest.raises(SystemExit, match="every official release archive"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--delete-release", "agi-gui==2026.6.20", "--confirm-delete", "--backup-dir", str(directory)])
+    assert deleted == ["2026.6.19"]
+    assert "delete:2026.6.20" not in events
+
+
+def test_current_target_backup_guard_keeps_original_manifest_selection(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, plans = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    with pytest.raises(SystemExit, match="outside the original exact selection"):
+        module.verify_release_backups(plans, repo="pypi", directory=directory, current_target=("agi-gui", "2026.6.20"))
+    manifest_path = directory / module.BACKUP_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["releases"].append(dict(manifest["releases"][0], version="2026.6.19.0"))
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(SystemExit, match="exact deletion selection"):
+        module.verify_release_backups(plans, repo="pypi", directory=directory, current_target=("agi-gui", "2026.6.19"))
+
+
+def test_exact_endpoint_accepts_equivalent_pep440_response(monkeypatch):
+    module = _load_module(stub_network=False)
+    import io
+    payload = json.dumps({"info": {"version": "2026.6.19.0"}}).encode()
+    monkeypatch.setattr(module.urllib.request, "urlopen", lambda *a, **k: io.BytesIO(payload))
+    assert module.probe_exact_release_version("agi-gui", "pypi", "2026.6.19") == (module.EXACT_RELEASE_PRESENT, "2026.6.19")
+
+@pytest.mark.parametrize(("inventory", "message"), [
+    (["2026.6.19", "2026.6.19.0", "2026.10.12"], "ambiguous equivalent"),
+    ([], "no published releases"),
+])
+def test_explicit_inventory_rejects_ambiguous_equivalent_or_empty_releases(monkeypatch, inventory, message):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "fetch_releases", lambda *a: inventory)
+    with pytest.raises(SystemExit, match=message):
+        module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT)
+
+
+def test_unknown_extra_protection_is_rejected_before_mutation(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    with pytest.raises(SystemExit, match="unknown protected first-party"):
+        module.build_explicit_plans({"agi-gui": ("2026.6.19",)}, repo="pypi", repo_root=REPO_ROOT, extra_protections=["unrelated=2026.6.19"])
+
+
+@pytest.mark.parametrize("manifest", [None, "invalid-json"])
+def test_missing_or_invalid_backup_manifest_stops_before_auth(monkeypatch, tmp_path, manifest):
+    module = _explicit_module(monkeypatch)
+    directory = tmp_path / "missing_backup"
+    directory.mkdir()
+    if manifest:
+        (directory / module.BACKUP_MANIFEST).write_text(manifest)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: pytest.fail("must not authenticate without a complete manifest"))
+    with pytest.raises(SystemExit, match="readable backup manifest"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory)])
+
+
+def test_plan_mode_can_archive_selected_release_without_credentials(monkeypatch, tmp_path, capsys):
+    module = _explicit_module(monkeypatch)
+    import io
+    downloads = []
+    def download(url, **kwargs):
+        downloads.append(url)
+        return io.BytesIO(b"wheel")
+    monkeypatch.setattr(module.urllib.request, "urlopen", download)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: pytest.fail("planning must not authenticate"))
+    directory = tmp_path / "planned_backup"
+    assert module.main(["--delete-release", "agi-gui==2026.6.19", "--backup-dir", str(directory), "--json"]) == 0
+    assert downloads == ["https://files.pythonhosted.org/archive.whl"]
+    assert json.loads(capsys.readouterr().out)["dry_run"] is True
+    assert (directory / module.BACKUP_MANIFEST).is_file()
+
+
+def test_confirm_and_dry_run_conflict_before_inventory(monkeypatch):
+    module = _explicit_module(monkeypatch)
+    monkeypatch.setattr(module, "build_explicit_plans", lambda *a, **k: pytest.fail("conflicting flags must stop before inventory"))
+    with pytest.raises(SystemExit, match="mutually exclusive"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--dry-run"])
+
+
+def test_changed_server_spelling_during_auth_requires_a_new_plan(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, _ = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    inventory = ["2026.6.19", "2026.6.20", "2026.10.12"]
+    monkeypatch.setattr(module, "fetch_releases", lambda *a: inventory)
+    def change():
+        inventory[0] = "2026.6.19.0"
+    events = _authenticated_guard_session(module, monkeypatch, on_auth=change)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: "123456")
+    with pytest.raises(SystemExit, match="published target spelling changed"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory)])
+    assert not any(event.startswith("delete:") for event in events)
+
+
+def test_default_web_flow_rejected_mfa_never_runs_guard_or_deletes(monkeypatch):
+    module = _load_module()
+    import requests
+    events = _authenticated_guard_session(module, monkeypatch)
+    original = requests.Session
+    class RejectedSession(original):
+        def post(self, url, **kwargs):
+            response = super().post(url, **kwargs)
+            if "/account/two-factor/" in url:
+                response.url = "https://pypi.org/account/two-factor/"
+            return response
+    monkeypatch.setattr(requests, "Session", RejectedSession)
+    with pytest.raises(SystemExit, match="rejected the generated TOTP"):
+        module.delete_release(package="agi-gui", version="2026.6.19", repo="pypi", username="user", password="example", auth_code="123456", before_delete=lambda: pytest.fail("guard must not run after rejected MFA"))
+    assert not any(event.startswith("delete:") for event in events)
+
+
+def test_confirmed_cleanup_unconfirmed_endpoint_never_reports_success(monkeypatch, tmp_path):
+    module = _explicit_module(monkeypatch)
+    directory, _ = _saved_explicit_backup(module, tmp_path, monkeypatch)
+    _authenticated_guard_session(module, monkeypatch)
+    monkeypatch.setattr(module, "require_credentials", lambda *a, **k: ("user", "example"))
+    monkeypatch.setattr(module, "resolve_auth_code", lambda *a: "123456")
+    monkeypatch.setattr(module, "verify_explicit_cleanup", lambda *a, **k: False)
+    with pytest.raises(SystemExit, match="not confirmed by its exact endpoint"):
+        module.main(["--delete-release", "agi-gui==2026.6.19", "--confirm-delete", "--backup-dir", str(directory)])
