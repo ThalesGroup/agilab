@@ -293,6 +293,19 @@ source, or an older state without its source fingerprint, requires an explicit
 Recover and re-export an imported notebook
 ------------------------------------------
 
+Open **Notebook** in WORKFLOW and upload an ``.ipynb`` file. The preview,
+runtime-role choices, proposed writes and import confirmation stay in this
+section, so they remain available while **Tools** is closed. Review the roles
+and import scope, then confirm to update the active pipeline. **Cancel import**
+discards the preview and clears the file selection; you can select the same
+file again without losing pending editor drafts.
+
+.. figure:: _static/native-ui/agilab_workflow_notebook_import_preview_20261013.png
+   :alt: WORKFLOW Notebook section with import preview and confirmation while Tools is closed.
+   :width: 100%
+
+   Notebook import controls are grouped with the upload and export actions.
+
 WORKFLOW preserves the complete source notebook in its hash-verified import
 contract, including cell IDs and order, markdown and raw cells, empty cells,
 attachments, outputs, custom metadata and kernel metadata. Download the original
