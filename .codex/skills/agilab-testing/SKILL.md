@@ -3,7 +3,7 @@ name: agilab-testing
 description: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-10
+  updated: 2026-10-13
 ---
 
 # Testing Skill (AGILAB)
@@ -195,8 +195,8 @@ Ordinary unit/app validation follows the workflow below.
 - App settings split:
   - Source `app_settings.toml` files are seeds; mutable settings live in the user workspace.
   - Tests should target the right layer and avoid asserting that runtime writes back into source files.
-- Streamlit per-project state:
-  - When a page reuses one Streamlit session across multiple projects/apps, keep at least one regression for project-switch rehydration.
+- native Python UI per-project state:
+  - When a page reuses one native Python UI session across multiple projects/apps, keep at least one regression for project-switch rehydration.
   - Assert that per-project widget keys are namespaced by project/app instead of using global keys like `"cluster_pool"` or `"cluster_cython"`.
   - If a bug involves preserving UI state across project changes, test the preservation decision separately from the AppTest when possible, so ordering bugs around `pop(...)` or reruns stay easy to diagnose.
 - Source/end-user bootstrap regressions:
@@ -209,12 +209,12 @@ Ordinary unit/app validation follows the workflow below.
   - For PyCharm/source-install bugs, include a focused AppTest or helper test that runs with
     explicit `--apps-path` and a polluted fake home so the old bug cannot be hidden by the
     developer machine's clean state.
-- Streamlit sidecar bootstrap regressions:
+- native Python UI sidecar bootstrap regressions:
   - For app-owned sidecars launched from ANALYSIS, cover the exact sidecar path:
-    direct `streamlit run <app_surface.py> -- --active-app <project>` or a
+    direct `uv --preview-features extra-build-dependencies run --extra ui python -m agi_web.react_python_host <app_surface.py> --address 127.0.0.1 --no-browser -- --active-app <project>` or a
     helper test for `render(mode="full", active_app=<project>)`. A regression
     should prove the process does not exit immediately with code `1` before
-    Streamlit can render a useful diagnostic.
+    native Python UI can render a useful diagnostic.
   - Do not import heavy scientific, worker, or manager dependencies merely to
     resolve the active app, load lightweight form constants, or bootstrap page
     chrome. Move dependency-free constants to a low-dependency module, lazy-load
@@ -222,7 +222,7 @@ Ordinary unit/app validation follows the workflow below.
     `__init__` exports lazy when eager imports can pull in NumPy, Pandas, Torch,
     workers, or cluster code.
   - If optional scientific dependencies fail to import, render a controlled
-    Streamlit error/caption and keep the sidecar alive when possible. Test both
+    native Python UI error/caption and keep the sidecar alive when possible. Test both
     the no-argv direct entrypoint and the `--active-app` sidecar path when those
     code paths differ.
 - Workflow action feedback:
@@ -354,8 +354,8 @@ Ordinary unit/app validation follows the workflow below.
     same isolated validation with temporary dependency constraints such as
     `--with 'numpy<2.3' --with 'scipy<1.16'` and report the dependency override
     in the validation evidence.
-- Streamlit page regression (active-app aware):
-  - Patch `sys.argv` with `["<page>.py", "--active-app", "<app_path>"]` before `streamlit.testing.v1.AppTest.from_file(...)`.
+- native Python UI page regression (active-app aware):
+  - Patch `sys.argv` with `["<page>.py", "--active-app", "<app_path>"]` before `agi_web.testing.AppTest.from_file(...)`.
   - If an AppTest passes in isolation but times out in the full profile, first
     confirm there is no real hang with an isolated run, then raise only that
     test's timeout narrowly. Do not mask global AppTest latency by inflating the
@@ -479,7 +479,7 @@ validation, release, and Hugging Face sync in one flow.
 
 - When a custom form shows a derived metric and the runtime also writes that metric into a summary/report, prefer testing the shared backend helper first.
 - Add a targeted regression for the generated artifact fields as well, so the persisted report stays aligned with the preview contract.
-- Only add a full Streamlit `AppTest` when the bug is in widget wiring or session-state behavior. If the logic lives in a backend helper, test that helper directly and keep the UI test surface small.
+- Only add a full native Python UI `AppTest` when the bug is in widget wiring or session-state behavior. If the logic lives in a backend helper, test that helper directly and keep the UI test surface small.
 - For mixed state-model bugs, prefer both:
   - one helper/unit regression for the source-of-truth or preservation logic
   - one narrow AppTest that proves the page still hydrates and persists the expected project-specific state

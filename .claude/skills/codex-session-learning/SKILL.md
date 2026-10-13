@@ -3,7 +3,7 @@ name: codex-session-learning
 description: Turn past coding-agent debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from Codex or another agent's sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-11
+  updated: 2026-10-13
 ---
 
 # Codex Session Learning
@@ -191,7 +191,7 @@ A weak case only records:
 
 - refactor regressions after helper extraction or support-module splits
 - installer dependency drift between source app and copied worker manifest
-- Streamlit session-state and rerun bugs
+- native Python UI session-state and rerun bugs
 - service-state or cluster-share persistence failures
 - coverage/badge mismatches caused by stale generated artifacts
 - app-settings seed/workspace confusion
@@ -215,5 +215,5 @@ layout.
 - `plan-before-code` for prompt sections that enforce inspection before edits
 - `agilab-testing` for repo-specific validation rules
 - `agilab-installer` when the learned cases are install or worker-manifest failures
-- `agilab-streamlit-pages` when the learned cases are Streamlit/session-state failures
+- `agilab-streamlit-pages` when the learned cases are native Python UI/session-state failures
 - `tools/impact_validate.py` to turn a current diff into live validation and push-gate inputs

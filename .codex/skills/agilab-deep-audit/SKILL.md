@@ -3,7 +3,7 @@ name: agilab-deep-audit
 description: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-11
+  updated: 2026-10-13
 ---
 
 # AGILAB Deep Audit Skill
@@ -66,7 +66,7 @@ For a deep AGILAB audit, cover these surfaces unless the user narrows scope:
 - Execution engine: dispatcher/distributor scheduling, chunking, worker
   capacity, generated code paths, shell boundaries, and runtime dependency
   mutation.
-- UI and public exposure: Streamlit entrypoints, public-bind guard, page state,
+- UI and public exposure: native Python UI entrypoints, public-bind guard, page state,
   session-state boundaries, and user-visible workflow paths.
 - Security posture: credential redaction, subprocess/shell usage, pickle or
   executable payload boundaries, external apps policy, public UI controls,
@@ -96,7 +96,7 @@ hunt.
 
 ```text
 Audit scope: full AGILAB repo, docs, release proof, package split, built-in
-apps, notebooks, MCP and agent surfaces, Streamlit pages, tests, generated
+apps, notebooks, MCP and agent surfaces, native Python UI pages, tests, generated
 assets, Hugging Face/PyPI/GitHub publication state, current git/GitHub state,
 and commit provenance when authorship or attribution matters.
 
@@ -181,7 +181,7 @@ fixes.
 6. **Naming**: user-visible labels, config keys, public APIs, app/page names,
    evidence field names, and test fixtures that could drift semantically or
    conflict with cross-page action semantics.
-7. **Deprecation**: deprecated Streamlit/Python/package APIs, retired AGILAB
+7. **Deprecation**: deprecated Python view/package APIs, retired AGILAB
    helpers, legacy build wrappers, obsolete install paths, and old docs claims
    that should be migrated, shimmed deliberately, or removed.
 8. **Security**: trust-boundary violations, untrusted content handling,

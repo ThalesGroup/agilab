@@ -1,35 +1,35 @@
 ---
 name: agilab-ui-robot-validation
-description: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.
+description: Validate AGILAB native React/Python UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-31
+  updated: 2026-10-13
 ---
 
 # AGILAB UI Robot Validation
 
-Use this skill when a change affects user-visible Streamlit behavior, page
+Use this skill when a change affects user-visible native Python UI behavior, page
 navigation, sidebar actions, wizard links, notebook import/upload flows, UI
 screenshots, or public demo evidence.
 
 The goal is to catch real browser/session-state failures that helper tests and
 static AppTest checks can miss: broken `st.switch_page` paths, recursive
-deep-links, hidden upload controls, stale sidebar state, and Streamlit
+deep-links, hidden upload controls, stale sidebar state, and native Python UI
 exceptions that only appear after clicking through the UI.
 
 ## Tool Choice
 
 - Use focused unit/helper tests first when the bug is pure Python state logic.
-- Use Streamlit `AppTest` when the failure is widget wiring, page hydration, or
+- Use `agi_web.testing.AppTest` when the failure is widget wiring, page hydration, or
   session-state initialization and no real browser behavior is needed.
 - Use `tools/agilab_web_robot.py` for browser-level entrypoint checks, hosted
   demo checks, screenshots, and notebook upload handoff behavior.
-- Use `tools/agilab_widget_robot.py` for page-by-page Streamlit widget flows,
+- Use `tools/agilab_widget_robot.py` for page-by-page native Python UI widget flows,
   selected action buttons, artifact assertions, and stateful project journeys.
 - Use `tools/agilab_widget_robot_matrix.py` when the change touches navigation,
   sidebar project actions, notebook import, settings, first-launch, or broad UI
   behavior that must stay consistent across pages.
-- For Streamlit or React/`agi-web` page validation, inspect browser dev-log
+- For native React/`agi-web` page validation, inspect browser dev-log
   evidence too: console errors/warnings, `pageerror`, failed requests, and HTTP
   4xx/5xx responses. A page is not validated just because the visible DOM
   rendered when the browser log shows a relevant runtime or asset failure.
@@ -66,7 +66,7 @@ navigation changed:
 UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run python tools/first_launch_robot.py --json --output /tmp/agilab-first-launch-robot.json
 ```
 
-Use this for Streamlit dependency, run-configuration, theme, or blank-page
+Use this for native Python UI dependency, run-configuration, theme, or blank-page
 frontend issues. It launches the dev app, checks JS/CSS MIME types, then verifies
 the first page hydrates in Chromium:
 
@@ -124,7 +124,7 @@ UV_PYTHON=3.13 uv --preview-features extra-build-dependencies run --with playwri
 ```
 
 Use explicit browser-error evidence when React/`agi-web`, custom components,
-iframes, or Streamlit frontend assets are part of the change. The widget robot
+iframes, or native Python UI frontend assets are part of the change. The widget robot
 captures Chromium console warnings/errors, `pageerror`, failed requests, and
 HTTP error responses into its JSON/progress evidence and failure bundle:
 
@@ -159,7 +159,7 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
   When the first visible copy or product journey wording changes, update
   `tools/first_launch_robot.py` expectations in the same change so CI validates
   the current pitch instead of stale labels.
-- Streamlit dependency, `pyproject.toml`, run config, theme, or launch wrapper:
+- native Python UI dependency, `pyproject.toml`, run config, theme, or launch wrapper:
   run `tools/agilab_web_robot.py --frontend-smoke-only` first. This is the
   fastest real-browser guard for blank pages caused by static frontend assets
   being served with the wrong MIME type.
@@ -187,7 +187,7 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
   exact visible label and add focused regressions for the selector state. Do not
   rename robot dispositions to internal semantics such as `Update selected`
   unless that is the actual button text users see.
-- SETTINGS or Streamlit system-menu changes:
+- SETTINGS or shared Tools control changes:
   run settings page tests plus the settings matrix scenario.
 - Public demo or HF Space UI:
   run `tools/hf_space_smoke.py --json` first, then run the web robot against the
@@ -230,7 +230,7 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
 - `maximum recursion depth exceeded`: deep-link intent was not consumed/cleared
   before rerun; test both first click and reload behavior.
 - Upload link opens the page but no chooser appears: browser-level robot is
-  required because Streamlit file chooser behavior cannot be proven by static
+  required because native Python UI file chooser behavior cannot be proven by static
   text checks alone.
 - Spinner keeps running after an action: assert action-result status and fatal
   log classification, not just that a success message was rendered.
@@ -242,7 +242,7 @@ uv --preview-features extra-build-dependencies run python tools/workflow_parity.
 - The narrow helper/AppTest regression for the root cause is green.
 - The selected robot scenario that matches the user journey is green, or the
   blocker is explicitly reported.
-- Browser dev-log evidence was inspected for Streamlit/React browser runs:
+- Browser dev-log evidence was inspected for native React browser runs:
   console, page errors, failed requests, and HTTP errors are either clean or
   explicitly explained.
 - No generated screenshots or `test-results/` artifacts are committed unless the
