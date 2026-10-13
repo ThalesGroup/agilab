@@ -370,7 +370,7 @@ def test_pypi_publish_attests_and_uploads_release_supply_chain_assets() -> None:
     assert "for package in ${PROVENANCE_PACKAGES}; do" in text
     assert "pypi-provenance-evidence" in text
     assert "publish-release-assets:" in text
-    assert "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c" in text
+    assert "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333" in text
     assert re.search(r"actions/attest@[0-9a-f]{40}\s+# v4\b", text)
     assert "attestations: write" in text
     assert "artifact-metadata: write" in text
