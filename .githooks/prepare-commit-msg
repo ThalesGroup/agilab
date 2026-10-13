@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Supplement pre-commit for Git's automatic merge and sequencer commit paths.
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
+. "$(dirname -- "${BASH_SOURCE[0]}")/guard_python.sh"
+run_guard_python tools/security/git_secret_scan_guard.py staged --root "$ROOT_DIR"
