@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +36,241 @@ license: BSD-3-Clause
         encoding="utf-8",
     )
     return skill_dir
+
+
+def test_default_skill_selection_covers_both_roots(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    roots = [tmp_path / ".claude" / "skills", tmp_path / ".codex" / "skills"]
+    expected = [
+        _write_skill(root, f"default-{index}", "Use this workflow.")
+        for index, root in enumerate(roots)
+    ]
+    monkeypatch.setattr(module, "DEFAULT_ROOTS", roots)
+    report = tmp_path / "agilab-default-skill-selection-validation.json"
+
+    result = module.main(["--external-validator", "off", "--json-output", str(report)])
+
+    assert result == 0
+    assert set(json.loads(report.read_text(encoding="utf-8"))["skills_scanned"]) == {
+        str(path.resolve()) for path in expected
+    }
+
+
+@pytest.mark.parametrize(
+    "empty_directory", [False, True], ids=["missing-directory", "missing-entrypoint"]
+)
+@pytest.mark.parametrize(
+    "include_valid", [False, True], ids=["invalid-only", "mixed-valid-invalid"]
+)
+def test_explicit_skill_selection_keeps_invalid_requests(
+    tmp_path: Path, empty_directory: bool, include_valid: bool
+) -> None:
+    module = _load_module()
+    default_root = tmp_path / "default-skills"
+    _write_skill(
+        default_root, "unrelated", "This skill is outside the requested scope."
+    )
+    invalid = tmp_path / "requested-invalid"
+    if empty_directory:
+        invalid.mkdir()
+    requested = [invalid]
+    if include_valid:
+        requested.append(
+            _write_skill(tmp_path, "requested-valid", "Use this workflow.")
+        )
+    report = tmp_path / "agilab-explicit-skill-selection-validation.json"
+    argv = [
+        "--roots",
+        str(default_root),
+        "--external-validator",
+        "off",
+        "--fail-on",
+        "high",
+    ]
+    for path in requested:
+        argv.extend(["--skill-dir", str(path)])
+    argv.extend(["--json-output", str(report)])
+
+    result = module.main(argv)
+
+    assert result == 2
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert set(payload["skills_scanned"]) == {str(path.resolve()) for path in requested}
+    missing = [
+        finding
+        for finding in payload["findings"]
+        if finding["rule"] == "missing-skill-md"
+    ]
+    assert len(missing) == 1
+    assert missing[0]["path"] == str(invalid.resolve())
+    assert missing[0]["severity"] == "critical"
+
+
+def test_explicit_skill_selection_stays_scoped_when_valid(tmp_path: Path) -> None:
+    module = _load_module()
+    default_root = tmp_path / "default-skills"
+    unrelated = default_root / "unrelated-missing-entrypoint"
+    unrelated.mkdir(parents=True)
+    requested = _write_skill(tmp_path, "requested-valid", "Use this workflow.")
+    report = tmp_path / "agilab-explicit-skill-selection-validation.json"
+
+    result = module.main(
+        [
+            "--roots",
+            str(default_root),
+            "--skill-dir",
+            str(requested),
+            "--external-validator",
+            "off",
+            "--fail-on",
+            "high",
+            "--json-output",
+            str(report),
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == [str(requested.resolve())]
+    assert payload["findings"] == []
+
+
+def test_default_skill_selection_tolerates_absent_optional_provider(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    roots = [tmp_path / ".claude" / "skills", tmp_path / ".codex" / "skills"]
+    expected = _write_skill(roots[0], "available-provider", "Use this workflow.")
+    monkeypatch.setattr(module, "DEFAULT_ROOTS", roots)
+    report = tmp_path / "agilab-default-skill-root-validation.json"
+
+    result = module.main(["--external-validator", "off", "--json-output", str(report)])
+
+    assert result == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == [str(expected.resolve())]
+    assert payload["findings"] == []
+
+
+@pytest.mark.parametrize("bad_kind", ["missing", "file"])
+@pytest.mark.parametrize(
+    "include_valid", [False, True], ids=["bad-root-only", "mixed-roots"]
+)
+@pytest.mark.parametrize(
+    "changed_only", [False, True], ids=["full-scan", "no-changed-skills"]
+)
+def test_explicit_skill_roots_require_directories(
+    tmp_path: Path, bad_kind: str, include_valid: bool, changed_only: bool
+) -> None:
+    module = _load_module()
+    bad_root = tmp_path / "requested-bad-root"
+    if bad_kind == "file":
+        bad_root.write_text("This is a file, not a skill root.\n", encoding="utf-8")
+    roots = [bad_root]
+    if include_valid:
+        roots.append(module.DEFAULT_ROOTS[0])
+    report = tmp_path / "agilab-requested-skill-root-validation.json"
+    argv = [
+        "--roots",
+        *(str(root) for root in roots),
+        "--external-validator",
+        "off",
+        "--fail-on",
+        "high",
+    ]
+    if changed_only:
+        argv.extend(["--changed-only", "--base-ref", "HEAD"])
+    argv.extend(["--json-output", str(report)])
+
+    result = module.main(argv)
+
+    assert result == 2
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    missing = [
+        finding
+        for finding in payload["findings"]
+        if finding["rule"] == "missing-skill-root"
+    ]
+    assert len(missing) == 1
+    assert missing[0]["path"] == str(bad_root.resolve())
+    assert missing[0]["severity"] == "critical"
+    if changed_only:
+        assert payload["skills_scanned"] == []
+
+
+def test_explicit_existing_empty_skill_root_is_allowed(tmp_path: Path) -> None:
+    module = _load_module()
+    root = tmp_path / "existing-empty-skill-root"
+    root.mkdir()
+    report = tmp_path / "agilab-empty-skill-root-validation.json"
+
+    result = module.main(
+        [
+            "--roots",
+            str(root),
+            "--external-validator",
+            "off",
+            "--json-output",
+            str(report),
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == []
+    assert payload["findings"] == []
+
+
+def test_no_changed_skills_is_allowed(tmp_path: Path) -> None:
+    module = _load_module()
+    report = tmp_path / "agilab-unchanged-skill-selection-validation.json"
+
+    result = module.main(
+        [
+            "--changed-only",
+            "--base-ref",
+            "HEAD",
+            "--external-validator",
+            "off",
+            "--json-output",
+            str(report),
+        ]
+    )
+
+    assert result == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == []
+    assert payload["findings"] == []
+
+
+@pytest.mark.parametrize(
+    "selection", ["missing-directory", "missing-entrypoint", "valid", "mixed"]
+)
+def test_explicit_and_changed_only_selection_modes_are_rejected(
+    tmp_path: Path, selection: str, capsys
+) -> None:
+    module = _load_module()
+    requested = [tmp_path / "requested-invalid"]
+    if selection == "missing-entrypoint":
+        requested[0].mkdir()
+    elif selection == "valid":
+        requested = [_write_skill(tmp_path, "requested-valid", "Use this workflow.")]
+    elif selection == "mixed":
+        requested.append(
+            _write_skill(tmp_path, "requested-valid", "Use this workflow.")
+        )
+    argv = ["--changed-only", "--base-ref", "HEAD", "--external-validator", "off"]
+    for path in requested:
+        argv.extend(["--skill-dir", str(path)])
+
+    with pytest.raises(SystemExit) as excinfo:
+        module.main(argv)
+
+    assert excinfo.value.code == 2
+    diagnostic = capsys.readouterr().err
+    assert "--skill-dir" in diagnostic
+    assert "--changed-only" in diagnostic
+    assert "not allowed with argument" in diagnostic
 
 
 def test_scan_skill_flags_broken_internal_link_and_root_readme(tmp_path: Path) -> None:
