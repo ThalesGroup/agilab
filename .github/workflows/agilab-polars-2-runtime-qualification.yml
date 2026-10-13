@@ -83,6 +83,7 @@ jobs:
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --isolated --no-project \
+            --python "$QUALIFICATION_PYTHON" \
             --with-editable ./src/agilab/core/agi-env \
             --with-editable ./src/agilab/core/agi-node \
             --with-editable ./src/agilab/core/agi-cluster \

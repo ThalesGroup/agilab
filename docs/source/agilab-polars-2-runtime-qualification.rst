@@ -35,6 +35,7 @@ which can select a different Polars major version.
 .. code-block:: bash
 
    uv --preview-features extra-build-dependencies run --isolated --no-project \
+     --python 3.13 \
      --with-editable ./src/agilab/core/agi-env \
      --with-editable ./src/agilab/core/agi-node \
      --with-editable ./src/agilab/core/agi-cluster \
@@ -48,7 +49,7 @@ which can select a different Polars major version.
      --expected-python 3.13 --expected-platform Linux \
      --output-dir test-results/polars-2-runtime-local
 
-Use the matching Python minor and ``--expected-platform Windows`` on Windows
+Set both ``--python`` and ``--expected-python`` to the matching minor, and use ``--expected-platform Windows`` on Windows
 or ``Darwin`` on macOS. The Windows command can run in Git Bash, as the workflow
 does. Choose a new output directory for each run; evidence is never overwritten.
 For the hosted matrix, use Actions → ``agilab-polars-2-runtime-qualification``
@@ -81,5 +82,6 @@ tests on the hosted Ubuntu/Windows runners. It does not certify every built-in
 or private app under Polars 2, later dependency releases, free-threaded Python,
 remote deployment, or performance on a smaller physical machine. Application
 and worker environments keep their own declared constraints. The artifact's
-source hashes bind the result to the tested source; use current receipts when
-making a compatibility claim.
+source hashes bind the result to the tested source; Windows checkout hashes
+may differ only by a verified LF-to-CRLF conversion from the committed Git
+blobs. Use current receipts when making a compatibility claim.

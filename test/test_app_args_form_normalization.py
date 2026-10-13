@@ -260,8 +260,8 @@ def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> 
         persisted = tomllib.load(stream)
     assert persisted["cluster"]["cluster_enabled"] is True
     assert persisted["args"]["data_source"] == "file"
-    assert persisted["args"]["data_in"] == "flight_telemetry/dataset"
-    assert persisted["args"]["data_out"] == "flight_telemetry/dataframe"
+    assert persisted["args"]["data_in"] == str(Path("flight_telemetry") / "dataset")
+    assert persisted["args"]["data_out"] == str(Path("flight_telemetry") / "dataframe")
     assert "dataset" not in persisted["args"]
     assert "hidden_layers" not in persisted["args"]
 
@@ -507,8 +507,8 @@ def test_minimal_app_app_args_form_renders_and_persists_args(tmp_path: Path) -> 
     at.run()
 
     assert not at.exception
-    assert at.text_input(key="minimal_app_project:app_args_form:data_in").value == "minimal_app/dataset"
-    assert at.text_input(key="minimal_app_project:app_args_form:data_out").value == "minimal_app/dataframe"
+    assert at.text_input(key="minimal_app_project:app_args_form:data_in").value == str(Path("minimal_app") / "dataset")
+    assert at.text_input(key="minimal_app_project:app_args_form:data_out").value == str(Path("minimal_app") / "dataframe")
     assert at.text_input(key="minimal_app_project:app_args_form:files").value == "*"
 
     at.text_input(key="minimal_app_project:app_args_form:files").set_value("*.csv")

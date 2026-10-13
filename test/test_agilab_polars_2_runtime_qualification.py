@@ -415,3 +415,15 @@ raise SystemExit(helper.run_qualification(
     assert report["collected"] == 2
     assert report["collected_by_file"] == {"test_first.py": 1, "test_second.py": 1}
     assert report["test_outcomes"] == {"passed": 2}
+
+
+def test_workflow_passes_matrix_python_to_uv_before_resolution():
+    workflow = yaml.safe_load((ROOT / qualification.WORKFLOW_PATH).read_text())
+    job = workflow["jobs"]["polars-2-runtime-qualification"]
+    execution = next(step for step in job["steps"] if "run" in step)
+    assert execution["env"]["QUALIFICATION_PYTHON"] == "${{ matrix.python }}"
+    assert '--python "$QUALIFICATION_PYTHON"' in execution["run"]
+    assert '--expected-python "$QUALIFICATION_PYTHON"' in execution["run"]
+    assert execution["run"].index('--python "$QUALIFICATION_PYTHON"') < execution[
+        "run"
+    ].index("--with-editable")
