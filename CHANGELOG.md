@@ -35,8 +35,9 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
   plans and drafts.
 - Align native browser coverage with Tools initially closed, opened explicitly
   for sidebar actions, and closed again after those actions.
-- Prepare an `agilab`-only patch release; retain the existing SDK and shared UI
-  package versions.
+- Prepare the AGILAB and SDK compatibility release for validated Pydantic 2.14
+  and Polars 2 runtimes; update the affected SDK versions and exact dependency
+  pins while preserving existing builtin app and template constraints.
 
 ## [2026.10.12] - 2026-10-12
 
