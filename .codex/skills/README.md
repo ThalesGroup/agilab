@@ -23,10 +23,10 @@ repo mirror exists.
 ## Skill Catalog
 
 - `advanced-svg-system-design`: Build reusable SVG visual systems and consistent figure families across docs, slides, and reports.
-- `agilab-runbook`: Core repo runbook (uv, Streamlit, run configs, troubleshooting).
+- `agilab-runbook`: Core repo runbook (uv, native React/Python UI, run configs, troubleshooting).
 - `agilab-installer`: Installer + apps/pages installation conventions and triage.
-- `agilab-streamlit-pages`: Streamlit session-state patterns and page authoring rules.
-- `agilab-ui-robot-validation`: Validate AGILAB Streamlit user journeys with the repo browser/widget robots.
+- `agilab-streamlit-pages`: Native Python view, session-state, and page authoring rules (existing skill name retained).
+- `agilab-ui-robot-validation`: Validate AGILAB native React/Python UI user journeys with the repo browser/widget robots.
 - `agilab-docs`: Documentation workflow (public docs constraints, build steps, consistency).
 - `agilab-testing`: Targeted test strategy, benchmark evidence, and generated-test input-domain review.
 - `agilab-code-statistics`: Generate tracked-file LOC, language, file-count, and churn summaries without builds.

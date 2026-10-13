@@ -3,8 +3,8 @@
 
 This complements the repo's security scan with spec-adjacent checks inspired by
 `agent-ecosystem/skill-validator`: portable structure, broken local links,
-oversized activation content, and optional external validator execution when the
-CLI is installed.
+oversized activation content, obsolete AGILAB command recipes, and optional
+external validator execution when the CLI is installed.
 """
 
 from __future__ import annotations
@@ -47,6 +47,8 @@ TEXT_SUFFIXES = {
 }
 LINK_RE = re.compile(r"(?<!!)\[[^\]]+\]\((?P<target>[^)]+)\)")
 FENCE_RE = re.compile(r"^\s*(```|~~~)")
+RETIRED_AGILAB_UI_RECIPE_RE = re.compile(r"\bstreamlit\s+run\b|\bstreamlit\.testing(?:\.v1)?\b")
+PYTHON_TOOL_COMMAND_RE = re.compile(r"\bpython(?:3(?:\.\d+)?)?\s+(tools/[A-Za-z0-9_./-]+\.py)\b")
 
 
 @dataclass(frozen=True)
@@ -201,6 +203,45 @@ def _check_internal_links(skill_dir: Path, path: Path, text: str) -> list[Findin
     return findings
 
 
+def _check_agilab_command_recipes(skill_dir: Path, path: Path, text: str) -> list[Finding]:
+    """Keep AGILAB-owned recipes aligned with the native UI and local tools."""
+    skill_name = skill_dir.name
+    if not (skill_name.startswith("agilab-") or skill_name == "notebook-to-agilab-project"):
+        return []
+    owned_skill_roots = {(REPO_ROOT / agent / "skills").resolve() for agent in (".claude", ".codex")}
+    checks_local_targets = (
+        skill_name == "agilab-evidence-contracts" and skill_dir.resolve().parent in owned_skill_roots
+    )
+    findings: list[Finding] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if RETIRED_AGILAB_UI_RECIPE_RE.search(line):
+            findings.append(
+                Finding(
+                    skill_name,
+                    "high",
+                    "retired-agilab-ui-recipe",
+                    f"Line {number} uses a retired AGILAB UI recipe; use agi_web.react_python_host "
+                    "or agi_web.testing.AppTest instead.",
+                    _rel(path),
+                )
+            )
+        # Only this checkout's evidence skill promises commands from its root.
+        # Adapted copies and other skills may use a sibling repo's own helpers.
+        if checks_local_targets:
+            for target in PYTHON_TOOL_COMMAND_RE.findall(line):
+                if not (REPO_ROOT / target).is_file():
+                    findings.append(
+                        Finding(
+                            skill_name,
+                            "high",
+                            "missing-agilab-command-target",
+                            f"Line {number} requires a missing AGILAB command target: {target}",
+                            _rel(path),
+                        )
+                    )
+    return findings
+
+
 def _has_unclosed_code_fence(text: str) -> bool:
     fence: str | None = None
     for line in text.splitlines():
@@ -320,6 +361,7 @@ def scan_skill(skill_dir: Path) -> list[Finding]:
     for path in text_files:
         text = _read_text(path)
         findings.extend(_check_internal_links(skill_dir, path, text))
+        findings.extend(_check_agilab_command_recipes(skill_dir, path, text))
         if path != skill_md and _has_unclosed_code_fence(text):
             findings.append(
                 Finding(

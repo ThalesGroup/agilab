@@ -1,9 +1,9 @@
 ---
 name: agilab-security-review-patterns
-description: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.
+description: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, native Python UI exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-16
+  updated: 2026-10-13
 ---
 
 # AGILAB Security Review Patterns
@@ -15,7 +15,7 @@ claim. Keep findings tied to concrete files, commands, and user impact.
 ## Start Here
 
 1. Inspect the diff and classify the touched security surface:
-   - UI exposure: Streamlit host, settings page, routes, auth/TLS assumptions.
+   - UI exposure: native Python UI host, settings page, routes, auth/TLS assumptions.
    - Execution: apps, notebooks, generated code, service tasks, autorun paths.
    - Cluster: SSH, Dask, shared folders, remote accounts, worker deployment.
    - Secrets: `.env`, CLI args, logs, session state, run evidence, artifacts.

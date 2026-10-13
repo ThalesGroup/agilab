@@ -3,7 +3,7 @@ name: agilab-installer
 description: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-18
+  updated: 2026-10-13
 ---
 
 # AGILAB Installer Skill
@@ -126,7 +126,7 @@ exclude) if an app the user actually works on shows up excluded.
     - PyCharm SDK binding for the active checkout
     - `~/.local/share/agilab/.agilab-path`
     - `~/.agilab/.env` keys such as `APPS_PATH`, `IS_SOURCE_ENV`, and share paths
-    - whether Streamlit retained a stale `st.session_state["env"]` from an earlier run
+    - whether native Python UI retained a stale `st.session_state["env"]` from an earlier run
   - Reproduce with a clean `HOME` and with a deliberately polluted fake `HOME`; a fix that
     only works on the maintainer machine is not release-ready.
   - Do not work around this by copying source apps into `$HOME/agi-space`. The source run
@@ -207,20 +207,20 @@ exclude) if an app the user actually works on shows up excluded.
     - worker:  `.../<app>_project/src/<app>_worker/pyproject.toml`
 
 - **Source app install pollutes the root AGILAB UI venv**
-  - Symptom: after installing a source app, the main Streamlit UI fails with
-    missing UI dependencies such as `pyarrow`, `streamlit`, or
-    `streamlit_code_editor`, while the app manager/worker venvs look unrelated.
+  - Symptom: after installing a source app, the main native React/Python UI fails with
+    missing native UI dependencies such as `agi_web` or `starlette`, while the
+    app manager/worker venvs look unrelated.
   - Treat this as installer isolation drift before adding UI dependencies to the
     app. Check whether source-env install steps run `uv pip install` without
     `--python <app>/.venv/bin/python`.
   - Source app installs must target the app manager venv explicitly for manager
     editable installs, and the worker venv explicitly for worker editable
     installs. Do not let app install subprocesses mutate the repo root `.venv`
-    or ambient PyCharm/Streamlit environment.
+    or ambient PyCharm/native Python UI environment.
   - Reproduce with the real path:
     `AGILAB_DISABLE_DEPLOY_STAGE_CACHE=1 uv --preview-features extra-build-dependencies run python src/agilab/apps/install.py <app-project-path> --verbose 1 --force-install`
   - After the fix, verify both:
-    - root UI imports still work: `streamlit`, `code_editor`, `pyarrow`
+    - root UI imports still work: `agi_web.python_ui`, `agi_web.react_python_host`, `starlette`
     - app readiness reports manager and worker ready through
       `agilab.orchestrate_page_support.app_install_status`
 

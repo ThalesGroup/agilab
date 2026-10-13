@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-30
+  updated: 2026-10-13
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -28,7 +28,7 @@ The official Space is currently:
 - optionally named like `<user>/agilab-advanced` for the heavier `advanced`
   profile
 - launched on port `7860`
-- backed by the AGILAB Streamlit interface
+- backed by the AGILAB native React interface and Python view host
 - built from the public `agilab` repo plus the sibling apps/docs `huggingface` packaging bundle
 
 Treat `first-proof` as the default target unless the user explicitly asks for
@@ -97,7 +97,7 @@ Keep the skill aligned with the README contract:
   `agi-core` runtime handoff: review, handoff, and reuse without the AGILAB UI
   or distributed worker layer, while still relying on the stable core runtime
   and the exported project's dependencies
-- the Space exposes the AGILAB Streamlit interface
+- the Space exposes the AGILAB native React interface and Python view host
 - Space mode is single-container only
 - local Dask multi-worker execution may be demonstrated inside that container
   using `127.0.0.1:8786`, `{"127.0.0.1": 2}`, and a writable in-container

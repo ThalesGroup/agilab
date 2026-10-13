@@ -3,7 +3,7 @@ name: repo-skill-maintenance
 description: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-09
+  updated: 2026-10-13
 ---
 
 # Repo Skill Maintenance
@@ -164,25 +164,30 @@ the AGILAB/Tokki exchange decisions and concrete acceptance scenarios.
 - Inspect an external skill installer's current `--help` and its actual
   filesystem output before choosing project or global mode. Do not infer copy
   versus symlink behavior from the destination path or an older release.
-- From an AGILAB checkout whose environment already contains Streamlit, run the
-  official installer in global mode without changing that environment:
+- For work on an actual Streamlit project whose environment already contains
+  supported Streamlit, run the official installer in global mode without
+  changing that environment. AGILAB's native UI uses `agi_web`; do not install
+  Streamlit or activate this external skill merely to work on AGILAB views:
 
 ```bash
 uv --preview-features extra-build-dependencies run --no-sync streamlit skills --global --yes
 ```
 
-  If a lean task worktree does not have Streamlit installed, run this command
-  from the active source checkout instead of syncing dependencies into the task
-  worktree merely for skill installation. The default project mode creates an
+  If the selected Streamlit task worktree does not have Streamlit installed,
+  use that project's existing supported environment instead of syncing
+  dependencies merely for skill installation. The default project mode creates an
   environment-specific symlink beneath `.agents/skills/` and, when the user's
   `~/.claude/` directory exists, another beneath `.claude/skills/`. The
   `.claude/skills/` link enters AGILAB's filesystem-driven catalog; the
   `.agents/skills/` link is still repo pollution. Committing either link
   violates the repository-wide no-symlink CI guard.
-- `tools/sync_agent_skills.py` rejects every top-level symlink entry in both the
-  canonical `.claude/skills/` root and the project `.agents/skills/` root before
-  check or sync mode. Remove the polluted project link and reinstall globally;
-  reviewed links nested inside a real repo-managed skill remain supported.
+- Repo-managed skill directories and resources must contain no symlinks or
+  directory junctions at any depth. `tools/sync_agent_skills.py` recursively
+  rejects links in the canonical `.claude/skills/` and project `.agents/skills/`
+  trees before check or sync mode, and checks copied skills in the Codex mirror
+  during sync. Nested links inside real skill directories are rejected too.
+  Remove polluted project links and reinstall external skills globally; keep
+  repo-managed skill files and directories real.
 - Streamlit global mode downloads and copies its small
   `developing-with-streamlit` meta skill into `~/.agents/skills/` and, when
   `~/.claude/` exists, `~/.claude/skills/`. Its `discover.py` resolves the
@@ -199,9 +204,10 @@ python3 ~/.agents/skills/developing-with-streamlit/scripts/discover.py --project
   A copied global meta skill is not tied to the venv that ran the installer;
   discovery only requires the target project to keep a supported Streamlit
   installation. Point `--project-dir` at the checkout whose environment
-  actually contains Streamlit. A lean task worktree without AGILAB's UI extra
+  actually contains supported Streamlit. A selected project without Streamlit
   should return the installer's actionable `Streamlit is not installed`
-  diagnostic; that does not mean the global meta skill is broken.
+  diagnostic; that does not mean the global meta skill is broken or that
+  AGILAB's native UI needs a Streamlit dependency.
 
 ## Guardrails
 

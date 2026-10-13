@@ -3,7 +3,7 @@ name: agilab-evidence-contracts
 description: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-10
+  updated: 2026-10-13
 ---
 
 # AGILAB Evidence Contracts
@@ -181,7 +181,7 @@ Use the narrow evidence checks that match the change:
 ```bash
 uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_evidence_contract.py
 uv --preview-features extra-build-dependencies run pytest -q -o addopts='' test/test_agent_trace.py test/test_agent_run.py
-uv --preview-features extra-build-dependencies run python tools/release_proof_check.py
+uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --compact
 uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile skills
 ```
 

@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-12T19:11:23Z",
+  "generated_at_utc": "2026-10-13T16:19:25Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -863,7 +863,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "path": ".claude/skills/agilab-deep-audit/SKILL.md",
-      "updated": "2026-09-11"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-docs",
@@ -875,7 +875,7 @@
       "name": "agilab-evidence-contracts",
       "description": "Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation.",
       "path": ".claude/skills/agilab-evidence-contracts/SKILL.md",
-      "updated": "2026-09-10"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-example-maturity",
@@ -887,13 +887,13 @@
       "name": "agilab-huggingface-spaces",
       "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
       "path": ".claude/skills/agilab-huggingface-spaces/SKILL.md",
-      "updated": "2026-05-30"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-installer",
       "description": "Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures.",
       "path": ".claude/skills/agilab-installer/SKILL.md",
-      "updated": "2026-06-18"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-intent-router",
@@ -929,37 +929,37 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-06-19"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-runbook",
-      "description": "Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).",
+      "description": "Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-10-09"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-security-review-patterns",
-      "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
+      "description": "Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, native Python UI exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories.",
       "path": ".claude/skills/agilab-security-review-patterns/SKILL.md",
-      "updated": "2026-07-16"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-streamlit-pages",
-      "description": "Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).",
+      "description": "Native Python view authoring patterns for AGILAB (agi_web.python_ui, session_state safety, keys, rerun, UX).",
       "path": ".claude/skills/agilab-streamlit-pages/SKILL.md",
-      "updated": "2026-07-04"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-testing",
       "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "path": ".claude/skills/agilab-testing/SKILL.md",
-      "updated": "2026-09-10"
+      "updated": "2026-10-13"
     },
     {
       "name": "agilab-ui-robot-validation",
-      "description": "Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
+      "description": "Validate AGILAB native React/Python UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence.",
       "path": ".claude/skills/agilab-ui-robot-validation/SKILL.md",
-      "updated": "2026-05-31"
+      "updated": "2026-10-13"
     },
     {
       "name": "chat-export",
@@ -971,7 +971,7 @@
       "name": "codex-session-learning",
       "description": "Turn past coding-agent debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from Codex or another agent's sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory.",
       "path": ".claude/skills/codex-session-learning/SKILL.md",
-      "updated": "2026-09-11"
+      "updated": "2026-10-13"
     },
     {
       "name": "docs-publish-github-pages",
@@ -989,7 +989,7 @@
       "name": "notebook-to-agilab-project",
       "description": "Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.",
       "path": ".claude/skills/notebook-to-agilab-project/SKILL.md",
-      "updated": "2026-05-21"
+      "updated": "2026-10-13"
     },
     {
       "name": "pipeline-concept-view",
@@ -1007,7 +1007,7 @@
       "name": "repo-skill-maintenance",
       "description": "Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills.",
       "path": ".claude/skills/repo-skill-maintenance/SKILL.md",
-      "updated": "2026-10-09"
+      "updated": "2026-10-13"
     },
     {
       "name": "report-qa-docx",

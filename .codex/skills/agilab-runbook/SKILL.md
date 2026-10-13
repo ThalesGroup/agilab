@@ -1,21 +1,21 @@
 ---
 name: agilab-runbook
-description: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting).
+description: Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-10-09
+  updated: 2026-10-13
 ---
 
 # AGILab runbook (Agent Skill)
 
-Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases.
+Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching the native React interface, regenerating run-config wrappers, debugging installs, or preparing releases.
 
 ## AGILab working rules (repo policy)
 
 - **Use `uv` for all runs** so dependencies resolve in managed envs:
   - `uv --preview-features extra-build-dependencies run python …`
-  - `uv --preview-features extra-build-dependencies run --extra ui streamlit …`
+  - `uv --preview-features extra-build-dependencies run --extra ui python -m agilab --address 127.0.0.1`
 - **No repo `uvx`**: do not run `uvx agilab` from this checkout (it will run the published wheel and ignore local changes).
 - **Process ownership**: treat existing terminals, Codex CLI sessions, dev servers, and other long-running processes as user-owned unless this turn started them. Do not use broad termination commands such as `pkill`, `killall`, `pkill -f`, or port-based `kill` pipelines that can match unrelated sessions. Stop only verified PIDs or tool sessions created for the active task. Do not use Codex CLI control shortcuts such as `/stop`, Esc interruption, or terminal-close actions to manage background terminals unless the terminal/session was created by this active task and its identity is verified. A status banner that says a background terminal is running is not ownership proof. If a port is busy, choose another port or ask before stopping its owner; do not try to "pause" another Codex CLI session from here.
 - **Tokki terminal routing**: when Tokki is available and the command can be executed faithfully, run ad-hoc terminal checks through `tokki run -- <command>` so noisy output is digested and full logs stay in private artifacts. Use raw commands instead when a tool needs live streaming, TTY interaction, structured stdout, or exact unwrapped behavior.
@@ -41,11 +41,11 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   Do not rerun full `install.sh` just to switch PyCharm roots; use it only when installer
   side effects are needed, such as app installation, `.agilab-path` updates, dataset
   seeding, or install-time tests.
-- **Source/end-user path drift**: if a source Streamlit run shows end-user paths such as
+- **Source/end-user path drift**: if a source native Python UI run shows end-user paths such as
   `$HOME/agi-space/apps/builtin/<app>/.venv` in the ORCHESTRATE header, treat it as a
   bootstrap/root-selection bug until proven otherwise. Check the active process root,
   PyCharm SDK binding, `sys.path`, `~/.local/share/agilab/.agilab-path`, and persisted
-  `~/.agilab/.env` keys such as `APPS_PATH` and `IS_SOURCE_ENV`. Restart Streamlit after
+  `~/.agilab/.env` keys such as `APPS_PATH` and `IS_SOURCE_ENV`. Restart the native Python view host after
   fixing bootstrap code because `st.session_state["env"]` and `env.active_app` can retain
   stale paths across reruns.
 - **Worker data path resolution layer**: in cluster and workflow execution, UI pages may
@@ -63,12 +63,12 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   `test_base_worker.py` plus a focused UI test only when the default/persisted value changes.
   Do not preserve backward compatibility for the legacy `/workers` layout unless an explicit
   migration request requires it.
-- **Source Streamlit launches must be non-mutating by default**: if starting
+- **Source UI launches must be non-mutating by default**: if starting
   `agilab run (dev)` prints `Uninstalled ...` or `Installed ...`, inspect both
   the outer run-config command and any launcher-spawned inner `uv run` command.
   The selected default app is not the cause; uv is reconciling the project
   environment or the `ui` extra. Runtime launchers should preserve `UV_NO_SYNC`
-  and use `uv run --no-sync` for the inner Streamlit command. Do dependency
+  and use `uv run --no-sync` for the inner native Python UI command. Do dependency
   bootstrap explicitly with `uv sync --extra ui` or a clearly named sync flag
   before launch, not silently during normal UI startup.
 - **PyPI app management**: promoted public apps can be managed through the PROJECT page
@@ -138,7 +138,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   expected to work on Windows. The source checkout installer still includes POSIX shell paths, so
   prefer WSL2 for that path unless the task explicitly targets `install.ps1` or native Windows
   parity. Do not remove the Windows classifier only because a source `install.sh` path needs WSL2.
-- **Windows process and path handling**: when touching Streamlit sidecars or app/page launch helpers,
+- **Windows process and path handling**: when touching native Python UI sidecars or app/page launch helpers,
   prefer argv-list commands with `shell=False`; avoid POSIX-only `shlex.quote` strings for commands
   that may run on Windows. For clone/app-repository links, allow Windows directory junction fallback
   when symlink creation is denied, and treat missing link privileges as a recoverable condition
@@ -169,7 +169,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   first and regenerate from `../thales_agilab/docs/source`.
   - Canonical rebuild command:
     `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
-- **Streamlit API**: do not add `st.experimental_rerun()`; use `st.rerun`.
+- **Python view API**: retained views import `agi_web.python_ui`, typically as `st`; use `st.rerun()`. Do not introduce Streamlit imports. Native view tests use `agi_web.testing.AppTest`; direct views run through `python -m agi_web.react_python_host VIEW.py --address 127.0.0.1`, with view arguments after `--`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
 - **Generated WORKFLOW code**: keep safe-action contracts as the default assistant path for
   dataframe transformations. The model should return versioned JSON, AGILAB validates it against
@@ -260,7 +260,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --staged`
 - Impact triage for planned paths:
   - `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/impact_validate.py --files src/agilab/orchestrate_execute.py test/test_orchestrate_execute.py`
-- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run --extra ui streamlit run src/agilab/main_page.py -- --openai-api-key "…" --apps-path src/agilab/apps`
+- Dev UI: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run --extra ui python -m agilab --address 127.0.0.1 --apps-path src/agilab/apps`
 - Apps-pages smoke: `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run python tools/smoke_preinit.py --active-app src/agilab/apps/builtin/flight_project --timeout 20`
 - Apps-pages regression (AppTest): `cd "$PROJECT_DIR" && uv --preview-features extra-build-dependencies run pytest -q test/test_view_maps_network.py`
 - First-adoption handoff:
@@ -351,7 +351,8 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - The public PyPI release workflow includes the `sync-hf-space` job after GitHub
   release assets. It deploys the Hugging Face Space, runs the hosted smoke test,
   and records the Space commit in release proof when
-  `needs.release-plan.outputs.pypi_publish_selected == 'true'` and
+  `needs.release-plan.outputs.umbrella_selected == 'true'`,
+  `needs.release-approval.result == 'success'`, and
   `needs.publish-release-assets.result == 'success'`. Do not add a separate
   manual HF sync step to a release plan unless that job failed, was skipped by
   selected package scope, or the user explicitly asks for an out-of-band Space
@@ -389,7 +390,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - confirm the launched script path is the current checkout, not the packaged install
   - confirm the PyCharm SDK was rebound to the intended checkout when switching roots
   - inspect `~/.local/share/agilab/.agilab-path` and `~/.agilab/.env` before trusting UI headers
-  - reproduce with a cold Streamlit/AppTest session; a warm session can keep a stale `env`
+  - reproduce with a cold `agi_web.testing.AppTest` session; a warm session can keep a stale `env`
     object even after the source code is fixed
 - Missing import: check both manager and worker `pyproject.toml` scopes (`src/agilab/apps/<app>/pyproject.toml` and `src/agilab/apps/<app>/src/<app>_worker/pyproject.toml`).
 - Installer pip issue: run `uv --preview-features extra-build-dependencies run python -m ensurepip --upgrade` once in the target venv.
@@ -412,8 +413,17 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - rediscover the worker IP first; examples must use `<ip>` placeholders, not
     LAN addresses remembered from an earlier session
   - host key changed:
-    - `ssh-keygen -R <ip>`
-    - `ssh-keyscan -H -t ed25519 <ip> >> ~/.ssh/known_hosts`
+    - obtain the expected Ed25519 fingerprint from the worker console or another
+      authenticated out-of-band channel; a changed key is not proof of a reinstall
+    - collect the replacement without trusting it:
+      `ssh-keyscan -H -t ed25519 <ip> > <candidate-host-key-file>`
+    - inspect it with `ssh-keygen -lf <candidate-host-key-file>` and compare the
+      fingerprint exactly with the independently verified expected fingerprint
+    - if verification fails or the expected fingerprint is unavailable, stop;
+      preserve the existing `known_hosts` entry and do not weaken SSH checking
+    - only after verification, back up `~/.ssh/known_hosts`, run
+      `ssh-keygen -R <ip>`, then append the verified candidate with
+      `cat <candidate-host-key-file> >> ~/.ssh/known_hosts`
   - user key missing on remote:
     - `ssh-copy-id agi@<ip>`
     - or recreate `~/.ssh/authorized_keys` with `0700` / `0600` permissions

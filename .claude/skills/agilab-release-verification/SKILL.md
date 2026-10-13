@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-19
+  updated: 2026-10-13
 ---
 
 # AGILAB Release Verification
@@ -442,8 +442,9 @@ after the badge/source change.
   force a fresh resolver cache with `uv --refresh-package`.
 - Fresh PyPI install fails after retention/pruning: inspect the published
   `agilab` wheel metadata. If `Requires-Dist` pins internal packages to a
-  deleted version, publish a new corrective `.postN` release for the whole
-  package graph before deleting anything else.
+  deleted version, publish a corrective stable `YYYY.MM.DD` or same-day hotfix
+  `YYYY.MM.DD.N` release for the impacted package graph and exact-pin bundle
+  closure before deleting anything else. Public `.postN` releases are forbidden.
 - PyPI retention reports success but old releases remain: first check whether
   the package is below the workflow's configured cleanup threshold. If the
   threshold was reached, confirm whether PyPI required password/TOTP

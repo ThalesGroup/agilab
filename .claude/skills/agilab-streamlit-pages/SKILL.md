@@ -1,12 +1,12 @@
 ---
 name: agilab-streamlit-pages
-description: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX).
+description: Native Python view authoring patterns for AGILAB (agi_web.python_ui, session_state safety, keys, rerun, UX).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-04
+  updated: 2026-10-13
 ---
 
-# Streamlit Pages Skill (AGILAB)
+# Python Views Skill (AGILAB)
 
 Use this skill when editing:
 - `src/agilab/main_page.py`
@@ -14,12 +14,18 @@ Use this skill when editing:
 - `src/agilab/apps-pages/*/src/*/*.py`
 - custom `app_args_form.py` views in AGILAB-managed app repos
 
+Retained Python views import `agi_web.python_ui`, typically as `st`. Do not
+import Streamlit or its internals. Tests use `agi_web.testing.AppTest`; direct
+views run with `python -m agi_web.react_python_host VIEW.py --address 127.0.0.1`,
+with view arguments after `--`. The existing skill name and
+`agi_env.streamlit_args` helper names remain compatibility identifiers.
+
 ## Apps-Pages Versus Apps Boundary
 
 - Treat `apps-pages` as app-agnostic analysis sidecars by default. A page should
   inspect artifacts, manifests, metrics, or settings from the selected active
   app; it should not own the domain workflow.
-- Before promoting a Streamlit surface as an apps-page, check whether it
+- Before promoting a native Python UI surface as an apps-page, check whether it
   generates its own dataset, trains a model, runs an optimizer, owns evidence
   generation, or encodes project-specific semantics. If yes, it is probably an
   app project with a companion analysis page, not a generic page bundle.
@@ -52,11 +58,11 @@ Use this skill when editing:
   `render_form(defaults_model, container=st.sidebar)`.
 - Keep the capability generic in `agi_env.streamlit_args`; do not hard-code a
   project name or page bundle just because one app wants sidebar controls.
-- If a Streamlit surface owns training, optimization, generated data, or
+- If a native Python UI surface owns training, optimization, generated data, or
   evidence export, make it an app project first. Keep any app-owned standalone
-  Streamlit surface under that app project unless a separate generic analysis
+  native Python UI surface under that app project unless a separate generic analysis
   page reads only exported artifacts.
-- For an app-owned Streamlit surface that should appear as the app's primary
+- For an app-owned native Python UI surface that should appear as the app's primary
   ANALYSIS experience, declare `[app_surface]` in the app's `app_settings.toml`
   with a project-local entrypoint such as `pytorch_playground/app_surface.py`.
   Use `[pages] restrict_to_view_module = true` for app-surface-first projects;
@@ -87,22 +93,22 @@ Use this skill when editing:
     persisted payload after render. Do not write the normalized value back into
     the widget key unless you do it before widget creation, behind a rerun, or
     through a versioned replacement key.
-  - When fixing this class of bug, use a test fake or AppTest scenario that
-    raises on post-instantiation widget-key mutation; a permissive fake can hide
-    the real `StreamlitAPIException`.
+  - When fixing this class of bug, use `agi_web.testing.AppTest` or a test
+    fake that exercises widget creation, interaction, and reruns; assert that the
+    intended persisted value survives rather than relying on a permissive fake.
 - Do not both pre-seed `st.session_state[key]` and pass a widget default/value/index for
   the same keyed widget. Pick one source of initialization:
   - use the widget default and leave `st.session_state` untouched before creation, or
   - pre-seed `st.session_state` before creation and omit the widget default.
-  This avoids Streamlit warnings such as "created with a default value but also had its
-  value set via the Session State API".
+  Keep defaults and saved state consistent so widget interaction and reruns
+  preserve the intended value.
   Shared widget wrappers should drop their default argument when the key already
   exists in session state.
 
 - If you need to “reset” a widget value:
   - Use a different key (versioned key pattern), or
   - Gate the reset behind a rerun and only mutate state before widget creation.
-- When Streamlit raises a duplicate-widget ID error, check whether the page or
+- When native Python UI raises a duplicate-widget ID error, check whether the page or
   app surface is being rendered twice before only adding widget keys. Add stable
   keys for repeated controls, but fix duplicate entrypoint execution at the
   source.
@@ -115,7 +121,7 @@ Use this skill when editing:
 
 ## Project-Scoped State Models
 
-- If a page can switch between projects/apps in one Streamlit session, any persisted widget state that belongs to a specific project must use project-scoped keys.
+- If a page can switch between projects/apps in one native Python UI session, any persisted widget state that belongs to a specific project must use project-scoped keys.
   - Prefer patterns like `f"cluster_pool__{app_name}"`, not `"cluster_pool"`.
   - Apply the same rule to toggles, text inputs, password/auth fields, scheduler/worker fields, and similar per-project controls.
 - Keep one clear source of truth for persisted settings.
@@ -225,7 +231,7 @@ Use this skill when editing:
   `default_view`/`default_views` values only when that behavior is intentionally
   replaced by the new launcher model.
 - With `st.navigation`, `st.switch_page` targets must be the main app file or an
-  exact file under `pages/` relative to the Streamlit entrypoint. Do not hard-code
+  exact file under `pages/` relative to the native Python UI entrypoint. Do not hard-code
   stale numeric filenames such as `pages/3_WORKFLOW.py`; route through central
   page constants and add a focused test when a wizard button or deep link opens
   another page.
@@ -315,7 +321,7 @@ Use this skill when editing:
   - `st.caption("Full diagnostic")`
   - `st.code(diagnostic_text, language="text")`
 - Do not embed Markdown code fences inside `st.error()` or `st.code()`.
-- Do not pass `traceback.format_exc()` directly to `st.error()`; Streamlit message
+- Do not pass `traceback.format_exc()` directly to `st.error()`; native Python UI message
   boxes collapse readability and can flatten newlines.
 - If a diagnostic arrives as a single long line, format a display-only copy with
   line breaks or wrapping before passing it to `st.code`; keep the original
@@ -347,7 +353,7 @@ Use this skill when editing:
 ## WORKFLOW Assistant UX
 
 - For WORKFLOW cockpit or preflight changes, keep the decision model
-  Streamlit-free and app-agnostic. It should answer the operator questions
+  independent of the UI and app-agnostic. It should answer the operator questions
   before any run starts: can this workflow run now, which stages can reuse
   current outputs, which stale stages should rerun, which missing inputs or
   model-artifact issues block execution, and what the fastest safe plan is.
@@ -362,7 +368,7 @@ Use this skill when editing:
   deciding whether to run, reuse, or repair the workflow.
 - Prefer pure helper regressions for cockpit preflight logic: missing input
   blocker, cached output reuse, stale output rerun, dependency error, model
-  version mismatch, and missing feature-schema warning. Add Streamlit/AppTest
+  version mismatch, and missing feature-schema warning. Add `agi_web.testing.AppTest`
   coverage only when widget state, keys, or visible page wiring changes.
 - Default generated dataframe work to a safe-action mode: the model returns a
   versioned JSON action contract, AGILAB validates it, and the UI displays the

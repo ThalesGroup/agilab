@@ -17,7 +17,7 @@ from a detailed content review in the report.
 
 These changes improve existing skills. They do not import another repository's
 release commands, private execution helpers, product claims, or provider-specific
-orchestration. AGILAB application, Streamlit, cluster, and PyPI instructions stay
+orchestration. AGILAB application, native Python UI, cluster, and PyPI instructions stay
 with the repository that owns those workflows.
 
 ## Ownership and licensing

@@ -24,7 +24,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Code Statistics Use this skill to answer code-statistics questions quickly and reproducibly. Default to tracked files only, so ignored caches, virtualenvs, local datasets, generated docs output, and untracked scratch files do not distort the numbers.
 - agilab-deep-audit: Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says "review AGILAB", "audit AGILAB", "code review AGILAB", "deep review", "architecture review", "security review", asks for a review document, or asks for comparison-quality critique rather than a quick fix. (.claude/skills/agilab-deep-audit/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-09-11
+  updated: 2026-10-13
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -32,7 +32,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - Canonical editable docs source is `../thales_agilab/docs/source`.
 - agilab-evidence-contracts: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation. (.claude/skills/agilab-evidence-contracts/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-09-10
+  updated: 2026-10-13
   preview: # AGILAB Evidence Contracts Use this skill when a change affects AGILAB's evidence-first value: proving that an experiment, app run, notebook migration, agent action, or release can be reviewed and replayed. The default stance is simple: a feature is not validated
 - agilab-example-maturity: Improve or review AGILAB packaged examples for external-beta maturity. Use when working on src/agilab/examples, example install/run scripts, example READMEs, app installer example seeding, or tests that enforce example quality, pedagogy, public API usage, deterministic first-run behavior, and newcomer-safe adaptation. (.claude/skills/agilab-example-maturity/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -40,11 +40,11 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Example Maturity ## Goal Raise AGILAB packaged examples from internal smoke snippets to external-beta examples: readable, deterministic, copy/paste safe, aligned with docs, and
 - agilab-huggingface-spaces: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout. (.claude/skills/agilab-huggingface-spaces/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-30
+  updated: 2026-10-13
   preview: # Hugging Face Spaces Skill (AGILAB) Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space. The current source of truth is the sibling apps/docs checkout, normally `../thales_agilab` relative to the public `agilab` checkout:
 - agilab-installer: Guidance for installing AGILAB, installing apps/pages, and debugging install/test failures. (.claude/skills/agilab-installer/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-18
+  updated: 2026-10-13
   preview: # AGILAB Installer Skill Use this skill when working on: - `install.sh` / `install.ps1` (root installer) - `src/agilab/install_apps.sh` / `src/agilab/install_apps.ps1` (apps/pages installer)
 - agilab-intent-router: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy. (.claude/skills/agilab-intent-router/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -68,34 +68,34 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB PyPI Release Maintenance Use this skill only for AGILAB PyPI release cleanup and retention work. PyPI release deletion is destructive and cannot be undone from the repository. ## Scope
 - agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-06-19
+  updated: 2026-10-13
   preview: # AGILAB Release Verification Use this skill for release readiness, release execution checks, and post-release alignment. Its purpose is to prevent stale plans and false "all good" answers by checking the current code, current workflows, and public surfaces before making
-- agilab-runbook: Runbook for working in the AGILab repo (uv, Streamlit, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
+- agilab-runbook: Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-09
-  preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching Streamlit, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
-- agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, Streamlit exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
+  updated: 2026-10-13
+  preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching the native React interface, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
+- agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, native Python UI exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-07-16
+  updated: 2026-10-13
   preview: # AGILAB Security Review Patterns Use this skill to review AGILAB changes through a security-hardening lens before merge, release, or public documentation. It is a review workflow, not a pentest claim. Keep findings tied to concrete files, commands, and user impact.
-- agilab-streamlit-pages: Streamlit page authoring patterns for AGILAB (session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
+- agilab-streamlit-pages: Native Python view authoring patterns for AGILAB (agi_web.python_ui, session_state safety, keys, rerun, UX). (.claude/skills/agilab-streamlit-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-07-04
-  preview: # Streamlit Pages Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
+  updated: 2026-10-13
+  preview: # Python Views Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains. (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-09-10
+  updated: 2026-10-13
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. For benchmark work or changes to generated test inputs, read the relevant section of [benchmark and generator review](references/benchmark-and-generator-review.md).
-- agilab-ui-robot-validation: Validate AGILAB Streamlit UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
+- agilab-ui-robot-validation: Validate AGILAB native React/Python UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-31
-  preview: # AGILAB UI Robot Validation Use this skill when a change affects user-visible Streamlit behavior, page navigation, sidebar actions, wizard links, notebook import/upload flows, UI screenshots, or public demo evidence.
+  updated: 2026-10-13
+  preview: # AGILAB UI Robot Validation Use this skill when a change affects user-visible native Python UI behavior, page navigation, sidebar actions, wizard links, notebook import/upload flows, UI screenshots, or public demo evidence.
 - chat-export: Export chat transcripts or conversation JSON into clean Markdown, JSON, or plain-text artifacts. Use this skill when a user wants a reusable export of a chat thread, needs a deterministic transcript cleanup, or wants a conversation converted into a file-oriented format for reports, prompts, docs, or downstream tooling. (.claude/skills/chat-export/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
   preview: # Chat Export ## Overview Use this skill to turn a chat transcript into a reusable artifact with stable structure. Prefer the bundled script for file-based exports and repeated transformations.
 - codex-session-learning: Turn past coding-agent debugging sessions into reusable bug-fix guidance, prompt templates, and validation rules. Use this skill when the user wants to learn from Codex or another agent's sessions, extract bug/postmortem cases, route future bug logs into stronger prompts, or build an explicit prompt-improvement loop instead of relying on hidden memory. (.claude/skills/codex-session-learning/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-09-11
+  updated: 2026-10-13
   preview: # Codex Session Learning Use this skill to convert prior Codex or other coding-agent work into explicit reusable assets. The goal is not to pretend the agent has hidden long-term memory. The goal is to extract structured cases, reusable prompt patterns, and validation rules from
 - docs-publish-github-pages: Review, fix, and validate docs publishing workflows for GitHub Pages. Use this skill when a user needs a docs deploy workflow corrected, wants versioning behavior explained, needs publish triggers adjusted, or wants a Pages deployment flow verified end to end. (.claude/skills/docs-publish-github-pages/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -105,7 +105,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # DOCX Figure Sync ## Overview Use this skill for deterministic figure replacement inside existing DOCX reports. Prefer the surrounding document layout over ad hoc copy-paste.
 - notebook-to-agilab-project: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view. (.claude/skills/notebook-to-agilab-project/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-05-21
+  updated: 2026-10-13
   preview: # Notebook To AGILAB Project Use this skill when the source material is a small set of local notebooks and the goal is to turn them into an AGILAB-style workflow rather than keep a notebook-only delivery.
 - pipeline-concept-view: Add or refine a conceptual workflow view alongside a generated execution view without hard-coding app semantics into the generic UI. Use this skill when a user wants a pipeline_view.dot/json file, a conceptual architecture diagram, or a lab_stages.toml reviewed for clearer naming, IO flow, and semantic alignment with the WORKFLOW page. (.claude/skills/pipeline-concept-view/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -116,7 +116,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Plan Before Code Use this skill to force a planning pass before coding. The goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits, and catch bad assumptions before touching files.
 - repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-09
+  updated: 2026-10-13
   preview: # Repo Skill Maintenance Use this skill when working on the shared skill trees in `agilab`. The goal is to keep one canonical source for shared skills, keep the repo Codex mirror valid, and avoid the accidental bulk-sync regressions that can overwrite
 - report-qa-docx: Review DOCX reports for missing figures, stale wording, duplicate sections, caption drift, and local consistency issues. Use this skill when a user asks for a quality pass on a Word report, wants to compare exported versus source versions, or needs a review-driven cleanup checklist before delivery. (.claude/skills/report-qa-docx/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

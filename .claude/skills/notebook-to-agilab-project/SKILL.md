@@ -3,7 +3,7 @@ name: notebook-to-agilab-project
 description: Migrate or maintain a small local notebook workflow inside an AGILAB project. Use this skill when a user wants notebooks turned into a reproducible AGILAB project, project-owned notebooks exposed under ANALYSIS, WORKFLOW notebook import, lab_stages.toml, artifact contracts, and a conceptual workflow view.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-21
+  updated: 2026-10-13
 ---
 
 # Notebook To AGILAB Project
@@ -39,7 +39,7 @@ delivery.
   the page bundle, dependencies, and exported artifact contract must be
   maintained.
 - Do not classify a self-contained training playground as a generic page just
-  because it is implemented in Streamlit. If it remains packaged as a page for
+  because it is implemented in native Python UI. If it remains packaged as a page for
   a teaching/demo reason, document it as an explicit opt-in exception and keep a
   follow-up split plan if the workflow should become reproducible AGILAB app
   behavior.
