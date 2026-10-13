@@ -615,12 +615,6 @@ JOB_GATE_CONTRACT: dict[str, dict[str, Any]] = {
         "if_required": ("needs.release-approval.result == 'success'",),
         "if_forbidden": (),
     },
-    "pypi-release-retention": {
-        "description": "destructive PyPI retention requires the reviewed release boundary",
-        "needs": {"release-approval"},
-        "if_required": ("needs.release-approval.result == 'success'",),
-        "if_forbidden": (),
-    },
     "sync-hf-space": {
         "description": "Hugging Face publication requires the reviewed release boundary",
         "needs": {"release-approval"},
@@ -744,16 +738,13 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "workflow must propagate the explicit existing-PyPI override"
         ),
         "--skip-existing-pypi": (
-            "workflow must omit already-published package versions from publish/provenance/retention by default"
+            "workflow must omit already-published package versions from publish/provenance by default"
         ),
         "uses: ./.github/actions/setup-locked-python-tools": (
             "release tooling jobs must install Python tools through the locked local action"
         ),
         "requirements: .github/requirements/ci-publish.txt": (
             "release-plan and unprivileged build jobs must use the hash-locked publishing toolchain"
-        ),
-        "requirements: .github/requirements/ci-pypi-web.txt": (
-            "PyPI retention must use the hash-locked web automation toolchain"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
             "library publish matrix must be generated from the release plan"
@@ -871,51 +862,6 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
             "workflow must validate public release cadence before publishing"
         ),
         "--release-mode": "workflow must pass explicit release intent to the policy gate",
-        "pypi-release-retention:": "workflow must prune old PyPI releases after provenance passes",
-        "tools/pypi_release_retention.py": "workflow must use the PyPI release retention tool",
-        "pypi_retention_min_published_releases:": (
-            "release workflow must expose the PyPI retention threshold as a dispatch input"
-        ),
-        "PYPI_RETENTION_MIN_PUBLISHED_RELEASES": (
-            "release workflow must pass the configured PyPI retention threshold through the job environment"
-        ),
-        "vars.PYPI_RETENTION_MIN_PUBLISHED_RELEASES": (
-            "release workflow must allow tag releases to override the PyPI retention threshold by repository variable"
-        ),
-        "--protect-versions-from-projects": (
-            "PyPI release retention must protect each selected package's own project version"
-        ),
-        "--repo-root .": (
-            "PyPI release retention must read selected project versions from the checked-out repo"
-        ),
-        "--min-published-releases \"$PYPI_RETENTION_MIN_PUBLISHED_RELEASES\"": (
-            "release workflow must use the configured threshold instead of hard-coding PyPI pruning frequency"
-        ),
-        "must be an integer >= 2": (
-            "release workflow must validate the configured PyPI retention threshold before invoking cleanup"
-        ),
-        "PYPI_RELEASE_PRUNE_PASSWORD": (
-            "workflow must keep PyPI release pruning credentials separate from OIDC upload"
-        ),
-        "PYPI_RELEASE_PRUNE_TOTP_SECRET": (
-            "workflow must support non-interactive PyPI 2FA for release pruning"
-        ),
-        "PYPI_CONFIRM_READER_TOKEN": (
-            "workflow must require a PyPI confirmation reader token"
-        ),
-        "--github-token \"$PYPI_CONFIRM_READER_TOKEN\"": (
-            "workflow must use the explicit reader token for PyPI login confirmation polling"
-        ),
-        "--confirm-delete": "workflow must make destructive PyPI retention explicit",
-        "--github-confirm-login-variable": (
-            "PyPI release retention must poll for temporary login confirmation"
-        ),
-        "--github-confirm-login-timeout": (
-            "PyPI release retention must leave a long bounded confirmation window"
-        ),
-        "needs.pypi-release-retention.result == 'success'": (
-            "release assets must wait for successful PyPI release retention"
-        ),
         "workflow-dist-${{ matrix.package }}": (
             "non-published package artifacts must stay workflow-only"
         ),
@@ -948,11 +894,9 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
     ]
     if "\n          - package: " in text:
         missing.append("library package matrix must not be hard-coded in the workflow")
-    if "--allow-delete-failure-warning" in text:
-        missing.append(
-            "PyPI release retention must fail closed while stale releases remain: "
-            "remove '--allow-delete-failure-warning'"
-        )
+    for fragment in ("pypi-release-retention", "tools/pypi_release_retention.py", "PYPI_RELEASE_PRUNE_", "--confirm-delete"):
+        if fragment in text:
+            missing.append(f"PyPI publication must remain separate from destructive cleanup: remove {fragment!r}")
     missing.extend(validate_workflow_job_gates(workflow_path))
     return missing
 

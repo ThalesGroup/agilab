@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-12T07:48:40Z",
+  "generated_at_utc": "2026-10-12T19:11:23Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 309,
+    "evidence_schema_count": 311,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2588,6 +2588,18 @@
       "sources": [
         "docs/source/features.rst",
         "tools/public_proof_scenarios.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_explicit_cleanup.v1",
+      "sources": [
+        "tools/pypi_release_retention.py"
+      ]
+    },
+    {
+      "schema": "agilab.pypi_explicit_cleanup_backup.v1",
+      "sources": [
+        "tools/pypi_release_retention.py"
       ]
     },
     {

@@ -13,8 +13,8 @@ Highlights
   for release rehearsals; TestPyPI may auto-bump .postN for retries.
 - Robust pyproject.toml editing with tomlkit (preserves formatting, trailing newline).
 - TestPyPI twine auth from ~/.pypirc; CLI --username/--password are ONLY for cleanup/purge.
-- Optional purge/cleanup (web login flow) before/after using pypi-cleanup.
-- Optional exact release deletion using pypi-cleanup --version-regex.
+- PyPI deletion is handled separately by the exact, backed-up cleanup CLI.
+- Publication never deletes PyPI releases.
 - Optional yank previous versions on PyPI.
 - Optional git tag (date-based), GitHub Release, and commit of version bumps.
 
@@ -163,11 +163,11 @@ def parse_args() -> argparse.Namespace:
     )
 
     # Cleanup / purge (web login)
-    ap.add_argument("--purge-before", action="store_true", help="Run cleanup before upload (leave most recent only)")
-    ap.add_argument("--purge-after", action="store_true", help="Run cleanup after upload (leave most recent only)")
-    ap.add_argument("--cleanup-only", action="store_true", help="Only cleanup; no build/upload")
+    ap.add_argument("--purge-before", action="store_true", help="Disabled: use the separate exact cleanup CLI")
+    ap.add_argument("--purge-after", action="store_true", help="Disabled: use the separate exact cleanup CLI")
+    ap.add_argument("--cleanup-only", action="store_true", help="Disabled: use the separate exact cleanup CLI")
     ap.add_argument("--days", type=int, default=None, help="Cleanup: only delete releases in the last N days")
-    ap.add_argument("--delete-project", action="store_true", help="Cleanup: pass --delete-project (dangerous)")
+    ap.add_argument("--delete-project", action="store_true", help="Disabled: publication never deletes PyPI projects")
     # IMPORTANT: The following two are ONLY for cleanup/purge (not for twine)
     ap.add_argument("--username", help="Cleanup/Purge web-login username (NOT used for twine)")
     ap.add_argument("--password", help="Cleanup/Purge web-login password (NOT used for twine)")
@@ -179,8 +179,7 @@ def parse_args() -> argparse.Namespace:
         default=[],
         metavar="VERSION",
         help=(
-            "Cleanup: delete exactly VERSION from the selected PyPI packages using pypi-cleanup. "
-            "Repeatable; requires web-login cleanup credentials."
+            "Disabled: use tools/pypi_release_retention.py with explicit package==version targets and verified backups."
         ),
     )
     ap.add_argument(
@@ -1716,87 +1715,13 @@ def twine_upload(files: List[str], repo: str, skip_existing: bool, retries: int)
 def cleanup_leave_latest(cfg: Cfg, packages: list[str]):
     if cfg.skip_cleanup:
         return
-
-    credentials = cleanup_credentials(cfg)
-    if credentials is None:
-        return
-    cleanup_user, cleanup_pass = credentials
-    host = cleanup_host(cfg.repo)
-
-    def run_cleanup(package: str):
-        cmd = [
-            "pypi-cleanup",
-            "--leave-most-recent-only",
-            "--do-it",
-            "-y",
-            "--host", host,
-            "--package", package,
-            "--username", cleanup_user,
-        ]
-        if cfg.clean_days is not None:
-            cmd.extend(["--days", str(cfg.clean_days)])
-        if cfg.clean_delete_project:
-            cmd.append("--delete-project")
-        if cfg.verbose:
-            cmd.append("-v")
-
-        print(f"[cleanup] Keeping only latest release for {package} on {cfg.repo}")
-        try:
-            run(cmd, cwd=REPO_ROOT, env={
-                "PYPI_USERNAME": cleanup_user,
-                "PYPI_PASSWORD": cleanup_pass,
-                "PYPI_CLEANUP_PASSWORD": cleanup_pass,
-            }, timeout=(cfg.cleanup_timeout or None))
-        except subprocess.TimeoutExpired:
-            print(f"[cleanup] warning: timed out after {cfg.cleanup_timeout}s for {package}; skipping.")
-        except subprocess.CalledProcessError as exc:
-            print(f"[cleanup] warning: pypi-cleanup exited with status {exc.returncode} for {package}; continuing.")
-
-    for pkg in packages:
-        run_cleanup(pkg)
+    raise SystemExit("ERROR: broad PyPI cleanup is disabled; use tools/pypi_release_retention.py with explicit --delete-release, verified backups and --confirm-delete")
 
 
 def delete_exact_pypi_releases(cfg: Cfg, packages: list[str]) -> None:
-    versions = list(cfg.delete_pypi_releases or [])
-    if not versions:
+    if not cfg.delete_pypi_releases or cfg.skip_cleanup:
         return
-    if cfg.skip_cleanup:
-        raise SystemExit("ERROR: --delete-pypi-release cannot be used with --skip-cleanup.")
-
-    if cfg.dry_run:
-        for version in versions:
-            for package in packages:
-                print(f"[cleanup] Would delete exact release {version} from {package} on {cfg.repo}")
-        return
-
-    cleanup_user, cleanup_pass = cleanup_credentials(cfg, required=True) or ("", "")
-    host = cleanup_host(cfg.repo)
-    env = {
-        "PYPI_USERNAME": cleanup_user,
-        "PYPI_PASSWORD": cleanup_pass,
-        "PYPI_CLEANUP_PASSWORD": cleanup_pass,
-    }
-
-    for version in versions:
-        pattern = exact_release_regex(version)
-        for package in packages:
-            cmd = [
-                "pypi-cleanup",
-                "--version-regex",
-                pattern,
-                "--do-it",
-                "-y",
-                "--host",
-                host,
-                "--package",
-                package,
-                "--username",
-                cleanup_user,
-            ]
-            if cfg.verbose:
-                cmd.append("-v")
-            print(f"[cleanup] Deleting exact release {version} from {package} on {cfg.repo}")
-            run(cmd, cwd=REPO_ROOT, env=env, timeout=(cfg.cleanup_timeout or None))
+    raise SystemExit("ERROR: PyPI deletion is separate from publication; use tools/pypi_release_retention.py with explicit --delete-release, verified backups and --confirm-delete")
 
 
 # ---------- Yank ----------
@@ -2965,6 +2890,8 @@ def git_reset_pyprojects():
 def main():
     args = parse_args()
     cfg = make_cfg(args)
+    if cfg.purge_before or cfg.purge_after or cfg.cleanup_only or cfg.delete_pypi_releases or cfg.clean_delete_project:
+        raise SystemExit("ERROR: PyPI deletion is separate from publication; use tools/pypi_release_retention.py with explicit --delete-release, verified backups and --confirm-delete")
     upload_completed = False
     release_finalized = False
     release_metadata_committed = False

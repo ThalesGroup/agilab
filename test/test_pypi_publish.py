@@ -1294,87 +1294,10 @@ def test_exact_release_regex_normalizes_zero_padded_versions() -> None:
     assert module.exact_release_regex("2026.04.29.post1") == r"^2026\.4\.29\.post1$"
 
 
-def test_delete_exact_pypi_releases_uses_precise_cleanup_pattern(monkeypatch) -> None:
-    module = _load_pypi_publish()
-    cfg = _base_cfg(
-        module,
-        cleanup_user="maintainer",
-        cleanup_pass="secret",
-        cleanup_timeout=12,
-        skip_cleanup=False,
-        delete_pypi_releases=["2026.04.29.post1"],
-    )
-    calls = []
-
-    monkeypatch.setattr(module, "run", lambda cmd, cwd=None, env=None, timeout=None: calls.append((cmd, env, timeout)))
-
-    module.delete_exact_pypi_releases(cfg, ["agilab", "agi-core"])
-
-    assert len(calls) == 2
-    first_cmd, first_env, first_timeout = calls[0]
-    assert first_cmd == [
-        "pypi-cleanup",
-        "--version-regex",
-        r"^2026\.4\.29\.post1$",
-        "--do-it",
-        "-y",
-        "--host",
-        "https://pypi.org/",
-        "--package",
-        "agilab",
-        "--username",
-        "maintainer",
-    ]
-    assert first_env["PYPI_PASSWORD"] == "secret"
-    assert first_timeout == 12
-    assert calls[1][0][7:9] == ["--package", "agi-core"]
 
 
-def test_delete_exact_pypi_releases_requires_web_credentials(monkeypatch) -> None:
-    module = _load_pypi_publish()
-    cfg = _base_cfg(
-        module,
-        skip_cleanup=False,
-        delete_pypi_releases=["2026.4.29.post1"],
-    )
-
-    monkeypatch.delenv("PYPI_USERNAME", raising=False)
-    monkeypatch.delenv("PYPI_PASSWORD", raising=False)
-    monkeypatch.delenv("PYPI_CLEANUP_PASSWORD", raising=False)
-    monkeypatch.setattr(module, "read_cleanup_creds_from_pypirc", lambda _repo: (None, None))
-
-    try:
-        module.delete_exact_pypi_releases(cfg, ["agilab"])
-    except SystemExit as exc:
-        assert "cleanup web-login credentials" in str(exc)
-    else:
-        raise AssertionError("delete_exact_pypi_releases() should reject missing cleanup credentials")
 
 
-def test_main_cleanup_only_exact_delete_skips_publish_version_computation(monkeypatch) -> None:
-    module = _load_pypi_publish()
-    cfg = _base_cfg(
-        module,
-        cleanup_only=True,
-        skip_cleanup=False,
-        packages=["agilab"],
-        delete_pypi_releases=["2026.04.29.post1"],
-    )
-    deleted = []
-
-    monkeypatch.setattr(module, "parse_args", lambda: object())
-    monkeypatch.setattr(module, "make_cfg", lambda _args: cfg)
-    monkeypatch.setattr(module, "assert_pypirc_has", lambda _repo: None)
-    monkeypatch.setattr(module, "delete_exact_pypi_releases", lambda _cfg, packages: deleted.append(packages))
-    monkeypatch.setattr(
-        module,
-        "compute_unified_version",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not compute publish version")),
-    )
-
-    module.main()
-
-    assert deleted == [["agilab"]]
 
 
 def test_find_docs_repository_resolves_relative_docs_repository_from_repo_root(
@@ -4334,3 +4257,24 @@ def test_guard_can_prepare_metadata_before_exact_publication_proof(tmp_path, mon
         "v2026.09.07", "2026.09.07", ["agilab"], refresh_proof=False,
     )
     assert calls == ["badge", "changelog"]
+
+
+@pytest.mark.parametrize("helper", ["cleanup_leave_latest", "delete_exact_pypi_releases"])
+def test_publisher_cleanup_helpers_cannot_delete_without_backup_contract(monkeypatch, helper):
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, skip_cleanup=False, delete_pypi_releases=["2026.6.19"])
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: pytest.fail("cleanup must not execute a subprocess"))
+    with pytest.raises(SystemExit, match="tools/pypi_release_retention.py"):
+        getattr(module, helper)(cfg, ["agi-gui"])
+
+
+@pytest.mark.parametrize("flag", ["purge_before", "purge_after", "cleanup_only", "delete_pypi_releases", "clean_delete_project"])
+def test_publisher_rejects_cleanup_options_before_release_mutation(monkeypatch, flag):
+    module = _load_pypi_publish()
+    value = ["2026.6.19"] if flag == "delete_pypi_releases" else True
+    cfg = _base_cfg(module, **{flag: value})
+    monkeypatch.setattr(module, "parse_args", lambda: object())
+    monkeypatch.setattr(module, "make_cfg", lambda args: cfg)
+    monkeypatch.setattr(module, "capture_release_file_state", lambda *a, **k: pytest.fail("cleanup must stop before release mutations"))
+    with pytest.raises(SystemExit, match="separate from publication"):
+        module.main()

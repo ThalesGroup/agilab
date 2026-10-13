@@ -353,7 +353,7 @@ publish-library-packages:
     assert "library package matrix must not be hard-coded in the workflow" in missing
 
 
-def test_release_plan_workflow_contract_rejects_warning_mode_pypi_retention(
+def test_release_plan_workflow_contract_rejects_destructive_cleanup_in_publication(
     tmp_path: Path,
 ) -> None:
     module = _load_module()
@@ -368,17 +368,14 @@ tools/pypi_release_retention.py
 
     missing = module.validate_workflow_contract(workflow)
 
-    assert not any("--allow-delete-failure-warning" in error for error in missing)
+    assert any("separate from destructive cleanup" in error for error in missing)
 
     workflow.write_text(
         workflow.read_text(encoding="utf-8") + "\n--allow-delete-failure-warning\n",
         encoding="utf-8",
     )
 
-    assert (
-        "PyPI release retention must fail closed while stale releases remain: "
-        "remove '--allow-delete-failure-warning'"
-    ) in module.validate_workflow_contract(workflow)
+    assert any("separate from destructive cleanup" in error for error in module.validate_workflow_contract(workflow))
 
 
 def test_release_plan_job_gate_validation_flags_semantic_violations(tmp_path: Path) -> None:
@@ -466,10 +463,6 @@ def test_release_plan_current_workflow_consumes_generated_matrix() -> None:
         (
             ".github/requirements/ci-publish.txt",
             "unprivileged build jobs must use the hash-locked publishing toolchain",
-        ),
-        (
-            ".github/requirements/ci-pypi-web.txt",
-            "PyPI retention must use the hash-locked web automation toolchain",
         ),
         (
             ".github/requirements/ci-hf-release.txt",

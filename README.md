@@ -641,11 +641,13 @@ Release and adoption supply-chain evidence is explicit: Dependabot watches
 Python and GitHub Actions manifests, release tooling publishes per-profile
 `pip-audit` JSON and CycloneDX SBOM artifacts, and
 `tools/profile_supply_chain_scan.py` can regenerate the same profile evidence
-locally. Keep detailed package upload, trusted-publisher, reuse, retention, and
+locally. Keep detailed package upload, trusted-publisher, reuse, cleanup, and
 hosted-demo sync rules in the
 [package publishing policy](https://thalesgroup.github.io/agilab/package-publishing-policy.html),
 where they belong as maintainer tooling rather than a development component.
 The README only summarizes the evidence boundary and links to release proof.
+Historical PyPI cleanup is separate from publication; use the
+[guarded cleanup procedure](docs/pypi-cleanup-maintainer-guide.md) with exact targets and verified backups.
 
 ## Evidence Taxonomy
 
