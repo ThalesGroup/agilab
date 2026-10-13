@@ -26,6 +26,18 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Notebook import review and cancellation
+
+- Show the notebook import preview, role and worker readiness messages, and
+  confirmation controls in the Notebook section while Tools is collapsed.
+- Cancel an import without retaining its preview or confirmation controls;
+  allow the same notebook file to be selected again while preserving pipeline
+  plans and drafts.
+- Align native browser coverage with Tools initially closed, opened explicitly
+  for sidebar actions, and closed again after those actions.
+- Prepare an `agilab`-only patch release; retain the existing SDK and shared UI
+  package versions.
+
 ## [2026.10.12] - 2026-10-12
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.12
