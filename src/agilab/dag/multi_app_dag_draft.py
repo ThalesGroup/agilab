@@ -76,6 +76,20 @@ class DagDraftSpec:
     handoffs: tuple[DagHandoff, ...]
 
     def as_payload(self, *, base_payload: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        stage_ids = {stage.id for stage in self.stages}
+        for table, artifacts in (
+            ("Produced artifacts", self.produced_artifacts),
+            ("Consumed artifacts", self.consumed_artifacts),
+        ):
+            for index, artifact in enumerate(artifacts):
+                if artifact.node not in stage_ids:
+                    stage = repr(artifact.node)
+                    if len(stage) > 80:
+                        stage = stage[:77] + "..."
+                    raise ValueError(
+                        f"{table} row {index + 1}: {stage} does not match a stage. "
+                        "Choose an existing stage before saving."
+                    )
         payload = dict(base_payload or {})
         base_nodes = _base_nodes_by_id(base_payload)
         controlled_contract = _is_controlled_contract_execution(self.execution)
@@ -332,6 +346,8 @@ def _user_guidance_for_issue(location: str, message: str) -> str:
         return "Select the artifact as a produced artifact for the source stage before using it in a connection."
     if location.startswith("edges") and "target node does not consume artifact" in message:
         return "Let the editor infer consumed artifacts from the selected connection, or align the target consumed artifact."
+    if location.startswith("nodes") and "requires an incoming edge" in message:
+        return "Connect each consumed artifact to a stage that produces it."
     if location.startswith("edges") and "cycle" in message:
         return "Remove the circular dependency so stages can run in one direction."
     if "artifact path must be portable" in message:

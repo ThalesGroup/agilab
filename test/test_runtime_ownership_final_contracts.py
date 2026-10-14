@@ -240,6 +240,11 @@ def test_dag_batch_reports_successful_and_rejected_units_separately(tmp_path):
     calls = []
     def run(**kwargs):
         calls.append(kwargs["idempotency_token"])
+        run_root = Path(kwargs["run_root"])
+        run_root.mkdir(parents=True, exist_ok=True)
+        (run_root / "metrics.json").write_text(
+            json.dumps({"stage_completed": 1}), encoding="utf-8"
+        )
         return {"summary_metrics":{"stage_completed":1}, "summary_metrics_path":"metrics.json"}
     state = {"units":[_contract_unit("ready"), _contract_unit("invalid", produces=False)],
              "events":[], "artifacts":[], "summary":{}}

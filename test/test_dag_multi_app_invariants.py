@@ -103,3 +103,43 @@ def test_validate_multi_app_dag_rejects_a_single_app_graph() -> None:
     result = multi_app_dag.validate_multi_app_dag(payload, repo_root=REPO_ROOT)
     assert not result.ok
     assert any("at least two apps" in issue.message for issue in result.issues)
+
+
+@pytest.mark.parametrize("supplied_artifacts", [[], ["logs"], ["metrics", "logs"]])
+def test_consumed_artifacts_require_incoming_producer_edges(supplied_artifacts) -> None:
+    payload = {
+        "schema": multi_app_dag.SCHEMA,
+        "dag_id": "declared-consumption",
+        "nodes": [
+            {
+                "id": "z_producer",
+                "app": "uav_queue_project",
+                "produces": [
+                    {"id": "metrics", "path": "producer/metrics.json"},
+                    {"id": "logs", "path": "producer/logs.json"},
+                ],
+            },
+            {
+                "id": "a_consumer",
+                "app": "uav_relay_queue_project",
+                "consumes": [
+                    {"id": "metrics", "path": "consumer/metrics.json"},
+                    {"id": "logs", "path": "consumer/logs.json"},
+                ],
+            },
+        ],
+        "edges": [
+            {"from": "z_producer", "to": "a_consumer", "artifact": artifact}
+            for artifact in supplied_artifacts
+        ],
+    }
+
+    result = multi_app_dag.validate_multi_app_dag(payload, repo_root=REPO_ROOT)
+
+    assert result.ok == (set(supplied_artifacts) == {"metrics", "logs"})
+    unresolved = [issue for issue in result.issues if "requires an incoming edge" in issue.message]
+    assert {issue.location for issue in unresolved} == {
+        f"nodes[1].consumes[{index}]"
+        for index, artifact in enumerate(("metrics", "logs"))
+        if artifact not in supplied_artifacts
+    }
