@@ -1296,7 +1296,7 @@ def test_stream_run_command_streams_clean_output_and_injects_pythonpath(tmp_path
     assert popen_calls["env"]["uv_IGNORE_ACTIVE_VENV"] == "1"
     assert popen_calls["env"]["EXTRA"] == "1"
     assert str(repo_root / "src") in popen_calls["env"]["PYTHONPATH"]
-    assert popen_calls["timeout"] == 15
+    assert 14 < popen_calls["timeout"] <= 15
 
 
 def test_stream_run_command_raises_for_missing_module_without_app_venv(tmp_path, monkeypatch):
@@ -1355,18 +1355,17 @@ def test_stream_run_command_reports_timeout(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_runtime.subprocess, "Popen", FakeProc)
 
-    output = pipeline_runtime.stream_run_command(
-        env,
-        "page",
-        "echo hi",
-        tmp_path,
-        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
-        ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
-        jump_exception_cls=RuntimeError,
-        timeout=5,
-    )
-
-    assert output == "line one"
+    with pytest.raises(pipeline_runtime.subprocess.TimeoutExpired):
+        pipeline_runtime.stream_run_command(
+            env,
+            "page",
+            "echo hi",
+            tmp_path,
+            push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+            ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
+            jump_exception_cls=RuntimeError,
+            timeout=5,
+        )
     assert "Command timed out after 5 seconds." in logs
     assert "killed" in logs
 
@@ -1393,18 +1392,18 @@ def test_stream_run_command_reports_called_process_error(tmp_path, monkeypatch):
 
     monkeypatch.setattr(pipeline_runtime.subprocess, "Popen", FakeProc)
 
-    output = pipeline_runtime.stream_run_command(
-        env,
-        "page",
-        "echo hi",
-        tmp_path,
-        push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
-        ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
-        jump_exception_cls=RuntimeError,
-    )
+    with pytest.raises(pipeline_runtime.subprocess.CalledProcessError):
+        pipeline_runtime.stream_run_command(
+            env,
+            "page",
+            "echo hi",
+            tmp_path,
+            push_run_log=lambda _page, line, _placeholder=None: logs.append(line),
+            ansi_escape_re=__import__("re").compile(r"\x1b[^m]*m"),
+            jump_exception_cls=RuntimeError,
+        )
 
-    assert output == "line one"
-    assert "Command failed: Command 'echo hi' returned non-zero exit status 1." in logs
+    assert "Command exited with status 1." in logs
     assert "killed" in logs
 
 
@@ -1416,6 +1415,8 @@ def test_stream_run_command_tolerates_broken_apps_path_resolution(tmp_path, monk
             raise RuntimeError("boom")
 
     class FakeProc:
+        returncode = 0
+
         def __init__(self, *args, **kwargs):
             self.stdout = iter(["ok\n"])
 

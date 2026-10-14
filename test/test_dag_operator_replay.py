@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from pathlib import Path
 import threading
 
@@ -21,10 +22,36 @@ def _engine(tmp_path, *, queue=None, relay=None):
 
 
 def _result(**kwargs):
+    run_root = Path(kwargs["run_root"])
+    run_root.mkdir(parents=True, exist_ok=True)
+    metrics = {"packets_generated": 8, "packets_delivered": 7}
+    summary_path = run_root / "summary.json"
+    reduce_path = run_root / "reduce.json"
+    summary_path.write_text(
+        json.dumps(
+            {
+                "summary_metrics": metrics,
+                "idempotency_token": kwargs["idempotency_token"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    reduce_path.write_text(
+        json.dumps(
+            {
+                "packets_delivered": 7,
+                "idempotency_token": kwargs["idempotency_token"],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return {
-        "workspace": str(kwargs["run_root"]),
-        "summary_metrics_path": "summary.json", "reduce_artifact_path": "reduce.json",
-        "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+        "workspace": str(run_root),
+        "summary_metrics_path": str(summary_path),
+        "reduce_artifact_path": str(reduce_path),
+        "summary_metrics": metrics,
     }
 
 

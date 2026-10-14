@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -327,3 +328,274 @@ def test_sync_proceeds_gracefully_when_tokki_binary_is_absent(tmp_path, monkeypa
     assert exit_code == 0
     assert (codex_root / "alpha" / "SKILL.md").exists()
     assert "skipped tokki skill visibility check" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("linked_component", ["provider", "skills-root"])
+def test_linked_destination_root_is_rejected_before_external_write(
+    tmp_path, monkeypatch, args, linked_component
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    external_root = tmp_path / "external-provider"
+    external_skills = (
+        external_root / "skills" if linked_component == "provider" else external_root
+    )
+    external_skill = _write_skill(external_skills, "alpha", body="External sentinel.")
+    external_before = (external_skill / "SKILL.md").read_bytes()
+    linked_path = codex_root.parent if linked_component == "provider" else codex_root
+    retained = tmp_path / "retained-mirror"
+    linked_path.rename(retained)
+    retained_skill = retained / "skills" / "alpha" if linked_component == "provider" else retained / "alpha"
+    mirror_before = (retained_skill / "SKILL.md").read_bytes()
+    try:
+        linked_path.symlink_to(external_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match="Refusing symlinked skill entries"):
+        module.main(args)
+
+    assert linked_path.is_symlink()
+    assert (external_skill / "SKILL.md").read_bytes() == external_before
+    assert (retained_skill / "SKILL.md").read_bytes() == mirror_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("resource", ["SKILL.md", "references/guide.md", "references"])
+def test_linked_destination_resource_is_rejected_even_when_content_matches(
+    tmp_path, monkeypatch, args, resource
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    for root in (claude_root, codex_root):
+        skill = _write_skill(root, "alpha")
+        references = skill / "references"
+        references.mkdir()
+        (references / "guide.md").write_text("Matching resource.\n", encoding="utf-8")
+    mirror_entrypoint = codex_root / "alpha" / "SKILL.md"
+    mirror_before = mirror_entrypoint.read_bytes()
+    linked_path = codex_root / "alpha" / resource
+    external = tmp_path / "external-resource"
+    linked_path.rename(external)
+    try:
+        linked_path.symlink_to(external, target_is_directory=external.is_dir())
+    except OSError as error:
+        pytest.skip(f"symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match="Refusing symlinked skill entries"):
+        module.main(args)
+
+    assert linked_path.is_symlink()
+    assert mirror_entrypoint.read_bytes() == mirror_before
+    external_file = external / "guide.md" if external.is_dir() else external
+    expected = mirror_before if resource == "SKILL.md" else b"Matching resource.\n"
+    assert external_file.read_bytes() == expected
+
+
+@pytest.mark.parametrize("args", [["--all"], ["--skills", "alpha", "beta"]])
+def test_later_linked_destination_cannot_partially_sync_earlier_skill(
+    tmp_path, monkeypatch, args
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="New alpha wording.")
+    _write_skill(claude_root, "beta", body="New beta wording.")
+    alpha = _write_skill(codex_root, "alpha", body="Alpha sentinel.")
+    alpha_before = (alpha / "SKILL.md").read_bytes()
+    external_beta = _write_skill(tmp_path / "external-skills", "beta", body="Beta sentinel.")
+    beta_before = (external_beta / "SKILL.md").read_bytes()
+    try:
+        (codex_root / "beta").symlink_to(external_beta, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*beta"):
+        module.main(args)
+
+    assert (alpha / "SKILL.md").read_bytes() == alpha_before
+    assert (external_beta / "SKILL.md").read_bytes() == beta_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("junction_component", ["provider", "skills-root", "resource"])
+def test_destination_junction_is_rejected_before_mirror_mutation(
+    tmp_path, monkeypatch, args, junction_component
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    mirror = _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = (mirror / "SKILL.md").read_bytes()
+    junction = {
+        "provider": codex_root.parent,
+        "skills-root": codex_root,
+        "resource": mirror / "references",
+    }[junction_component]
+    junction.mkdir(exist_ok=True)
+    original_is_link_like = module._is_link_like
+    monkeypatch.setattr(
+        module,
+        "_is_link_like",
+        lambda path: path == junction or original_is_link_like(path),
+    )
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*including junctions"):
+        module.main(args)
+
+    assert (mirror / "SKILL.md").read_bytes() == mirror_before
+
+
+def test_targeted_sync_rejects_links_in_unselected_mirror_skill(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="New alpha wording.")
+    alpha = _write_skill(codex_root, "alpha", body="Alpha sentinel.")
+    alpha_before = (alpha / "SKILL.md").read_bytes()
+    beta = _write_skill(codex_root, "beta")
+    external = tmp_path / "external-guide.md"
+    external.write_text("External sentinel.\n", encoding="utf-8")
+    try:
+        (beta / "guide.md").symlink_to(external)
+    except OSError as error:
+        pytest.skip(f"symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*beta/guide.md"):
+        module.main(["--skills", "alpha"])
+
+    assert (alpha / "SKILL.md").read_bytes() == alpha_before
+    assert external.read_text(encoding="utf-8") == "External sentinel.\n"
+
+
+def _snapshot_tree(root: Path) -> dict:
+    if not root.exists():
+        return {}
+    return {
+        path.relative_to(root): (
+            path.read_bytes() if path.is_file() else None,
+            path.stat().st_mode,
+            path.stat().st_mtime_ns,
+        )
+        for path in (root, *sorted(root.rglob("*")))
+    }
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize(
+    ("root_name", "dangling"),
+    [
+        ("CLAUDE_ROOT", False),
+        ("CLAUDE_ROOT", True),
+        ("PROJECT_AGENT_SKILLS_ROOT", False),
+        ("PROJECT_AGENT_SKILLS_ROOT", True),
+        ("CODEX_ROOT", True),
+    ],
+)
+def test_all_provider_parent_links_are_rejected_before_read_or_mutation(
+    tmp_path, monkeypatch, args, root_name, dangling
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    _write_skill(codex_root, "unselected", body="Unselected sentinel.")
+    script = codex_root / "alpha" / "scripts" / "run.py"
+    script.parent.mkdir()
+    script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    script.chmod(0o755)
+    provider_parent = getattr(module, root_name).parent
+    retained = tmp_path / "retained-provider"
+    provider_parent.rename(retained)
+    external = tmp_path / "outside-provider"
+    if not dangling:
+        shutil.copytree(retained, external)
+        (external / "outside-provider-sentinel.txt").write_text("Outside sentinel.\n", encoding="utf-8")
+    try:
+        provider_parent.symlink_to(external, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+    mirror_root = retained / "skills" if root_name == "CODEX_ROOT" else codex_root
+    mirror_before = _snapshot_tree(mirror_root)
+    external_before = _snapshot_tree(external)
+    retained_before = _snapshot_tree(retained)
+    later_calls = []
+    monkeypatch.setattr(module, "validate_skills_root", lambda *_a, **_k: later_calls.append("validate"))
+    monkeypatch.setattr(module, "verify_tokki_skill_visibility", lambda: later_calls.append("visibility"))
+
+    with pytest.raises(SystemExit, match="Refusing symlinked skill entries"):
+        module.main(args)
+
+    assert later_calls == []
+    assert provider_parent.is_symlink()
+    assert external.exists() == (not dangling)
+    assert _snapshot_tree(mirror_root) == mirror_before
+    assert _snapshot_tree(external) == external_before
+    assert _snapshot_tree(retained) == retained_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("root_name", ["CLAUDE_ROOT", "PROJECT_AGENT_SKILLS_ROOT"])
+def test_input_provider_parent_junction_is_rejected_before_read_or_mutation(
+    tmp_path, monkeypatch, args, root_name
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = _snapshot_tree(codex_root)
+    source_before = _snapshot_tree(claude_root)
+    junction = getattr(module, root_name).parent
+    original_is_link_like = module._is_link_like
+    monkeypatch.setattr(module, "_is_link_like", lambda path: path == junction or original_is_link_like(path))
+    later_calls = []
+    monkeypatch.setattr(module, "validate_skills_root", lambda *_a, **_k: later_calls.append("validate"))
+    monkeypatch.setattr(module, "verify_tokki_skill_visibility", lambda: later_calls.append("visibility"))
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*including junctions"):
+        module.main(args)
+
+    assert later_calls == []
+    assert _snapshot_tree(codex_root) == mirror_before
+    assert _snapshot_tree(claude_root) == source_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+def test_absent_optional_agents_provider_is_allowed(tmp_path, monkeypatch, args) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    for root in (claude_root, codex_root):
+        _write_skill(root, "alpha")
+    module.PROJECT_AGENT_SKILLS_ROOT.rmdir()
+    module.PROJECT_AGENT_SKILLS_ROOT.parent.rmdir()
+
+    assert module.main(args) == 0
+    assert not module.PROJECT_AGENT_SKILLS_ROOT.parent.exists()
+    assert (codex_root / "alpha" / "SKILL.md").read_bytes() == (claude_root / "alpha" / "SKILL.md").read_bytes()
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+def test_missing_real_canonical_root_keeps_diagnostic_and_mirror_unchanged(
+    tmp_path, monkeypatch, args
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = _snapshot_tree(codex_root)
+    claude_root.rmdir()
+
+    with pytest.raises(SystemExit, match="Missing source skills root") as error:
+        module.main(args)
+
+    assert str(claude_root) in str(error.value)
+    assert _snapshot_tree(codex_root) == mirror_before
