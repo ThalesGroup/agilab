@@ -5,7 +5,7 @@ intro = [
 ]
 proof_bullets = [
   "The pinned GitHub Actions rows record successful repository, documentation, coverage, and release-publication workflows at their exact commits. A successful workflow is not presented as proof for jobs that the workflow skipped.",
-  "The coverage run is bound to the published code commit. Repository and documentation runs record the later release-proof metadata merge; their displayed commits identify the exact inputs each run checked.",
+  "The repository, documentation, and coverage rows retain historical baselines at their displayed commits. They do not qualify the current release source. The publication row is bound to the current release commit and attempt.",
   "The release proof records the hosted Hugging Face Space URL and commit. Live public-demo availability is checked only when a public-demo-smoke run is pinned or supplied separately.",
   "The checked-in ``docs/source/data/ui_robot_evidence.json`` records a successful historical UI robot baseline. It is not release-bound UI proof for this release because its commit is not the release tag commit, even when its exact app inventory matches the {expected_app_count}-app release inventory. Use ``tools/ui_robot_coverage_contract.py --json`` and the local ``ui-robot-matrix`` profile to verify the current checkout.",
   "The public demo scope includes the lightweight ``flight_telemetry_project`` and ``weather_forecast_project`` routes documented in :doc:`agilab-demo` and aligned with the packaged examples catalog.",
@@ -76,7 +76,7 @@ workflow = "coverage"
 run_id = "38254954532"
 url = "https://github.com/ThalesGroup/agilab/actions/runs/38254954532"
 head_sha = "bb343922fc2d54c59a54e9521526dc66f1bd2de3"
-summary = "qualified the published code commit with six fresh component coverage flags; project coverage 95.08%, agi-gui 95.92%; documentation-only follow-up commits retain this code baseline"
+summary = "historical 2026.10.12 coverage baseline; project coverage 95.08%, agi-gui 95.92%; this is not a coverage measurement for the current release source"
 
 [[ci_runs]]
 id = "pypi-publish"

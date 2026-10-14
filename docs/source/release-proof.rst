@@ -32,7 +32,7 @@ Current public release
    * - Docs publish
      - `docs-publish run 38274133371 <https://github.com/ThalesGroup/agilab/actions/runs/38274133371>`__ at commit ``a331e22acc1f`` deployed the release-proof metadata merge to public documentation
    * - Coverage
-     - `coverage run 38254954532 <https://github.com/ThalesGroup/agilab/actions/runs/38254954532>`__ at commit ``bb343922fc2d`` qualified the published code commit with six fresh component coverage flags; project coverage 95.08%, agi-gui 95.92%; documentation-only follow-up commits retain this code baseline
+     - `coverage run 38254954532 <https://github.com/ThalesGroup/agilab/actions/runs/38254954532>`__ at commit ``bb343922fc2d`` historical 2026.10.12 coverage baseline; project coverage 95.08%, agi-gui 95.92%; this is not a coverage measurement for the current release source
    * - PyPI publish
      - `pypi-publish run 38471746516 <https://github.com/ThalesGroup/agilab/actions/runs/38471746516/attempts/1>`__ at commit ``8dd841b0246f`` publication workflow for the recorded release commit; see the linked attempt for its final result
 
@@ -50,9 +50,9 @@ What was proved
   coverage, and release-publication workflows at their exact commits. A
   successful workflow is not presented as proof for jobs that the workflow
   skipped.
-- The coverage run is bound to the published code commit. Repository and
-  documentation runs record the later release-proof metadata merge; their
-  displayed commits identify the exact inputs each run checked.
+- The repository, documentation, and coverage rows retain historical baselines
+  at their displayed commits. They do not qualify the current release source.
+  The publication row is bound to the current release commit and attempt.
 - The release proof records the hosted Hugging Face Space URL and commit. Live
   public-demo availability is checked only when a public-demo-smoke run is
   pinned or supplied separately.
