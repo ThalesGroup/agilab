@@ -1,425 +1,109 @@
 ---
 name: agilab-pypi-release-maintenance
-description: Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.
+description: Plan and review exact AGILAB PyPI release deletions, archive verified distributions, and validate local cleanup without mixing it with publication. Use for an explicit package and version cleanup request or a release-retention review.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-05-27
+  updated: 2026-10-14
 ---
 
 # AGILAB PyPI Release Maintenance
 
-Use this skill only for AGILAB PyPI release cleanup and retention work. PyPI
-release deletion is destructive and cannot be undone from the repository.
+Use the current procedure in `docs/pypi-cleanup-maintainer-guide.md` and inspect
+`tools/pypi_release_retention.py` before maintenance. This skill covers exact
+`package==version` selections, review evidence, verified distribution backups,
+and local deletion of an explicitly approved release.
 
-## Scope
+Publication never runs cleanup. Release publication belongs to
+`agilab-release-verification`. The manual `pypi-release-retention` GitHub
+workflow only creates a read-only plan from an explicit target list; it does
+not receive PyPI credentials or delete releases. Additional visible historical
+versions do not establish a cleanup failure or authorize deleting them.
 
-This skill covers:
+## Review the exact selection
 
-- inspecting current PyPI versions for AGILAB packages;
-- deleting one exact old release version from an explicit package set;
-- running the release-retention tool while protecting the current release;
-- explaining why credentials are required and why Trusted Publishing cannot
-  delete releases.
+1. Read the current package versions, first-party dependency pins, public PyPI
+   state, and the operator's requested targets. Do not infer targets from a date,
+   a release plan, an older session, or the number of visible releases.
+2. Review consumers of each version and obtain explicit approval for the exact
+   targets before deletion. An audit or publication request authorizes inspection,
+   not destructive maintenance.
+3. Keep current project versions, exact first-party dependency pins, the latest
+   published release, and every unselected release protected. The helper checks
+   these protections; do not bypass a rejection.
+4. Record the reviewed targets and create complete verified distribution backups.
+   PyPI deletion is irreversible: the backups preserve local artifacts, but they
+   cannot restore a deleted release or allow the same files to be re-uploaded.
 
-This skill does not cover normal package publication. Use
-`agilab-release-verification` for release readiness and post-release truth.
-For publication-process optimization checks, inspect the current workflow first:
-`pypi-publish` now makes the release plan package-aware. By default it omits
-selected package versions whose expected PyPI artifacts already exist, so those
-packages do not enter build, upload, provenance, retention, or release-asset
-jobs. The release workflow also defers destructive PyPI retention until a
-selected package exceeds the configured threshold
-(`pypi_retention_min_published_releases`, default `11`, or the
-`PYPI_RETENTION_MIN_PUBLISHED_RELEASES` repository variable for tag runs); the
-manual retention tool keeps its strict single-current-release default unless an
-operator passes a threshold explicitly.
+## Plan, archive, then confirm locally
 
-## Required Safety Rules
+Use a current AGILAB checkout. Replace `<reviewed-version>` with an existing,
+approved old version and keep the target quoted. Never execute the placeholder
+literally. Repeat `--delete-release` for each additional exact reviewed target.
+Wildcards, implicit package selections, duplicate canonical targets, unknown
+first-party packages or versions, and protected versions are rejected.
 
-- Never delete the current protected release.
-- Never delete a version inferred from memory. Read current state first.
-- Never run broad cleanup before a dry-run or explicit state check.
-- Never use `--delete-project`.
-- Never print PyPI passwords, TOTP secrets, API tokens, or session cookies.
-- Use exact versions for targeted deletion. Do not use loose regexes.
-- For AGILAB release-workflow reruns, use the `ThalesGroup/agilab`
-  repository only. Do not spend `thales_agilab` Actions quota for PyPI
-  cleanup.
-- Prefer exact deletion with `tools/pypi_publish.py --delete-pypi-release`
-  when the user names a specific bad version.
-- Use `tools/pypi_release_retention.py` only when the goal is to keep one
-  protected release per selected package and prune everything older for a known
-  package set.
-
-## Credential Contract
-
-PyPI file upload uses Trusted Publishing/OIDC, but PyPI release deletion is a
-web-management operation. Cleanup needs real PyPI web-login credentials, not an
-API token and not Trusted Publishing.
-
-Accepted credential sources:
-
-- CLI flags: `--username`, `--password`
-- environment: `PYPI_USERNAME`, `PYPI_PASSWORD` or `PYPI_CLEANUP_PASSWORD`
-- `~/.pypirc` cleanup section used by `tools/pypi_publish.py`
-
-If 2FA is enabled, `tools/pypi_release_retention.py` can use `--otp-code` or
-`--totp-secret`. Do not echo secret values.
-
-## Inspection First
-
-Start by identifying:
-
-- the package names to affect;
-- the exact version to delete, if this is targeted cleanup;
-- the protected version that must remain visible;
-- whether the release proof, changelog, and PyPI agree.
-
-Useful checks:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/release_plan.py --format json --compact
-uv --preview-features extra-build-dependencies run python tools/release_plan.py --format json --compact --skip-existing-pypi
-uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --compact
-uv --preview-features extra-build-dependencies run python tools/show_dependencies.py --repo pypi
-```
-
-For a package-specific public state check:
-
-```bash
-python - <<'PY'
-import json
-import urllib.request
-
-for name in ["agilab", "agi-core"]:
-    payload = json.load(urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=30))
-    print(name, payload["info"]["version"], sorted(payload.get("releases", {}))[-5:])
-PY
-```
-
-## Explaining Two Visible Releases
-
-When a user asks why there are still "two branches on PyPI", translate that
-first: PyPI does not expose Git branches; it exposes project release versions.
-Two visible entries usually means one current protected release plus one stale
-older release.
-
-Check live PyPI JSON before answering. If selected packages now show one visible
-release, say that clearly and do not propose deletion. If some packages still
-show two or more visible releases, explain the most likely causes:
-
-- Trusted Publishing/OIDC can upload files but cannot delete old releases.
-- Release deletion uses PyPI web-management credentials and may be blocked by
-  2FA, unrecognized-login confirmation, CSRF/form changes, or PyPI cache delay.
-- The AGILAB release workflow is fail-closed for retention. If stale releases
-  remain, report the exact residual package/version set instead of saying the
-  cleanup completed.
-- With split-package versioning, retention protects each selected package's own
-  project version from the release-plan metadata. Do not assume every package
-  must share the umbrella `agilab` version before deciding what is stale.
-- Normal release reruns skip packages whose current artifacts already exist on
-  PyPI. If an unchanged package still has old visible releases, clean it with an
-  explicit maintenance command instead of forcing a full release rerun.
-
-Only move to cleanup after verifying the exact stale version, the affected
-package list, and the protected version that must remain.
-
-## Exact Old-Version Deletion
-
-Use this when the user identifies a specific stale version that should disappear
-from selected packages.
-
-Dry-run first:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/pypi_publish.py \
-  --repo pypi \
-  --cleanup-only \
-  --dry-run \
-  --packages agilab agi-core \
-  --delete-pypi-release 2026.05.17.post1 \
-  --cleanup-timeout 120 \
-  --verbose
-```
-
-Then run the destructive command only after explicit confirmation that:
-
-- the package list is correct;
-- the version is not the protected/current release;
-- real PyPI web-login credentials are available.
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/pypi_publish.py \
-  --repo pypi \
-  --cleanup-only \
-  --packages agilab agi-core \
-  --delete-pypi-release 2026.05.17.post1 \
-  --cleanup-timeout 120 \
-  --verbose
-```
-
-`tools/pypi_publish.py` uses an exact normalized `pypi-cleanup --version-regex`
-match for this path.
-
-## Retention Cleanup
-
-Use this only when the desired policy is "keep this protected release and delete
-older releases" for selected packages.
-
-For normal split-package releases, protect each selected package's own project
-version from the release-plan metadata. First inspect the optimized release plan;
-if it has no `provenance_packages`, there is no normal release-retention target
-to clean:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/release_plan.py \
-  --skip-existing-pypi \
-  --format json \
-  --compact
-```
-
-Then run retention only for the packages that actually need publication or for
-an explicit package set requested as cleanup:
+Preview the selection without authentication or deletion:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/pypi_release_retention.py \
-  --repo pypi \
-  --packages "agilab agi-core agi-env" \
-  --repo-root . \
-  --protect-versions-from-projects \
-  --min-published-releases "$PYPI_RETENTION_MIN_PUBLISHED_RELEASES" \
-  --dry-run \
-  --json
+  --delete-release 'agi-gui==<reviewed-version>' --json
 ```
 
-`PYPI_RETENTION_MIN_PUBLISHED_RELEASES` matches the public `pypi-publish`
-workflow policy: keep old releases during normal publication, then prune only
-when a selected package exceeds the configured visible-release threshold. Omit
-the threshold for explicit manual cleanup when the operator wants strict
-single-current-release retention now.
-
-Use a single `--protect-version` only for legacy aligned-version cleanup.
-For same-version partial releases, do not hand-copy long package lists. Prefer
-the protected-version auto-selector: it starts from the release-plan package set
-and keeps only packages where the exact protected version is visible on PyPI.
-
-Dry-run with one aligned protected version:
+Create a new backup directory for the same selection:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/pypi_release_retention.py \
-  --repo pypi \
-  --protect-version 2026.05.17.post2 \
-  --select-visible-protected-packages \
-  --dry-run \
-  --json
+  --delete-release 'agi-gui==<reviewed-version>' \
+  --backup-dir /absolute/path/agi-gui-reviewed-version-pypi-backup --json
 ```
 
-Destructive retention:
+The backup contains every official distribution and
+`agilab_pypi_explicit_cleanup_backup_manifest.json`, with file sizes and SHA-256
+hashes. Existing backups are never silently replaced. A failed download leaves
+an incomplete directory; resolve the failure and use a new backup directory.
+
+Only after target approval and backup verification, confirm the local operation:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/pypi_release_retention.py \
-  --repo pypi \
-  --protect-version 2026.05.17.post2 \
-  --select-visible-protected-packages \
-  --confirm-delete \
-  --direct-web-only \
-  --json
+  --delete-release 'agi-gui==<reviewed-version>' \
+  --backup-dir /absolute/path/agi-gui-reviewed-version-pypi-backup \
+  --confirm-delete --direct-web-only --json
 ```
 
-Use `--packages-file` with one package per line when an explicit set is required.
-Avoid long `--packages` values in terminal/chat contexts because line wrapping
-can split package names before the tool sees them. The manual
-`pypi-release-retention` workflow uses this auto-selector by default.
+The helper rechecks protected versions, the complete current file set, and saved
+hashes after authentication, immediately before each destructive POST. All CLI
+deletion uses the guarded in-process web flow; external cleanup subprocesses
+are disabled. A missing or changed backup, protection conflict, authentication
+failure, or verification failure stops deletion.
 
-When PyPI requests unrecognized-login confirmation on GitHub Actions, prefer the
-direct web deletion path so the email confirmation belongs to the same session
-that opens and submits the delete form:
+## Credentials and session failures
 
-```bash
-uv --preview-features extra-build-dependencies run python tools/pypi_release_retention.py \
-  --repo pypi \
-  --packages "agilab" \
-  --protect-version 2026.5.21.post1 \
-  --confirm-delete \
-  --direct-web-only \
-  --json \
-  --github-confirm-login-repository ThalesGroup/agilab \
-  --github-confirm-login-variable PYPI_CONFIRM_LOGIN_URL \
-  --github-confirm-login-timeout 1800
-```
+PyPI upload uses Trusted Publishing/OIDC; release deletion needs web-management
+credentials. The local helper reads the private `pypi_cleanup` section of
+`~/.pypirc` or its explicit credential options. API upload tokens cannot
+authorize deletion.
 
-Do not work around PyPI cleanup failures by storing credentials in the repo,
-weakening the protected-release check, or reusing an old confirmation URL.
+Never print or commit passwords, TOTP secrets, recovery codes, cookies, browser
+profiles, or login-confirmation URLs. Keep credentials on the maintainer's
+machine and outside GitHub workflow inputs, issues, PRs, and plan artifacts.
 
-For the release workflow path, dispatch only from the public AGILAB repository:
+Password/TOTP authentication can require confirmation of the exact HTTP session.
+A signed-in browser and the CLI have separate sessions. Do not retry a rejected
+CLI session through a hosted workflow or treat a confirmation for another
+session as authorization. Follow the maintainer guide's device-confirmed
+browser procedure only after the same target review and complete backup.
 
-```bash
-gh workflow run pypi-publish.yaml \
-  -R ThalesGroup/agilab \
-  --ref main \
-  -f release_tag=v2026.05.26
-```
+## Retired procedures and close-out
 
-Use `-f include_existing_pypi=true` only when intentionally repairing GitHub
-release assets from already-published PyPI artifacts. It re-includes existing
-package versions in the workflow scope and can reintroduce broad provenance or
-retention work; it is not the normal path for unchanged packages.
+The publisher's legacy deletion and purge options fail with guidance. Do not
+append cleanup to publication, derive package-wide pruning from a release plan,
+invoke an external cleanup tool, or delete an entire project. Unknown or
+deprecated package names require a separate owner review; do not bypass the
+first-party selection guard with an unrestricted fallback.
 
-If the retention job logs that it is waiting for
-`PYPI_CONFIRM_LOGIN_URL`, set the fresh URL from the PyPI email immediately.
-Prefer stdin or a hidden prompt rather than `--body` so the token is not copied
-into shell history, process arguments, or chat summaries:
-
-```bash
-python3 - <<'PY' | gh variable set PYPI_CONFIRM_LOGIN_URL -R ThalesGroup/agilab
-import getpass
-
-print(getpass.getpass("PyPI confirmation URL: "))
-PY
-```
-
-After the run, clear the temporary handoff variable:
-
-```bash
-printf 'y\n' | gh variable delete PYPI_CONFIRM_LOGIN_URL -R ThalesGroup/agilab
-```
-
-## Retention Retry Lessons
-
-When retention cleanup runs from GitHub Actions against many split packages
-(usually because a real package set changed or `include_existing_pypi=true` was
-used intentionally):
-
-- PyPI may require an unrecognized-login confirmation URL from the same runner
-  IP before the delete form can be opened. Clear any stale
-  `PYPI_CONFIRM_LOGIN_URL` first, then set only the fresh URL from the email
-  generated by the active direct-web cleanup run.
-- A visible `PYPI_CONFIRM_LOGIN_URL` variable does not prove the retention job
-  is still waiting for confirmation. The workflow clears the variable in a later
-  cleanup step, so classify state from the active job status/logs first.
-- If a publish step fails on a transient PyPI OIDC/network timeout before upload
-  while the built artifacts are valid, rerun the failed jobs with
-  `gh run rerun <run-id> --failed`; do not bump versions or dispatch a duplicate
-  release just to recover from the external timeout.
-- `pypi-cleanup` can fail to parse PyPI's release delete form with `No CSFR`
-  / `No CSRF`. It can also generate a confirmation email for a throwaway
-  `pypi-cleanup` login session, which does not help the later in-process delete
-  session. Use `--direct-web-only` when confirmation handoff is involved.
-- When PyPI 2FA uses TOTP, do not reuse the same generated code across package
-  deletions. Wait for a fresh TOTP window before each deletion, otherwise a
-  later package can fail with an invalid authentication code.
-- After the workflow reports success, verify public PyPI JSON again with
-  cache-busting headers before declaring cleanup complete; immediately after
-  deletion, stale versions can appear briefly due to PyPI/cache propagation.
-- PyPI can return `404 Not Found` from the manage release page after a deletion
-  already succeeded. Current retention code treats that as success only after
-  public PyPI JSON confirms the exact stale version is absent. If an older
-  checkout fails on this race, update the retention tool before retrying.
-- Remove temporary confirmation handoff variables or short-lived reader tokens
-  after the run. Keep only the normal release-prune credentials that are part
-  of the repository maintenance contract.
-- If the user explicitly says to move forward with a known residual stale
-  package, stop spending Actions minutes, cancel any extra cleanup workflow, and
-  report the exact residual package/version as not blocked but not cleaned.
-
-## Deprecated Package Cleanup
-
-Use this when a stale PyPI project remains visible after a package rename or
-package-split cleanup, for example an old page package whose source path no
-longer exists in the current repository.
-
-First prove the package is really deprecated:
-
-- check the current release plan and package split contract;
-- verify the PyPI project metadata live, especially `project_urls.Source`;
-- confirm the source path referenced by PyPI no longer exists or is no longer a
-  publish target;
-- identify the replacement package name, if any.
-
-Do not confuse a deprecated package with a package that is expected but missing
-from PyPI. For example, if the release plan expects `agi-app-...` but PyPI
-returns 404 for it, that package needs publication, not deletion.
-
-Current-matrix cleanup wrappers such as `tools/pypi_publish.py --packages ...`
-only accept packages that still belong to the current release plan. If the stale
-PyPI project is no longer in the matrix, use `tools/pypi_release_retention.py`
-or `pypi-cleanup` directly against the exact legacy PyPI project name.
-
-For a stale package with several releases, prefer this sequence:
-
-1. Query the exact visible releases from live PyPI JSON.
-2. Run a `pypi-cleanup --query-only` dry-run with exact version regexes.
-3. Delete older releases one exact version at a time, protecting the latest
-   temporarily if using the retention workflow.
-4. Verify live PyPI JSON after every successful deletion.
-
-Deleting the final remaining release is effectively PyPI project removal. Treat
-that as a separate owner action: do not use `--delete-project` from automation
-unless the operator explicitly confirms the package name, understands that the
-project reservation may be affected, and has valid PyPI web credentials.
-
-If cleanup is blocked:
-
-- local `pypi-cleanup` login failure means local web credentials are invalid or
-  PyPI is rejecting that device/session;
-- GitHub Actions failure after `No CSFR` / `No CSRF` plus a login redirect means
-  PyPI likely needs an unrecognized-login confirmation URL for the active delete
-  session;
-- dynamic GitHub-hosted runner IPs are not permanently fixable in AGILAB code
-  because PyPI owns unrecognized-login approval. For unattended deletion, use a
-  confirmed local device/session or a self-hosted/static-IP runner. For one-off
-  cleanup on `ubuntu-latest`, provide the fresh confirmation URL generated by
-  that active run;
-- retry with `--direct-web-only`, clear stale handoff state, fetch the URL from
-  the PyPI email generated by that retry, then set it while the run is waiting;
-  use stdin rather than command arguments:
-
-```bash
-gh variable delete PYPI_CONFIRM_LOGIN_URL --repo ThalesGroup/agilab || true
-python3 - <<'PY' | gh variable set PYPI_CONFIRM_LOGIN_URL --repo ThalesGroup/agilab
-import getpass
-
-print(getpass.getpass("PyPI confirmation URL: "))
-PY
-```
-
-After the workflow consumes the URL, remove or rotate the variable so future
-cleanup runs do not reuse an expired confirmation link.
-
-## Publication Reuse Behavior
-
-If an audit or release review flags noisy public publishes, check whether the
-real issue is cleanup, release-plan selection, or package reuse. The public
-`pypi-publish` workflow now uses two layers:
-
-- The `release-plan` job runs with `--skip-existing-pypi` by default and omits
-  packages whose expected wheel/sdist artifacts already exist on PyPI.
-- Omitted packages do not enter build/upload, provenance, retention, or GitHub
-  release-asset assembly.
-- `include_existing_pypi=true` is the manual repair path for already-published
-  artifacts; use it only when release assets need to be rebuilt from existing
-  PyPI files.
-- The per-package PyPI state check remains a fail-safe for manual repair,
-  explicit package selection, and race conditions between planning and upload.
-- When any expected artifact is missing, the workflow builds, verifies,
-  manifests, and publishes that package with Trusted Publishing.
-- Destructive retention is intentionally less frequent than publication: the
-  release workflow passes the configured
-  `PYPI_RETENTION_MIN_PUBLISHED_RELEASES` value, so PyPI web-login deletion
-  runs only after a selected package exceeds that visible-release threshold.
-
-Do not use deletion/reupload churn to compensate for unchanged package
-publication. Prefer fixing the reuse gate, release-plan matrix, or artifact
-policy if the workflow rebuilds a package that is already complete on PyPI.
-
-## After Cleanup
-
-Verify that PyPI now exposes the intended state:
-
-```bash
-uv --preview-features extra-build-dependencies run python tools/release_proof_report.py --check --compact
-uv --preview-features extra-build-dependencies run python tools/show_dependencies.py --repo pypi
-```
-
-If cleanup changes public release history materially, update release notes or
-public docs only when they currently make a false claim.
+After cleanup, verify the exact deleted version is absent and the latest and
+unselected releases remain available. Preserve the reviewed target list,
+complete backup, hashes, and terminal verification evidence together. Report a
+partial or interrupted deletion accurately and leave it unverified until the
+helper's final checks complete.
