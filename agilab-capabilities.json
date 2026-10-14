@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-14T12:31:55Z",
+  "generated_at_utc": "2026-10-14T21:17:26Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1001,7 +1001,7 @@
       "name": "plan-before-code",
       "description": "Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.",
       "path": ".claude/skills/plan-before-code/SKILL.md",
-      "updated": "2026-09-08"
+      "updated": "2026-10-14"
     },
     {
       "name": "repo-skill-maintenance",
