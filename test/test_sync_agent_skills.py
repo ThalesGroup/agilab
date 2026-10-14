@@ -327,3 +327,147 @@ def test_sync_proceeds_gracefully_when_tokki_binary_is_absent(tmp_path, monkeypa
     assert exit_code == 0
     assert (codex_root / "alpha" / "SKILL.md").exists()
     assert "skipped tokki skill visibility check" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("linked_component", ["provider", "skills-root"])
+def test_linked_destination_root_is_rejected_before_external_write(
+    tmp_path, monkeypatch, args, linked_component
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    external_root = tmp_path / "external-provider"
+    external_skills = (
+        external_root / "skills" if linked_component == "provider" else external_root
+    )
+    external_skill = _write_skill(external_skills, "alpha", body="External sentinel.")
+    external_before = (external_skill / "SKILL.md").read_bytes()
+    linked_path = codex_root.parent if linked_component == "provider" else codex_root
+    retained = tmp_path / "retained-mirror"
+    linked_path.rename(retained)
+    retained_skill = retained / "skills" / "alpha" if linked_component == "provider" else retained / "alpha"
+    mirror_before = (retained_skill / "SKILL.md").read_bytes()
+    try:
+        linked_path.symlink_to(external_root, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match="Refusing symlinked skill entries"):
+        module.main(args)
+
+    assert linked_path.is_symlink()
+    assert (external_skill / "SKILL.md").read_bytes() == external_before
+    assert (retained_skill / "SKILL.md").read_bytes() == mirror_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--all"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("resource", ["SKILL.md", "references/guide.md", "references"])
+def test_linked_destination_resource_is_rejected_even_when_content_matches(
+    tmp_path, monkeypatch, args, resource
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    for root in (claude_root, codex_root):
+        skill = _write_skill(root, "alpha")
+        references = skill / "references"
+        references.mkdir()
+        (references / "guide.md").write_text("Matching resource.\n", encoding="utf-8")
+    mirror_entrypoint = codex_root / "alpha" / "SKILL.md"
+    mirror_before = mirror_entrypoint.read_bytes()
+    linked_path = codex_root / "alpha" / resource
+    external = tmp_path / "external-resource"
+    linked_path.rename(external)
+    try:
+        linked_path.symlink_to(external, target_is_directory=external.is_dir())
+    except OSError as error:
+        pytest.skip(f"symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match="Refusing symlinked skill entries"):
+        module.main(args)
+
+    assert linked_path.is_symlink()
+    assert mirror_entrypoint.read_bytes() == mirror_before
+    external_file = external / "guide.md" if external.is_dir() else external
+    expected = mirror_before if resource == "SKILL.md" else b"Matching resource.\n"
+    assert external_file.read_bytes() == expected
+
+
+@pytest.mark.parametrize("args", [["--all"], ["--skills", "alpha", "beta"]])
+def test_later_linked_destination_cannot_partially_sync_earlier_skill(
+    tmp_path, monkeypatch, args
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="New alpha wording.")
+    _write_skill(claude_root, "beta", body="New beta wording.")
+    alpha = _write_skill(codex_root, "alpha", body="Alpha sentinel.")
+    alpha_before = (alpha / "SKILL.md").read_bytes()
+    external_beta = _write_skill(tmp_path / "external-skills", "beta", body="Beta sentinel.")
+    beta_before = (external_beta / "SKILL.md").read_bytes()
+    try:
+        (codex_root / "beta").symlink_to(external_beta, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"directory symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*beta"):
+        module.main(args)
+
+    assert (alpha / "SKILL.md").read_bytes() == alpha_before
+    assert (external_beta / "SKILL.md").read_bytes() == beta_before
+
+
+@pytest.mark.parametrize("args", [["--check"], ["--skills", "alpha"]])
+@pytest.mark.parametrize("junction_component", ["provider", "skills-root", "resource"])
+def test_destination_junction_is_rejected_before_mirror_mutation(
+    tmp_path, monkeypatch, args, junction_component
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="Canonical wording.")
+    mirror = _write_skill(codex_root, "alpha", body="Mirror sentinel.")
+    mirror_before = (mirror / "SKILL.md").read_bytes()
+    junction = {
+        "provider": codex_root.parent,
+        "skills-root": codex_root,
+        "resource": mirror / "references",
+    }[junction_component]
+    junction.mkdir(exist_ok=True)
+    original_is_link_like = module._is_link_like
+    monkeypatch.setattr(
+        module,
+        "_is_link_like",
+        lambda path: path == junction or original_is_link_like(path),
+    )
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*including junctions"):
+        module.main(args)
+
+    assert (mirror / "SKILL.md").read_bytes() == mirror_before
+
+
+def test_targeted_sync_rejects_links_in_unselected_mirror_skill(tmp_path, monkeypatch) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _tokki_absent(module, monkeypatch)
+    _write_skill(claude_root, "alpha", body="New alpha wording.")
+    alpha = _write_skill(codex_root, "alpha", body="Alpha sentinel.")
+    alpha_before = (alpha / "SKILL.md").read_bytes()
+    beta = _write_skill(codex_root, "beta")
+    external = tmp_path / "external-guide.md"
+    external.write_text("External sentinel.\n", encoding="utf-8")
+    try:
+        (beta / "guide.md").symlink_to(external)
+    except OSError as error:
+        pytest.skip(f"symlinks unavailable: {error}")
+
+    with pytest.raises(SystemExit, match=r"Refusing symlinked skill entries.*beta/guide.md"):
+        module.main(["--skills", "alpha"])
+
+    assert (alpha / "SKILL.md").read_bytes() == alpha_before
+    assert external.read_text(encoding="utf-8") == "External sentinel.\n"
