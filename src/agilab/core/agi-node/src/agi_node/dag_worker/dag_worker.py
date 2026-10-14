@@ -28,6 +28,7 @@ from typing import Any
 
 # Import BaseWorker from agi_dispatcher.py (as you requested)
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher.base_worker_execution_support import DAG_SOURCE_TREE_KEY
 
 
 _DAG_PARTITION_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
@@ -65,44 +66,62 @@ class DagWorker(BaseWorker):
         method = getattr(self, fn_name)
         try:
             sig = inspect.signature(method)
-            params = [
-                p for p in sig.parameters.values()
-                if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
-            ]
-
-            accepts_args = any(p.name == "args" for p in params)
-            accepts_prev = any(p.name == "prev_result" for p in params)
-            accepts_prev_alt = any(p.name == "previous_result" for p in params)
-            has_kwonly = any(p.kind is p.KEYWORD_ONLY for p in params)
-
-            # Prefer name-aware kwargs if declared (or keyword-only present)
-            if has_kwonly or accepts_args or accepts_prev or accepts_prev_alt:
-                kw = {}
-                if accepts_args:
-                    kw["args"] = args
-                if accepts_prev:
-                    kw["prev_result"] = prev_result
-                if accepts_prev_alt:
-                    kw["previous_result"] = prev_result
-                return method(**kw)
-
-            # Otherwise decide by arity (bound method: 'self' not included)
-            arity = len(params)
-            if arity == 0:
-                return method()
-            elif arity == 1:
-                # We don't know the param name; prefer args, fallback to prev_result
-                return method(args if args is not None else prev_result)
-            else:
-                # Pass both positionally
-                return method(args, prev_result)
-
         except (TypeError, ValueError):
             # Preserve legacy behavior only when the method signature itself
             # cannot be inspected reliably. Runtime failures from the method
             # body must propagate unchanged so the caller sees the real cause.
-            logging.exception(f"_invoke: error calling {fn_name}; falling back to (args, prev_result)")
+            logging.exception(
+                f"_invoke: could not inspect {fn_name}; falling back to (args, prev_result)"
+            )
             return method(args, prev_result)
+
+        params = [
+            p
+            for p in sig.parameters.values()
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.KEYWORD_ONLY)
+        ]
+        accepts_args = any(p.name == "args" for p in params)
+        accepts_prev = any(p.name == "prev_result" for p in params)
+        accepts_prev_alt = any(p.name == "previous_result" for p in params)
+        has_kwonly = any(p.kind is p.KEYWORD_ONLY for p in params)
+
+        # Prefer name-aware kwargs if declared (or keyword-only present).
+        if has_kwonly or accepts_args or accepts_prev or accepts_prev_alt:
+            values = {
+                "args": args,
+                "prev_result": prev_result,
+                "previous_result": prev_result,
+            }
+            positional = [p for p in params if p.kind is p.POSITIONAL_ONLY]
+            if any(p.name not in values and p.default is p.empty for p in positional):
+                call_args = (args, prev_result)
+                call_kwargs = {}
+            else:
+                call_args = tuple(values.get(p.name, p.default) for p in positional)
+                call_kwargs = {
+                    p.name: values[p.name]
+                    for p in params
+                    if p.name in values and p.kind is not p.POSITIONAL_ONLY
+                }
+        else:
+            # Otherwise decide by arity (bound method: 'self' already excluded).
+            arity = len(params)
+            if arity == 0:
+                call_args = ()
+            elif arity == 1:
+                call_args = (args if args is not None else prev_result,)
+            else:
+                call_args = (args, prev_result)
+            call_kwargs = {}
+
+        try:
+            sig.bind(*call_args, **call_kwargs)
+        except TypeError:
+            # Legacy positional fallback is selected before entering app code.
+            # Binding failures are safe to retry; method-body failures are not.
+            call_args, call_kwargs = (args, prev_result), {}
+            sig.bind(*call_args, **call_kwargs)
+        return method(*call_args, **call_kwargs)
 
     # -----------------------------
     # Your existing methods (kept minimal)
@@ -180,7 +199,12 @@ class DagWorker(BaseWorker):
             if idx % num_partitions != worker_id:
                 continue
             for (fn_dict, deps), (pname, weight) in zip(tree, info):
-                assigned.append((fn_dict, deps, pname, weight))
+                tree_id = fn_dict.get(DAG_SOURCE_TREE_KEY, idx)
+                if not isinstance(tree_id, int) or tree_id < 0:
+                    raise ValueError(
+                        "DAG source-tree identity must be a nonnegative integer."
+                    )
+                assigned.append((fn_dict, deps, pname, weight, tree_id))
 
         if not assigned:
             logging.info(f"No tasks for worker {worker_id}")
@@ -189,18 +213,42 @@ class DagWorker(BaseWorker):
         def _name(x):
             return x["functions name"] if isinstance(x, dict) else x
 
-        # normalize: everything keyed by function name (string)
-        fargs = {fn["functions name"]: fn.get("args", ())
-                 for (fn, _, _, _) in assigned}
-
-        dependency_graph = {
-            fn["functions name"]: [_name(d) for d in deps]
-            for (fn, deps, _, _) in assigned
+        # A method can be invoked once per data partition. Scheduling by its
+        # name would overwrite earlier invocations and their dependencies.
+        tasks = {
+            f"task:{index:08d}": declaration
+            for index, declaration in enumerate(assigned)
         }
+        task_keys_by_method = {}
+        task_keys_by_tree_method = {}
+        for task_key, (fn, _, _, _, tree_id) in tasks.items():
+            method = fn["functions name"]
+            task_keys_by_method.setdefault(method, []).append(task_key)
+            task_keys_by_tree_method.setdefault((tree_id, method), []).append(task_key)
 
+        def _dependency_key(dependency, tree_id):
+            method = _name(dependency)
+            candidates = task_keys_by_tree_method.get((tree_id, method), [])
+            if not candidates:
+                candidates = task_keys_by_method.get(method, [])
+            if len(candidates) > 1:
+                raise ValueError(
+                    f"Ambiguous DAG dependency on repeated method {method!r} "
+                    f"in source tree {tree_id}."
+                )
+            return candidates[0] if candidates else f"external:{method}"
+
+        fargs = {key: fn.get("args", ()) for key, (fn, _, _, _, _) in tasks.items()}
+        method_names = {
+            key: fn["functions name"] for key, (fn, _, _, _, _) in tasks.items()
+        }
+        dependency_graph = {
+            key: [_dependency_key(dependency, tree_id) for dependency in deps]
+            for key, (_, deps, _, _, tree_id) in tasks.items()
+        }
         function_info = {
-            fn["functions name"]: {"partition_name": pname, "weight": weight}
-            for (fn, _, pname, weight) in assigned
+            key: {"partition_name": pname, "weight": weight}
+            for key, (_, _, pname, weight, _) in tasks.items()
         }
 
         # helpful logs (optional)
@@ -225,8 +273,8 @@ class DagWorker(BaseWorker):
             pipeline_result = {}
             for dep in dependency_graph.get(fn, []):
                 if dep in futures:
-                    pipeline_result[dep] = futures[dep][0].result()
-            return self.get_work(fn, fargs.get(fn, ()), pipeline_result)
+                    pipeline_result[method_names[dep]] = futures[dep][0].result()
+            return self.get_work(method_names[fn], fargs.get(fn, ()), pipeline_result)
 
         # Size the pool against the stages actually assigned to this worker;
         # `topo` may also contain cross-partition dependency-only nodes that
@@ -257,11 +305,15 @@ class DagWorker(BaseWorker):
         for fn, (future, pname) in futures.items():
             try:
                 results[fn] = future.result()
-                logging.info(f"Method {fn} for partition {pname} completed.")
+                logging.info(
+                    f"Method {method_names[fn]} for partition {pname} completed."
+                )
             # Worker code boundary: DAG partitions execute app methods; log each
             # failed partition while still collecting sibling partition results.
             except _DAG_PARTITION_BOUNDARY_EXCEPTIONS as exc:
-                logging.error(f"Method {fn} for partition {pname} generated an exception: {exc}")
+                logging.error(
+                    f"Method {method_names[fn]} for partition {pname} generated an exception: {exc}"
+                )
                 if first_failure is None:
                     first_failure = exc
 
