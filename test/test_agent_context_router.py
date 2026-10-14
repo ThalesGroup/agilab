@@ -64,7 +64,7 @@ def test_recommend_context_matches_docs_and_evidence_rules() -> None:
     assert "agilab-evidence-contracts" in skill_names
 
 
-def test_docs_context_command_is_honest_without_canonical_checkout() -> None:
+def test_docs_context_commands_use_only_public_checkout_sources() -> None:
     rules = json.loads(agent_context_router.DEFAULT_RULES.read_text(encoding="utf-8"))
     docs_pack = rules["context_profiles"]["tokki"]["rule_packs"]["docs-public-claims"]
 
@@ -72,30 +72,25 @@ def test_docs_context_command_is_honest_without_canonical_checkout() -> None:
         "uv --preview-features extra-build-dependencies run python "
         "tools/sync_docs_source.py --verify-target-integrity --quiet",
         "uv --preview-features extra-build-dependencies run python "
-        "tools/sync_docs_source.py --check --delete --skip-missing-source",
+        "tools/sync_docs_source.py --check --delete",
     ]
     assert "target integrity" in docs_pack["why"]
-    assert "canonical drift was not checked" in docs_pack["why"]
+    assert "independently owned docs/source" in docs_pack["why"]
+    assert "private documentation sources are rejected" in docs_pack["why"]
 
 
-def test_absolute_canonical_docs_path_matches_from_registered_worktree_layout(
+def test_absolute_public_docs_path_matches_from_registered_worktree_layout(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
     projects_root = tmp_path / "PycharmProjects"
     worktree_root = projects_root / "agilab-worktrees" / "task-branch"
-    canonical_source = projects_root / "thales_agilab" / "docs" / "source"
+    canonical_source = worktree_root / "docs" / "source"
     canonical_doc = canonical_source / "faq.rst"
     worktree_root.mkdir(parents=True)
     canonical_source.mkdir(parents=True)
     canonical_doc.write_text("FAQ\n", encoding="utf-8")
     monkeypatch.setattr(agent_context_router, "REPO_ROOT", worktree_root)
-    monkeypatch.setattr(
-        agent_context_router,
-        "_configured_canonical_docs_source",
-        lambda: canonical_source,
-    )
-
     payload = agent_context_router.recommend_context(
         files=[canonical_doc.as_posix()],
         skills=_skill_index(),
@@ -104,7 +99,28 @@ def test_absolute_canonical_docs_path_matches_from_registered_worktree_layout(
     docs_rule = next(
         rule for rule in payload["matched_rules"] if rule["id"] == "docs-public-claims"
     )
-    assert docs_rule["matched_paths"] == ["../thales_agilab/docs/source/faq.rst"]
+    assert docs_rule["matched_paths"] == ["docs/source/faq.rst"]
+
+
+def test_private_sibling_docs_are_not_routed_as_public_sources(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    worktree_root = tmp_path / "agilab-worktrees" / "task-branch"
+    worktree_root.mkdir(parents=True)
+    private_doc = tmp_path / "thales_agilab" / "docs" / "source" / "faq.rst"
+    private_doc.parent.mkdir(parents=True)
+    private_doc.write_text("PRIVATE MUST NOT EXPORT\n", encoding="utf-8")
+    monkeypatch.setattr(agent_context_router, "REPO_ROOT", worktree_root)
+    monkeypatch.setenv("DOCS_REPOSITORY", str(private_doc.parents[2]))
+
+    payload = agent_context_router.recommend_context(
+        files=[private_doc.as_posix(), "../thales_agilab/docs/source/faq.rst"],
+        skills=_skill_index(),
+    )
+
+    assert "docs-public-claims" not in {
+        rule["id"] for rule in payload["matched_rules"]
+    }
 
 
 def test_recommend_context_matches_release_prompt_without_files() -> None:

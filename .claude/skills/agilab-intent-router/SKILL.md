@@ -3,7 +3,7 @@ name: agilab-intent-router
 description: Route terse AGILAB operator requests such as "do it", "review AGILAB", "next move", "update repos", "merge it", "check again", "release", and "cluster validation" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-07-07
+  updated: 2026-10-14
 ---
 
 # AGILAB Intent Router
@@ -41,7 +41,9 @@ constraint   ::= "only agilab" | "no tests" | "from current repo" | "from anothe
 3. Review/audit defaults to report-first, not patch-first.
 4. Fix/implement defaults to smallest patch plus targeted validation.
 5. Release readiness requires authoritative workflow/tooling inspection.
-6. Docs edits use canonical `../thales_agilab/docs/source` then AGILAB mirror sync.
+6. Public docs edits use this checkout's independently owned `docs/source` and
+   its local integrity stamp. Reject external/private sources; do not discover
+   sibling documentation automatically.
 7. Cluster work must rediscover remote workers; never reuse a remembered IP.
 8. If the previous turn established scope, `do it`, `go on`, and `check again`
    inherit that scope; otherwise inspect current repo state and ask only if
@@ -64,7 +66,7 @@ Route these patterns before choosing tools:
 | `update repos`, `sync repos` | safe repo sync | show command plan first; default AGILAB target set is `agilab` plus sibling `thales_agilab` when present | `agilab-runbook` |
 | `update skill`, `sync skills`, `make future agents do X` | repo skill update | edit `.claude`, sync `.codex`, regenerate index | `skill-creator`, `repo-skill-maintenance` |
 | `ready for release`, `release it`, `badge`, `proof`, `PyPI` | release verification | inspect release workflow/tooling first | `agilab-release-verification` |
-| `docs aligned`, `screenshot docs`, `link added`, `published docs` | docs workflow | canonical docs then mirror | `agilab-docs` |
+| `docs aligned`, `screenshot docs`, `link added`, `published docs` | docs workflow | public checkout's docs source, local stamp, rendered/published verification | `agilab-docs` |
 | `cluster`, `remote worker`, `validate cluster` | cluster validation | rediscover worker, split SSH/share/compute | `agilab-testing`, `agilab-installer`, `agilab-runbook` |
 | `teaser`, `youtube`, `thumbnail`, `linkedin` | content packaging | no repo edit unless asked | `agilab-product-reels` for video assets |
 | `anything to inspire from <url>`, `think from <repo>`, `learn from <tool>` | external benchmark | inspect source, extract transferable patterns, reject misfit, implement only if AGILAB-native | `agilab-evidence-contracts`, `agilab-docs`, plus domain skill |
@@ -110,7 +112,7 @@ Route these patterns before choosing tools:
   flows, exact structured stdout, live streaming logs, or intentionally
   unwrapped behavior.
 - For `check again`, verify the authoritative source for the prior claim:
-  current repo state, workflow status, docs mirror, PyPI/GitHub release, or
+  current repo state, workflow status, public docs source/stamp, PyPI/GitHub release, or
   cluster discovery as appropriate.
 - For `next move`, inspect current repo state and relevant workflow/tooling;
   do not answer only from memory.

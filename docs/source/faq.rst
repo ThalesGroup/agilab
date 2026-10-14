@@ -447,9 +447,9 @@ Use the smallest tool that proves the change you made. The usual choices are:
    * - Likely regression subset
      - ``./dev regress``
    * - Match a GitHub workflow locally
-     - ``./dev flow -- <profile>`` or
+     - ``./dev flow <profile>`` or
        ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <profile>``
-   * - Docs mirror and stamp alignment
+   * - Public documentation integrity
      - ``./dev docs`` or
        ``uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete``
    * - Coverage badge refresh
@@ -472,21 +472,23 @@ Which docs repo should I edit?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Public contributors can edit ``docs/source`` in the AGILAB checkout they cloned
-from GitHub. Maintainers who work with a separate canonical documentation
-checkout should edit that canonical source first, then sync the public mirror in
-``agilab/docs/source`` before opening or updating the public PR.
+from GitHub. This public tree is authoritative for public documentation.
+External and private documentation repositories are never discovered or copied
+by documentation and release commands. Explicit source overrides must name this
+public checkout's own ``docs/source``; other sources are rejected.
 
 The release-proof manifest, its generated page, and the UI robot evidence are
-the exception. They are generated from the public AGILAB checkout and remain
-owned by that repository; private-to-public mirror sync preserves them. The
-canonical documentation source keeps only a pointer to the public release proof.
+generated from the public AGILAB checkout and remain owned by this repository.
 
-For maintainer mirror syncs, run:
+After an authored public documentation update, refresh and verify its local
+integrity evidence:
 
 .. code-block:: bash
 
-   uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete
-   uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp
+   ./dev docs
+
+This records the public tree only; it does not attest equality with a private
+repository. Local documentation builds use the public ``docs/source`` directly.
 
 Do not edit ``docs/html``. It is generated output only.
 

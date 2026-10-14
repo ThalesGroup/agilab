@@ -345,8 +345,8 @@ Then inspect:
 Do not call docs aligned until the Pages workflow has succeeded and the public
 page shows the expected version/tag/HF commit.
 
-Release and UI evidence is owned by the public repository. These three
-paths are excluded from the canonical-source mirror:
+The public repository independently owns all of its `docs/source`, including
+release and UI evidence. These three paths retain dedicated owner validators:
 
 - `docs/source/data/release_proof.toml`
 - `docs/source/release-proof.rst`
@@ -360,8 +360,8 @@ claim that candidate source has already been published.
 When manually refreshing proof after a failed or rerun deployment, edit the
 public TOML and use `tools/release_proof_report.py --docs-source docs/source`
 with the required refresh options. Then render and check the proof, refresh
-only the allowed release-proof paths, and independently verify the canonical
-source:
+only the allowed release-proof paths in the local stamp, and verify that stamp
+against the checkout's own public docs tree:
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
@@ -369,18 +369,19 @@ uv --preview-features extra-build-dependencies run python tools/release_proof_re
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
   --target docs/source --refresh-target-integrity-stamp
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --source <verified-canonical-docs-source> --target docs/source --verify-stamp
+  --verify-stamp
 ```
 
 The restricted stamp refresh accepts only the release-proof TOML and its
-generated RST; it rejects UI-evidence drift and preserves the existing
-canonical provenance. Its CLI does not perform a fresh canonical-source check,
-so the separate `--source ... --verify-stamp` command is required.
+generated RST; it rejects UI-evidence drift and other stamped documentation
+changes. The separate `--verify-stamp` command verifies local public integrity.
+Do not supply private/external source paths or bypass their rejection.
 
-Use a full canonical sync only for actual changes to managed documentation,
-after the restricted proof refresh. Editing proof in the canonical source and
-running `--apply --delete` cannot propagate these public-owned files. A full
-sync also refuses to bless unverified public-evidence changes.
+For actual changes to other public documentation, edit this checkout's
+`docs/source`, run the relevant docs/evidence validators, and refresh the local
+stamp with `tools/sync_docs_source.py --apply --delete`. Its default source and
+target are the same public tree; it imports no private/external documentation
+and does not attest synchronization with another repository.
 
 The release workflow opens a signed release-evidence PR. Verify its exact-head
 required PR checks, merge it, and then check the Pages run on the merge commit.
@@ -391,7 +392,7 @@ After publishing, grep the public page for the expected version, tag, HF Space
 commit, and the current release workflow run IDs, especially `pypi-publish`. A
 page can contain the right release row while stale CI evidence rows still point
 to the previous release. Treat "new version with old run IDs" as a release-proof
-failure until the public-owned release proof, verified managed mirror, Pages
+failure until the public-owned release proof, verified local docs integrity, Pages
 deployment and live HTML agree on their respective ownership contracts.
 
 ### Hugging Face Space
@@ -465,8 +466,9 @@ after the badge/source change.
 - HF Space changed but release proof stale: inspect the `sync-hf-space` commit
   step before applying a manual docs refresh.
 - Release proof shows the new tag/commit but still mentions an old tag in a
-  CI-run summary: update `docs/source/data/release_proof.toml`, rerender, sync
-  the public mirror, wait for `docs-publish`, and verify the published page.
+  CI-run summary: update `docs/source/data/release_proof.toml`, rerender,
+  refresh and verify the local stamp, wait for `docs-publish`, and verify the
+  published page.
 - Docs source updated but public page stale: check `docs-publish.yaml` run and
   Pages publication status.
 - Badge failed online but local guard passes: identify which badge is failing

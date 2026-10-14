@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-14T21:04:13Z",
+  "generated_at_utc": "2026-10-14T22:43:34Z",
   "tool": "tools/codex_skills.py",
   "count": 33,
   "skills": [
@@ -23,7 +23,7 @@
       "name": "agilab-deep-audit",
       "description": "Produce deep AGILAB audit and code-review artifacts with evidence-backed findings, mandatory architecture-foundation readiness, blast-radius tracing, security/test posture, and prioritized recommendations. Use when the user says \"review AGILAB\", \"audit AGILAB\", \"code review AGILAB\", \"deep review\", \"architecture review\", \"security review\", asks for a review document, or asks for comparison-quality critique rather than a quick fix.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-10-13",
+      "updated": "2026-10-14",
       "path": ".codex/skills/agilab-deep-audit/SKILL.md",
       "body_preview": "# AGILAB Deep Audit Skill\nUse this skill when the user asks for an AGILAB audit or a review artifact. Do\nnot treat an audit request as a maintenance/fix request unless the user\nexplicitly asks to patch findings."
     },
@@ -31,9 +31,9 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-06-24",
+      "updated": "2026-10-14",
       "path": ".codex/skills/agilab-docs/SKILL.md",
-      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- Canonical editable docs source is `../thales_agilab/docs/source`."
+      "body_preview": "# Docs Skill (AGILAB)\nUse this skill when editing docs content or docs build tooling for AGILAB.\n## Source Of Truth\n- The public checkout independently owns its editable `docs/source` tree."
     },
     {
       "name": "agilab-evidence-contracts",
@@ -53,11 +53,11 @@
     },
     {
       "name": "agilab-huggingface-spaces",
-      "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.",
+      "description": "Maintain and deploy the official AGILAB Hugging Face Docker Space through public release sync or a reviewed packaging-bundle export.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-10-13",
+      "updated": "2026-10-14",
       "path": ".codex/skills/agilab-huggingface-spaces/SKILL.md",
-      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nThe current source of truth is the sibling apps/docs checkout, normally\n`../thales_agilab` relative to the public `agilab` checkout:"
+      "body_preview": "# Hugging Face Spaces Skill (AGILAB)\nUse this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.\nFor an explicitly selected maintainer packaging-bundle export, the packaging\ncontract lives in the private sibling checkout, normally `../thales_agilab`"
     },
     {
       "name": "agilab-installer",
@@ -71,7 +71,7 @@
       "name": "agilab-intent-router",
       "description": "Route terse AGILAB operator requests such as \"do it\", \"review AGILAB\", \"next move\", \"update repos\", \"merge it\", \"check again\", \"release\", and \"cluster validation\" into the right repo skills, safety mode, validation depth, and output contract using session-derived policy.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-07-07",
+      "updated": "2026-10-14",
       "path": ".codex/skills/agilab-intent-router/SKILL.md",
       "body_preview": "# AGILAB Intent Router\nUse this skill first when a user request is short, ambiguous, or operational.\nThe goal is to classify the request before acting, so terse commands map to the\nright AGILAB workflow instead of defaulting to a shallow answer or wrong repo"
     },
@@ -143,7 +143,7 @@
       "name": "agilab-testing",
       "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": "2026-10-13",
+      "updated": "2026-10-14",
       "path": ".codex/skills/agilab-testing/SKILL.md",
       "body_preview": "# Testing Skill (AGILAB)\nUse this skill when validating changes.\nFor benchmark work or changes to generated test inputs, read the relevant section\nof [benchmark and generator review](references/benchmark-and-generator-review.md)."
     },
@@ -255,7 +255,7 @@
       "name": "svg-diagram-tuning",
       "description": "Repair one existing SVG without redesigning its meaning. Use for targeted readability defects such as cropped text, crowded blocks, stale connector anchors, unclear arrows, or overlapping labels; use svg-diagrams to create a simple new figure, scientific-svg-figures for substantial publication-grade figure work, and advanced-svg-system-design for a reusable figure family.",
       "license": "BSD-3-Clause (see repo LICENSE)",
-      "updated": null,
+      "updated": "2026-10-14",
       "path": ".codex/skills/svg-diagram-tuning/SKILL.md",
       "body_preview": "# SVG Diagram Tuning\n## Overview\nUse this skill to improve an existing SVG diagram without changing its meaning.\nFocus on readability first: text, spacing, arrows, and visual hierarchy."
     },

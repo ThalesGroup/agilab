@@ -1,8 +1,12 @@
 ## AGILAB Roadmap
 
-Status reviewed on 2026-10-11. The published root release is
-[`2026.10.11`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11);
-source changes and public publication remain separate checkpoints.
+Status reviewed on 2026-10-14. The published root release is
+[`2026.10.13`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13),
+from source commit `8dd841b0246f6269cafaec7d91e66c70c485a0b2`.
+Source changes, package publication and environment qualification remain separate
+checkpoints. The root UI profile pins `agi-apps`, `agi-pages` and `agi-gui`
+at `2026.10.13`, with the shared React runtime `agi-web 2026.10.12`;
+builtin app packages retain their own version constraints.
 
 The baseline already includes the native React interface, Python view host,
 first proof, run manifest, proof-pack/evidence capsule commands, release-decision
@@ -13,26 +17,33 @@ that boundary.
 
 | Area | Baseline and source status | Remaining qualification or product work |
 | --- | --- | --- |
-| Notebook | Editable GUI-to-notebook export and fresh-kernel round trips, including the 1,000-row macOS proof | Real Linux validation on a less powerful machine, larger inputs, and additional app scenarios |
+| Notebook | Editable GUI-to-notebook export and fresh-kernel round trips, including the 1,000-row macOS proof and interactive Jupyter map/curve rendering from public packages | A real deployed-worker export/run/reimport scenario, Linux validation on a less powerful machine, larger inputs, and additional apps |
 | Multi-app DAG | Two-app artifact handoff, retry, partial rerun, durable state and WORKFLOW controls | Broader app coverage, placement and operator usability at larger graph sizes |
 | Connectors | Catalog, resolution, probe plans, explicit health actions, adapter contracts and connector-aware views | Real endpoint IAM, network, quota and latency qualification in prepared environments |
 | Audience bridges | Quarto, read-only MCP, Hugging Face, MLflow, VS Code, DuckDB, Airflow and Dagster command MVPs | Tool-specific execution and deployment qualification with the optional tools installed |
-| Operator workbench | Qualified source MVP: seven profiles, an allowlisted palette and four snapshot panes; desktop/mobile navigation, reviewed switching and per-project layout evidence | Publication, actual palette install/scientific-run qualification, richer discovery/actions, cluster scenarios and smaller-machine measurements |
+| Operator workbench | Published MVP in `agilab 2026.10.13` with `agi-web 2026.10.12`: seven profiles, an allowlisted palette and four snapshot panes; navigation, reviewed switching and layout evidence | Actual palette install/scientific-run qualification, richer discovery/actions, hosted-demo qualification, cluster scenarios and smaller-machine measurements |
 
 The nine [GitHub roadmap themes](https://github.com/ThalesGroup/agilab/issues?q=is%3Aissue%20is%3Aopen%20label%3Aroadmap)
 and the central discussion thread are a voting and tracking index. An open theme
 does not mean its delivered baseline is missing. Keep each theme's remaining
 acceptance criteria aligned with this table and the detailed roadmap below.
 
-The new workbench is not included in the published `agilab 2026.10.11` package
-or the current hosted demonstration. Its install/run queue contract has backend
-test evidence; the browser proof exercised navigation, review/cancellation and
-project switching without installing or running scientific workloads.
+The workbench shipped with the `2026.10.12` UI release and remains in the
+`2026.10.13` root package with its pinned shared React runtime. Its install/run
+queue contract has backend test evidence; the browser proof exercised navigation,
+review/cancellation and project switching without installing or running scientific
+workloads. Hosted-demo identity and availability have their own
+[release-proof boundary](./source/release-proof.rst); a package release does not
+establish live hosted behavior.
+
+Current source also supports verified notebook-build recovery without repeating
+generation. This post-release source change is separate from the published
+`2026.10.13` package.
 
 Recommended near-term order:
 
 1. Keep release trust aligned: PyPI, GitHub release proof, Hugging Face, docs
-   mirror, badges, and release-proof evidence must point at the same shipped
+   source, badges, and release-proof evidence must identify their shipped
    state.
 2. Harden first-run UX and notebook parity: keep the local first proof,
    notebook import, notebook export, and analysis handoff predictable before

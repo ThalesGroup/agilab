@@ -1904,35 +1904,13 @@ def _find_docs_repository_details() -> tuple[
     pathlib.Path | None,
     str | None,
 ]:
-    sync_docs_source = _sync_docs_source_module()
+    # Validate stale overrides without discovering a private sibling or coupling
+    # a public release to its files, commits or tags.
     try:
-        configuration = sync_docs_source.canonical_source_configuration(REPO_ROOT)
+        _sync_docs_source_module().canonical_source_configuration(REPO_ROOT)
     except ValueError as exc:
         raise SystemExit(f"ERROR: {exc}") from exc
-    source_path = pathlib.Path(configuration.path)
-    if not source_path.exists() and not configuration.required:
-        return None, None, None
-    if not source_path.is_dir():
-        qualifier = "configured " if configuration.required else ""
-        raise SystemExit(
-            f"ERROR: {qualifier}canonical docs source is not a directory: {source_path}"
-        )
-    try:
-        sync_docs_source.build_manifest(source_path)
-    except (OSError, ValueError) as exc:
-        raise SystemExit(f"ERROR: canonical docs source is not usable: {exc}") from exc
-    canonical_index = source_path / "index.rst"
-    if not canonical_index.is_file():
-        raise SystemExit(
-            f"ERROR: canonical docs index not found before publication: {canonical_index}"
-        )
-    docs_repo = _git_repository_root_for_path(source_path)
-    if docs_repo is None:
-        raise SystemExit(
-            "ERROR: canonical docs source is not inside a usable git repository: "
-            f"{source_path}"
-        )
-    return docs_repo, source_path, configuration.origin
+    return None, None, None
 
 
 def find_docs_repository() -> Tuple[pathlib.Path | None, str | None]:
@@ -1941,16 +1919,14 @@ def find_docs_repository() -> Tuple[pathlib.Path | None, str | None]:
 
 
 def _canonical_source_for_docs_repository(docs_repo: pathlib.Path) -> pathlib.Path:
-    sync_docs_source = _sync_docs_source_module()
     try:
-        configured = pathlib.Path(
-            sync_docs_source.canonical_source_configuration(REPO_ROOT).path
+        if pathlib.Path(docs_repo).resolve() != REPO_ROOT.resolve():
+            raise ValueError("external documentation repositories are disabled")
+        return _sync_docs_source_module().require_public_docs_source(
+            REPO_ROOT / "docs" / "source", REPO_ROOT
         )
-    except ValueError:
-        configured = docs_repo / "docs" / "source"
-    if configured.is_dir() and _git_repository_root_for_path(configured) == docs_repo:
-        return configured
-    return docs_repo / "docs" / "source"
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
 
 
 def require_conventional_docs_generation_source(
@@ -2341,62 +2317,37 @@ def _latest_public_github_release_link(text: str) -> re.Match[str]:
 
 
 def sync_docs_source_mirror(source: pathlib.Path) -> None:
-    script = REPO_ROOT / "tools" / "sync_docs_source.py"
-    if not script.exists():
-        raise SystemExit(f"ERROR: docs mirror sync script not found: {script}")
-    run(
-        [
-            sys.executable,
-            str(script),
-            "--source",
-            str(source),
-            "--target",
-            str(REPO_ROOT / "docs/source"),
-            "--apply",
-            "--delete",
-        ],
-        cwd=REPO_ROOT,
-    )
+    """Validate the public source; importing another repository is disabled."""
+    try:
+        _sync_docs_source_module().require_public_docs_source(source, REPO_ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
 
 
 def update_docs_index_release_link(tag: str) -> None:
     release_url = github_release_url(tag)
-    docs_repo, _source = find_docs_repository()
-    public_index = REPO_ROOT / "docs/source/index.rst"
-
-    if docs_repo:
-        canonical_source = _canonical_source_for_docs_repository(docs_repo)
-        canonical_index = canonical_source / "index.rst"
-        if not canonical_index.is_file():
-            raise SystemExit(f"ERROR: canonical docs index not found: {canonical_index}")
-        text = canonical_index.read_text(encoding="utf-8")
-        if _write_text_if_changed(canonical_index, _replace_latest_release_url(text, release_url)):
-            print(f"[docs] updated canonical latest release link: {canonical_index}")
-        sync_docs_source_mirror(canonical_source)
-        return
-
-    if public_index.exists():
-        raise SystemExit(
-            "ERROR: canonical docs repository was not found; refusing to update only the "
-            "public docs/source mirror because the mirror stamp would drift. Set "
-            "AGILAB_DOCS_SOURCE or DOCS_REPOSITORY, or keep ../thales_agilab "
-            "available before publishing to PyPI."
-        )
+    try:
+        configuration = _sync_docs_source_module().canonical_source_configuration(REPO_ROOT)
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
+    public_index = configuration.path / "index.rst"
+    if not public_index.is_file():
+        raise SystemExit(f"ERROR: public docs index not found: {public_index}")
+    text = public_index.read_text(encoding="utf-8")
+    if _write_text_if_changed(public_index, _replace_latest_release_url(text, release_url)):
+        print(f"[docs] updated public latest release link: {public_index}")
 
 
 def validate_planned_docs_release(tag: str) -> None:
-    """Validate a future docs release without mutating either checkout."""
-
-    docs_repo, _origin = find_docs_repository()
-    if docs_repo is None:
-        raise SystemExit(
-            "ERROR: canonical docs repository was not found before release preflight"
-        )
-    canonical_source = _canonical_source_for_docs_repository(docs_repo)
+    """Validate a future release using only this checkout's public docs."""
+    try:
+        canonical_source = _sync_docs_source_module().canonical_source_configuration(REPO_ROOT).path
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
     canonical_index = canonical_source / "index.rst"
     if not canonical_index.is_file():
         raise SystemExit(
-            f"ERROR: canonical docs index not found before publication: {canonical_index}"
+            f"ERROR: public docs index not found before publication: {canonical_index}"
         )
     planned_index = _replace_latest_release_url(
         canonical_index.read_text(encoding="utf-8"),
@@ -2404,21 +2355,15 @@ def validate_planned_docs_release(tag: str) -> None:
     )
     if github_release_url(tag) not in planned_index:
         raise SystemExit(
-            "ERROR: canonical docs index cannot represent the planned release tag: "
+            "ERROR: public docs index cannot represent the planned release tag: "
             f"{tag}"
         )
 
-    sync_docs_source = _sync_docs_source_module()
-    target = REPO_ROOT / "docs" / "source"
-    alignment = sync_docs_source.canonical_mirror_alignment_result(
-        target,
-        canonical_source,
-        source_required=True,
-    )
-    if alignment.status != "pass":
+    ok, message = _sync_docs_source_module().verify_target_mirror_integrity(canonical_source)
+    if not ok:
         raise SystemExit(
-            "ERROR: canonical docs must be aligned before release metadata is "
-            f"prepared: {alignment.message}"
+            "ERROR: public docs integrity must pass before release metadata is "
+            f"prepared: {message}"
         )
 
 
@@ -2619,7 +2564,12 @@ def update_release_proof_references(tag: str) -> None:
 
 
 def update_public_docs_mirror_stamp_from_current_tree() -> None:
-    public_source = REPO_ROOT / "docs/source"
+    try:
+        public_source = _sync_docs_source_module().require_public_docs_source(
+            REPO_ROOT / "docs/source", REPO_ROOT
+        )
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
     script = REPO_ROOT / "tools" / "sync_docs_source.py"
     if not public_source.exists() or not script.exists():
         return
@@ -2629,7 +2579,7 @@ def update_public_docs_mirror_stamp_from_current_tree() -> None:
             str(script),
             "--target",
             str(public_source),
-            "--refresh-target-integrity-stamp",
+            "--write-target-only-stamp",
             "--quiet",
         ],
         cwd=REPO_ROOT,
@@ -2687,21 +2637,21 @@ def update_public_release_references_for_guard(
 
 
 def generate_docs_in_docs_repository():
-    docs_repo, source = find_docs_repository()
-    if not docs_repo:
-        raise SystemExit(
-            "ERROR: --gen-docs requires an available canonical docs repository "
-            "with source at <docs-repository>/docs/source"
-        )
-    canonical_source = _canonical_source_for_docs_repository(docs_repo)
-    require_conventional_docs_generation_source(docs_repo, canonical_source)
-    print(f"[docs] generating docs in {docs_repo} (source={source})")
-    commands = [
-        ["uv", "sync", "--dev", "--group", "sphinx"],
-        ["uv", "run", "python", "docs/gen-docs.py", "--agilab-repository", str(REPO_ROOT)],
-    ]
-    for cmd in commands:
-        run(cmd, cwd=docs_repo)
+    """Build public documentation locally without a private generator."""
+    try:
+        source = _sync_docs_source_module().canonical_source_configuration(REPO_ROOT).path
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
+    run(
+        ["uv", "run",
+         "--with", "sphinx", "--with", "sphinx-rtd-theme",
+         "--with", "myst-parser", "--with", "linkify-it-py",
+         "--with", "sphinx-pyreverse", "--with", "sphinx-autodoc-typehints",
+         "--with", "sphinx-design", "--with", "sphinx-tabs",
+         "python", "-m", "sphinx", "-b", "html",
+         str(source), str(REPO_ROOT / "docs" / "html")],
+        cwd=REPO_ROOT,
+    )
 
 
 def git_commit_docs_repository(
@@ -2947,27 +2897,13 @@ def main():
         assert_pypirc_has(cfg.repo)
     run_release_preflight(cfg)
     if cfg.gen_docs or (cfg.repo == "pypi" and cfg.git_tag):
-        docs_repo, source = find_docs_repository()
-        if cfg.gen_docs and docs_repo is None:
-            raise SystemExit(
-                "ERROR: --gen-docs requires an available canonical docs repository "
-                "with source at <docs-repository>/docs/source"
-            )
-        if docs_repo:
-            docs_source_ready = _canonical_source_for_docs_repository(docs_repo)
-            canonical_index = docs_source_ready / "index.rst"
-            if not canonical_index.is_file():
-                raise SystemExit(
-                    "ERROR: canonical docs index not found before publication: "
-                    f"{canonical_index}"
-                )
-            if cfg.gen_docs:
-                require_conventional_docs_generation_source(
-                    docs_repo,
-                    docs_source_ready,
-                )
-            ensure_docs_repo_prepublication_ready(docs_repo, cfg)
-            docs_repo_ready = True
+        try:
+            docs_source_ready = _sync_docs_source_module().canonical_source_configuration(REPO_ROOT).path
+        except ValueError as exc:
+            raise SystemExit(f"ERROR: {exc}") from exc
+        public_index = docs_source_ready / "index.rst"
+        if not public_index.is_file():
+            raise SystemExit(f"ERROR: public docs index not found before publication: {public_index}")
 
     # Validate explicit version if provided
     if cfg.version is not None and not VERSION_RE.fullmatch(cfg.version):

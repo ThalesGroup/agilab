@@ -563,7 +563,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
     if command == "docs":
         return [
             _uv_python("tools/sync_docs_source.py", "--apply", "--delete"),
-            _uv_python("tools/sync_docs_source.py", "--verify-stamp"),
+            _uv_python("tools/sync_docs_source.py", "--verify-target-integrity"),
         ]
 
     if command == "clean":
@@ -675,7 +675,7 @@ High-frequency mappings:
   release   -> Run local release guards: AGILAB audit/review, impact, generated PyPI plan, release cadence, PyPI project preflight, trusted publisher contract, Ruff availability, built-in app tests, docs, dependency policy, typing, and badge freshness. Pass --release-mode hotfix and --impact-base-ref <tag> for same-day hotfixes.
   publish-testpypi -> Run the local TestPyPI rehearsal path with the same publisher used by the workflow, defaulting to --dist both, --verbose, --git-reset-on-failure, and --no-pypirc-check. The repo is pinned to testpypi; --repo is rejected.
   badge     -> Run the explicit release/pre-release coverage badge freshness guard.
-  docs      -> Sync docs from the canonical docs checkout and verify the mirror stamp.
+  docs      -> Refresh and verify this checkout's public documentation integrity stamp.
   clean     -> Dry-run cleanup of ignored local build/lib duplicate-source trees; pass --apply to remove them.
   scope     -> Group dirty tracked and untracked files by review scope and fail when unrelated scopes are mixed.
   task-worktree -> Create a clean sibling git worktree for an isolated task branch.

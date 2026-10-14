@@ -3,7 +3,7 @@ name: agilab-testing
 description: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-13
+  updated: 2026-10-14
 ---
 
 # Testing Skill (AGILAB)
@@ -59,7 +59,7 @@ Ordinary unit/app validation follows the workflow below.
   files changed since the previous run; rerun only after edits that alter the
   impact surface.
 - Batch repeated artifact checks at the end of the edit loop:
-  docs mirror sync, release/pre-release coverage badge guard, skill mirror sync,
+  public docs integrity stamp refresh, release/pre-release coverage badge guard, skill mirror sync,
   Codex skill index generation, and release dry-runs should not run once per skill.
 - Run cheap read-only inspections in parallel when possible, but keep write or
   generation commands serialized so generated files do not race.
@@ -392,6 +392,9 @@ validation, release, and Hugging Face sync in one flow.
 - Keep docs validation separate from installer validation:
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
+  - Use this public checkout's own `docs/source`; reject private/external
+    sources. The default self-check validates its local integrity stamp and
+    does not import docs from another checkout.
 - Validate the release candidate from a clean public source clone with an
   isolated `HOME`, not from the developer checkout:
   - clone `https://github.com/ThalesGroup/agilab.git` into a new directory under `$HOME`

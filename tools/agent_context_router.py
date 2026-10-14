@@ -100,34 +100,12 @@ def normalize_file(path: str | Path) -> str:
         try:
             return resolved.relative_to(REPO_ROOT).as_posix()
         except ValueError:
-            canonical_source = _configured_canonical_docs_source()
-            if canonical_source is not None:
-                try:
-                    canonical_relative = resolved.relative_to(canonical_source)
-                except ValueError:
-                    pass
-                else:
-                    return (
-                        Path("../thales_agilab/docs/source") / canonical_relative
-                    ).as_posix()
             try:
                 sibling_path = resolved.relative_to(REPO_ROOT.parent)
             except ValueError:
                 return resolved.as_posix()
             return (Path("..") / sibling_path).as_posix()
     return Path(raw).as_posix()
-
-
-def _configured_canonical_docs_source() -> Path | None:
-    try:
-        try:
-            from tools import sync_docs_source
-        except ModuleNotFoundError:  # pragma: no cover - direct tools/ execution
-            import sync_docs_source  # type: ignore[no-redef]
-
-        return sync_docs_source.canonical_source_configuration(REPO_ROOT).path.resolve()
-    except (ImportError, OSError, ValueError):
-        return None
 
 
 def _matches_any(path: str, patterns: Iterable[str]) -> bool:

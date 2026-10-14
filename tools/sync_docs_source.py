@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = REPO_ROOT.parent / "thales_agilab" / "docs" / "source"
+DEFAULT_SOURCE = REPO_ROOT / "docs" / "source"
 DEFAULT_TARGET = REPO_ROOT / "docs" / "source"
 DOCS_SOURCE_ENV = "AGILAB_DOCS_SOURCE"
 DOCS_REPOSITORY_ENV = "DOCS_REPOSITORY"
@@ -28,7 +28,9 @@ STAMP_FORMAT_VERSION = 3
 LEGACY_FULL_TREE_STAMP_FORMAT_VERSION = 1
 UNSAFE_PARTIAL_STAMP_FORMAT_VERSION = 2
 STAMP_MANAGED_TARGET = "docs/source"
-STAMP_SOURCE_HINT = "../thales_agilab/docs/source"
+STAMP_SOURCE_HINT = "docs/source"
+# Historical metadata is accepted for integrity checks only; never followed.
+LEGACY_SOURCE_HINT = "../thales_agilab/docs/source"
 STAMP_SYNC_TOOL = "tools/sync_docs_source.py"
 IGNORED_FILE_NAMES = {".DS_Store"}
 IGNORED_DIR_NAMES = {"__pycache__", ".ipynb_checkpoints"}
@@ -378,18 +380,35 @@ def _primary_git_checkout_root(repo_root: Path) -> Path | None:
     return checkout_root if checkout_root.is_dir() else None
 
 
+def require_public_docs_source(source: Path, repo_root: Path | None = None) -> Path:
+    """Reject external documentation before inspecting its contents."""
+    repo_root = _absolute_path(repo_root or REPO_ROOT, base=Path.cwd()).resolve()
+    expected = repo_root / "docs" / "source"
+    candidate = _absolute_path(source, base=repo_root)
+    if candidate.resolve() != expected:
+        raise ValueError(
+            "public documentation must use this checkout's docs/source; "
+            "external and private documentation exports are disabled"
+        )
+    if expected.exists():
+        # Reject linked children before a release helper reads or rewrites an
+        # index, or Sphinx evaluates a configuration file outside this tree.
+        _build_full_manifest(expected)
+    return expected
+
+
 def canonical_source_configuration(
-    repo_root: Path = REPO_ROOT,
+    repo_root: Path | None = None,
 ) -> CanonicalSourceConfiguration:
-    repo_root = _absolute_path(repo_root, base=Path.cwd()).resolve()
+    repo_root = _absolute_path(repo_root or REPO_ROOT, base=Path.cwd()).resolve()
     configured_source = os.environ.get(DOCS_SOURCE_ENV)
     if configured_source is not None:
         return CanonicalSourceConfiguration(
-            path=_resolve_configured_path(
+            path=require_public_docs_source(_resolve_configured_path(
                 configured_source,
                 repo_root=repo_root,
                 key=DOCS_SOURCE_ENV,
-            ),
+            ), repo_root),
             origin=f"env:{DOCS_SOURCE_ENV}",
             required=True,
         )
@@ -402,20 +421,15 @@ def canonical_source_configuration(
             key=DOCS_REPOSITORY_ENV,
         )
         return CanonicalSourceConfiguration(
-            path=_absolute_path(docs_repo / "docs" / "source", base=repo_root),
+            path=require_public_docs_source(docs_repo / "docs" / "source", repo_root),
             origin=f"env:{DOCS_REPOSITORY_ENV}",
             required=True,
         )
 
-    primary_checkout = _primary_git_checkout_root(repo_root)
-    conventional_public_root = primary_checkout or repo_root
     return CanonicalSourceConfiguration(
-        path=_absolute_path(
-            conventional_public_root.parent / "thales_agilab" / "docs" / "source",
-            base=repo_root,
-        ),
-        origin="default",
-        required=False,
+        path=require_public_docs_source(repo_root / "docs" / "source", repo_root),
+        origin="public-checkout",
+        required=True,
     )
 
 
@@ -783,9 +797,13 @@ def _publish_verified_stamp(
     boundary: PinnedMutationBoundary,
     payload: dict[str, object],
     verify: Callable[[], tuple[bool, str]],
+    *,
+    expected_previous: StampSnapshot | None = None,
 ) -> tuple[int, int, int, int, str]:
     stamp_path = stamp_path_for_target(boundary.target)
     baseline = _capture_regular_stamp(stamp_path, boundary=boundary)
+    if expected_previous is not None and baseline != expected_previous:
+        raise ValueError("mirror stamp changed concurrently before publication")
     expected = _render_stamp_payload(payload)
     owned_fingerprint: tuple[int, int, int, int, str] | None = None
     try:
@@ -973,13 +991,65 @@ def write_mirror_stamp(source: Path, target: Path) -> Path:
     return stamp_path
 
 
-def write_target_only_mirror_stamp(target: Path) -> Path:
+def write_target_only_mirror_stamp(
+    target: Path,
+    *,
+    preserve_public_evidence: bool = False,
+    require_existing: bool = False,
+) -> Path:
+    """Write target integrity, optionally preserving existing public proofs.
+
+    Routine docs apply preserves all proof digests. CLI target-only writes may
+    refresh release-proof artifacts but must preserve UI proof. Explicit low-level
+    recovery keeps its deliberate ability to establish a new proof baseline.
+    CLI operations require an existing v3 stamp inside the mutation boundary;
+    low-level callers retain explicit bootstrap support.
+    """
+
     with _pinned_mutation_boundary(target) as boundary:
+        stamp_baseline = _capture_regular_stamp(
+            stamp_path_for_target(boundary.target), boundary=boundary
+        )
+        if require_existing:
+            try:
+                stamp = _stamp_object_from_snapshot(
+                    stamp_baseline, stamp_path_for_target(boundary.target)
+                )
+                if stamp.get("format_version") != STAMP_FORMAT_VERSION:
+                    raise ValueError("existing v3 public docs evidence is required")
+            except ValueError as exc:
+                raise ValueError(
+                    "existing v3 public docs evidence is required; "
+                    "restore the tracked public docs stamp before refreshing"
+                ) from exc
+        public_owned_baseline: dict[str, str] | None = None
+        if preserve_public_evidence or require_existing:
+            public_owned_baseline = (
+                _validate_existing_public_evidence_before_full_sync(
+                    boundary,
+                    stamp_baseline,
+                    allowed_changes=(
+                        frozenset() if preserve_public_evidence
+                        else RELEASE_REFRESHABLE_PUBLIC_OWNED
+                    ),
+                )
+            )
         payload = _build_target_only_stamp_at_boundary(boundary)
+        if (
+            public_owned_baseline is not None
+            and payload["public_owned_files_sha256"] != public_owned_baseline
+        ):
+            raise ValueError("public-owned evidence changed during public docs refresh")
         _publish_verified_stamp(
             boundary,
             payload,
-            lambda: _verify_payload_at_boundary(boundary, payload, source=None),
+            lambda: _verify_payload_at_boundary(
+                boundary,
+                payload,
+                source=None,
+                expected_public_owned_files=public_owned_baseline,
+            ),
+            expected_previous=stamp_baseline if require_existing else None,
         )
     return stamp_path_for_target(target)
 
@@ -1032,6 +1102,8 @@ def _validate_stamp_identity(
         "sync_tool": STAMP_SYNC_TOOL,
     }
     for identity_field, expected in expected_identity.items():
+        if identity_field == "source_hint" and stamp.get(identity_field) == LEGACY_SOURCE_HINT:
+            continue
         if stamp.get(identity_field) != expected:
             return False, (
                 f"mirror stamp {identity_field} mismatch in {stamp_path}: expected "
@@ -1187,6 +1259,8 @@ def _validate_ui_robot_evidence_at_boundary(
 def _validate_existing_public_evidence_before_full_sync(
     boundary: PinnedMutationBoundary,
     stamp_snapshot: StampSnapshot,
+    *,
+    allowed_changes: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
     """Do not let a managed-tree sync bless unrelated public evidence drift."""
 
@@ -1223,7 +1297,7 @@ def _validate_existing_public_evidence_before_full_sync(
         stamp,
         public_files,
         stamp_path=stamp_path,
-        allowed_changes=frozenset(),
+        allowed_changes=allowed_changes,
     )
     return public_files
 
@@ -1405,16 +1479,21 @@ def refresh_ui_robot_evidence_stamp(
 ) -> tuple[Path, bool]:
     """Refresh only an existing UI-robot evidence digest.
 
-    This operation requires live canonical-source alignment and verified v3
-    provenance. It cannot create or delete the UI evidence file, bless managed
-    docs drift, or re-baseline any other public-owned artifact.
+    Public docs authored in place use the existing v3 target provenance.
+    Distinct source and target trees still require live source alignment.
+    This cannot create or delete the UI evidence file, bless managed docs
+    drift, or re-baseline any other public-owned artifact.
     """
 
+    alignment_source: Path | None = source
+    if source.resolve() == target.resolve():
+        require_public_docs_source(source)
+        alignment_source = None
     return _refresh_target_integrity_stamp(
         target,
         allowed_changes=UI_ROBOT_REFRESHABLE_PUBLIC_OWNED,
         operation_description="a UI robot evidence refresh",
-        source=source,
+        source=alignment_source,
         required_existing_path=UI_ROBOT_EVIDENCE_PUBLIC_OWNED,
         require_passing_ui_robot_evidence=True,
     )
@@ -1713,6 +1792,13 @@ def canonical_mirror_alignment_result(
     source_required: bool = False,
 ) -> CanonicalMirrorAlignmentResult:
     """Return alignment status plus whether a tree comparison completed."""
+    if source.resolve() == target.resolve():
+        ok, message = verify_target_mirror_integrity(target)
+        return CanonicalMirrorAlignmentResult(
+            "pass" if ok else "fail",
+            f"public docs/source is authoritative; {message}",
+            False,
+        )
     if not source.exists():
         if source_required:
             return CanonicalMirrorAlignmentResult(
@@ -3094,8 +3180,8 @@ def render_plan(plan: SyncPlan, *, source: Path, target: Path) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Sync the public docs/source mirror in agilab from the canonical "
-            "thales_agilab/docs/source tree."
+            "Verify or maintain this checkout's public docs/source. "
+            "External and private documentation imports are disabled."
         )
     )
     parser.add_argument(
@@ -3104,11 +3190,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Canonical docs/source directory. When omitted, AGILAB_DOCS_SOURCE, "
-            "then DOCS_REPOSITORY/docs/source, then the conventional sibling "
-            "checkout are used."
+            "then DOCS_REPOSITORY/docs/source, then this public checkout are used. "
+            "External and private sources are rejected."
         ),
     )
-    parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
+    parser.add_argument("--target", type=Path, default=None)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -3156,7 +3242,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Write target-integrity evidence with source_status=unavailable. "
-            "This never claims that the canonical source was checked."
+            "Requires an existing v3 baseline; restore the tracked public stamp "
+            "if missing or older. Only release-proof artifacts may change among "
+            "public evidence; UI proof needs its validated dedicated refresh. "
+            "This never claims the canonical source was checked."
         ),
     )
     mode.add_argument(
@@ -3173,9 +3262,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Refresh only the digest for an existing public-owned "
-            "data/ui_robot_evidence.json in a valid v3 stamp. The canonical "
-            "source, managed target, and all other public-owned evidence must "
-            "still match their stamped state."
+            "data/ui_robot_evidence.json in a valid v3 stamp. The managed docs "
+            "and all other public-owned evidence must still match their "
+            "stamped state; a distinct source must also remain aligned."
         ),
     )
     parser.add_argument(
@@ -3195,7 +3284,17 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    target = _absolute_path(args.target, base=Path.cwd())
+    try:
+        target = require_public_docs_source(
+            args.target if args.target is not None else REPO_ROOT / "docs" / "source"
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.source is not None:
+        try:
+            args.source = require_public_docs_source(args.source)
+        except ValueError as exc:
+            parser.error(str(exc))
 
     if args.verify_target_integrity:
         if not target.exists():
@@ -3271,7 +3370,7 @@ def main(argv: list[str] | None = None) -> int:
         if not target.is_dir():
             parser.error(f"target path is not a directory: {target}")
         try:
-            stamp_path = write_target_only_mirror_stamp(target)
+            stamp_path = write_target_only_mirror_stamp(target, require_existing=True)
         except (OSError, RuntimeError, ValueError) as exc:
             print(f"mirror stamp not written: {exc}", file=sys.stderr)
             return 1
@@ -3301,6 +3400,10 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError as exc:
                 parser.error(str(exc))
         source = source_configuration.path
+        if source.resolve() == target.resolve():
+            if not args.quiet:
+                print(target_message)
+            return 0
         if not source.exists() and source_configuration.required:
             print(
                 f"configured canonical docs source not found: {source} "
@@ -3346,6 +3449,23 @@ def main(argv: list[str] | None = None) -> int:
         )
     if not source.is_dir():
         parser.error(f"source path is not a directory: {source}")
+
+    if source.resolve() == target.resolve():
+        if args.apply:
+            try:
+                stamp_path = write_target_only_mirror_stamp(
+                    target, preserve_public_evidence=True, require_existing=True
+                )
+            except (OSError, RuntimeError, ValueError) as exc:
+                print(f"public docs integrity stamp not written: {exc}", file=sys.stderr)
+                return 1
+            if not args.quiet:
+                print(f"public docs integrity stamp written: {stamp_path}; no external source imported")
+            return 0
+        ok, message = verify_target_mirror_integrity(target)
+        if not ok or not args.quiet:
+            print(message)
+        return 0 if ok else 1
 
     try:
         _ensure_disjoint_directories(source, target)

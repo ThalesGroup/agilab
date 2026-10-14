@@ -20,6 +20,7 @@ if str(TOOLS_ROOT) not in sys.path:
     sys.path.insert(0, str(TOOLS_ROOT))
 
 from package_split_contract import PACKAGE_CONTRACTS, PackageContract, project_path, pyproject_path  # noqa: E402
+from sync_docs_source import require_public_docs_source  # noqa: E402
 
 
 LOCAL_PACKAGE_LICENSE = "BSD-3-Clause"
@@ -449,8 +450,7 @@ def generate(
 
 
 def _default_docs_source() -> Path:
-    canonical = ROOT.parent / "thales_agilab" / "docs" / "source"
-    return canonical if canonical.exists() else ROOT / "docs" / "source"
+    return ROOT / "docs" / "source"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -459,7 +459,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--docs-source",
         type=Path,
         default=_default_docs_source(),
-        help="Docs source directory to update. Defaults to the sibling canonical docs source when present.",
+        help="Docs source directory to update. Must be this checkout's docs/source (the default).",
     )
     parser.add_argument("--check", action="store_true", help="Fail if generated files would change.")
     parser.add_argument(
@@ -472,6 +472,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     docs_source = (
         args.docs_source.absolute() if args.preserve_existing_snapshot else args.docs_source.resolve()
     )
+    if args.preserve_existing_snapshot and docs_source.is_symlink():
+        raise ValueError("Snapshot docs source must be a real directory.")
+    docs_source = require_public_docs_source(docs_source, ROOT)
     return generate(
         docs_source, check=args.check, retained_on=args.preserve_existing_snapshot
     )

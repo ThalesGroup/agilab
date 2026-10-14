@@ -195,8 +195,8 @@ Use this runbook whenever you:
 - **Documentation screenshot update contract**: When documentation changes touch
   visible UI behavior, page labels, screenshots, GIFs, or diagrams derived from
   screenshots, refresh the corresponding source screenshot assets as part of the
-  same docs update. Keep screenshots in the canonical docs source first, sync the
-  public mirror, update captions/alt text and references, and inspect the
+  same docs update. Keep public screenshots in this checkout's docs source,
+  update captions/alt text and references, and inspect the
   rendered page so stale UI such as old labels, duplicate sidebars, or outdated
   screenshots cannot remain in published docs. Do not hand-edit generated
   `docs/html` screenshots or `_images`; regenerate or resync from source.
@@ -245,6 +245,10 @@ Use this runbook whenever you:
   `src` directory first on `PYTHONPATH` and verify the imported AGILAB module's
   resolved `__file__` and source hash before running tests. Adding `src/agilab`
   alone does not override an editable package installed from another checkout.
+  Keep a borrowed environment read-only with `uv run --no-sync`. Serialize
+  environment synchronization and dependent tests; do not run environment-changing
+  `./dev` or `uv sync` commands concurrently against the same environment. Use an
+  owned worktree environment when synchronization is needed.
 - **Pre-push guard pollution triage**: If a pre-push guard fails on projects,
   app catalogs, docs rows, or generated artifacts that are not part of the
   pushed diff, first classify whether the failure comes from the current diff,
@@ -256,11 +260,9 @@ Use this runbook whenever you:
   release assets. If the guard should ignore them, fix or tighten the guard at
   the inventory layer and add a polluted-workspace regression; if bypassing is
   still necessary, state the exact unrelated guard failure and the targeted
-  check that was run. For canonical docs validation from an isolated clean
-  worktree, set `AGILAB_DOCS_SOURCE` to that worktree's `docs/source` directory
-  so the pre-push mirror guard verifies the intended source instead of the
-  conventional sibling checkout; do not bypass the guard merely because the
-  sibling checkout contains unrelated user work.
+  check that was run. In an isolated clean worktree, validate that worktree's
+  own `docs/source`. External and private documentation sources are rejected;
+  do not bypass the boundary to import another checkout's documentation.
 - **Reasonable factorization check**: When adding new code, look for nearby
   existing helpers, contracts, or patterns that can reasonably be reused or
   extended instead of duplicating logic. Factor only when it reduces real
@@ -680,18 +682,18 @@ Use this runbook whenever you:
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.
-- **Docs source of truth**: Editable docs live in
-  `../thales_agilab/docs/source`; `docs/source` is the managed public mirror and
-  `docs/html` is generated local output. After canonical docs edits, refresh the
-  mirror and stamp with `uv --preview-features extra-build-dependencies run
-  python tools/sync_docs_source.py --apply --delete`. The exact public release
-  evidence paths `data/release_proof.toml`, `release-proof.rst`, and
-  `data/ui_robot_evidence.json` are intentionally excluded from that mirror:
-  they are generated and verified in this public repository, while the private
-  source keeps only its own excluded pointer page. A verified mirror stamp
-  proves canonical equality only when the canonical source was actually
-  supplied; target-only release stamps must record that canonical drift was not
-  checked. Never hand-edit, stage, or commit `docs/html/**`.
+- **Docs source of truth and public boundary**: Author public documentation directly in
+  this checkout's `docs/source`; `docs/html` is generated local output.
+  The private `thales_agilab` repository uses only the cluster Git service.
+  Do not discover, read, copy, commit, or publish its documentation through this
+  public repository. External documentation sources, including explicit
+  `AGILAB_DOCS_SOURCE`, `DOCS_REPOSITORY` and `--source` overrides, are
+  rejected unless they name this checkout's own `docs/source`.
+  `./dev docs` verifies the checked-in public tree; release tooling updates and
+  builds that public tree without a private generator. The book, Hugging Face
+  and presentation exceptions use separate explicit export workflows and do
+  not authorize a documentation mirror.
+  Never hand-edit, stage, or commit `docs/html/**`.
 - **VIRTUAL_ENV warning**: AGILAB-managed PyCharm configs and launch wrappers clear
   `VIRTUAL_ENV` before invoking `uv`, because AGILAB intentionally selects the target
   project `.venv` instead of a stale activated shell. If a direct `uv` command still

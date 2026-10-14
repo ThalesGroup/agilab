@@ -4,6 +4,15 @@ This roadmap turns the current AGILAB UX discussion into an execution backlog.
 The objective is not cosmetic polish first. The objective is to make AGILAB feel
 deterministic, explain its own state, and reduce avoidable operator confusion.
 
+Status reviewed on 2026-10-14 against the public `2026.10.13` root release.
+The current interface uses React and the native `agi_web` Python view host;
+the root UI profile pins the shared runtime at `agi-web 2026.10.12`. The
+operator profiles, palette and context panes are shipped. Their existing browser
+evidence covers navigation and reviewed actions; actual installation and
+scientific execution through the palette, and responsiveness on a smaller Linux
+machine, still require qualification. See [the roadmap checkpoint](./ROADMAP.md)
+and [release proof](./source/release-proof.rst) for package and hosted-demo bounds.
+
 ## UX Principles
 
 - Prefer explicit state over hidden conventions.
@@ -22,7 +31,7 @@ deterministic, explain its own state, and reduce avoidable operator confusion.
 
 ## UX Targets
 
-- New users should be able to reach a successful `INSTALL -> PROJECT -> EXECUTE` path without consulting repo internals.
+- New users should be able to complete `PROJECT -> ORCHESTRATE -> ANALYSIS` without consulting repo internals, including explicit worker deployment before RUN.
 - Every failed action should answer what failed, why it failed, and what to do next.
 - Every heavy page should expose loading state, data scope, and applied filters before rendering dense outputs.
 - The main workflow pages should describe user intent first and internal run mode second.
@@ -61,7 +70,7 @@ Target horizon: `1-3 months`
 - Primary choices should be run locally, run on cluster, benchmark modes, and start service.
 - Numeric mode and internal flags should become secondary details.
 
-- Build a shared action-execution model for Streamlit pages.
+- Build a shared action-execution model for native React workspaces and Python-hosted pages.
 - Page actions should use a common helper for progress state, exception classification, result summary, and command reproduction.
 - This reduces one-off action handling in pages and forms.
 

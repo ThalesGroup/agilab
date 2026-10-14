@@ -119,13 +119,14 @@ def test_environment_docs_scope_local_secret_persistence() -> None:
     assert "with the reviewed checkout path" not in normalized_environment
 
 
-def test_faq_separates_public_and_maintainer_docs_paths() -> None:
+def test_faq_keeps_public_documentation_independent_of_private_sources() -> None:
     faq = (DOCS_SOURCE / "faq.rst").read_text(encoding="utf-8")
 
     assert "Public contributors can edit ``docs/source``" in faq
-    assert "Maintainers who work with a separate canonical documentation" in faq
-    assert "tools/sync_docs_source.py --apply --delete" in faq
-    assert "tools/sync_docs_source.py --verify-stamp" in faq
+    assert "This public tree is authoritative for public documentation." in faq
+    assert "External and private documentation repositories are never discovered or copied" in faq
+    assert "./dev docs" in faq
+    assert "private-to-public mirror sync" not in faq
     assert "../thales_agilab/docs/source" not in faq
 
 
