@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-14T06:19:14Z",
+  "generated_at_utc": "2026-10-14T08:47:07Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 311,
+    "evidence_schema_count": 314,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2221,9 +2221,27 @@
       ]
     },
     {
+      "schema": "agilab.notebook_build_checkpoint.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_build_checkpoint.py"
+      ]
+    },
+    {
       "schema": "agilab.notebook_build_prerequisites.v1",
       "sources": [
         "src/agilab/notebooks/notebook_prerequisites.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_build_recovery.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_agent.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_build_recovery_attempt.v1",
+      "sources": [
+        "src/agilab/agent_runtime/notebook_agent.py"
       ]
     },
     {

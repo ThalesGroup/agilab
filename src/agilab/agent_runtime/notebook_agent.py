@@ -5,8 +5,11 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import math
+import os
 from pathlib import Path
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,6 +20,9 @@ from uuid import uuid4
 from urllib.parse import quote, unquote, urlsplit
 
 from agilab.agent_runtime.agent_run import _atomic_write_text, create_agent_run_config, run_agent_command
+from agilab.agent_runtime.notebook_build_checkpoint import (
+    CHECKPOINT_FILENAME, build_lock, capture_checkpoint, load_checkpoint, seal_completion,
+)
 from agilab.notebooks.notebook_pipeline_import import (
     build_lab_stages_preview,
     build_notebook_pipeline_import,
@@ -270,50 +276,359 @@ def check_notebook(*, notebook: Path | None = None, notebook_url: str | None = N
         return prepare_prerequisites(project, input_files)
 
 
-def build(root: Path, *, intent: str = DEFAULT_REQUEST, tokki: str = "tokki",
-          timeout: int = 1200, notebook: Path | None = None,
-          notebook_url: str | None = None,
-          input_files: Mapping[str, Path] | None = None) -> dict:
+def _check_protected(
+    root: Path, project: Path, protected: Mapping[str, str], prerequisites: dict | None
+) -> None:
+    for relative, expected in protected.items():
+        path = root / relative
+        if (
+            path.is_symlink()
+            or not path.is_file()
+            or not path.resolve().is_relative_to(root.resolve())
+            or digest(path) != expected
+        ):
+            if relative in {"verify_app", "verify_workflow.py"}:
+                raise RuntimeError("Verifier changed during the build")
+            raise RuntimeError(f"Upstream source changed: {Path(relative).name}")
+    if prerequisites is not None:
+        verify_input_files(project, prerequisites["supplied_inputs"])
+
+
+def _run_verifier(command: list[str], project: Path):
+    # -B alone still reads timestamp-valid caches. A fresh prefix keeps user
+    # module execution bound to the source inventory checked by the controller.
+    with tempfile.TemporaryDirectory(prefix="agilab-notebook-verifier-cache-") as cache:
+        environment = os.environ.copy()
+        environment["PYTHONPYCACHEPREFIX"] = cache
+        return subprocess.run(
+            command,
+            cwd=project,
+            capture_output=True,
+            text=True,
+            timeout=180,
+            env=environment,
+        )
+
+
+def _verify_and_import(
+    root: Path,
+    project: Path,
+    *,
+    provenance: dict,
+    prerequisites: dict | None,
+    scope: str,
+    protected: Mapping[str, str],
+    progress,
+    log_root: Path | None = None,
+) -> dict:
+    """Run the existing acceptance sequence for initial builds and recovery."""
+    logs = log_root or root
+    app_log = logs / (
+        "verification.log" if logs == root else "notebook_verification.log"
+    )
+    workflow_log = logs / (
+        "workflow_verification.log"
+        if logs == root
+        else "notebook_workflow_verification.log"
+    )
+    verifier, workflow_verifier = root / "verify_app", root / "verify_workflow.py"
+    progress("verify", "Independently rechecking the generated app")
+    _check_protected(root, project, protected, prerequisites)
+    try:
+        checked = _run_verifier([str(verifier)], project)
+        app_log.write_text(checked.stdout + checked.stderr)
+    finally:
+        _check_protected(root, project, protected, prerequisites)
+    if checked.returncode:
+        raise RuntimeError(
+            f"Independent verification failed; inspect {app_log.relative_to(root)}"
+        )
+    verification = json.loads(checked.stdout.strip().splitlines()[-1])
+    if verification.get("status") != "passed":
+        raise RuntimeError("Verifier did not report a pass")
+    progress(
+        "import_workflow", "Importing the verified notebook into an AGILAB workflow"
+    )
+    notebook = json.loads((project / "solution.ipynb").read_text())
+    imported = build_notebook_pipeline_import(
+        notebook=notebook,
+        source_notebook=Path("solution.ipynb"),
+        run_id=root.name,
+    )
+    write_notebook_pipeline_import(project / "notebook_import.json", imported)
+    stages = build_lab_stages_preview(
+        imported,
+        module_name=project.name,
+        preserve_notebook_state=True,
+    )
+    if not stages.get(project.name):
+        raise RuntimeError("AGILAB imported no runnable workflow stages")
+    write_lab_stages_preview(project / "lab_stages.toml", stages)
+    progress(
+        "verify_workflow", "Checking the imported workflow against the notebook result"
+    )
+    try:
+        workflow_check = _run_verifier(
+            [
+                sys.executable,
+                str(workflow_verifier),
+                "--module",
+                project.name,
+                "--result-file",
+                verification["result_file"],
+                "--expected-sha256",
+                verification["result_sha256"],
+            ],
+            project,
+        )
+        workflow_log.write_text(workflow_check.stdout + workflow_check.stderr)
+    finally:
+        _check_protected(root, project, protected, prerequisites)
+    if workflow_check.returncode:
+        raise RuntimeError(
+            f"Imported workflow verification failed; inspect {workflow_log.relative_to(root)}"
+        )
+    workflow_verification = json.loads(workflow_check.stdout.strip().splitlines()[-1])
+    if (
+        workflow_verification.get("status") != "passed"
+        or workflow_verification.get("schema")
+        != "agilab.notebook_workflow_verification.v1"
+        or workflow_verification.get("result_sha256") != verification["result_sha256"]
+        or workflow_verification.get("stages_sha256")
+        != digest(project / "lab_stages.toml")
+    ):
+        raise RuntimeError(
+            "Imported workflow verification is not bound to the persisted stages and notebook result"
+        )
+    verification["workflow"] = workflow_verification
+    report = {
+        "status": "passed",
+        "project": str(project),
+        "source": provenance,
+        "verification_scope": scope,
+        "verification": verification,
+        "source_code_cells": len(imported["pipeline_stages"]),
+        "workflow_stages": len(stages[project.name]),
+        "verification_logs": {
+            "app": app_log.relative_to(root).as_posix(),
+            "workflow": workflow_log.relative_to(root).as_posix(),
+        },
+        "files": {
+            path.relative_to(project).as_posix(): digest(path)
+            for path in sorted(project.rglob("*"))
+            if path.is_file()
+            and not path.is_symlink()
+            and path.suffix in {".py", ".ipynb", ".toml"}
+            and "source" not in path.relative_to(project).parts
+        },
+    }
+    if prerequisites is not None:
+        report["prerequisites"] = prerequisites
+    return report
+
+
+def _recovery_status(root: Path, checkpoint: dict | None) -> dict:
+    if checkpoint is None:
+        return {
+            "eligible": False,
+            "reason": "No verified provider checkpoint is available",
+        }
+    try:
+        load_checkpoint(root)
+    except (ValueError, OSError, RuntimeError) as exc:
+        return {
+            "eligible": False,
+            "checkpoint": CHECKPOINT_FILENAME,
+            "reason": str(exc),
+        }
+    return {
+        "eligible": True,
+        "checkpoint": CHECKPOINT_FILENAME,
+        "command": f"agilab-notebook-demo --resume {shlex.quote(str(root))}",
+    }
+
+
+def _publish_result(
+    root: Path, report: dict, checkpoint: dict | None, attempt: Path | None = None
+) -> None:
+    if attempt is not None:
+        _atomic_write_text(
+            attempt / "notebook_recovery_result.json",
+            json.dumps(report, indent=2) + "\n",
+        )
+    write_result(root, report)
+    if (
+        report["status"] == "passed"
+        and checkpoint is not None
+        and report["recovery"]["eligible"]
+    ):
+        project = Path(report["project"])
+        files = [
+            "result.json",
+            "completion_receipt.json",
+            (project / "lab_stages.toml").relative_to(root).as_posix(),
+            (project / "notebook_import.json").relative_to(root).as_posix(),
+            *report["verification_logs"].values(),
+        ]
+        if attempt is not None:
+            files.append(
+                (attempt / "notebook_recovery_result.json").relative_to(root).as_posix()
+            )
+            files.append(
+                (attempt / "notebook_recovery_attempt.json")
+                .relative_to(root)
+                .as_posix()
+            )
+        for name in ("results.json", "metrics.json"):
+            if (project / name).is_file():
+                files.append((project / name).relative_to(root).as_posix())
+        try:
+            seal_completion(root, files)
+        except (ValueError, OSError, RuntimeError) as exc:
+            report["recovery"] = {
+                "eligible": False,
+                "checkpoint": CHECKPOINT_FILENAME,
+                "reason": f"Completion binding unavailable: {exc}",
+            }
+            if attempt is not None:
+                _atomic_write_text(
+                    attempt / "notebook_recovery_result.json",
+                    json.dumps(report, indent=2) + "\n",
+                )
+            write_result(root, report)
+
+
+def build(
+    root: Path,
+    *,
+    intent: str = DEFAULT_REQUEST,
+    tokki: str = "tokki",
+    timeout: int = 1200,
+    notebook: Path | None = None,
+    notebook_url: str | None = None,
+    input_files: Mapping[str, Path] | None = None,
+) -> dict:
+    """Own one new build; existing runs use explicit recovery instead."""
+    root = Path(root).expanduser().resolve()
+    try:
+        with build_lock(root):
+            if (root / "result.json").exists() or (root / CHECKPOINT_FILENAME).exists():
+                raise ValueError(
+                    "This run already exists; use --resume RUN_DIRECTORY or start a new run"
+                )
+            return _build(
+                root,
+                intent=intent,
+                tokki=tokki,
+                timeout=timeout,
+                notebook=notebook,
+                notebook_url=notebook_url,
+                input_files=input_files,
+            )
+    except (ValueError, OSError, RuntimeError) as exc:
+        # A competing/existing run owns its result and completion receipt.
+        return {
+            "status": "failed",
+            "failed_phase": "claim",
+            "error": str(exc),
+            "recovery": {"eligible": False, "reason": str(exc)},
+        }
+
+
+def _build(
+    root: Path,
+    *,
+    intent: str = DEFAULT_REQUEST,
+    tokki: str = "tokki",
+    timeout: int = 1200,
+    notebook: Path | None = None,
+    notebook_url: str | None = None,
+    input_files: Mapping[str, Path] | None = None,
+) -> dict:
     """Run a real provider through Tokki; there is deliberately no simulated success."""
     started = time.monotonic()
     generic = notebook is not None or notebook_url is not None
     project_name = "notebook_app_project" if generic else "decision_lab_project"
     project = root / project_name
     scope = GENERIC_SCOPE if generic else IRIS_SCOPE
-    source_kind = "local" if notebook is not None else "github" if notebook_url is not None else "curated"
+    source_kind = (
+        "local"
+        if notebook is not None
+        else "github"
+        if notebook_url is not None
+        else "curated"
+    )
     prerequisites = None
+    checkpoint = None
+    phase = "validate"
+
+    def progress(name, message):
+        nonlocal phase
+        phase = name
+        event(root, name, message)
+
     if generic and intent == DEFAULT_REQUEST:
         intent = GENERIC_REQUEST
     try:
         if notebook is not None and notebook_url is not None:
-            raise ValueError("Choose a local notebook or a pinned GitHub notebook URL, not both")
+            raise ValueError(
+                "Choose a local notebook or a pinned GitHub notebook URL, not both"
+            )
         if not intent.strip() or not 60 <= timeout <= 3600:
-            raise ValueError("Supply an objective and a time limit between 60 and 3600 seconds")
+            raise ValueError(
+                "Supply an objective and a time limit between 60 and 3600 seconds"
+            )
         if input_files and not generic:
             raise ValueError("Supplied inputs require a local or pinned user notebook")
         project.mkdir(exist_ok=False)
-        event(root, "import", "Inspecting the selected notebook" if generic else "Importing the pinned Géron notebook and its license")
-        provenance = (fetch_source(project, notebook=notebook, notebook_url=notebook_url)
-                      if generic else fetch_source(project))
+        progress(
+            "import",
+            "Inspecting the selected notebook"
+            if generic
+            else "Importing the pinned Géron notebook and its license",
+        )
+        provenance = (
+            fetch_source(project, notebook=notebook, notebook_url=notebook_url)
+            if generic
+            else fetch_source(project)
+        )
         provenance["source_kind"] = source_kind
         if generic:
-            event(root, "preflight", "Checking dependencies and explicitly supplied inputs before the build")
+            progress(
+                "preflight",
+                "Checking dependencies and explicitly supplied inputs before the build",
+            )
             prerequisites = prepare_prerequisites(project, input_files)
             if not prerequisites["safe_to_build"]:
-                blockers = [item["message"] for item in prerequisites["issues"]
-                            if item["severity"] == "error"]
-                blockers.extend(item["message"] for item in prerequisites["import_preflight"]["risks"]
-                                if item["level"] == "error")
-                raise ValueError("Notebook prerequisites blocked: " + " ".join(blockers[:3])
-                                 + " Inspect prerequisites.json; no provider was started.")
-            provenance["prerequisites_sha256"] = digest(project / "source" / "prerequisites.json")
+                blockers = [
+                    item["message"]
+                    for item in prerequisites["issues"]
+                    if item["severity"] == "error"
+                ]
+                blockers.extend(
+                    item["message"]
+                    for item in prerequisites["import_preflight"]["risks"]
+                    if item["level"] == "error"
+                )
+                raise ValueError(
+                    "Notebook prerequisites blocked: "
+                    + " ".join(blockers[:3])
+                    + " Inspect prerequisites.json; no provider was started."
+                )
+            provenance["prerequisites_sha256"] = digest(
+                project / "source" / "prerequisites.json"
+            )
         executable = shutil.which(tokki)
         if not executable:
             raise RuntimeError("Tokki is not installed; select its executable path")
         verifier = root / "verify_app"
-        verifier_name = "notebook_execution_verifier.py" if generic else "notebook_verifier.py"
+        verifier_name = (
+            "notebook_execution_verifier.py" if generic else "notebook_verifier.py"
+        )
         original_verifier = Path(__file__).with_name(verifier_name).read_text()
-        verifier.write_text(f"#!{sys.executable}\n" + original_verifier.split("\n", 1)[1])
+        verifier.write_text(
+            f"#!{sys.executable}\n" + original_verifier.split("\n", 1)[1]
+        )
         verifier.chmod(0o700)
         verifier_hash = digest(verifier)
         workflow_verifier = root / "verify_workflow.py"
@@ -321,97 +636,107 @@ def build(root: Path, *, intent: str = DEFAULT_REQUEST, tokki: str = "tokki",
             Path(__file__).with_name("notebook_workflow_verifier.py").read_text()
         )
         workflow_verifier_hash = digest(workflow_verifier)
+        protected = {
+            "verify_app": verifier_hash,
+            "verify_workflow.py": workflow_verifier_hash,
+            f"{project_name}/source/original.ipynb": provenance["sha256"],
+        }
+        if "license_sha256" in provenance:
+            protected[f"{project_name}/source/LICENSE"] = provenance["license_sha256"]
+        if prerequisites is not None:
+            protected[f"{project_name}/source/prerequisites.json"] = provenance[
+                "prerequisites_sha256"
+            ]
+        if (project / "source/provenance.json").is_file():
+            protected[f"{project_name}/source/provenance.json"] = digest(
+                project / "source/provenance.json"
+            )
         prompt = request_text(intent, verifier, sys.executable, generic=generic)
         # The request belongs to this local run, never Tokki's metadata-only ledger.
         (root / "request.txt").write_text(prompt)
-        command = [executable, "agent", "verified-run", "codex",
-                   "--verification-class", "objective", "--verify-program", str(verifier),
-                   "--verify-timeout-seconds", "180", "--", "exec", "--sandbox", "workspace-write",
-                   "--skip-git-repo-check", prompt]
-        event(root, "build", "Tokki is building, running and repairing the app")
+        command = [
+            executable,
+            "agent",
+            "verified-run",
+            "codex",
+            "--verification-class",
+            "objective",
+            "--verify-program",
+            str(verifier),
+            "--verify-timeout-seconds",
+            "180",
+            "--",
+            "exec",
+            "--sandbox",
+            "workspace-write",
+            "--skip-git-repo-check",
+            prompt,
+        ]
+        progress("build", "Tokki is building, running and repairing the app")
         config = create_agent_run_config(
-            command, agent="tokki", label="Notebook to app", cwd=project,
-            output_dir=root / "agent", timeout_seconds=timeout,
+            command,
+            agent="tokki",
+            label="Notebook to app",
+            cwd=project,
+            output_dir=root / "agent",
+            timeout_seconds=timeout,
             permission_level="standard",
             tags=("notebook-to-app", "live-demo"),
-            metadata={"source_kind": source_kind, "source_sha256": provenance["sha256"]},
+            metadata={
+                "source_kind": source_kind,
+                "source_sha256": provenance["sha256"],
+            },
         )
         result = run_agent_command(config)
         if result.returncode:
-            raise RuntimeError(f"Tokki stopped with exit {result.returncode}; inspect agent/stderr.txt")
-        event(root, "verify", "Independently rechecking the generated app")
-        if digest(verifier) != verifier_hash or digest(workflow_verifier) != workflow_verifier_hash:
-            raise RuntimeError("Verifier changed during the build")
-        protected_sources = {"original.ipynb": provenance["sha256"]}
-        if "license_sha256" in provenance:
-            protected_sources["LICENSE"] = provenance["license_sha256"]
-        if prerequisites is not None:
-            protected_sources["prerequisites.json"] = provenance["prerequisites_sha256"]
-            verify_input_files(project, prerequisites["supplied_inputs"])
-        for name, expected in protected_sources.items():
-            source_path = project / "source" / name
-            if source_path.is_symlink() or digest(source_path) != expected:
-                raise RuntimeError(f"Upstream source changed: {name}")
-        checked = subprocess.run([str(verifier)], cwd=project, capture_output=True,
-                                 text=True, timeout=180)
-        (root / "verification.log").write_text(checked.stdout + checked.stderr)
-        if checked.returncode:
-            raise RuntimeError("Independent verification failed; inspect verification.log")
-        verification = json.loads(checked.stdout.strip().splitlines()[-1])
-        if verification.get("status") != "passed":
-            raise RuntimeError("Verifier did not report a pass")
-        notebook = json.loads((project / "solution.ipynb").read_text())
-        imported = build_notebook_pipeline_import(
-            notebook=notebook, source_notebook=Path("solution.ipynb"), run_id=root.name,
+            raise RuntimeError(
+                f"Tokki stopped with exit {result.returncode}; inspect agent/stderr.txt"
+            )
+        _check_protected(root, project, protected, prerequisites)
+        native = getattr(result, "manifest", None)
+        if native is not None:
+            phase = "checkpoint"
+            checkpoint = capture_checkpoint(
+                root,
+                project_name=project_name,
+                source=provenance,
+                prerequisites=prerequisites,
+                provider_manifest=native,
+                protected_files=protected,
+                seconds_before_verification=time.monotonic() - started,
+            )
+        report = _verify_and_import(
+            root,
+            project,
+            provenance=provenance,
+            prerequisites=prerequisites,
+            scope=scope,
+            protected=protected,
+            progress=progress,
         )
-        write_notebook_pipeline_import(project / "notebook_import.json", imported)
-        stages = build_lab_stages_preview(
-            imported, module_name=project_name, preserve_notebook_state=True,
+        if checkpoint is not None:
+            load_checkpoint(root)
+        report["seconds"] = time.monotonic() - started
+        report["recovery"] = _recovery_status(root, checkpoint)
+        _publish_result(root, report, checkpoint)
+        event(
+            root,
+            "ready",
+            "App verified and AGILAB workflow imported",
+            seconds=report["seconds"],
         )
-        if not stages.get(project_name):
-            raise RuntimeError("AGILAB imported no runnable workflow stages")
-        write_lab_stages_preview(project / "lab_stages.toml", stages)
-        event(root, "verify_workflow", "Checking the imported workflow against the notebook result")
-        workflow_check = subprocess.run(
-            [sys.executable, str(workflow_verifier), "--module", project_name,
-             "--result-file", verification["result_file"],
-             "--expected-sha256", verification["result_sha256"]],
-            cwd=project, capture_output=True, text=True, timeout=180,
-        )
-        (root / "workflow_verification.log").write_text(workflow_check.stdout + workflow_check.stderr)
-        if workflow_check.returncode:
-            raise RuntimeError("Imported workflow verification failed; inspect workflow_verification.log")
-        workflow_verification = json.loads(workflow_check.stdout.strip().splitlines()[-1])
-        if (
-            workflow_verification.get("status") != "passed"
-            or workflow_verification.get("schema") != "agilab.notebook_workflow_verification.v1"
-            or workflow_verification.get("result_sha256") != verification["result_sha256"]
-            or workflow_verification.get("stages_sha256") != digest(project / "lab_stages.toml")
-            or digest(workflow_verifier) != workflow_verifier_hash
-        ):
-            raise RuntimeError("Imported workflow verification is not bound to the persisted stages and notebook result")
-        verification["workflow"] = workflow_verification
-        if prerequisites is not None:
-            verify_input_files(project, prerequisites["supplied_inputs"])
-        report = {"status": "passed", "project": str(project), "source": provenance,
-                  "verification_scope": scope,
-                  "verification": verification, "seconds": round(time.monotonic() - started, 1),
-                  "source_code_cells": len(imported["pipeline_stages"]),
-                  "workflow_stages": len(stages[project_name]),
-                  "files": {path.relative_to(project).as_posix(): digest(path)
-                            for path in sorted(project.rglob("*"))
-                            if path.is_file() and not path.is_symlink()
-                            and path.suffix in {".py", ".ipynb", ".toml"}
-                            and "source" not in path.relative_to(project).parts}}
-        if prerequisites is not None:
-            report["prerequisites"] = prerequisites
-        write_result(root, report)
-        event(root, "ready", "App verified and AGILAB workflow imported", seconds=report["seconds"])
         return report
     except Exception as exc:
-        report = {"status": "failed", "error": str(exc), "project": str(project),
-                  "source": {"source_kind": source_kind}, "verification_scope": scope,
-                  "seconds": round(time.monotonic() - started, 1)}
+        report = {
+            "status": "failed",
+            "error": str(exc),
+            "project": str(project),
+            "source": {"source_kind": source_kind},
+            "verification_scope": scope,
+            "seconds": time.monotonic() - started,
+            "failed_phase": phase,
+            "recovery": _recovery_status(root, checkpoint),
+        }
         if prerequisites is not None:
             report["prerequisites"] = prerequisites
         write_result(root, report)
@@ -419,26 +744,305 @@ def build(root: Path, *, intent: str = DEFAULT_REQUEST, tokki: str = "tokki",
         return report
 
 
+def _check_recovery_attempts(
+    root: Path, attempts: Path, checkpoint: dict, previous: dict, previous_bytes: bytes
+) -> None:
+    """An OS lock release does not prove an interrupted verifier terminated."""
+    if not attempts.exists():
+        if previous.get("recovery", {}).get("attempt"):
+            raise ValueError("Previous recovery evidence is missing")
+        return
+    completed = {}
+    for directory in sorted(attempts.iterdir()):
+        if (
+            directory.is_symlink()
+            or not directory.is_dir()
+            or not re.fullmatch(
+                r"[A-Za-z0-9][A-Za-z0-9_-]{0,120}",
+                directory.name,
+            )
+        ):
+            raise ValueError("Recovery evidence contains an unsafe attempt directory")
+        claim_path = directory / "notebook_recovery_attempt.json"
+        terminal_path = directory / "notebook_recovery_result.json"
+        prior_path = directory / "notebook_recovery_previous_result.json"
+        if any(
+            path.is_symlink() or not path.is_file()
+            for path in (claim_path, terminal_path, prior_path)
+        ):
+            raise ValueError(
+                "A previous recovery attempt is incomplete; verification termination is unverified. Preserve this run and start a new run."
+            )
+        claim = json.loads(claim_path.read_text())
+        terminal = json.loads(terminal_path.read_text())
+        relative = directory.relative_to(root).as_posix()
+        if (
+            not isinstance(claim, dict)
+            or not isinstance(terminal, dict)
+            or claim.get("schema") != "agilab.notebook_build_recovery_attempt.v1"
+            or claim.get("attempt") != relative
+            or claim.get("checkpoint_sha256") != checkpoint["sha256"]
+            or claim.get("previous_result_sha256") != digest(prior_path)
+            or terminal.get("recovery_schema") != "agilab.notebook_build_recovery.v1"
+            or terminal.get("status") not in {"passed", "failed"}
+            or not isinstance(terminal.get("recovery"), dict)
+        ):
+            raise ValueError("Previous recovery terminal evidence is inconsistent")
+        recovery = terminal["recovery"]
+        prior = claim.get("previous_active_seconds")
+        active = recovery.get("active_seconds")
+        if (
+            recovery.get("attempt") != relative
+            or recovery.get("claim_sha256") != digest(claim_path)
+            or type(prior) not in {int, float}
+            or type(active) not in {int, float}
+            or not math.isfinite(prior)
+            or not math.isfinite(active)
+            or prior < 0
+            or active < 0
+            or recovery.get("previous_active_seconds") != prior
+            or terminal.get("seconds") != prior + active
+        ):
+            raise ValueError("Previous recovery timing or attempt binding is invalid")
+        completed[relative] = terminal_path.read_bytes()
+    last = previous.get("recovery", {}).get("attempt")
+    if completed and (last not in completed or completed[last] != previous_bytes):
+        raise ValueError(
+            "Previous recovery publication is incomplete or inconsistent; preserve its evidence"
+        )
+
+
+def recover_build(root: Path) -> dict:
+    """Retry verification/import for an unchanged, terminally failed build."""
+    root = Path(root).expanduser().resolve()
+    try:
+        with build_lock(root):
+            checkpoint = load_checkpoint(root)
+            project = root / checkpoint["project_name"]
+            result_path = root / "result.json"
+            if result_path.is_symlink() or not result_path.is_file():
+                raise ValueError(
+                    "No terminal build result exists; interrupted verification termination is unverified. Keep this run and start a new run."
+                )
+            previous_bytes = result_path.read_bytes()
+            previous = json.loads(previous_bytes)
+            if not isinstance(previous, dict) or previous.get("project") != str(
+                project
+            ):
+                raise ValueError("Previous build result is not bound to this project")
+            if previous.get("status") == "passed":
+                if not checkpoint.get("completion_files"):
+                    raise ValueError(
+                        "Passed build has no verified completion binding; preserve its evidence"
+                    )
+                return previous
+            if previous.get("status") != "failed" or previous.get(
+                "failed_phase"
+            ) not in {
+                "verify",
+                "import_workflow",
+                "verify_workflow",
+            }:
+                raise ValueError(
+                    "Recovery requires a completed failure in verification or workflow import"
+                )
+            source = checkpoint["source"]
+            source_kind = source.get("source_kind")
+            if source_kind not in {"curated", "local", "github"} or checkpoint[
+                "project_name"
+            ] != (
+                "decision_lab_project"
+                if source_kind == "curated"
+                else "notebook_app_project"
+            ):
+                raise ValueError(
+                    "Checkpoint does not describe a supported notebook builder project"
+                )
+            prior_seconds = previous.get("seconds")
+            if (
+                isinstance(prior_seconds, bool)
+                or not isinstance(prior_seconds, (int, float))
+                or not math.isfinite(prior_seconds)
+                or prior_seconds < checkpoint["seconds_before_verification"]
+            ):
+                raise ValueError("Previous active build duration is invalid")
+            receipt = root / "completion_receipt.json"
+            if receipt.is_symlink() or (receipt.exists() and not receipt.is_file()):
+                raise ValueError("Previous completion receipt is not a regular file")
+            attempts = root / "notebook_recovery_attempts"
+            if attempts.is_symlink() or not attempts.resolve().is_relative_to(root):
+                raise ValueError("Recovery evidence directory escapes the run")
+            _check_recovery_attempts(
+                root, attempts, checkpoint, previous, previous_bytes
+            )
+            receipt_bytes = receipt.read_bytes() if receipt.exists() else None
+            attempts.mkdir(exist_ok=True)
+            attempt_id = (
+                datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                + "-"
+                + uuid4().hex[:12]
+            )
+            attempt = attempts / attempt_id
+            attempt.mkdir()
+            claim_path = attempt / "notebook_recovery_attempt.json"
+            _atomic_write_text(
+                claim_path,
+                json.dumps(
+                    {
+                        "schema": "agilab.notebook_build_recovery_attempt.v1",
+                        "attempt": attempt.relative_to(root).as_posix(),
+                        "checkpoint_sha256": checkpoint["sha256"],
+                        "previous_result_sha256": hashlib.sha256(
+                            previous_bytes
+                        ).hexdigest(),
+                        "previous_active_seconds": prior_seconds,
+                        "started_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                    indent=2,
+                )
+                + "\n",
+            )
+            (attempt / "notebook_recovery_previous_result.json").write_bytes(
+                previous_bytes
+            )
+            if receipt_bytes is not None:
+                (attempt / "notebook_recovery_previous_receipt.json").write_bytes(
+                    receipt_bytes
+                )
+            prerequisites = checkpoint["prerequisites"]
+            scope = (
+                GENERIC_SCOPE
+                if checkpoint["project_name"] == "notebook_app_project"
+                else IRIS_SCOPE
+            )
+            phase = "recover"
+            started = time.monotonic()
+
+            def progress(name, message):
+                nonlocal phase
+                phase = name
+                event(root, name, message, recovery_attempt=attempt_id)
+
+            progress(
+                "recover",
+                "Recovering verification and workflow import from the saved provider result",
+            )
+            try:
+                report = _verify_and_import(
+                    root,
+                    project,
+                    provenance=source,
+                    prerequisites=prerequisites,
+                    scope=scope,
+                    protected=checkpoint["protected_files"],
+                    progress=progress,
+                    log_root=attempt,
+                )
+                # No regenerated code/data may replace the frozen provider snapshot.
+                load_checkpoint(root)
+            except Exception as exc:
+                report = {
+                    "status": "failed",
+                    "error": str(exc),
+                    "failed_phase": phase,
+                    "project": str(project),
+                    "source": source,
+                    "verification_scope": scope,
+                }
+                if prerequisites is not None:
+                    report["prerequisites"] = prerequisites
+            active_seconds = time.monotonic() - started
+            report["seconds"] = prior_seconds + active_seconds
+            report["recovery"] = {
+                **_recovery_status(root, checkpoint),
+                "attempt": attempt.relative_to(root).as_posix(),
+                "claim_sha256": digest(claim_path),
+                "active_seconds": active_seconds,
+                "previous_active_seconds": prior_seconds,
+                "timing_basis": "cumulative active build and recovery processing; excludes idle time",
+            }
+            report["recovery_schema"] = "agilab.notebook_build_recovery.v1"
+            _publish_result(root, report, checkpoint, attempt)
+            event(
+                root,
+                "ready" if report["status"] == "passed" else "failed",
+                "App verified and AGILAB workflow recovered"
+                if report["status"] == "passed"
+                else report["error"],
+                recovery_attempt=attempt_id,
+                seconds=report["seconds"],
+            )
+            return report
+    except (ValueError, OSError, RuntimeError) as exc:
+        # Refused recovery is read-only with respect to the original outcome.
+        return {
+            "status": "failed",
+            "failed_phase": "recovery_preflight",
+            "error": str(exc),
+            "recovery": {"eligible": False, "reason": str(exc)},
+        }
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=Path.home() / "agilab-demo-runs")
     parser.add_argument("--request", default=None)
     sources = parser.add_mutually_exclusive_group()
-    sources.add_argument("--notebook", type=Path, help="Local self-contained Python .ipynb")
-    sources.add_argument("--notebook-url", help="GitHub notebook URL pinned to a full commit SHA")
-    parser.add_argument("--check", action="store_true", help="Inspect prerequisites without a provider or notebook execution")
-    parser.add_argument("--input-file", action="append", default=[], metavar="DESTINATION=PATH",
-                        help="Explicitly copy an input to a project-relative destination (repeatable; 64 MiB total)")
+    sources.add_argument(
+        "--notebook", type=Path, help="Local self-contained Python .ipynb"
+    )
+    sources.add_argument(
+        "--notebook-url", help="GitHub notebook URL pinned to a full commit SHA"
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Inspect prerequisites without a provider or notebook execution",
+    )
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        metavar="RUN_DIRECTORY",
+        help="Recover verification and workflow import after a completed provider build",
+    )
+    parser.add_argument(
+        "--input-file",
+        action="append",
+        default=[],
+        metavar="DESTINATION=PATH",
+        help="Explicitly copy an input to a project-relative destination (repeatable; 64 MiB total)",
+    )
     parser.add_argument("--tokki", default="tokki")
     parser.add_argument("--timeout", type=int, default=1200)
-    parser.add_argument("--ui", action="store_true", help="Open the one-button local demo")
+    parser.add_argument(
+        "--ui", action="store_true", help="Open the one-button local demo"
+    )
     parser.add_argument("--port", type=int, default=8517)
     args = parser.parse_args(argv)
     if not 60 <= args.timeout <= 3600:
         parser.error("--timeout must be between 60 and 3600 seconds")
+    if args.resume is not None:
+        if (
+            args.ui
+            or args.check
+            or args.notebook is not None
+            or args.notebook_url is not None
+            or args.input_file
+            or args.request is not None
+        ):
+            parser.error(
+                "--resume uses the saved run; omit --ui, --check, source, request and input options"
+            )
+        report = recover_build(args.resume)
+        print(json.dumps(report, indent=2))
+        return 0 if report["status"] == "passed" else 1
     if (args.check or args.input_file) and args.ui:
         parser.error("--check and --input-file are CLI actions; omit --ui")
-    if (args.check or args.input_file) and args.notebook is None and args.notebook_url is None:
+    if (
+        (args.check or args.input_file)
+        and args.notebook is None
+        and args.notebook_url is None
+    ):
         parser.error("--check and --input-file require --notebook or --notebook-url")
     input_files = {}
     for item in args.input_file:
@@ -448,22 +1052,49 @@ def main(argv=None) -> int:
         input_files[name] = Path(value)
     if args.check:
         try:
-            report = check_notebook(notebook=args.notebook, notebook_url=args.notebook_url,
-                                    input_files=input_files)
+            report = check_notebook(
+                notebook=args.notebook,
+                notebook_url=args.notebook_url,
+                input_files=input_files,
+            )
         except (ValueError, OSError) as exc:
-            print(json.dumps({"status": "blocked", "safe_to_build": False, "error": str(exc)}))
+            print(
+                json.dumps(
+                    {"status": "blocked", "safe_to_build": False, "error": str(exc)}
+                )
+            )
             return 1
         print(json.dumps(report, indent=2))
         return 0 if report["safe_to_build"] else 1
-    request = args.request if args.request is not None else (
-        GENERIC_REQUEST if args.notebook is not None or args.notebook_url is not None else DEFAULT_REQUEST)
+    request = (
+        args.request
+        if args.request is not None
+        else (
+            GENERIC_REQUEST
+            if args.notebook is not None or args.notebook_url is not None
+            else DEFAULT_REQUEST
+        )
+    )
     if args.ui:
         app = Path(__file__).parents[1] / "demos" / "notebook_demo_ui.py"
-        command = [sys.executable, "-m", "agi_web.react_python_host", str(app),
-                                "--address", "127.0.0.1", "--port", str(args.port),
-                                "--no-browser", "--",
-                                "--output", str(args.output), "--tokki", args.tokki,
-                                "--timeout", str(args.timeout)]
+        command = [
+            sys.executable,
+            "-m",
+            "agi_web.react_python_host",
+            str(app),
+            "--address",
+            "127.0.0.1",
+            "--port",
+            str(args.port),
+            "--no-browser",
+            "--",
+            "--output",
+            str(args.output),
+            "--tokki",
+            args.tokki,
+            "--timeout",
+            str(args.timeout),
+        ]
         if args.request is not None:
             command.extend(["--request", args.request])
         if args.notebook is not None:
@@ -473,9 +1104,15 @@ def main(argv=None) -> int:
         return subprocess.call(command)
     root = create_run(args.output)
     print(f"Live run: {root}", flush=True)
-    report = build(root, intent=request, tokki=args.tokki, timeout=args.timeout,
-                   notebook=args.notebook, notebook_url=args.notebook_url,
-                   **({"input_files": input_files} if input_files else {}))
+    report = build(
+        root,
+        intent=request,
+        tokki=args.tokki,
+        timeout=args.timeout,
+        notebook=args.notebook,
+        notebook_url=args.notebook_url,
+        **({"input_files": input_files} if input_files else {}),
+    )
     print(json.dumps(report, indent=2))
     return 0 if report["status"] == "passed" else 1
 

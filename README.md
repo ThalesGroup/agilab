@@ -105,6 +105,37 @@ exports retain their explicit stage graph. The WORKFLOW cell-editing importer
 remains a separate review path; programmatic import can request state preservation
 with `build_lab_stages_preview(..., preserve_notebook_state=True)`.
 
+Recover a completed build that failed during verification or workflow import:
+
+```bash
+agilab-notebook-demo --resume /path/to/the/failed-notebook-run
+```
+
+New builds save `notebook_build_checkpoint.json` after the provider has finished
+successfully and its native command evidence is verified. The build report names
+the failed phase and reports whether recovery is available. Recovery reruns the
+generated notebook, app interaction, import, and workflow agreement checks from
+that checkpoint. It uses the existing generated files without another provider
+call. The source, supplied inputs, generated code and data, checkers, Python
+environment identity, and AGILAB controller/compiler must still match. Each
+verification process uses a fresh bytecode-cache directory so stale project
+caches cannot replace the recorded Python source.
+
+Each retry preserves the previous result and completion receipt under
+`notebook_recovery_attempts/`, alongside its own claim, logs and result. Reported
+duration accumulates active build/recovery processing and excludes idle time.
+A completed successful run is returned unchanged only after its sealed reports,
+receipt, logs and persisted workflow have been checked. Concurrent attempts,
+incomplete provider evidence, an interrupted retry without terminal evidence,
+and changed snapshots are refused. Older runs without a checkpoint need a new
+build. Recovery requires a completed failure; an interruption with no terminal
+build result cannot establish that the previous verifier has stopped.
+
+Dependency versions and model caches are outside the checkpoint's runtime
+fingerprint. Fresh acceptance checks still run, and scientific correctness
+requires review. Editing the generated analysis requires a new build rather than
+reusing the original provider's recorded snapshot.
+
 ### Measure reported first builds
 
 Each finished local build saves a content-free completion receipt. After success,
