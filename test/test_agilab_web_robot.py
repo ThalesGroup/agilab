@@ -1578,7 +1578,7 @@ class _FakeBrowserPage:
         elif "PROJECT" in url:
             self.body_text = "PROJECT AGILAB's included notebook is selected"
         else:
-            self.body_text = "Try the flight telemetry demo Notebook and other ways to start Create from included notebook"
+            self.body_text = "Run a project, explore its results 1. Prepare demo 2. Run demo 3. Explore results Notebook and other ways to start Create from included notebook"
 
     def wait_for_selector(self, selector: str, *, timeout: float) -> None:
         if (

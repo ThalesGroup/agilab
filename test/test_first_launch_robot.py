@@ -66,6 +66,53 @@ def test_first_launch_robot_passes_static_first_surface(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    "missing_action", [None, "1. Prepare demo", "2. Run demo", "3. Explore results"]
+)
+@pytest.mark.parametrize("widget_kind", ["button", "link_button"])
+def test_first_launch_robot_requires_each_current_demo_action(missing_action, widget_kind, monkeypatch) -> None:
+    module = _load_module()
+
+    class Widget:
+        def __init__(self, label):
+            self.label = label
+
+    demo_actions = [
+        Widget(label)
+        for label in ("1. Prepare demo", "2. Run demo", "3. Explore results")
+        if label != missing_action
+    ]
+
+    class FakeApp:
+        exception = []
+        markdown = []
+        caption = []
+        session_state = {"env": object()}
+        button = demo_actions if widget_kind == "button" else []
+
+        def get(self, element_type):
+            return demo_actions if widget_kind == "link_button" and element_type == "link_button" else []
+
+        def run(self, *, timeout):
+            return self
+
+    class FakeAppTest:
+        @staticmethod
+        def from_file(_path, *, default_timeout):
+            return FakeApp()
+
+    testing = importlib.import_module("agi_web.testing")
+    monkeypatch.delattr(importlib.import_module("agi_web"), "testing", raising=False)
+    monkeypatch.setattr(testing, "AppTest", FakeAppTest)
+    monkeypatch.setattr(module, "_docs_menu_items", lambda: {})
+
+    report = module.build_report(timeout=1.0, target_seconds=999.0)
+    checks = {check["id"]: check for check in report["checks"]}
+    assert checks["first_launch_first_proof_signal"]["status"] == (
+        "pass" if missing_action is None else "fail"
+    )
+
+
 @pytest.mark.parametrize("address", [None, "0.0.0.0", "::"])
 def test_first_launch_robot_isolates_and_restores_bind_config(address, monkeypatch) -> None:
     module = _load_module()
@@ -267,7 +314,7 @@ def test_first_launch_robot_entrypoint_runs_with_fake_apptest(
             )
         ]
         caption: list[object] = []
-        button = [Widget(label="First proof")]
+        button = [Widget(label=label) for label in ("1. Prepare demo", "2. Run demo", "3. Explore results")]
         session_state = {"env": object()}
 
         def run(self, *, timeout):

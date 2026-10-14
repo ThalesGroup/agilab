@@ -21,9 +21,9 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## Current rules
 
-- When replacing buffered logs with streaming capture, regress split and multiline
-  secrets, inherited stdin, open descendant pipes, and late-publication failures;
-  carry omission/completeness metadata into recovered failure evidence too.
+- For edits to similar JavaScript collectors, target the named constant and caller (`_above_fold_probe` uses `ABOVE_FOLD_COLLECTOR_JS`).
+  Run a browser DOM canary with visible targets and hidden-content exclusions; mocked payloads do not validate selector edits.
+- When replacing buffered logs with streaming capture, regress split and multiline secrets, inherited stdin, open descendant pipes, and late-publication failures; carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
   After schema additions, moves in source, or package-version bumps, regenerate discovery before pushing with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
   After schema, source or package-version changes, run the `skills` parity profile; commit generated artifacts and rerun it to prove no drift.

@@ -165,6 +165,7 @@ def build_report(
     markdown = _widget_values(app.markdown, "value")
     captions = _widget_values(app.caption, "value")
     buttons = _widget_values(app.button, "label")
+    link_buttons = _widget_values(app.get("link_button"), "label")
     # AppTest sees the server-provided component model, not browser-rendered
     # React DOM. The separate main-interface browser smoke validates actions.
     interface = {}
@@ -216,32 +217,25 @@ def build_report(
                 [
                     "AGILAB logo",
                     "AI/ML reproducibility workbench",
-                    "Turn experiments into evidence-backed apps",
+                    "Run a project, explore its results",
                 ],
-            ) or (interface.get("brand") == "AGILAB" and bool(interface.get("welcome_title"))),
+            ) or (
+                interface.get("brand") == "AGILAB"
+                and interface.get("welcome_title") == "Run a project, explore its results"
+            ),
             "Landing page exposes the AGILAB brand and workflow proposition",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
         ),
         _check_result(
             "first_launch_first_proof_signal",
             "First launch exposes first-proof action",
-            _contains_any(
-                [*markdown, *captions, *buttons],
-                [
-                    "Try the flight telemetry demo",
-                    "First proof: verify AGILAB end-to-end",
-                    "First run: use the built-in flight-telemetry project",
-                    "First proof",
-                    "Wizard pipeline",
-                    "1. Select demo",
-                    "1. ORCHESTRATE",
-                    "2. ANALYSIS",
-                    "1. Open run page",
-                    "1. Open PROJECT",
-                ],
+            all(
+                _contains_any([*markdown, *captions, *buttons, *link_buttons], [token])
+                for token in ("1. Prepare demo", "2. Run demo", "3. Explore results")
             ),
             "Landing page tells newcomers where to start",
             evidence=[str(about_page.relative_to(REPO_ROOT))],
+            details={"action_labels": [*buttons, *link_buttons]},
         ),
         _check_result(
             "first_launch_showcase_signal",
