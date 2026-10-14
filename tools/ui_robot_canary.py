@@ -230,6 +230,45 @@ def run_browser_canaries(widget_robot: Any, *, browser_name: str, headless: bool
                 )
             )
 
+            page.set_content(
+                "<main><section class='agilab-home-intro'>"
+                "<p>Analysis workspace</p><h1>Explore canary</h1>"
+                "<p>Choose your result views and notebooks.</p></section>"
+                "<h4>Run or serve</h4><details><summary>Run options</summary>"
+                "<h4>Hidden collapsed child</h4></details>"
+                "<fieldset><legend>Analysis views</legend></fieldset></main>",
+                wait_until="domcontentloaded",
+            )
+            payload = page.evaluate(widget_robot.ABOVE_FOLD_COLLECTOR_JS)
+            seen_labels = [
+                str(item.get("label") or "")
+                for item in payload.get("targets", [])
+                if isinstance(item, dict) and bool(item.get("inFold"))
+            ]
+            native_probe = widget_robot._above_fold_result_probe(
+                app_name="canary",
+                display="NATIVE",
+                url=page.url,
+                expected_labels=[
+                    "Analysis workspace", "Choose your result views and notebooks",
+                    "Run or serve", "Run options", "Analysis views",
+                ],
+                seen_labels=seen_labels,
+                fold=float(payload.get("fold") or 0),
+            )
+            results.append(
+                CanaryResult(
+                    name="browser-native-above-fold-collector",
+                    success=(
+                        native_probe.status == "interacted"
+                        and "Hidden collapsed child" not in seen_labels
+                    ),
+                    detail="Native summaries, headings and React text are visible; closed details stay hidden",
+                    expected="above_fold:interacted without hidden children",
+                    observed=f"{native_probe.kind}:{native_probe.status}:{seen_labels}",
+                )
+            )
+
             issues = widget_robot._attach_browser_issue_capture(page)
             page.evaluate("() => console.error('Uncaught TypeError: canary browser issue')")
             page.wait_for_timeout(100)

@@ -223,25 +223,33 @@ BROWSER_ISSUE_IGNORE_NEEDLES = (
     "websocket",
 )
 PAGE_EXPECTED_TEXT = {
-    "": ("Turn experiments", "Try the flight telemetry demo"),
+    "": (
+        "Run a project, explore its results", "1. Prepare demo", "2. Run demo", "3. Explore results",
+    ),
     "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "Settings", "README"),
-    "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
-    "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
-    "ANALYSIS": ("ANALYSIS", "Flight Telemetry", "view_maps"),
+    "ORCHESTRATE": ("Configure and run your project", "Run or serve", "Resources and deployment"),
+    "WORKFLOW": ("Build and run a workflow", "Workflow status and outputs", "Notebook"),
+    "ANALYSIS": (
+        "Analysis workspace", "Choose your result views and notebooks", "Analysis views", "Save selection",
+    ),
 }
-PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "PROJECT_EDITOR": 5, "PROJECT_EDIT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 3, "ANALYSIS": 3}
+# WORKFLOW initially exposes Import notebook and Stage template. Its uploader
+# appears only after selecting an import, so readiness must not await a third control.
+PAGE_MIN_WIDGETS = {"": 1, "PROJECT": 5, "PROJECT_EDITOR": 5, "PROJECT_EDIT": 5, "SETTINGS": 5, "ORCHESTRATE": 5, "WORKFLOW": 2, "ANALYSIS": 3}
 PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
-    "HOME": ("Turn experiments", "Try the flight telemetry demo"),
+    "HOME": (
+        "Run a project, explore its results", "1. Prepare demo", "2. Run demo", "3. Explore results",
+    ),
     "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "SETTINGS": ("SETTINGS", "README"),
-    "ORCHESTRATE": ("ORCHESTRATE", "Flight Telemetry", "Deploy"),
-    "WORKFLOW": ("WORKFLOW", "Flight Telemetry", "Data source"),
-    "ANALYSIS": ("ANALYSIS", "Flight Telemetry", "view_maps"),
+    "ORCHESTRATE": ("Configure and run your project", "Run or serve", "Run options"),
+    "WORKFLOW": ("Build and run a workflow", "Workflow status and outputs", "Notebook"),
+    "ANALYSIS": ("Analysis workspace", "Choose your result views and notebooks", "Analysis views"),
 }
 
 WIDGET_COLLECTOR_JS = r"""
@@ -984,6 +992,11 @@ ABOVE_FOLD_COLLECTOR_JS = r"""
     "h1",
     "h2",
     "h3",
+    "h4",
+    "h5",
+    "h6",
+    "summary",
+    "legend",
     "button",
     "a[href]",
     "label",
@@ -997,6 +1010,7 @@ ABOVE_FOLD_COLLECTOR_JS = r"""
     "[data-widget-kind='multiselect']",
     "[data-widget-kind='file_uploader']",
     ".py-markdown p",
+    ".agilab-home-intro p",
   ].join(", ");
   const fold = Math.max(240, Math.min(window.innerHeight || 1000, 900));
   const targets = [];
