@@ -5,13 +5,17 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MODULE_PATH = REPO_ROOT / "tools" / "agent_instruction_contract.py"
 
 
 def _load_module():
-    spec = importlib.util.spec_from_file_location("agent_instruction_contract_test_module", MODULE_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "agent_instruction_contract_test_module", MODULE_PATH
+    )
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
@@ -23,8 +27,14 @@ def _write_minimal_contract_tree(module, root: Path) -> None:
     for contract in module.CONTRACTS:
         path = root / contract.path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("\n".join(term.text for term in contract.required_terms) + "\n", encoding="utf-8")
-    catalog_paths = [{"path": path, "kind": "test", "description": "test"} for path in module.CATALOG_PATHS]
+        path.write_text(
+            "\n".join(term.text for term in contract.required_terms) + "\n",
+            encoding="utf-8",
+        )
+    catalog_paths = [
+        {"path": path, "kind": "test", "description": "test"}
+        for path in module.CATALOG_PATHS
+    ]
     payload = {
         "cli_commands": [
             {
@@ -36,7 +46,9 @@ def _write_minimal_contract_tree(module, root: Path) -> None:
         ],
         "catalog_files": catalog_paths,
     }
-    (root / "agilab-capabilities.json").write_text(json.dumps(payload), encoding="utf-8")
+    (root / "agilab-capabilities.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
 
 
 def test_current_agent_instruction_contract_passes() -> None:
@@ -62,7 +74,10 @@ def test_contract_detects_missing_root_runbook_marker(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
     agents = tmp_path / "AGENTS.md"
-    agents.write_text(agents.read_text(encoding="utf-8").replace("No silent fallbacks", ""), encoding="utf-8")
+    agents.write_text(
+        agents.read_text(encoding="utf-8").replace("No silent fallbacks", ""),
+        encoding="utf-8",
+    )
 
     report = module.build_report(tmp_path)
 
@@ -77,11 +92,73 @@ def test_contract_detects_missing_root_runbook_marker(tmp_path: Path) -> None:
     assert "no-fallbacks" in evidence_by_path["AGENTS.md"]["required_terms_missing"]
 
 
+@pytest.mark.parametrize(
+    ("label", "text"),
+    [
+        ("regression-diagnosis", "Regression diagnosis before intervention"),
+        ("regression-detection", "working workflow as a suspected regression"),
+        (
+            "regression-current-context",
+            "A later context change does not explain an earlier failure",
+        ),
+        ("regression-device-owner", "identify the device and configuration owner"),
+        ("regression-intended-state", "the intended versioned configuration"),
+        ("regression-active-policy", "active policy/slot"),
+        (
+            "regression-backup-evidence",
+            "verify that exports and backups exist and are dated",
+        ),
+        (
+            "regression-baseline",
+            "last verified success, first failure, and intervening changes",
+        ),
+        (
+            "regression-context",
+            "Compare source, destination, protocol, and execution context",
+        ),
+        ("regression-counterevidence", "Search for contrary evidence"),
+        (
+            "regression-migration",
+            "A destination migration does not establish a new network path",
+        ),
+        ("regression-running-policy", "previous and running policies"),
+        ("regression-policy-order", "rule order and conditions"),
+        ("regression-policy-routing", "routes, including policy-based routing"),
+        ("regression-change-sequence", "configuration and audit timestamps"),
+        ("regression-intervention", "identified cause and a verification plan"),
+    ],
+)
+def test_contract_detects_missing_regression_diagnosis_obligation(
+    tmp_path: Path, label: str, text: str
+) -> None:
+    module = _load_module()
+    _write_minimal_contract_tree(module, tmp_path)
+    agents = tmp_path / "AGENTS.md"
+    agents.write_text(
+        agents.read_text(encoding="utf-8").replace(text, ""), encoding="utf-8"
+    )
+
+    report = module.build_report(tmp_path)
+
+    assert report["status"] == "fail"
+    assert any(
+        issue["rule"] == "agent-instruction-required-term"
+        and issue["path"] == "AGENTS.md"
+        and repr(label) in issue["message"]
+        for issue in report["issues"]
+    )
+    evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
+    assert label in evidence_by_path["AGENTS.md"]["required_terms_missing"]
+
+
 def test_contract_detects_missing_compact_validation_marker(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
     workflow = tmp_path / "tools" / "agent_workflows.md"
-    workflow.write_text(workflow.read_text(encoding="utf-8").replace("Validation passed.", ""), encoding="utf-8")
+    workflow.write_text(
+        workflow.read_text(encoding="utf-8").replace("Validation passed.", ""),
+        encoding="utf-8",
+    )
 
     report = module.build_report(tmp_path)
 
@@ -93,7 +170,10 @@ def test_contract_detects_missing_compact_validation_marker(tmp_path: Path) -> N
         for issue in report["issues"]
     )
     evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
-    assert "compact-validation" in evidence_by_path["tools/agent_workflows.md"]["required_terms_missing"]
+    assert (
+        "compact-validation"
+        in evidence_by_path["tools/agent_workflows.md"]["required_terms_missing"]
+    )
 
 
 def test_contract_detects_missing_fix_prevention_marker(tmp_path: Path) -> None:
@@ -123,7 +203,9 @@ def test_contract_detects_missing_shell_url_quoting_marker(tmp_path: Path) -> No
     _write_minimal_contract_tree(module, tmp_path)
     learnings = tmp_path / "AGENT_LEARNINGS.md"
     learnings.write_text(
-        learnings.read_text(encoding="utf-8").replace("gh api repos/.../file?ref=main", ""),
+        learnings.read_text(encoding="utf-8").replace(
+            "gh api repos/.../file?ref=main", ""
+        ),
         encoding="utf-8",
     )
 
@@ -137,10 +219,15 @@ def test_contract_detects_missing_shell_url_quoting_marker(tmp_path: Path) -> No
         for issue in report["issues"]
     )
     evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
-    assert "shell-url-quoting" in evidence_by_path["AGENT_LEARNINGS.md"]["required_terms_missing"]
+    assert (
+        "shell-url-quoting"
+        in evidence_by_path["AGENT_LEARNINGS.md"]["required_terms_missing"]
+    )
 
 
-def test_contract_detects_missing_streamlit_global_install_marker(tmp_path: Path) -> None:
+def test_contract_detects_missing_streamlit_global_install_marker(
+    tmp_path: Path,
+) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
     learnings = tmp_path / "AGENT_LEARNINGS.md"
@@ -165,7 +252,9 @@ def test_contract_detects_missing_streamlit_global_install_marker(tmp_path: Path
     )
 
 
-def test_contract_detects_missing_tokki_routing_marker_in_short_contract(tmp_path: Path) -> None:
+def test_contract_detects_missing_tokki_routing_marker_in_short_contract(
+    tmp_path: Path,
+) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
     conventions = tmp_path / "AGENT_CONVENTIONS.md"
@@ -184,17 +273,27 @@ def test_contract_detects_missing_tokki_routing_marker_in_short_contract(tmp_pat
         for issue in report["issues"]
     )
     evidence_by_path = {row["path"]: row for row in report["file_evidence"]}
-    assert "tokki-routing" in evidence_by_path["AGENT_CONVENTIONS.md"]["required_terms_missing"]
+    assert (
+        "tokki-routing"
+        in evidence_by_path["AGENT_CONVENTIONS.md"]["required_terms_missing"]
+    )
 
 
 def test_contract_detects_missing_capability_command(tmp_path: Path) -> None:
     module = _load_module()
     _write_minimal_contract_tree(module, tmp_path)
-    payload = json.loads((tmp_path / "agilab-capabilities.json").read_text(encoding="utf-8"))
+    payload = json.loads(
+        (tmp_path / "agilab-capabilities.json").read_text(encoding="utf-8")
+    )
     payload["cli_commands"] = []
-    (tmp_path / "agilab-capabilities.json").write_text(json.dumps(payload), encoding="utf-8")
+    (tmp_path / "agilab-capabilities.json").write_text(
+        json.dumps(payload), encoding="utf-8"
+    )
 
     report = module.build_report(tmp_path)
 
     assert report["status"] == "fail"
-    assert any(issue["rule"] == "agent-instruction-capability-command" for issue in report["issues"])
+    assert any(
+        issue["rule"] == "agent-instruction-capability-command"
+        for issue in report["issues"]
+    )
