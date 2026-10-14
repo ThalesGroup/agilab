@@ -204,3 +204,65 @@ def test_execution_plan_reports_missing_ordered_node(monkeypatch, tmp_path: Path
         "location": "units[0]",
         "message": "execution node 'missing-node' is missing",
     }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("stages", "must_run"),
+        ("stages", {"ignored": "run"}),
+        ("stages", None),
+        ("params", "must_apply"),
+        ("params", ["ignored"]),
+        ("params", None),
+        ("run_params", "must_apply"),
+        ("run_params", None),
+        ("execution", "must_execute"),
+        ("command", 123),
+        ("command", {"ignored": "run"}),
+        ("entrypoint", ["ignored"]),
+    ],
+)
+def test_execution_plan_rejects_malformed_authored_fields_before_coercion(
+    tmp_path: Path,
+    field: str,
+    value,
+) -> None:
+    import json
+
+    module = _load_core_module()
+    source = (
+        Path.cwd()
+        / "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    if field == "execution":
+        payload["nodes"][0]["execution"] = value
+    else:
+        payload["nodes"][0]["execution"][field] = value
+    graph = tmp_path / "authored-uav-invalid-execution.json"
+    graph.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=field):
+        module.build_execution_plan(repo_root=Path.cwd(), dag_path=graph)
+
+
+def test_execution_plan_preserves_optional_contracts_and_generic_stage_lists() -> None:
+    module = _load_core_module()
+    assert module._execution_contract({"id": "legacy"}, {}) == {}
+    assert module._execution_contract({"id": "legacy", "execution": None}, {}) == {}
+    assert (
+        module._execution_contract(
+            {"id": "legacy", "execution": {"command": None, "entrypoint": None}}, {}
+        )
+        == {}
+    )
+    assert module._execution_contract(
+        {
+            "id": "generic",
+            "execution": {
+                "params": {},
+                "stages": ["prepare", "execute"],
+            },
+        },
+        {},
+    ) == {"params": {}, "stages": ["prepare", "execute"]}

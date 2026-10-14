@@ -4,6 +4,8 @@ from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
+import inspect
 import os
 from pathlib import Path
 import re
@@ -34,6 +36,8 @@ from .dag_execution_registry import (
 from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import (
     run_queue_baseline_app,
     run_relay_followup_app,
+    _read_queue_context,
+    _require_owned_output_tree,
 )
 
 GLOBAL_DAG_REAL_RUN_DIRNAME = "multi_app_dag_real_runs"
@@ -451,6 +455,26 @@ def _contract_artifact_kind(artifact_id: str, declared_kind: str) -> str:
     return "contract_artifact"
 
 
+
+def _invoke_uav_stage_runner(
+    runner: Callable[..., Mapping[str, Any]],
+    unit: Mapping[str, Any],
+    **kwargs: Any,
+) -> Mapping[str, Any]:
+    # Adapt injected legacy callbacks before execution; never retry a body error.
+    try:
+        signature = inspect.signature(runner)
+    except (TypeError, ValueError):
+        return runner(**kwargs)
+    if "execution_contract" in signature.parameters or any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    ):
+        kwargs["execution_contract"] = _unit_execution_contract(unit) or None
+    signature.bind(**kwargs)
+    return runner(**kwargs)
+
+
 def _run_next_uav_queue_to_relay_stage(
     state: Mapping[str, Any],
     *,
@@ -494,7 +518,9 @@ def _run_next_uav_queue_to_relay_stage(
                 queue,
                 run_root=run_root,
                 prefix="queue",
-                callback=lambda: run_queue_fn(
+                callback=lambda: _invoke_uav_stage_runner(
+                    run_queue_fn,
+                    queue,
                     repo_root=context.repo_root,
                     run_root=run_root,
                     idempotency_token=idempotency_token,
@@ -563,7 +589,9 @@ def _run_next_uav_queue_to_relay_stage(
                 relay,
                 run_root=run_root,
                 prefix="relay",
-                callback=lambda: run_relay_fn(
+                callback=lambda: _invoke_uav_stage_runner(
+                    run_relay_fn,
+                    relay,
                     repo_root=context.repo_root,
                     run_root=run_root,
                     queue_result=queue_result,
@@ -572,6 +600,23 @@ def _run_next_uav_queue_to_relay_stage(
             ),
         )
         try:
+            if "app_entry" in result and not any(
+                isinstance(consumed, Mapping)
+                and consumed.get("role") == "upstream_context"
+                for consumed in result.get("consumed_artifacts", [])
+            ):
+                raise ValueError(
+                    "Cached relay execution has no loaded queue_metrics context."
+                )
+            for consumed in result.get("consumed_artifacts", []):
+                if (
+                    isinstance(consumed, Mapping)
+                    and consumed.get("role") == "upstream_context"
+                ):
+                    if dict(consumed) != _read_queue_context(queue_result):
+                        raise ValueError(
+                            "Cached relay execution is bound to different queue_metrics context."
+                        )
             result = _validated_uav_stage_result(
                 relay, run_root=run_root, result=result, prefix="relay"
             )
@@ -1333,6 +1378,29 @@ def _validated_contract_stage_result(
 def _validated_uav_stage_result(
     unit: Mapping[str, Any], *, run_root: Path, result: dict[str, Any], prefix: str
 ) -> dict[str, Any]:
+    if "execution_inputs_sha256" in result or "app_entry" in result:
+        _require_owned_output_tree(
+            run_root, run_root.resolve() / "export", label="export"
+        )
+        effective_args = result.get("effective_args", {})
+        if isinstance(effective_args, Mapping) and effective_args.get("data_out"):
+            _require_owned_output_tree(
+                run_root, Path(effective_args["data_out"]), label="data_out"
+            )
+        if result.get("execution_contract") != (_unit_execution_contract(unit) or None):
+            raise ValueError(
+                "Cached UAV execution is bound to a different execution contract."
+            )
+    if result.get("source_scenario_sha256"):
+        source = Path(str(result["source_scenario"]))
+        source = source if source.is_absolute() else run_root / source
+        if (
+            hashlib.sha256(source.read_bytes()).hexdigest()
+            != result["source_scenario_sha256"]
+        ):
+            raise ValueError(
+                "Cached UAV execution is bound to different scenario bytes."
+            )
     if result.get("artifact_validation_error"):
         raise RuntimeError(str(result["artifact_validation_error"]))
     metrics_id = f"{prefix}_metrics"
