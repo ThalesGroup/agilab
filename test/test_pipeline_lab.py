@@ -5,6 +5,7 @@ import importlib.util
 import json
 import os
 import re
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 import sys
@@ -1583,11 +1584,17 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
     ) -> dict[str, object]:
         assert idempotency_token.endswith(":queue_baseline")
         calls.append(run_root)
-        run_root.mkdir(parents=True, exist_ok=True)
+        metrics = {"packets_generated": 8, "packets_delivered": 7}
         return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                run_root, "queue/summary.json", metrics
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "queue/reduce.json",
+                {"packets_delivered": 7},
+            ),
+            "summary_metrics": metrics,
         }
 
     monkeypatch.setattr(pipeline_lab, "run_multi_app_dag_queue_baseline_app", _fake_queue_run)
@@ -1609,7 +1616,11 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
     assert queue["execution_mode"] == "real_app_entry"
     assert queue["real_execution"]["summary_metrics"]["packets_delivered"] == 7
     assert queue["produces"] == [
-        {"artifact": "queue_metrics", "kind": "summary_metrics", "path": "queue/summary.json"}
+        {
+            "artifact": "queue_metrics",
+            "kind": "summary_metrics",
+            "path": str(calls[0] / "queue" / "summary.json"),
+        }
     ]
     assert relay["dispatch_status"] == "runnable"
     assert relay["unblocked_by"] == ["queue_metrics"]
@@ -1627,11 +1638,17 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     ) -> dict[str, object]:
         assert idempotency_token.endswith(":queue_baseline")
         calls.append(run_root)
-        run_root.mkdir(parents=True, exist_ok=True)
+        metrics = {"packets_generated": 8, "packets_delivered": 7}
         return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                run_root, "queue/summary.json", metrics
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "queue/reduce.json",
+                {"packets_delivered": 7},
+            ),
+            "summary_metrics": metrics,
         }
 
     monkeypatch.setattr(pipeline_lab, "run_multi_app_dag_queue_baseline_app", _fake_queue_run)
@@ -1649,9 +1666,50 @@ def test_global_runner_panel_real_run_executes_active_app_template_queue_stage(m
     assert any(kind == "caption" and message.startswith("Executable ·") for kind, message in fake_st.messages)
 
 
+def _write_global_runner_fixture_artifact(
+    run_root: Path, relative_path: str, payload: dict[str, object]
+) -> str:
+    artifact_path = run_root / relative_path
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    return str(artifact_path)
+
+
+def _register_global_runner_fixture_executor(
+    monkeypatch, *, unit_id: str, artifact_id: str, artifact_path: str
+) -> None:
+    build_engine = pipeline_lab._multi_app_dag_engine
+
+    def execute_stage(
+        *, repo_root: Path, run_root: Path, idempotency_token: str
+    ) -> dict[str, object]:
+        assert idempotency_token.endswith(f":{unit_id}")
+        metrics = {"stage_completed": 1}
+        output_path = _write_global_runner_fixture_artifact(
+            run_root, artifact_path, metrics
+        )
+        return {
+            "summary_metrics_path": output_path,
+            "summary_metrics": metrics,
+            "produced_artifacts": [{"artifact": artifact_id, "path": output_path}],
+        }
+
+    def configured_engine(*args, **kwargs):
+        engine = build_engine(*args, **kwargs)
+        return replace(engine, stage_run_fns={unit_id: execute_stage})
+
+    monkeypatch.setattr(pipeline_lab, "_multi_app_dag_engine", configured_engine)
+
+
 def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_next_stage": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    _register_global_runner_fixture_executor(
+        monkeypatch,
+        unit_id="flight_context",
+        artifact_id="flight_reduce_summary",
+        artifact_path="flight_analysis/reduce_summary_worker_0.json",
+    )
     env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
@@ -1677,6 +1735,12 @@ def test_global_runner_panel_runs_flight_contract_adapter(monkeypatch, tmp_path)
 def test_global_runner_panel_runs_ready_contract_batch(monkeypatch, tmp_path):
     fake_st = _FakeStreamlit(buttons={"demo_global_runner_run_ready_stages": True})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    _register_global_runner_fixture_executor(
+        monkeypatch,
+        unit_id="flight_context",
+        artifact_id="flight_reduce_summary",
+        artifact_path="flight_analysis/reduce_summary_worker_0.json",
+    )
     env = SimpleNamespace(app="flight_telemetry_project", target="flight_telemetry_project")
 
     pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
@@ -1714,10 +1778,19 @@ def test_global_runner_panel_runs_ready_batch_with_distributed_backend(monkeypat
     ) -> dict[str, object]:
         assert idempotency_token.endswith(f":{unit['id']}")
         submissions.append(str(unit["id"]))
+        metrics = {"stage_completed": 1, "distributed_submissions": 1}
         return {
-            "summary_metrics_path": "flight/distributed-summary.json",
-            "reduce_artifact_path": "flight/distributed-reduce.json",
-            "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "flight/distributed-summary.json",
+                metrics,
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "flight/distributed-reduce.json",
+                {"flight_count": 1},
+            ),
+            "summary_metrics": metrics,
         }
 
     repo_root = Path.cwd()
@@ -1799,7 +1872,16 @@ def test_global_runner_panel_wires_distributed_backend_from_orchestrate_settings
     def _submit_stage(**kwargs):
         submissions.append(str(kwargs["unit"]["id"]))
         return {
-            "summary_metrics_path": "flight/distributed-summary.json",
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                kwargs["run_root"],
+                "flight/distributed-summary.json",
+                {"distributed_submissions": 1},
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                kwargs["run_root"],
+                "flight/distributed-reduce.json",
+                {"flight_count": 1},
+            ),
             "summary_metrics": {"distributed_submissions": 1},
         }
 
@@ -1838,16 +1920,27 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
         output_path=state_path,
         dag_path=Path("docs/source/data/multi_app_dag_sample.json"),
     )
+
+    def _fake_queue_run(*, run_root: Path, **_kwargs) -> dict[str, object]:
+        metrics = {"packets_generated": 8, "packets_delivered": 7}
+        return {
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                run_root, "queue/summary.json", metrics
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "queue/reduce.json",
+                {"packets_delivered": 7},
+            ),
+            "summary_metrics": metrics,
+        }
+
     state = pipeline_lab._run_next_controlled_multi_app_dag_stage(
         proof.runner_state,
         repo_root=Path.cwd(),
         dag_path=Path.cwd() / "docs/source/data/multi_app_dag_sample.json",
         lab_dir=tmp_path,
-        run_queue_fn=lambda **_kwargs: {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
-        },
+        run_queue_fn=_fake_queue_run,
         now_fn=lambda: "2026-05-07T00:00:00Z",
     ).state
     pipeline_lab.write_runner_state(state_path, state)
@@ -1862,10 +1955,17 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
     ) -> dict[str, object]:
         assert idempotency_token.endswith(":relay_followup")
         relay_calls.append({"run_root": run_root, "queue_result": queue_result})
+        metrics = {"packets_generated": 5, "packets_delivered": 5}
         return {
-            "summary_metrics_path": "relay/summary.json",
-            "reduce_artifact_path": "relay/reduce.json",
-            "summary_metrics": {"packets_generated": 5, "packets_delivered": 5},
+            "summary_metrics_path": _write_global_runner_fixture_artifact(
+                run_root, "relay/summary.json", metrics
+            ),
+            "reduce_artifact_path": _write_global_runner_fixture_artifact(
+                run_root,
+                "relay/reduce.json",
+                {"packets_delivered": 5},
+            ),
+            "summary_metrics": metrics,
             "consumed_artifacts": [
                 {
                     "artifact": "queue_metrics",
@@ -1898,7 +1998,14 @@ def test_global_runner_panel_real_run_executes_controlled_relay_stage(monkeypatc
     }
     relay = next(unit for unit in state["units"] if unit["id"] == "relay_followup")
     assert relay["dispatch_status"] == "completed"
-    assert relay["real_execution"]["consumed_artifacts"][0]["path"] == "queue/summary.json"
+    assert relay["real_execution"]["consumed_artifacts"][0]["path"] == str(
+        tmp_path
+        / ".agilab"
+        / "multi_app_dag_real_runs"
+        / "queue_baseline"
+        / "queue"
+        / "summary.json"
+    )
 
 
 def test_global_runner_panel_keeps_unsupported_dag_preview_only(monkeypatch, tmp_path):
@@ -2116,6 +2223,52 @@ def test_global_runner_panel_reports_invalid_visual_editor_as_code(monkeypatch, 
     assert any(kind == "code" and "dag_id is required" in message for kind, message in fake_st.messages)
     assert not (tmp_path / ".agilab" / "multi_app_dags").exists()
     assert "Edit DAG JSON draft" not in fake_st.text_area_labels
+
+
+@pytest.mark.parametrize("artifact_table", ["produced", "consumed"])
+def test_global_runner_panel_preserves_invalid_artifact_draft_without_saving(
+    monkeypatch, tmp_path, artifact_table
+):
+    selected = "docs/source/data/multi_app_dag_flight_sample.json"
+    source_path = Path(selected)
+    original_source = source_path.read_bytes()
+    token = pipeline_lab._multi_app_dag_source_token(selected)
+    metadata_key = f"demo_global_runner_dag_id_{token}"
+    fake_st = _FakeStreamlit(
+        {
+            "demo_global_runner_source": pipeline_lab.GLOBAL_DAG_SOURCE_SAMPLES,
+            "demo_global_runner_library": selected,
+            "demo_global_runner_dag_path": "",
+            metadata_key: "keep-unsaved-editor",
+        },
+        buttons={"demo_global_runner_save_draft": True},
+        checkboxes={f"demo_global_runner_edit_contract_{token}": True},
+    )
+    orphan_rows = [{"node": "removed_stage", "id": "metrics", "path": "metrics.json"}]
+    selection_helper = (
+        "_selected_artifact_rows"
+        if artifact_table == "produced"
+        else "_consumes_rows_from_handoffs"
+    )
+    monkeypatch.setattr(pipeline_lab, selection_helper, lambda *_args: orphan_rows)
+    monkeypatch.setattr(pipeline_lab, "st", fake_st)
+    env = SimpleNamespace(
+        app="flight_telemetry_project", target="flight_telemetry_project"
+    )
+
+    pipeline_lab._render_global_runner_state_panel(env, tmp_path, "demo")
+
+    table_label = (
+        "Produced artifacts" if artifact_table == "produced" else "Consumed artifacts"
+    )
+    assert any(
+        kind == "error" and table_label in message and "removed_stage" in message
+        for kind, message in fake_st.messages
+    )
+    assert fake_st.session_state[metadata_key] == "keep-unsaved-editor"
+    assert source_path.read_bytes() == original_source
+    assert not (tmp_path / ".agilab" / "multi_app_dags").exists()
+    assert not (tmp_path / ".agilab" / "runner_state.json").exists()
 
 
 def _seed_minimal_builtin_app(repo_root: Path, app_name: str) -> None:
@@ -3175,10 +3328,22 @@ def test_project_preview_writer_rejects_stale_state_before_publishing_evidence(
 
 
 def test_dag_action_guidance_uses_execution_order_not_inspected_stage(monkeypatch, tmp_path):
-    state = {"units": [
-        {"id": "A", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "ready_input"}]},
-        {"id": "B", "dispatch_status": "runnable"},
-    ], "artifacts": [{"artifact": "ready_input", "status": "available"}]}
+    input_path = _write_global_runner_fixture_artifact(
+        tmp_path, "dag-ready-input.json", {"input_rows": 1}
+    )
+    state = {
+        "units": [
+            {
+                "id": "A",
+                "dispatch_status": "blocked",
+                "artifact_dependencies": [{"artifact": "ready_input"}],
+            },
+            {"id": "B", "dispatch_status": "runnable"},
+        ],
+        "artifacts": [
+            {"artifact": "ready_input", "status": "available", "path": input_path}
+        ],
+    }
     original = json.dumps(state)
     fake_st = _FakeStreamlit({"demo_global_runner_graph_stage": "B"})
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
@@ -3204,10 +3369,22 @@ def test_dag_run_actions_precede_optional_graph_and_keep_readiness_targets(
     from agi_web import python_ui
     from agi_web.testing import AppTest
 
-    state = {"units": [
-        {"id": "A", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "ready_input"}]},
-        {"id": "B", "dispatch_status": "runnable"},
-    ], "artifacts": [{"artifact": "ready_input", "status": "available"}]}
+    input_path = _write_global_runner_fixture_artifact(
+        tmp_path, "dag-ready-input.json", {"input_rows": 1}
+    )
+    state = {
+        "units": [
+            {
+                "id": "A",
+                "dispatch_status": "blocked",
+                "artifact_dependencies": [{"artifact": "ready_input"}],
+            },
+            {"id": "B", "dispatch_status": "runnable"},
+        ],
+        "artifacts": [
+            {"artifact": "ready_input", "status": "available", "path": input_path}
+        ],
+    }
     original = json.dumps(state)
     monkeypatch.setattr(pipeline_lab, "st", python_ui)
     engine = SimpleNamespace(
@@ -3715,6 +3892,12 @@ def test_global_runner_panel_saves_reloads_and_runs_executable_app_template(monk
     )
     monkeypatch.setattr(pipeline_lab, "st", fake_st)
     monkeypatch.setattr(pipeline_lab, "_repo_root_for_multi_app_dag", lambda: repo_root)
+    _register_global_runner_fixture_executor(
+        monkeypatch,
+        unit_id="alpha",
+        artifact_id="alpha_metrics",
+        artifact_path="alpha/metrics.json",
+    )
     env = SimpleNamespace(app="alpha_project", target="alpha_project")
     lab_dir = tmp_path / "lab"
 

@@ -4021,17 +4021,21 @@ def _render_global_runner_state_panel(
                 width="stretch",
             )
 
-        visual_payload = _multi_app_dag_payload_from_visual_editor(
-            base_payload,
-            dag_id=dag_id,
-            label=label,
-            description=description,
-            nodes_value=nodes_value,
-            produces_value=produces_value,
-            consumes_value=consumes_value,
-            edges_value=edges_value,
-            controlled_contract_execution=controlled_contract_enabled,
-        )
+        try:
+            visual_payload = _multi_app_dag_payload_from_visual_editor(
+                base_payload,
+                dag_id=dag_id,
+                label=label,
+                description=description,
+                nodes_value=nodes_value,
+                produces_value=produces_value,
+                consumes_value=consumes_value,
+                edges_value=edges_value,
+                controlled_contract_execution=controlled_contract_enabled,
+            )
+        except ValueError as exc:
+            st.error(str(exc))
+            return
         editor_text = json.dumps(visual_payload, indent=2) + "\n"
 
         show_json_preview = st.checkbox(
