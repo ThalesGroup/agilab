@@ -68,8 +68,9 @@ scope limit.
 
 ## Documentation and release truth
 
-- Canonical docs are authored in the sibling `thales_agilab/docs/source` tree
-  and mirrored into `agilab/docs/source` with a stamp.
+- Public documentation is independently authored in this checkout's
+  `docs/source`; its stamp validates local integrity. Private/external docs
+  must not be discovered, copied, built, or published through public tooling.
 - Public claims must match current release proof, package split, changelog,
   PyPI/GitHub release evidence, and Hugging Face/docs publication state.
 - Do not present roadmap items as shipped capabilities.

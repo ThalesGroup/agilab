@@ -2,6 +2,8 @@
 name: svg-diagram-tuning
 description: Repair one existing SVG without redesigning its meaning. Use for targeted readability defects such as cropped text, crowded blocks, stale connector anchors, unclear arrows, or overlapping labels; use svg-diagrams to create a simple new figure, scientific-svg-figures for substantial publication-grade figure work, and advanced-svg-system-design for a reusable figure family.
 license: BSD-3-Clause (see repo LICENSE)
+metadata:
+  updated: 2026-10-14
 ---
 
 # SVG Diagram Tuning
@@ -136,8 +138,11 @@ blob/raw page:
 
 ## AGILAB Workflow
 
-1. Edit the canonical SVG under `../thales_agilab/docs/source`.
-2. Sync the mirrored SVG under `agilab/docs/source` when the page is public.
+1. Edit the SVG under this public checkout's independently owned `docs/source`.
+   Reject private/external documentation sources; do not copy sibling docs.
+2. Refresh the local docs integrity stamp after the source changes are stable,
+   using `tools/sync_docs_source.py --apply --delete` from this checkout. Its
+   default source and target are local `docs/source`; it imports no external docs.
 3. Validate the edited SVG as XML before rebuilding docs.
 4. Check the `.rst` page that references the figure so path changes do not break
    the published page.

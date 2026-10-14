@@ -24,13 +24,13 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   regression run, `test` for targeted `pytest -q`, `regress` for GA-selected fast regression subsets,
   `builtin-app-tests` for app-local built-in app pytest suites, `flow` for one or more workflow
   parity profiles, `badge` for the explicit release/pre-release coverage-badge guard, and `docs`
-  for docs mirror sync plus stamp verification. `impact` tells you
+  for public docs integrity stamp refresh and verification. `impact` tells you
   what must be validated, `test` runs the narrow pytest slice, `bugfix` is the default low-load
   pre-push loop for normal code fixes, `regress` optimizes a likely regression subset from changed
   files and optional JUnit timings, `builtin-app-tests` runs each built-in app's tests inside that
   app's own `uv --project .` environment with pytest importlib collection, `flow` matches local
   GitHub workflow profiles, `badge` checks badge freshness when intentionally requested, and `docs`
-  keeps the public mirror aligned. Add `--print-only` to inspect the expanded commands.
+  verifies this checkout's public source integrity. Add `--print-only` to inspect the expanded commands.
 - **Run config parity**: after editing `.idea/runConfigurations/*.xml`, regenerate wrappers:
   - `uv --preview-features extra-build-dependencies run python tools/generate_runconfig_scripts.py`
 - **PyCharm source-root switching**: the JetBrains SDK named `uv (agilab)` is global and
@@ -118,7 +118,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   - whether installer repros are mandatory
   - whether generated artifacts must be refreshed
 - **Diff-aware pre-push guards**: keep `git config core.hooksPath .githooks` enabled. The hook
-  uses `tools/pre_push_changed_files.py` to run docs mirror checks only for docs mirror inputs,
+  uses `tools/pre_push_changed_files.py` to run public docs integrity checks only for docs inputs,
   release-proof checks only for release-proof inputs, and agent-instruction contract checks only
   for AGENTS/runbook/skill/discovery inputs. If classification fails, it runs all local guards.
   Coverage badge freshness remains an explicit `./dev badge` or release/pre-release check.
@@ -162,13 +162,14 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
   should challenge root cause, regression chain, blast radius, security risk, and test coverage. If no stronger
   model is available in the current environment, state that explicitly and still perform the normal local review
   and validation path.
-- **Docs source of truth**: edit docs in the sibling repo
-  `../thales_agilab/docs/source` relative to the active AGILAB checkout.
+- **Docs source of truth**: edit this public checkout's independently owned
+  `docs/source`. Reject private/external documentation sources; do not discover
+  sibling docs automatically or copy them into public builds or publication.
 - **Generated docs in this repo**: treat `docs/html` (including `docs/html/_sources`)
   as build output only. Do not hand-edit files in `docs/html`; always edit source
-  first and regenerate from `../thales_agilab/docs/source`.
-  - Canonical rebuild command:
-    `uv --preview-features extra-build-dependencies run --project ../thales_agilab --group sphinx python -m sphinx -b html ../thales_agilab/docs/source docs/html`
+  first and regenerate from this checkout's `docs/source`.
+  - Public docs validation/build command:
+    `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
 - **Python view API**: retained views import `agi_web.python_ui`, typically as `st`; use `st.rerun()`. Do not introduce Streamlit imports. Native view tests use `agi_web.testing.AppTest`; direct views run through `python -m agi_web.react_python_host VIEW.py --address 127.0.0.1`, with view arguments after `--`.
 - **No silent fallbacks**: avoid runtime “auto-fallbacks” between API clients or parameter rewrites; fail fast with actionable errors.
 - **Generated WORKFLOW code**: keep safe-action contracts as the default assistant path for
@@ -187,8 +188,8 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 - **Repository update requests**: when the user asks to "update repos", "sync repos", or similar,
   first show the exact command plan before executing it. The plan should be a fenced `bash` block
   with concrete `git -C <repo>` commands for each targeted checkout. In AGILAB maintenance, the
-  default target set is the active `agilab` checkout plus the sibling `../thales_agilab` canonical
-  docs/apps checkout when it exists; include both in the printed plan or explicitly say why one is
+  default target set is the active `agilab` checkout plus the sibling `../thales_agilab`
+  private docs/apps checkout when it exists; include both in the printed plan or explicitly say why one is
   missing, unsafe, or out of scope. Use the fast path by default:
   `status --porcelain=v1 --untracked-files=no`, `fetch --prune`, `rev-list --left-right --count
   HEAD...@{u}`, then `merge --ff-only @{u}` only for repos that are actually behind. This avoids a

@@ -123,9 +123,9 @@ INTENT_RULES = (
     IntentRule(
         "docs_alignment",
         ("doc aligned", "docs aligned", "screenshot", "link added", "published docs"),
-        "canonical_docs_then_mirror",
+        "public_docs_validate",
         ("agilab-docs",),
-        "Edit canonical thales_agilab docs first, sync AGILAB mirror, validate stamp/build, then publish if requested.",
+        "Edit this public checkout's docs/source, validate its integrity stamp and local build, then publish if requested. Reject external and private documentation sources.",
     ),
     IntentRule(
         "cluster_validation",

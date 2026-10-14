@@ -103,9 +103,9 @@
           ],
           "commands": [
             "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-target-integrity --quiet",
-            "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete --skip-missing-source"
+            "uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --check --delete"
           ],
-          "why": "Route public wording through docs source discipline and evidence-boundary checks. The first command always verifies target integrity; in public-only clones the second reports that canonical drift was not checked, while a configured canonical source also enforces source-to-mirror equality."
+          "why": "Verify target integrity and validate the public checkout's independently owned docs/source. External and private documentation sources are rejected before reading or copying files."
         },
         "release-publication": {
           "token_budget": 2600,
@@ -221,8 +221,7 @@
         "README.md",
         "README.pypi.md",
         "SECURITY.md",
-        "docs/source/**",
-        "../thales_agilab/docs/source/**"
+        "docs/source/**"
       ],
       "terms": [
         "doc",
@@ -235,7 +234,7 @@
         "agilab-docs",
         "agilab-evidence-contracts"
       ],
-      "reason": "Public wording and docs mirror changes need source-of-truth discipline and evidence-boundary checks."
+      "reason": "Public wording and locally owned documentation need source-of-truth discipline and evidence-boundary checks."
     },
     {
       "id": "release-publication",

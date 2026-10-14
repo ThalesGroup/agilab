@@ -20,6 +20,18 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
     path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
 
 
+def test_docs_intent_keeps_public_sources_independently_owned() -> None:
+    rule = next(
+        rule for rule in module._classify("check published docs")
+        if rule.intent == "docs_alignment"
+    )
+
+    assert rule.mode == "public_docs_validate"
+    assert "this public checkout's docs/source" in rule.behavior
+    assert "Reject external and private documentation sources" in rule.behavior
+    assert "thales_agilab" not in rule.behavior
+
+
 def test_session_intent_synthesis_classifies_sessions_and_redacts_tokens(tmp_path: Path) -> None:
     sessions_root = tmp_path / "sessions"
     memory_root = tmp_path / "memories"

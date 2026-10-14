@@ -1060,26 +1060,15 @@ def test_badge_guard_shortcut_uses_changed_only_fresh_xml_defaults():
     ]
 
 
-def test_docs_shortcut_syncs_and_verifies_mirror():
+def test_docs_shortcut_verifies_public_tree_without_importing_private_docs():
     assert agilab_dev.planned_commands(["docs"]) == [
         [
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "run",
-            "python",
-            "tools/sync_docs_source.py",
-            "--apply",
-            "--delete",
+            "uv", "--preview-features", "extra-build-dependencies", "run",
+            "python", "tools/sync_docs_source.py", "--apply", "--delete",
         ],
         [
-            "uv",
-            "--preview-features",
-            "extra-build-dependencies",
-            "run",
-            "python",
-            "tools/sync_docs_source.py",
-            "--verify-stamp",
+            "uv", "--preview-features", "extra-build-dependencies", "run",
+            "python", "tools/sync_docs_source.py", "--verify-target-integrity",
         ],
     ]
 

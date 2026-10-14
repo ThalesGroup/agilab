@@ -24,6 +24,57 @@ def _load_module():
     return module
 
 
+def test_license_inventory_default_ignores_private_sibling(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    checkout = tmp_path / "agilab"
+    public_source = checkout / "docs" / "source"
+    private_source = tmp_path / "thales_agilab" / "docs" / "source"
+    public_source.mkdir(parents=True)
+    private_source.mkdir(parents=True)
+    private_inventory = private_source / "license.rst"
+    private_inventory.write_text("Private license inventory must remain untouched.\n")
+    monkeypatch.setattr(module, "ROOT", checkout)
+    monkeypatch.setenv("AGILAB_DOCS_SOURCE", str(private_source))
+    monkeypatch.setenv("DOCS_REPOSITORY", str(private_source.parent.parent))
+    destinations = []
+
+    def capture_generate(docs_source, **kwargs):
+        destinations.append(docs_source)
+        return 0
+
+    monkeypatch.setattr(module, "generate", capture_generate)
+
+    assert module._default_docs_source() == public_source
+    assert module.main([]) == 0
+    assert destinations == [public_source]
+    assert private_inventory.read_text() == "Private license inventory must remain untouched.\n"
+
+
+@pytest.mark.parametrize("destination", ["thales_agilab", "external-docs"])
+@pytest.mark.parametrize("mode", [[], ["--check"], ["--preserve-existing-snapshot", "2026-10-04"]])
+def test_license_inventory_cli_rejects_external_docs(
+    tmp_path: Path, monkeypatch, destination: str, mode: list[str]
+) -> None:
+    module = _load_module()
+    checkout = tmp_path / "agilab"
+    public_source = checkout / "docs" / "source"
+    external_source = tmp_path / destination / "docs" / "source"
+    public_source.mkdir(parents=True)
+    external_source.mkdir(parents=True)
+    inventory = external_source / "license.rst"
+    inventory.write_text("Existing inventory.\n")
+    monkeypatch.setattr(module, "ROOT", checkout)
+
+    def reject_generate(*args, **kwargs):
+        pytest.fail("External docs must be rejected before generation or snapshot inspection.")
+
+    monkeypatch.setattr(module, "generate", reject_generate)
+
+    with pytest.raises(ValueError, match="this checkout's docs/source"):
+        module.main(["--docs-source", str(external_source), *mode])
+    assert inventory.read_text() == "Existing inventory.\n"
+
+
 def test_license_inventory_specs_follow_package_split_contract() -> None:
     module = _load_module()
 
@@ -111,6 +162,15 @@ def test_historical_snapshot_preserves_tables_without_resolution(tmp_path: Path,
     module = _load_module()
     specs = module.inventory_specs(ROOT)
     spec = specs[0]
+    checkout = tmp_path / "agilab"
+    docs_source = checkout / "docs" / "source"
+    docs_source.mkdir(parents=True)
+    manifests = tuple(checkout / path.relative_to(ROOT) for path in spec.manifests)
+    for original_manifest, fixture_manifest in zip(spec.manifests, manifests, strict=True):
+        fixture_manifest.parent.mkdir(parents=True, exist_ok=True)
+        fixture_manifest.write_bytes(original_manifest.read_bytes())
+    spec = module.InventorySpec(package=spec.package, manifests=manifests, extras=spec.extras)
+    monkeypatch.setattr(module, "ROOT", checkout)
     monkeypatch.setattr(module, "inventory_specs", lambda root: (spec,))
     def reject_resolution(*args):
         pytest.fail("Snapshot retention must not run licensecheck or resolve dependencies.")
@@ -122,15 +182,15 @@ def test_historical_snapshot_preserves_tables_without_resolution(tmp_path: Path,
             {"name": "numpy", "version": "2.3.5", "license": "BSD"},
         ],
     })
-    inventory = tmp_path / spec.output_name
+    inventory = docs_source / spec.output_name
     inventory.write_text(original, encoding="utf-8")
-    legacy = tmp_path / "old-package-licenses.md"
+    legacy = docs_source / "old-package-licenses.md"
     legacy.write_text(original, encoding="utf-8")
     day = date(2026, 10, 4)
-    assert module.generate(tmp_path, check=True, retained_on=day) == 1
+    assert module.generate(docs_source, check=True, retained_on=day) == 1
     assert inventory.read_text() == original
     assert module.main([
-        "--docs-source", str(tmp_path), "--preserve-existing-snapshot", str(day)
+        "--docs-source", str(docs_source), "--preserve-existing-snapshot", str(day)
     ]) == 0
     updated = inventory.read_text()
     assert updated.split("| Package Name |", 1)[1] == original.split("| Package Name |", 1)[1]
@@ -140,15 +200,15 @@ def test_historical_snapshot_preserves_tables_without_resolution(tmp_path: Path,
     assert "Source manifests:" not in updated
     assert legacy.read_text().split("| Package Name |", 1)[1] == original.split("| Package Name |", 1)[1]
     assert "Historical dependency metadata snapshot" in legacy.read_text()
-    index = (tmp_path / "license.rst").read_text()
+    index = (docs_source / "license.rst").read_text()
     assert "Historical Python dependency snapshots" in index
     assert "tools/generate_docs_license_inventories.py --preserve-existing-snapshot 2026-10-04" in index
     assert "A current resolved license inventory for the native source is not available here." in index
     assert "The dependency inventories are generated" not in index
     assert "Additional historical snapshots" in index
     assert "   old-package-licenses" in index
-    assert module.generate(tmp_path, check=True, retained_on=day) == 0
-    assert module.generate(tmp_path, retained_on=day) == 0
+    assert module.generate(docs_source, check=True, retained_on=day) == 0
+    assert module.generate(docs_source, retained_on=day) == 0
     assert inventory.read_text() == updated
 
 

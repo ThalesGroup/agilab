@@ -83,7 +83,8 @@ cluster assumptions, CI workflow coverage, and missing regression tests.
 
 ## Packaging, docs, and release posture
 
-Cover wheel surface, optional extras, generated artifacts, docs/public mirror,
+Cover wheel surface, optional extras, generated artifacts, independently owned
+public docs source and local integrity stamp,
 changelog/public claims, release proof, PyPI/GitHub/Hugging Face evidence, and
 version alignment.
 

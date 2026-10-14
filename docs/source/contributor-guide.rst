@@ -75,7 +75,7 @@ Use the smallest command that proves your change:
    * - Root docs only
      - ``git diff --check``
    * - Sphinx docs source
-     - ``uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`` after maintainer sync
+     - ``./dev docs`` after editing this checkout's public ``docs/source``
    * - Workflow parity
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>``
    * - Skill catalog

@@ -3,7 +3,7 @@ name: agilab-huggingface-spaces
 description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-13
+  updated: 2026-10-14
 ---
 
 # Hugging Face Spaces Skill (AGILAB)
@@ -389,12 +389,16 @@ temporary worktree until runtime cutover, Space smoke, release proof refresh,
 and public docs verification have passed.
 
 If this deployment is part of a release, update release proof with the live
-Space commit after the package examples smoke and Space smoke pass, then sync
-and push both docs repos:
+Space commit after the package examples smoke and Space smoke pass. Edit the
+public checkout's own release proof and refresh its local docs integrity stamp;
+do not copy private docs or push a private docs repository for public evidence.
+The narrowly reviewed `thales_agilab/huggingface` export bundle remains the
+Space packaging source; it does not authorize private docs exports or private
+Git ancestry in public staging.
 
 ```bash
 uv --preview-features extra-build-dependencies run python tools/release_proof_report.py \
-  --docs-source ../thales_agilab/docs/source \
+  --docs-source docs/source \
   --refresh-from-local \
   --github-release-tag <tag> \
   --github-release-url "https://github.com/ThalesGroup/agilab/releases/tag/<tag>" \
@@ -404,20 +408,23 @@ uv --preview-features extra-build-dependencies run python tools/release_proof_re
   --check-github-runs \
   --compact
 uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
-  --source ../thales_agilab/docs/source \
-  --target docs/source \
-  --apply \
-  --delete
+  --refresh-target-integrity-stamp
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --verify-stamp
 ```
 
-If the release tag changed, also refresh the canonical docs index release link
-before the mirror sync:
+If the release tag changed, also refresh this public checkout's docs index
+release link, then validate the docs and refresh their local integrity stamp:
 
 ```bash
 uv --preview-features extra-build-dependencies run python - <<'PY'
 from tools import pypi_publish
 pypi_publish.update_docs_index_release_link("v<release>")
 PY
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --apply --delete
+uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py \
+  --verify-stamp
 ```
 
 Do not call the release fully synced until `runtime.stage` is `RUNNING`, the

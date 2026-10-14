@@ -22,6 +22,14 @@ def _load_module():
     return module
 
 
+def _public_docs_source(module, tmp_path: Path) -> Path:
+    """Give transactional CLI fixtures an actual public checkout source."""
+    module.REPO_ROOT = tmp_path / "public-repo"
+    source = module.REPO_ROOT / "docs" / "source"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    return source
+
+
 def _write_stamp_payload(module, target: Path, payload: dict[str, object]) -> Path:
     stamp_path = module.stamp_path_for_target(target)
     stamp_path.write_text(
@@ -133,12 +141,12 @@ def test_configured_canonical_source_honors_relative_agilab_docs_source(
     repo_root = tmp_path / "public-repo"
     repo_root.mkdir()
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv(module.DOCS_SOURCE_ENV, "canonical-docs")
+    monkeypatch.setenv(module.DOCS_SOURCE_ENV, "docs/source")
     monkeypatch.setenv(module.DOCS_REPOSITORY_ENV, "ignored-docs-repository")
 
     configuration = module.canonical_source_configuration(repo_root)
 
-    assert configuration.path == (repo_root / "canonical-docs").resolve()
+    assert configuration.path == (repo_root / "docs/source").resolve()
     assert configuration.origin == f"env:{module.DOCS_SOURCE_ENV}"
     assert configuration.required is True
 
@@ -151,19 +159,19 @@ def test_configured_canonical_source_resolves_relative_docs_repository(
     repo_root = tmp_path / "public-repo"
     repo_root.mkdir()
     monkeypatch.delenv(module.DOCS_SOURCE_ENV, raising=False)
-    monkeypatch.setenv(module.DOCS_REPOSITORY_ENV, "../canonical-repo")
+    monkeypatch.setenv(module.DOCS_REPOSITORY_ENV, ".")
 
     configuration = module.canonical_source_configuration(repo_root)
 
     assert (
         configuration.path
-        == (repo_root / "../canonical-repo" / "docs" / "source").resolve()
+        == (repo_root / "docs" / "source").resolve()
     )
     assert configuration.origin == f"env:{module.DOCS_REPOSITORY_ENV}"
     assert configuration.required is True
 
 
-def test_default_canonical_source_uses_primary_checkout_for_linked_worktree(
+def test_default_canonical_source_uses_current_public_worktree(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -183,9 +191,9 @@ def test_default_canonical_source_uses_primary_checkout_for_linked_worktree(
 
     configuration = module.canonical_source_configuration(linked_worktree)
 
-    assert configuration.path == projects / "thales_agilab" / "docs" / "source"
-    assert configuration.origin == "default"
-    assert configuration.required is False
+    assert configuration.path == linked_worktree / "docs" / "source"
+    assert configuration.origin == "public-checkout"
+    assert configuration.required is True
 
 
 def test_build_manifest_excludes_only_public_owned_docs_artifacts(
@@ -381,6 +389,52 @@ def test_apply_delete_preserves_public_owned_artifacts_and_manages_adjacent_data
     assert not (target / "data" / "stale.json").exists()
 
 
+@pytest.mark.parametrize("proof_drift", [False, True])
+def test_public_docs_apply_preserves_stamped_release_proof(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+    proof_drift: bool,
+) -> None:
+    module = _load_module()
+    source = _public_docs_source(module, tmp_path)
+    source.mkdir()
+    monkeypatch.setattr(module, "DEFAULT_TARGET", source)
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
+    monkeypatch.delenv("DOCS_REPOSITORY", raising=False)
+    guide = source / "guide.rst"
+    guide.write_text("guide\n", encoding="utf-8")
+    release_proof = source / "data/release_proof.toml"
+    release_proof.parent.mkdir()
+    release_proof.write_text("[release]\n", encoding="utf-8")
+    stamp_path = module.write_target_only_mirror_stamp(source)
+    stamp_before = stamp_path.read_bytes()
+    guide.write_text("Updated public docs\n", encoding="utf-8")
+    if proof_drift:
+        release_proof.write_text("[release]\nversion = 2\n", encoding="utf-8")
+
+    exit_code = module.main(["--apply", "--delete", "--quiet"])
+
+    if proof_drift:
+        assert exit_code == 1
+        assert "data/release_proof.toml" in capsys.readouterr().err
+        assert stamp_path.read_bytes() == stamp_before
+        assert module.main(["--write-target-only-stamp", "--quiet"]) == 0
+    else:
+        assert exit_code == 0
+        payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+        previous_payload = json.loads(stamp_before)
+        assert (
+            payload["public_owned_files_sha256"]
+            == previous_payload["public_owned_files_sha256"]
+        )
+        assert (
+            payload["target_digest_sha256"]
+            != previous_payload["target_digest_sha256"]
+        )
+    assert module.verify_target_mirror_integrity(source)[0]
+
+
 def test_public_owned_artifact_changes_do_not_change_managed_digest(
     tmp_path: Path,
 ) -> None:
@@ -509,7 +563,7 @@ def test_transactional_snapshot_preserves_canonical_path_spelling(
 
 def test_main_check_and_apply_modes(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -549,7 +603,7 @@ def test_apply_without_delete_fails_before_mutating_target_or_stamp(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -790,7 +844,7 @@ def test_live_source_change_after_snapshot_rolls_back_target_and_stamp(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1165,7 +1219,7 @@ def test_source_mutation_during_snapshot_fails_before_target_mutation(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1229,20 +1283,12 @@ def test_main_missing_configured_source_fails_even_with_skip_missing_source(
     monkeypatch.delenv(module.DOCS_REPOSITORY_ENV, raising=False)
     monkeypatch.setenv(configured_environment, str(missing_source))
 
-    exit_code = module.main(
-        [
-            "--target",
-            str(target),
-            "--verify-stamp",
-            "--skip-missing-source",
-            "--quiet",
-        ]
-    )
-
-    assert exit_code == 1
-    output = capsys.readouterr().out
-    assert "configured canonical docs source not found" in output
-    assert f"env:{configured_environment}" in output
+    with pytest.raises(SystemExit) as error:
+        module.main(
+            ["--target", str(target), "--verify-stamp", "--skip-missing-source", "--quiet"]
+        )
+    assert error.value.code == 2
+    assert "external and private" in capsys.readouterr().err
 
 
 def test_main_unconfigured_missing_source_allows_explicit_degraded_mode(
@@ -1299,7 +1345,7 @@ def test_main_unconfigured_missing_source_allows_explicit_degraded_mode(
 
 def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1325,7 +1371,7 @@ def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
 
 def test_verify_stamp_detects_canonical_source_drift(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1385,20 +1431,9 @@ def test_main_rejects_overlapping_source_and_target_before_mutation(
     target_file = target / "existing.rst"
     target_file.write_text("target\n", encoding="utf-8")
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--apply",
-            "--delete",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(ValueError, match="same directory or overlap"):
+        module._ensure_disjoint_directories(source, target)
 
-    assert exit_code == 1
-    assert "same directory or overlap" in capsys.readouterr().err
     assert canonical.read_text(encoding="utf-8") == "canonical\n"
     assert target_file.read_text(encoding="utf-8") == "target\n"
     assert not module.stamp_path_for_target(target).exists()
@@ -1420,7 +1455,7 @@ def test_target_only_stamp_requires_separate_canonical_alignment_check(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1487,7 +1522,7 @@ def test_refresh_target_integrity_stamp_preserves_verified_evidence_for_exclusio
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1545,12 +1580,74 @@ def test_release_refresh_refuses_unrelated_ui_robot_evidence_change(
     assert ok is False
 
 
+@pytest.mark.parametrize(
+    "other_drift", [None, "guide.rst", "data/release_proof.toml"]
+)
+def test_ui_robot_evidence_refresh_supports_authoritative_public_docs(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+    other_drift: str | None,
+) -> None:
+    module = _load_module()
+    source = _public_docs_source(module, tmp_path)
+    source.mkdir()
+    monkeypatch.setattr(module, "DEFAULT_TARGET", source)
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
+    monkeypatch.delenv("DOCS_REPOSITORY", raising=False)
+    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    evidence = source / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.parent.mkdir(parents=True)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence(run_id="1")), encoding="utf-8"
+    )
+    (source / "data/release_proof.toml").write_text(
+        "[release]\n", encoding="utf-8"
+    )
+    stamp_path = module.write_target_only_mirror_stamp(source)
+    stamp_before = stamp_path.read_bytes()
+    payload_before = json.loads(stamp_before)
+    evidence.write_text(
+        json.dumps(_passing_ui_robot_evidence(run_id="2")), encoding="utf-8"
+    )
+    if other_drift:
+        (source / other_drift).write_text("changed\n", encoding="utf-8")
+
+    exit_code = module.main(["--refresh-ui-robot-evidence-stamp", "--quiet"])
+
+    if other_drift:
+        assert exit_code == 1
+        message = capsys.readouterr().err
+        if other_drift == "guide.rst":
+            assert "refusing to re-baseline changed managed docs" in message
+        else:
+            assert other_drift in message
+        assert stamp_path.read_bytes() == stamp_before
+        return
+    assert exit_code == 0
+    payload = json.loads(stamp_path.read_text(encoding="utf-8"))
+    assert payload["source_status"] == "unavailable"
+    assert payload["source_digest_sha256"] is None
+    assert payload["target_digest_sha256"] == payload_before["target_digest_sha256"]
+    before_files = payload_before["public_owned_files_sha256"]
+    after_files = payload["public_owned_files_sha256"]
+    assert (
+        before_files["data/release_proof.toml"]
+        == after_files["data/release_proof.toml"]
+    )
+    assert (
+        before_files[module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED]
+        != after_files[module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED]
+    )
+    assert module.verify_target_mirror_integrity(source)[0]
+
+
 def test_ui_robot_evidence_refresh_rebaselines_only_existing_ui_evidence(
     tmp_path: Path,
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1746,7 +1843,7 @@ def test_ui_robot_evidence_refresh_refuses_other_public_owned_drift(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1783,7 +1880,7 @@ def test_ui_robot_evidence_refresh_refuses_canonical_source_drift(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1849,7 +1946,7 @@ def test_refresh_target_integrity_stamp_refuses_changed_managed_target(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1937,8 +2034,6 @@ def test_target_only_stamp_still_detects_target_mutation(
 
     exit_code = module.main(
         [
-            "--source",
-            str(tmp_path / "missing-source"),
             "--target",
             str(target),
             "--verify-stamp",
@@ -1952,7 +2047,7 @@ def test_target_only_stamp_still_detects_target_mutation(
 
 def test_verify_stamp_detects_unmanaged_edit(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -1985,8 +2080,6 @@ def test_verify_stamp_reports_missing_stamp(tmp_path: Path, capsys) -> None:
 
     exit_code = module.main(
         [
-            "--source",
-            str(tmp_path / "source"),
             "--target",
             str(target),
             "--verify-stamp",
@@ -2265,7 +2358,7 @@ def test_apply_does_not_bootstrap_missing_target_through_symlinked_ancestor(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "canonical"
+    source = _public_docs_source(module, tmp_path)
     repo = tmp_path / "repo"
     outside = tmp_path / "outside"
     source.mkdir()
@@ -2299,7 +2392,7 @@ def test_full_apply_refuses_to_rebaseline_tampered_ui_evidence(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
@@ -2979,7 +3072,7 @@ def test_check_mode_rejects_source_change_during_planning(
     capsys,
 ) -> None:
     module = _load_module()
-    source = tmp_path / "source"
+    source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()

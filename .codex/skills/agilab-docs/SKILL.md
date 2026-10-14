@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-06-24
+  updated: 2026-10-14
 ---
 
 # Docs Skill (AGILAB)
@@ -12,20 +12,23 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 
 ## Source Of Truth
 
-- Canonical editable docs source is `../thales_agilab/docs/source`.
-- The public Pages workflow in `agilab` currently builds from the mirrored
-  `docs/source` tree in this repo, so that mirror must be kept in sync with the
-  canonical source for published pages to stay correct.
-- Three exact paths form a public-owned release-evidence enclave and are not
-  copied from the private source: `data/release_proof.toml`,
-  `release-proof.rst`, and `data/ui_robot_evidence.json`. Generate and validate
-  those files only in the public `agilab` repository. The private page at the
-  same `release-proof.rst` path is an intentionally excluded pointer, not the
-  source for the public proof.
-- Refresh the public mirror with
+- The public checkout independently owns its editable `docs/source` tree.
+  Public Pages and local docs builds use that tree.
+- Do not discover, copy, sync, or build public docs from private
+  `thales_agilab/docs/source`, another checkout, or another external source.
+  Any docs source selected by `AGILAB_DOCS_SOURCE`, `DOCS_REPOSITORY`, or an
+  explicit source argument must resolve to this checkout's own `docs/source`;
+  external/private values are rejected before their contents are inspected.
+- Generate and validate release/UI evidence in this public checkout:
+  `data/release_proof.toml`, `release-proof.rst`, and
+  `data/ui_robot_evidence.json` retain their dedicated owner validators.
+- Refresh the public tree's integrity stamp with
   `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`.
-  The generated stamp `docs/.docs_source_mirror_stamp.json` is part of the mirror
-  contract and must not be edited by hand.
+  The source and target default to this checkout's `docs/source`; this command
+  stamps the local tree without importing another source. The historical stamp
+  filename `docs/.docs_source_mirror_stamp.json` is retained by contract and
+  must not be edited by hand. A valid stamp proves local integrity; it does not
+  attest synchronization with private or external docs.
 - `docs/html` in this repo is generated output only (including `docs/html/_sources`).
 - Never hand-edit files under `docs/html`.
 - Do not change visible page labels directly in `docs/html` without regenerating from
@@ -33,41 +36,37 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 
 ## Required Workflow (No Direct `docs/html` Edits)
 
-1. Edit the canonical source file under `../thales_agilab/docs/source`.
-   For one of the three public-owned release-evidence paths above, edit or
-   regenerate the public file instead and run its dedicated proof validator.
-2. Sync the public mirror from the AGILAB repo root:
+1. Edit the source file under this checkout's `docs/source`.
+   For release/UI evidence, edit or regenerate the public file and run its
+   dedicated proof validator.
+2. Refresh the local integrity stamp from the AGILAB repo root:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
 3. If the change touches an SVG diagram, validate the SVG as XML, render a local
    preview at the intended docs width, and confirm the referencing `.rst` page
    still points to the intended file. Treat the source SVG, surrounding wording,
-   captions, alt text, mirrored public copy, and rendered page as one alignment
+   captions, alt text, and rendered page as one alignment
    unit. Do not rely on XML validity alone; inspect the rendered preview for
    clipped text, overlong labels, hidden cards, and unreadable feedback arrows.
 4. If the change touches visible UI behavior, page labels, screenshots, GIFs, or
    screenshot-derived diagrams, refresh the corresponding source screenshot
-   assets in the canonical docs tree in the same change. Update captions, alt
-   text, and `.rst` references together; sync the mirror; and inspect the
+   assets in `docs/source` in the same change. Update captions, alt
+   text, and `.rst` references together; refresh the integrity stamp; and inspect the
    rendered page so stale labels, duplicate sidebars, old workflow names, or
    outdated screenshots cannot remain in public docs. Do not hand-edit generated
    `docs/html/_images` or copied Sphinx outputs.
-5. Validate the mirror stamp before committing:
+5. Validate the local integrity stamp before committing:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
-   A verified stamp proves canonical equality only when the canonical source is
-   available. Public CI may validate target integrity with
-   `--skip-missing-source`, but its mandatory warning means canonical drift was
-   not checked. A release refresh may write an explicit target-only stamp; it
-   must use `source_status = unavailable` and must never claim canonical sync.
+   Use the checkout-local default source. Do not provide a private/external
+   source or bypass its rejection to obtain a passing check.
 6. Rebuild or run the docs profile when the rendered page matters:
    `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
-7. Verify the change exists in both:
-   - `../thales_agilab/docs/source/<file>`
-   - `docs/source/<file>` when it is part of the public mirror
+7. Verify the change exists in:
+   - this checkout's `docs/source/<file>`
    - the locally rendered HTML output when a build was run
 8. Validate the rendered public page after publish. Prefer checking the HTML page
    that embeds the figure, not a guessed raw asset URL.
 9. During an SVG tuning loop, do not publish every micro-retouch. Publish only after
-   the local region is stable and both canonical + mirror copies are committed.
+   the local region is stable and the public source changes are committed.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
@@ -75,33 +74,32 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 
 - The Pages workflow currently builds `docs/html` from `docs/source` in the
   `agilab` repo.
-- That means updating only `../thales_agilab/docs/source` is not sufficient for
-  public publication; refresh `agilab/docs/source` with `tools/sync_docs_source.py`
-  so the mirror stamp stays valid.
-- The public release-evidence enclave is deliberately different: private mirror
-  sync must preserve it, and `tools/release_proof_report.py --check` remains its
-  independent public owner guard.
+- Edit this checkout's `docs/source` and refresh its integrity stamp with
+  `tools/sync_docs_source.py`; another repository's documentation cannot supply
+  public publication inputs.
+- `tools/release_proof_report.py --check` remains the independent public
+  release-proof owner guard.
 - Figures referenced by Sphinx may be copied to `_images/` in the built site, so a
   raw URL such as `/diagrams/foo.svg` can legitimately return `404` even when the
   published page is correct.
 - For a mismatch report (old labels still visible online), check:
-  1. source in `../thales_agilab/docs/source` is updated,
-  2. the mirrored file in `../agilab/docs/source` and the mirror stamp were refreshed,
-  3. `../agilab/docs/html` has been regenerated locally for validation,
+  1. this checkout's `docs/source` is updated,
+  2. the local integrity stamp was refreshed and verified,
+  3. this checkout's `docs/html` has been regenerated locally for validation,
   4. a publish/redeploy has been triggered after the commit (push to the branch path
      watched by `docs-publish.yaml`).
-- Keep a habit of validating one canonical page after publish:
+- Keep a habit of validating one public page after publish:
   - confirm `https://thalesgroup.github.io/agilab/agilab-help.html` and sibling pages
     show the new text.
 
 ## Commit Guardrail
 
-- Do stage/commit mirrored `docs/source/**` updates and
+- Do stage/commit public `docs/source/**` updates and
   `docs/.docs_source_mirror_stamp.json` in `agilab` when a public page depends on
   the change.
-- For the three public-owned proof paths, stage the regenerated public files and
-  an explicit target-only stamp when the canonical checkout is unavailable;
-  never copy the private pointer or private snapshots over them.
+- For the three public-owned evidence paths, stage the validated generated
+  public files and refresh the local stamp with the appropriate owner workflow.
+  Never copy private snapshots over public documentation or evidence.
 - Do not stage or commit `docs/html/**`; it is generated local output and should
   remain outside commits.
 - If `docs/html/**` was modified by a local build, leave it unstaged or clean the
@@ -118,7 +116,7 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
 - Release-proof and install-proof docs that execute the packaged first proof
   should use `agilab[examples]`, not bare `agilab`, because the base package is
   intentionally lean while the demo proof depends on packaged example payloads.
-  When changing this command, update canonical docs, the public mirror, and any
+  When changing this command, update public `docs/source` and any
   compatibility/report guard that asserts the proof command.
 - Keep examples generic and refer to “external apps repository” rather than naming private app modules.
 - Public examples should teach the current public API shape. Prefer exported
@@ -132,12 +130,12 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   AGILAB UI or distributed runtime is not used.
 - When updating public examples, add or refresh a stale-snippet grep/test for the
   old pattern so outdated snippets do not reappear in README, `docs/source`,
-  canonical docs, or Hugging Face copy.
+  or the reviewed Hugging Face export copy.
 - Before a public release or Hugging Face deploy, scan public docs and demo
   packaging for internal competitive wording, private project names, local
   validation paths, and non-public strategy text. Include at least README,
-  `docs/source`, canonical `../thales_agilab/docs/source`, and the Hugging Face
-  README bundle in the scan.
+  `docs/source` and the narrowly selected Hugging Face README export bundle in
+  the scan. Do not include private docs as publication inputs.
 - Public demo copy must describe AGILAB's capabilities directly. Do not publish
   internal comparison language such as "beats <competitor>", "make it obsolete",
   or named internal competitor positioning.
@@ -189,7 +187,7 @@ the referenced artifact exists and is current.
 - When an audit points to security disclosure, shared-adoption, or production
   boundary wording, check all public entry points together:
   `SECURITY.md`, `README.md`, `README.pypi.md`, `ADOPTION.md`,
-  canonical `../thales_agilab/docs/source`, mirrored `docs/source`, and any
+  this checkout's `docs/source` and any
   generated guardrail tests.
 - Never route suspected vulnerabilities to public GitHub issues, discussions,
   pull requests, or comments. Public docs should route reporters to GitHub
@@ -198,12 +196,12 @@ the referenced artifact exists and is current.
 - Keep the audit-facing adoption boundary explicit:
   controlled local evaluation, conditional shared/team use after hardening, and
   no-go as a standalone production MLOps platform.
-- If adding or changing an audit/security page, add it to the canonical docs
-  toctree, sync the mirror, and update tests/guardrails so stale public-issue
+- If adding or changing an audit/security page, add it to the public docs
+  toctree, refresh the local stamp, and update tests/guardrails so stale public-issue
   disclosure wording such as `[SECURITY]` cannot reappear silently.
 - Run the security and docs checks that prove the public posture:
   `uv --preview-features extra-build-dependencies run python tools/security_hygiene_report.py --compact`,
-  the targeted audit/security docs tests, mirror stamp verification, and
+  the targeted audit/security docs tests, local integrity stamp verification, and
   `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`.
 - After pushing docs changes, verify the published HTML page directly. Do not
   call public docs aligned until the Pages workflow succeeds and the new text is
@@ -211,15 +209,15 @@ the referenced artifact exists and is current.
 
 ## Build / Validate
 
-- Public mirror sync (from `agilab` repo root):
+- Public source integrity (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
-  - The stamp lists the public-owned exclusions. Use
-    `--write-target-only-stamp` only for a public release refresh that cannot
-    access the canonical checkout; the resulting proof is target integrity,
-    not canonical alignment.
+  - Source and target default to this checkout's `docs/source`. These commands
+    refresh and verify local integrity without importing private/external docs.
+    Run the dedicated release/UI evidence validators before stamping their
+    changed files.
 - SVG docs figure preview:
-  - Parse the canonical and mirrored SVG with `xml.etree.ElementTree`.
+  - Parse the public source SVG with `xml.etree.ElementTree`.
   - Prefer `rsvg-convert -w 1600 -o /tmp/<name>.png <figure>.svg` when available
     because it matches the Sphinx/browser rendering path better than Quick Look.
   - On macOS, `qlmanage -t -s 1600 -o /tmp <figure>.svg` is a useful second
@@ -228,23 +226,20 @@ the referenced artifact exists and is current.
 - Docs alignment check without editing files:
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --delete`
   - `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --verify-stamp`
-  - Treat the canonical source and public mirror as locally aligned only when the
-    dry run reports `create: 0`, `update: 0`, `delete: 0` and the stamp check is OK.
-  - A dirty Git status can still be aligned locally; it means the aligned docs are
+  - Treat public source integrity as verified only when the stamp check is OK.
+    A self-check does not prove equality with any external documentation tree.
+  - A dirty Git status can still pass local validation; it means the docs are
     uncommitted/unpublished. Online docs require commit, push, and a successful
     Pages publication before they can be called aligned.
 - Public docs parity build (from `agilab` repo root):
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile docs`
-- Local Sphinx build (from `../thales_agilab` repo root):
-  - `uv sync --group sphinx --dev` (or equivalent environment bootstrap command in your `uv` version).
-  - `uv run sphinx-build -n -q -b html docs/source docs/_build/html`
-    - Keep `--group sphinx` variants if your installed `uv` supports it for your workflow.
-  - Prefer this path when validating canonical docs edits; only sync to `../agilab/docs/source`
-    when the page is published through the `agilab` repo workflow.
-- Quick mirror validation:
-  - verify the canonical change is present in `../thales_agilab/docs/source`.
-  - run the mirror sync command from `../agilab`.
-  - run the stamp verification command from `../agilab`.
+  - This profile resolves its Sphinx dependencies and builds the local public
+    `docs/source` into `docs/html`. Use the existing profile instead of another
+    repository's environment or docs source.
+- Quick source validation:
+  - verify the change is present in this checkout's `docs/source`.
+  - refresh the local stamp from this checkout's repo root.
+  - verify that stamp from the same root.
 - Publish workflow check (AGILAB public site):
   - `gh workflow run docs-publish.yaml -R ThalesGroup/agilab --ref main`
   - `gh run view <run-id> -R ThalesGroup/agilab --json status,conclusion,url`
@@ -273,7 +268,7 @@ the referenced artifact exists and is current.
 - Use consistent naming: “Pages”, “Page bundles”, “Apps-pages” (avoid near-duplicate headings).
 - Keep diagrams (SVG) aligned with wording; remove stale labels when sections are removed.
 - For docs/SVG alignment asks, report whether the source SVG, `.rst`
-  references, captions/alt text, mirror/public copy, and rendered page all
+  references, captions/alt text, public source, and rendered page all
   agree. Do not call the docs fully aligned after an inspection-only pass if a
   source or published surface still needs to be updated.
 - Ensure math renders via Sphinx math extension; keep equations in `.. math::` blocks when needed.

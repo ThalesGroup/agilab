@@ -225,7 +225,10 @@ def check_docs_mirror(repo_root: Path) -> Check:
     canonical_alignment_checked = False
     if source.exists() and source.is_dir():
         try:
-            plan = sync_docs.make_sync_plan(source, target, delete_extra=True)
+            # Public docs are authored in place; there is no external mirror
+            # plan to compare when source and target are the same tree.
+            if source.resolve() != target.resolve():
+                plan = sync_docs.make_sync_plan(source, target, delete_extra=True)
             result_builder = getattr(
                 sync_docs,
                 "canonical_mirror_alignment_result",
