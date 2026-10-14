@@ -473,9 +473,9 @@ DEFAULT_SCENARIOS: dict[str, RobotScenario] = {
         interaction_mode="actionability",
         combination_mode="off",
         max_action_clicks_per_page=0,
-        # Select option captions are not part of the page text while the menu is
-        # closed. The workload caption exposes the effective default value.
-        required_text="Pool executor,auto pool executor",
+        # The required-text probe collects visible combobox labels and selected
+        # options even when a native select menu is closed.
+        required_text="Pool executor,Auto (ORCHESTRATE setting)",
         browser_error_check=True,
     ),
 }

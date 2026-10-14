@@ -142,7 +142,7 @@ def test_default_scenarios_cover_isolated_pages_and_current_home_actions() -> No
     assert execution_pandas_pool.interaction_mode == "actionability"
     assert execution_pandas_pool.combination_mode == "off"
     assert execution_pandas_pool.max_action_clicks_per_page == 0
-    assert execution_pandas_pool.required_text == "Pool executor,auto pool executor"
+    assert execution_pandas_pool.required_text == "Pool executor,Auto (ORCHESTRATE setting)"
     assert execution_pandas_pool.browser_error_check is True
     assert "isolated-browser-history" not in [scenario.name for scenario in scenarios]
     assert "isolated-mobile-core-pages" not in [scenario.name for scenario in scenarios]
@@ -654,7 +654,7 @@ def test_build_robot_command_covers_execution_pandas_pool_executor_text(tmp_path
     assert argv[argv.index("--apps-pages") + 1] == "none"
     assert argv[argv.index("--interaction-mode") + 1] == "actionability"
     assert argv[argv.index("--combination-mode") + 1] == "off"
-    assert argv[argv.index("--required-text") + 1] == "Pool executor,auto pool executor"
+    assert argv[argv.index("--required-text") + 1] == "Pool executor,Auto (ORCHESTRATE setting)"
     assert "--browser-error-check" in argv
     assert summary_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.json"
     assert progress_path == tmp_path / "isolated-execution-pandas-orchestrate-pool-executor.ndjson"
