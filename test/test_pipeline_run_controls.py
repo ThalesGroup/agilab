@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import socket
 import sys
+import threading
 import time
 import tomllib
 import types
@@ -515,7 +516,8 @@ def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(tmp
 
     first = module._acquire_pipeline_run_lock(env, "page")
     assert first is not None
-    initial_heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
+    with first["io_lock"]:
+        initial_heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
     target_base = tmp_path / "parallel-wave"
     target_base.mkdir()
     stages_file = target_base / "lab_stages.toml"
@@ -549,18 +551,86 @@ def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(tmp
         manifest_stage_records=records,
         log_placeholder=None,
     ) == 2
-    heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
+    # The heartbeat rewrites metadata in place on the locked inode. An assertion
+    # requiring a complete snapshot must share the writer's synchronization.
+    with first["io_lock"]:
+        heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
     assert heartbeat > initial_heartbeat
     assert module._clear_pipeline_run_lock(env, "page", reason="expired-looking metadata") is False
     module._release_pipeline_run_lock(first, "page")
 
     second = module._acquire_pipeline_run_lock(env, "page")
     assert second is not None
-    second_token = module._read_pipeline_lock_payload(Path(second["path"]))["token"]
+    with second["io_lock"]:
+        second_token = module._read_pipeline_lock_payload(Path(second["path"]))["token"]
     module._refresh_pipeline_run_lock(first)
     module._release_pipeline_run_lock(first, "page")
-    assert module._read_pipeline_lock_payload(Path(second["path"]))["token"] == second_token
+    with second["io_lock"]:
+        assert module._read_pipeline_lock_payload(Path(second["path"]))["token"] == second_token
     module._release_pipeline_run_lock(second, "page")
+
+
+def test_unavailable_heartbeat_metadata_preserves_live_lock_and_identity(tmp_path, monkeypatch):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        home_abs=tmp_path,
+        resolve_share_path=lambda relative: tmp_path / "share" / relative,
+    )
+    handle = module._acquire_pipeline_run_lock(env, "page")
+    assert handle is not None
+    module._stop_pipeline_lock_heartbeat(handle)
+    lock_path = Path(handle["path"])
+    original_inode = lock_path.stat().st_ino
+    token = handle["token"]
+    truncated = threading.Event()
+    resume = threading.Event()
+    errors: list[BaseException] = []
+    real_truncate = module.os.ftruncate
+
+    def pause_heartbeat_write(fd, size):
+        real_truncate(fd, size)
+        if fd == handle["fd"] and threading.current_thread() is writer:
+            truncated.set()
+            if not resume.wait(timeout=5):
+                raise RuntimeError("Controlled heartbeat write was not resumed")
+
+    def refresh():
+        try:
+            module._refresh_pipeline_run_lock(handle)
+        except BaseException as exc:
+            errors.append(exc)
+
+    writer = threading.Thread(target=refresh, name="test-owned-pipeline-heartbeat")
+    try:
+        with monkeypatch.context() as patch:
+            patch.setattr(module.os, "ftruncate", pause_heartbeat_write)
+            writer.start()
+            try:
+                assert truncated.wait(timeout=5)
+                assert module._read_pipeline_lock_payload(lock_path) == {}
+                assert module._clear_pipeline_run_lock(
+                    env, "page", reason="metadata temporarily unavailable"
+                ) is False
+                assert module._acquire_pipeline_run_lock(env, "page") is None
+                assert module._acquire_pipeline_run_lock(env, "page", force=True) is None
+                assert lock_path.stat().st_ino == original_inode
+                assert handle["token"] == token
+            finally:
+                resume.set()
+                writer.join(timeout=5)
+            assert not writer.is_alive()
+            assert not errors
+        with handle["io_lock"]:
+            payload = module._read_pipeline_lock_payload(lock_path)
+        assert payload["token"] == token
+        assert payload["heartbeat_at"] >= payload["created_at"]
+        assert lock_path.stat().st_ino == original_inode
+    finally:
+        resume.set()
+        module._release_pipeline_run_lock(handle, "page")
 
 
 def test_pipeline_lock_is_exclusive_across_processes(tmp_path, monkeypatch):
