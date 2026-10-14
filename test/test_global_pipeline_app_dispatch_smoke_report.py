@@ -118,20 +118,38 @@ def test_app_dispatch_smoke_state_contains_real_artifacts(tmp_path: Path) -> Non
     assert (workspace / relay["real_execution"]["reduce_artifact_path"]).is_file()
 
 
-def test_app_dispatch_smoke_ignores_stale_uav_modules(
+def test_app_dispatch_smoke_executes_worker_class_selected_by_sdk(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
     module = _load_core_module()
-    for package_name in (
-        "uav_queue",
-        "uav_queue_worker",
-        "uav_relay_queue",
-        "uav_relay_queue_worker",
-    ):
-        stale_package = ModuleType(package_name)
-        stale_package.__path__ = []
-        monkeypatch.setitem(sys.modules, package_name, stale_package)
+    sdk_load_worker = runtime_support.load_worker
+    selections: list[tuple[str, str, int]] = []
+    lifecycle: list[tuple[str, str]] = []
+
+    def _load_selected_worker(env, mode, **kwargs):
+        selections.append((env.target_worker, env.target_worker_class, mode))
+        selected_class = sdk_load_worker(env, mode, **kwargs)
+        package_name = env.target_worker
+
+        class SelectedWorker(selected_class):
+            def start(self):
+                lifecycle.append((package_name, "start"))
+                return super().start()
+
+            def work_pool(self, source):
+                lifecycle.append((package_name, "work_pool"))
+                return super().work_pool(source)
+
+            def work_done(self, result):
+                lifecycle.append((package_name, "work_done"))
+                return super().work_done(result)
+
+        return SelectedWorker
+
+    monkeypatch.setattr(runtime_support, "load_worker", _load_selected_worker)
 
     proof = module.persist_app_dispatch_smoke(
         repo_root=Path.cwd(),
@@ -141,6 +159,103 @@ def test_app_dispatch_smoke_ignores_stale_uav_modules(
 
     assert proof.ok is True
     assert proof.completed_unit_ids == ("queue_baseline", "relay_followup")
+    assert selections == [
+        ("uav_queue_worker", "UavQueueWorker", 0),
+        ("uav_relay_queue_worker", "UavRelayQueueWorker", 0),
+    ]
+    assert lifecycle == [
+        (package, step)
+        for package in ("uav_queue_worker", "uav_relay_queue_worker")
+        for step in ("start", "work_pool", "work_done")
+    ]
+
+
+def test_app_dispatch_smoke_ignores_stale_uav_modules(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    module = _load_core_module()
+    stale_modules: dict[str, ModuleType] = {}
+    for package_name in (
+        "uav_queue",
+        "uav_queue_worker",
+        "uav_relay_queue",
+        "uav_relay_queue_worker",
+    ):
+        stale_package = ModuleType(package_name)
+        stale_package.__path__ = []
+        stale_modules[package_name] = stale_package
+        monkeypatch.setitem(sys.modules, package_name, stale_package)
+        if package_name.endswith("_worker"):
+            worker_module_name = f"{package_name}.{package_name}"
+            stale_worker = ModuleType(worker_module_name)
+            stale_modules[worker_module_name] = stale_worker
+            monkeypatch.setitem(sys.modules, worker_module_name, stale_worker)
+
+    sdk_load_worker = runtime_support.load_worker
+    selected_packages: list[str] = []
+
+    def _load_fresh_worker(env, mode, **kwargs):
+        package_name = env.target_worker
+        worker_module_name = f"{package_name}.{package_name}"
+        assert sys.modules[package_name] is stale_modules[package_name]
+        assert sys.modules[worker_module_name] is stale_modules[worker_module_name]
+        worker_class = sdk_load_worker(env, mode, **kwargs)
+        assert sys.modules[package_name] is not stale_modules[package_name]
+        assert sys.modules[worker_module_name] is not stale_modules[worker_module_name]
+        selected_packages.append(package_name)
+        return worker_class
+
+    monkeypatch.setattr(runtime_support, "load_worker", _load_fresh_worker)
+
+    proof = module.persist_app_dispatch_smoke(
+        repo_root=Path.cwd(),
+        output_path=tmp_path / "app_dispatch_smoke.json",
+        run_root=tmp_path / "workspace",
+    )
+
+    assert proof.ok is True
+    assert proof.completed_unit_ids == ("queue_baseline", "relay_followup")
+    assert selected_packages == ["uav_queue_worker", "uav_relay_queue_worker"]
+
+
+def test_app_dispatch_smoke_sdk_load_failure_cannot_complete_or_run_relay(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    module = _load_core_module()
+    selected_modules: list[tuple[str, str]] = []
+    relay_calls: list[dict] = []
+    output_path = tmp_path / "app_dispatch_smoke.json"
+    run_root = tmp_path / "workspace"
+
+    def _missing_selected_worker(module_name, class_name):
+        selected_modules.append((module_name, class_name))
+        raise ModuleNotFoundError("SDK-selected worker is unavailable")
+
+    def _run_relay(**kwargs):
+        relay_calls.append(kwargs)
+        raise AssertionError("Relay must not execute after worker loading fails")
+
+    monkeypatch.setattr(runtime_support, "load_module", _missing_selected_worker)
+    monkeypatch.setattr(module, "run_relay_followup_app", _run_relay)
+
+    with pytest.raises(RuntimeError, match="SDK-selected worker is unavailable"):
+        module.persist_app_dispatch_smoke(
+            repo_root=Path.cwd(),
+            output_path=output_path,
+            run_root=run_root,
+        )
+
+    assert selected_modules == [("uav_queue_worker.uav_queue_worker", "UavQueueWorker")]
+    assert relay_calls == []
+    assert not output_path.exists()
+    assert not list((run_root / "export").rglob("*_summary_metrics.json"))
+    assert not list((run_root / "export").rglob("reduce_summary_worker_*.json"))
 
 
 def test_app_dispatch_smoke_moves_target_project_first(
@@ -285,6 +400,8 @@ def test_app_dispatch_smoke_queue_runner_requires_expected_outputs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
     module = _load_core_module()
     env = module._make_env(tmp_path / "run", target="target")
     source = Path(env.AGI_LOCAL_SHARE) / "scenario.json"
@@ -317,8 +434,10 @@ def test_app_dispatch_smoke_queue_runner_requires_expected_outputs(
     monkeypatch.setattr(module.importlib, "import_module", lambda _name: module.SimpleNamespace(
         UavQueue=FakeManager,
         UavQueueArgs=lambda **_kwargs: module.SimpleNamespace(),
-        UavQueueWorker=FakeWorker,
     ))
+    monkeypatch.setattr(
+        runtime_support, "load_worker", lambda _env, _mode, **_kwargs: FakeWorker
+    )
 
     with pytest.raises(RuntimeError, match="summary metrics"):
         module._run_queue_family_app(
@@ -340,6 +459,8 @@ def test_app_dispatch_smoke_queue_runner_requires_reduce_artifact(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
     module = _load_core_module()
     run_root = tmp_path / "run"
     source = run_root / "share" / "scenario.json"
@@ -367,8 +488,10 @@ def test_app_dispatch_smoke_queue_runner_requires_reduce_artifact(
     monkeypatch.setattr(module.importlib, "import_module", lambda _name: module.SimpleNamespace(
         UavQueue=FakeManager,
         UavQueueArgs=lambda **_kwargs: module.SimpleNamespace(),
-        UavQueueWorker=FakeWorker,
     ))
+    monkeypatch.setattr(
+        runtime_support, "load_worker", lambda _env, _mode, **_kwargs: FakeWorker
+    )
 
     with pytest.raises(RuntimeError, match="reduce artifact"):
         module._run_queue_family_app(

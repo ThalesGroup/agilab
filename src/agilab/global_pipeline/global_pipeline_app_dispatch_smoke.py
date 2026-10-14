@@ -224,14 +224,14 @@ def _run_queue_family_app_once(
     if not token:
         raise ValueError("A non-empty idempotency token is required before real app execution.")
     _ensure_app_project_on_path(repo_root, project_name)
-    _drop_app_module_cache((manager_package, worker_package))
+    _drop_app_module_cache((manager_package,))
     manager_module = importlib.import_module(manager_package)
-    worker_module = importlib.import_module(worker_package)
     args_class = getattr(manager_module, args_class_name)
     manager_class = getattr(manager_module, manager_class_name)
-    worker_class = getattr(worker_module, worker_class_name)
 
     env = _make_env(run_root, target=target)
+    env.target_worker = worker_package
+    env.target_worker_class = worker_class_name
     args = args_class(
         routing_policy="queue_aware",
         sim_time_s=2.0,
@@ -243,6 +243,14 @@ def _run_queue_family_app_once(
     manager = manager_class(env, args=args)
     source = sorted(manager.args.data_in.glob("*.json"))[0]
 
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    worker_class = runtime_support.load_worker(
+        env,
+        0,
+        load_module_fn=runtime_support.load_module,
+        sys_modules=sys.modules,
+    )
     worker = worker_class()
     worker.env = env
     worker.args = manager.args.model_dump(mode="json")
