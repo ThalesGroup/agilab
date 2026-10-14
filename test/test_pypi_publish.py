@@ -25,6 +25,13 @@ from package_split_contract import (  # noqa: E402
 MODULE_PATH = REPO_ROOT / "tools/pypi_publish.py"
 
 
+@pytest.fixture(autouse=True)
+def isolate_publisher_docs_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep release unit tests independent from operator docs configuration."""
+    monkeypatch.delenv("AGILAB_DOCS_SOURCE", raising=False)
+    monkeypatch.delenv("DOCS_REPOSITORY", raising=False)
+
+
 def _load_pypi_publish():
     spec = importlib.util.spec_from_file_location("pypi_publish_test_module", MODULE_PATH)
     assert spec and spec.loader
