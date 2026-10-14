@@ -26,6 +26,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.10.13] - 2026-10-13
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13
+
 ### Notebook import review and cancellation
 
 - Show the notebook import preview, role and worker readiness messages, and
@@ -38,6 +42,12 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Prepare the AGILAB and SDK compatibility release for validated Pydantic 2.14
   and Polars 2 runtimes; update the affected SDK versions and exact dependency
   pins while preserving existing builtin app and template constraints.
+
+### Changed
+
+- Published AGILAB `2026.10.13` to PyPI for `agi-env`, `agi-gui`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.12] - 2026-10-12
 
@@ -1363,3 +1373,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.10.1]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.10_1-3
 [2026.10.11]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11
 [2026.10.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.12
+[2026.10.13]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13
