@@ -168,6 +168,274 @@ def _unit_by_id(state: dict[str, object], unit_id: str) -> dict[str, object]:
     return next(unit for unit in state["units"] if isinstance(unit, dict) and unit.get("id") == unit_id)
 
 
+def _write_test_stage_outputs(
+    run_root: Path, result: dict[str, object]
+) -> dict[str, object]:
+    """Make callback fixtures publish the files their result actually declares."""
+    materialized = dict(result)
+    for field in (
+        "summary_metrics_path",
+        "reduce_artifact_path",
+        "contract_artifact_path",
+    ):
+        raw_path = result.get(field)
+        if not raw_path:
+            continue
+        path = Path(str(raw_path))
+        if not path.is_absolute():
+            path = run_root / path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "test_fixture": True,
+                    "summary_metrics": result.get("summary_metrics", {}),
+                }
+            ),
+            encoding="utf-8",
+        )
+        materialized[field] = str(path)
+    return materialized
+
+
+def _write_source_identity_repo(tmp_path: Path, marker: str = "old") -> Path:
+    path = _write_parallel_contract_repo(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    node = payload["nodes"][0]
+    dependent = payload["nodes"][1]
+    node["execution"] = {
+        "command": [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; "
+            "output=Path('queue/metrics.json'); output.parent.mkdir(parents=True, exist_ok=True); "
+            f"output.write_text({json.dumps(marker)}); Path({json.dumps(marker + '-command.txt')}).write_text('ran')",
+        ]
+    }
+    dependent["consumes"] = [
+        {"id": "queue_metrics", "kind": "summary_metrics", "path": "queue/metrics.json"}
+    ]
+    dependent["execution"] = {
+        "command": [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; p=Path('flight/metrics.json'); "
+            "p.parent.mkdir(parents=True, exist_ok=True); p.write_text('{}')",
+        ]
+    }
+    payload["nodes"] = [node, dependent]
+    payload["edges"] = [{"from": "queue_context", "to": "flight_context", "artifact": "queue_metrics"}]
+    payload["execution"]["stage_bindings"] = {}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("method", ["run_next_controlled_stage", "run_ready_controlled_stages"])
+def test_invalid_consumption_plan_cannot_create_an_attempt_or_execute(tmp_path, method):
+    path = _write_source_identity_repo(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["edges"] = []
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    attempts = []
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo",
+        lab_dir=tmp_path / "lab",
+        dag_path=path,
+        attempt_id_fn=lambda: attempts.append("attempt") or "must-not-be-created",
+    )
+    state, _, _ = engine.load_or_create_state()
+    persisted_before = engine.state_path.read_bytes()
+
+    assert state["ok"] is False
+    assert any("requires an incoming edge" in issue["message"] for issue in state["issues"])
+    support = engine.real_run_support(state)
+    assert support.supported is False
+    assert "validation errors" in support.message
+    with pytest.raises(dag_run_engine.DagPlanInvalidError, match="invalid or unvalidated"):
+        getattr(engine, method)(state)
+
+    assert attempts == []
+    assert engine.state_path.read_bytes() == persisted_before
+    assert "active_execution" not in state
+    assert not (engine.lab_dir / ".agilab" / "multi_app_dag_real_runs").exists()
+
+
+def test_public_state_persistence_binds_source_for_engine_execution(tmp_path):
+    from hashlib import sha256
+    from agilab.global_pipeline.global_pipeline_runner_state import persist_runner_state
+
+    path = _write_source_identity_repo(tmp_path)
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
+    )
+    proof = persist_runner_state(
+        repo_root=engine.repo_root, output_path=engine.state_path, dag_path=path
+    )
+
+    assert proof.ok
+    assert (
+        proof.runner_state["source"]["dag_sha256"]
+        == sha256(path.read_bytes()).hexdigest()
+    )
+    result = engine.run_next_controlled_stage(proof.runner_state)
+    assert result.ok
+    assert result.executed_unit_id == "queue_context"
+    assert _unit_by_id(result.state, "queue_context")["dispatch_status"] == "completed"
+    assert Path(result.state["artifacts"][0]["path"]).is_file()
+
+
+def test_public_state_builder_rejects_source_mutation_during_planning(
+    tmp_path, monkeypatch
+):
+    module = importlib.import_module(
+        "agilab.global_pipeline.global_pipeline_runner_state"
+    )
+    path = _write_source_identity_repo(tmp_path)
+    original_builder = module.build_runner_state
+
+    def changing_builder(**kwargs):
+        state = original_builder(**kwargs)
+        _write_source_identity_repo(tmp_path, "new")
+        return state
+
+    monkeypatch.setattr(module, "build_runner_state", changing_builder)
+    with pytest.raises(ValueError, match="source changed while its plan"):
+        module.persist_runner_state(
+            repo_root=tmp_path / "repo",
+            output_path=tmp_path / "state.json",
+            dag_path=path,
+        )
+    assert not (tmp_path / "state.json").exists()
+
+
+def test_changed_dag_at_the_same_path_rebuilds_the_saved_plan(tmp_path):
+    from hashlib import sha256
+
+    path = _write_source_identity_repo(tmp_path)
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
+    )
+    original, _, _ = engine.load_or_create_state()
+    path = _write_source_identity_repo(tmp_path, "new")
+
+    current, _, _ = engine.load_or_create_state()
+    result = engine.run_next_controlled_stage(current)
+
+    assert current["source"]["dag_sha256"] == sha256(path.read_bytes()).hexdigest()
+    assert current["source"]["dag_sha256"] != original["source"]["dag_sha256"]
+    assert result.ok
+    run_root = (
+        tmp_path / "lab" / ".agilab" / "multi_app_dag_real_runs" / "queue_context"
+    )
+    assert (run_root / "new-command.txt").exists()
+    assert not (run_root / "old-command.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "method", ["run_next_controlled_stage", "run_ready_controlled_stages"]
+)
+def test_stale_source_snapshot_is_rejected_before_a_durable_execution_claim(
+    tmp_path, method
+):
+    path = _write_source_identity_repo(tmp_path)
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
+    )
+    state, _, _ = engine.load_or_create_state()
+    before = engine.state_path.read_bytes()
+    _write_source_identity_repo(tmp_path, "new")
+
+    with pytest.raises(dag_run_engine.DagSourceChangedError, match="Reload the plan"):
+        getattr(engine, method)(state)
+
+    assert engine.state_path.read_bytes() == before
+    assert not (tmp_path / "lab" / ".agilab" / "multi_app_dag_real_runs").exists()
+
+
+def test_source_change_between_selection_and_claim_is_rejected(tmp_path):
+    path = _write_source_identity_repo(tmp_path)
+
+    def change_before_claim():
+        _write_source_identity_repo(tmp_path, "new")
+        return "source-race"
+
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo",
+        lab_dir=tmp_path / "lab",
+        dag_path=path,
+        attempt_id_fn=change_before_claim,
+    )
+    state, _, _ = engine.load_or_create_state()
+    before = engine.state_path.read_bytes()
+
+    with pytest.raises(dag_run_engine.DagSourceChangedError):
+        engine.run_next_controlled_stage(state)
+
+    assert engine.state_path.read_bytes() == before
+    assert not (tmp_path / "lab" / ".agilab" / "multi_app_dag_real_runs").exists()
+
+
+def test_source_change_during_claim_publication_requires_recovery_without_execution(
+    tmp_path, monkeypatch
+):
+    path = _write_source_identity_repo(tmp_path)
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
+    )
+    state, _, _ = engine.load_or_create_state()
+    publish = dag_run_engine.DagRunEngine.write_evidence
+
+    def change_after_claim(self, current, *, state_path=None, trigger=None):
+        result = publish(self, current, state_path=state_path, trigger=trigger)
+        if trigger and trigger.get("action") == "controlled_stage_claimed":
+            _write_source_identity_repo(tmp_path, "new")
+        return result
+
+    monkeypatch.setattr(
+        dag_run_engine.DagRunEngine, "write_evidence", change_after_claim
+    )
+    with pytest.raises(dag_run_engine.DagSourceChangedError):
+        engine.run_next_controlled_stage(state)
+
+    persisted = dag_run_engine.load_runner_state(engine.state_path)
+    assert persisted["active_execution"]["status"] == "recovery_required"
+    assert not (tmp_path / "lab" / ".agilab" / "multi_app_dag_real_runs").exists()
+    with pytest.raises(dag_run_engine.RunnerStateRecoveryRequiredError):
+        engine.load_or_create_state()
+
+
+def test_legacy_state_without_source_fingerprint_is_rebuilt_before_execution(tmp_path):
+    path = _write_source_identity_repo(tmp_path)
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
+    )
+    state, _, _ = engine.load_or_create_state()
+    revision = dag_run_engine.runner_state_revision(state)
+    state["source"].pop("dag_sha256")
+    engine.write_state(state, expected_revision=revision)
+
+    with pytest.raises(dag_run_engine.DagSourceChangedError):
+        engine.run_next_controlled_stage(state)
+    rebuilt, _, _ = engine.load_or_create_state()
+    assert rebuilt["source"]["dag_sha256"]
+    assert engine.run_next_controlled_stage(rebuilt).ok
+
+
+def test_relative_selected_source_uses_the_declared_repository_root(tmp_path):
+    path = _write_source_identity_repo(tmp_path)
+    repo_root = tmp_path / "repo"
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=path.relative_to(repo_root),
+    )
+    state, _, _ = engine.load_or_create_state()
+    assert dag_run_engine.runner_state_dag_matches(
+        state, path.relative_to(repo_root), repo_root
+    )
+    assert engine.run_next_controlled_stage(state).ok
+
+
 def test_dag_run_engine_reuses_matching_persisted_state(tmp_path):
     repo_root = Path.cwd()
     engine = dag_run_engine.DagRunEngine(
@@ -257,11 +525,14 @@ def test_dag_run_engine_executes_controlled_queue_stage(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "queue-stage:queue_baseline"
         calls.append(run_root)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -301,11 +572,14 @@ def test_dag_run_engine_transaction_prevents_duplicate_two_session_stage_executi
         assert idempotency_token.endswith(":queue_baseline")
         with calls_lock:
             calls.append(run_root)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
+            },
+        )
 
     def _engine() -> dag_run_engine.DagRunEngine:
         return dag_run_engine.DagRunEngine(
@@ -371,15 +645,18 @@ def test_active_stage_cannot_be_overwritten_by_reset_or_source_switch(
     def _blocking_queue_run(
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
-        del repo_root, run_root
+        del repo_root
         assert idempotency_token == "active-attempt:queue_baseline"
         callback_started.set()
         assert release_callback.wait(timeout=5)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
+            },
+        )
 
     active_engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -447,15 +724,18 @@ def test_external_callback_runs_without_holding_runner_state_lock(tmp_path):
     def _blocking_queue_run(
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
-        del repo_root, run_root
+        del repo_root
         assert idempotency_token == "lock-free-attempt:queue_baseline"
         callback_started.set()
         assert release_callback.wait(timeout=5)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -505,15 +785,18 @@ def test_exact_token_recovery_cannot_clear_a_live_callback(tmp_path):
     def _blocking_queue_run(
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
-        del repo_root, run_root
+        del repo_root
         assert idempotency_token == "live-owner-attempt:queue_baseline"
         callback_started.set()
         assert release_callback.wait(timeout=5)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -573,13 +856,16 @@ def test_post_callback_finalization_failure_is_immediately_recoverable(
     def _queue_run(
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
-        del repo_root, run_root
+        del repo_root
         callback_tokens.append(idempotency_token)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 1, "packets_delivered": 1},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -671,7 +957,7 @@ def test_claim_directory_fsync_failure_aborts_before_external_callback(monkeypat
     def _unexpected_queue_run(
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
-        del repo_root, run_root
+        del repo_root
         callback_tokens.append(idempotency_token)
         return {}
 
@@ -843,11 +1129,14 @@ def test_dag_run_engine_executes_app_owned_uav_template_queue_stage(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "uav-template:queue_baseline"
         calls.append(run_root)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 13, "packets_delivered": 11},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -879,11 +1168,14 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     ) -> dict[str, object]:
         assert idempotency_token == "flight-template:flight_context"
         calls.append(run_root)
-        return {
-            "summary_metrics_path": "flight/summary.json",
-            "reduce_artifact_path": "flight/reduce.json",
-            "summary_metrics": {"stage_completed": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "flight/summary.json",
+                "reduce_artifact_path": "flight/reduce.json",
+                "summary_metrics": {"stage_completed": 1},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -918,7 +1210,11 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
     assert flight["produces"] == [
-        {"artifact": "flight_reduce_summary", "kind": "reduce_summary", "path": "flight/reduce.json"}
+        {
+            "artifact": "flight_reduce_summary",
+            "kind": "reduce_summary",
+            "path": str(calls[0] / "flight/reduce.json"),
+        }
     ]
 
 
@@ -937,11 +1233,14 @@ def test_dag_run_engine_runs_ready_contract_stages_as_parallel_batch(tmp_path):
             with lock:
                 started.append(unit_id)
             barrier.wait(timeout=1.0)
-            return {
-                "summary_metrics_path": f"{unit_id}/summary.json",
-                "reduce_artifact_path": f"{unit_id}/reduce.json",
-                "summary_metrics": {"stage_completed": 1},
-            }
+            return _write_test_stage_outputs(
+                run_root,
+                {
+                    "summary_metrics_path": f"{unit_id}/summary.json",
+                    "reduce_artifact_path": f"{unit_id}/reduce.json",
+                    "summary_metrics": {"stage_completed": 1},
+                },
+            )
 
         return _run
 
@@ -990,7 +1289,13 @@ def test_operator_partial_rerun_accepts_dispatch_inferred_artifact_kind(tmp_path
     def stage(unit_id):
         def run(*, repo_root, run_root, idempotency_token):
             calls.append((unit_id, idempotency_token))
-            return {"summary_metrics_path": f"{unit_id}/summary.json", "summary_metrics": {"stage_completed": 1}}
+            return _write_test_stage_outputs(
+                run_root,
+                {
+                    "summary_metrics_path": f"{unit_id}/summary.json",
+                    "summary_metrics": {"stage_completed": 1},
+                },
+            )
 
         return run
 
@@ -1036,13 +1341,16 @@ def test_parallel_batch_transaction_uses_distinct_durable_unit_tokens(tmp_path):
         def _run(
             *, repo_root: Path, run_root: Path, idempotency_token: str
         ) -> dict[str, object]:
-            del repo_root, run_root
+            del repo_root
             with observed_lock:
                 observed_tokens[unit_id] = idempotency_token
-            return {
-                "summary_metrics_path": f"{unit_id}/summary.json",
-                "summary_metrics": {"stage_completed": 1},
-            }
+            return _write_test_stage_outputs(
+                run_root,
+                {
+                    "summary_metrics_path": f"{unit_id}/summary.json",
+                    "summary_metrics": {"stage_completed": 1},
+                },
+            )
 
         return _run
 
@@ -1084,11 +1392,14 @@ def test_dag_run_engine_run_ready_wraps_single_stage_adapter(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "single-batch:queue_baseline"
         calls.append(run_root)
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 3, "packets_delivered": 3},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 3, "packets_delivered": 3},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -1146,10 +1457,13 @@ def test_batch_callback_failure_preserves_claim_for_exact_token_recovery(tmp_pat
     ) -> dict[str, object]:
         assert idempotency_token == "partial-batch:queue_context"
         side_effects.append("queue_context")
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "summary_metrics": {"stage_completed": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "summary_metrics": {"stage_completed": 1},
+            },
+        )
 
     def _fail_stage(
         *, repo_root: Path, run_root: Path, idempotency_token: str
@@ -1237,11 +1551,14 @@ def test_dag_run_engine_runs_ready_contract_stages_through_distributed_submitter
                 "idempotency_token": idempotency_token,
             }
         )
-        return {
-            "summary_metrics_path": f"{unit_id}/distributed-summary.json",
-            "reduce_artifact_path": f"{unit_id}/distributed-reduce.json",
-            "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": f"{unit_id}/distributed-summary.json",
+                "reduce_artifact_path": f"{unit_id}/distributed-reduce.json",
+                "summary_metrics": {"stage_completed": 1, "distributed_submissions": 1},
+            },
+        )
 
     engine = dag_run_engine.DagRunEngine(
         repo_root=repo_root,
@@ -1337,11 +1654,14 @@ def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
         assert idempotency_token == "queue-relay-queue:queue_baseline"
-        return {
-            "summary_metrics_path": "queue/summary.json",
-            "reduce_artifact_path": "queue/reduce.json",
-            "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "queue/summary.json",
+                "reduce_artifact_path": "queue/reduce.json",
+                "summary_metrics": {"packets_generated": 8, "packets_delivered": 7},
+            },
+        )
 
     def _fake_relay_run(
         *,
@@ -1352,18 +1672,21 @@ def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "queue-relay-relay:relay_followup"
         relay_calls.append({"run_root": run_root, "queue_result": queue_result})
-        return {
-            "summary_metrics_path": "relay/summary.json",
-            "reduce_artifact_path": "relay/reduce.json",
-            "summary_metrics": {"packets_generated": 5, "packets_delivered": 5},
-            "consumed_artifacts": [
-                {
-                    "artifact": "queue_metrics",
-                    "path": str(queue_result.get("summary_metrics_path", "")),
-                    "producer": "queue_baseline",
-                }
-            ],
-        }
+        return _write_test_stage_outputs(
+            run_root,
+            {
+                "summary_metrics_path": "relay/summary.json",
+                "reduce_artifact_path": "relay/reduce.json",
+                "summary_metrics": {"packets_generated": 5, "packets_delivered": 5},
+                "consumed_artifacts": [
+                    {
+                        "artifact": "queue_metrics",
+                        "path": str(queue_result.get("summary_metrics_path", "")),
+                        "producer": "queue_baseline",
+                    }
+                ],
+            },
+        )
 
     attempt_ids = iter(("queue-relay-queue", "queue-relay-relay"))
     engine = dag_run_engine.DagRunEngine(
@@ -1392,7 +1715,16 @@ def test_dag_run_engine_executes_controlled_relay_stage_after_queue(tmp_path):
     assert relay_result.state["summary"]["completed_unit_ids"] == ["queue_baseline", "relay_followup"]
     assert relay_result.state["summary"]["real_executed_unit_ids"] == ["queue_baseline", "relay_followup"]
     relay = next(unit for unit in relay_result.state["units"] if unit["id"] == "relay_followup")
-    assert relay["real_execution"]["consumed_artifacts"][0]["path"] == "queue/summary.json"
+    consumed_path = Path(relay["real_execution"]["consumed_artifacts"][0]["path"])
+    assert (
+        consumed_path
+        == tmp_path
+        / ".agilab"
+        / "multi_app_dag_real_runs"
+        / "queue_baseline"
+        / "queue/summary.json"
+    )
+    assert consumed_path.is_file()
 
 
 def test_execution_history_rows_skip_planning_and_sort_latest_first():

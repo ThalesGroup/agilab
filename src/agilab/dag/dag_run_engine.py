@@ -97,6 +97,22 @@ class DagExecutionRecoveryBlockedError(RuntimeError):
     """Raised when the original execution owner may still be running."""
 
 
+class DagSourceChangedError(ValueError):
+    """Raised before execution of a plan whose selected source changed."""
+
+
+class DagPlanInvalidError(ValueError):
+    """Raised before live execution of an invalid or unvalidated plan."""
+
+
+def _require_valid_plan(state: Mapping[str, Any]) -> None:
+    if state.get("ok") is not True:
+        raise DagPlanInvalidError(
+            "The selected workflow is invalid or unvalidated. "
+            "Resolve its validation errors and reload the plan before running it."
+        )
+
+
 class _RunnerStateResult(Protocol):
     state: dict[str, Any]
 
@@ -351,22 +367,35 @@ class DagRunEngine:
     def state_path(self) -> Path:
         return self.lab_dir / ".agilab" / self.state_filename
 
+    @property
+    def source_path(self) -> Path:
+        path = (self.dag_path or GLOBAL_DAG_SAMPLE_RELATIVE_PATH).expanduser()
+        return path if path.is_absolute() else self.repo_root / path
+
+    def _require_current_source(self, state: Mapping[str, Any]) -> None:
+        if not runner_state_dag_matches(state, self.source_path, self.repo_root):
+            raise DagSourceChangedError(
+                "The selected workflow source changed or is unavailable. "
+                "Reload the plan before running it."
+            )
+
     def _build_source_bound_state(self) -> dict[str, Any]:
-        source_path = self.dag_path
-        if source_path is not None and not source_path.is_absolute():
-            source_path = self.repo_root / source_path
-        before = source_path.read_bytes() if source_path is not None else None
-        state = build_persisted_runner_state(repo_root=self.repo_root, dag_path=self.dag_path)
-        if source_path is not None:
-            if source_path.read_bytes() != before:
-                raise ValueError("The workflow source changed while its plan was being read. Reload before continuing.")
-            state["source"]["dag_sha256"] = sha256(before).hexdigest()
+        source_path = self.source_path
+        before = source_path.read_bytes()
+        state = build_persisted_runner_state(
+            repo_root=self.repo_root, dag_path=self.source_path
+        )
+        if source_path.read_bytes() != before:
+            raise DagSourceChangedError(
+                "The workflow source changed while its plan was being read. Reload before continuing."
+            )
+        state["source"]["dag_sha256"] = sha256(before).hexdigest()
         return state
 
     def load_or_create_state(self, *, reset: bool = False) -> tuple[dict[str, Any], Path, Path | None]:
         state, observed_revision = load_runner_state_snapshot(self.state_path)
         if state is not None and not reset:
-            if runner_state_dag_matches(state, self.dag_path, self.repo_root):
+            if runner_state_dag_matches(state, self.source_path, self.repo_root):
                 return state, self.state_path, self.dag_path
         if state is not None:
             _raise_if_active_attempt(self.state_path, state)
@@ -389,7 +418,7 @@ class DagRunEngine:
                 current, _current_revision = load_runner_state_snapshot(self.state_path)
                 if current is not None and runner_state_dag_matches(
                     current,
-                    self.dag_path,
+                    self.source_path,
                     self.repo_root,
                 ):
                     return current, self.state_path, self.dag_path
@@ -440,7 +469,7 @@ class DagRunEngine:
             state_path=state_path or self.state_path,
             repo_root=self.repo_root,
             lab_dir=self.lab_dir,
-            dag_path=self.dag_path,
+            dag_path=self.source_path,
             trigger=trigger,
         )
 
@@ -461,7 +490,7 @@ class DagRunEngine:
         return self.real_run_support(state).supported
 
     def real_run_support(self, state: Mapping[str, Any]) -> DagRealRunSupport:
-        return controlled_real_run_support(state, self.dag_path, self.repo_root)
+        return controlled_real_run_support(state, self.source_path, self.repo_root)
 
     def run_next_controlled_stage(
         self,
@@ -481,7 +510,7 @@ class DagRunEngine:
         return _run_next_controlled_stage_uncommitted(
             state,
             repo_root=self.repo_root,
-            dag_path=self.dag_path,
+            dag_path=self.source_path,
             lab_dir=self.lab_dir,
             run_queue_fn=self.run_queue_fn,
             run_relay_fn=self.run_relay_fn,
@@ -532,7 +561,7 @@ class DagRunEngine:
         return _run_ready_controlled_stages_uncommitted(
             state,
             repo_root=self.repo_root,
-            dag_path=self.dag_path,
+            dag_path=self.source_path,
             lab_dir=self.lab_dir,
             run_queue_fn=self.run_queue_fn,
             run_relay_fn=self.run_relay_fn,
@@ -574,9 +603,11 @@ class DagRunEngine:
         ],
         trigger_action: str,
     ) -> _RunnerStateResultT:
-        attempt_id = self.attempt_id_fn()
         expected_revision = runner_state_revision(state)
         _raise_if_active_attempt(self.state_path, state)
+        self._require_current_source(state)
+        _require_valid_plan(state)
+        attempt_id = self.attempt_id_fn()
         claim_persisted = False
         claim_revision = ""
         claimed_tokens: dict[str, str] = {}
@@ -586,6 +617,8 @@ class DagRunEngine:
             nonlocal claim_persisted, claim_revision, claimed_tokens, owner_registered
             if claim_persisted:
                 raise RuntimeError("A DAG execution attempt may persist only one pre-execution claim.")
+            self._require_current_source(claim_state)
+            _require_valid_plan(claim_state)
             mutable_claim = claim_state if isinstance(claim_state, dict) else dict(claim_state)
             claimed_tokens = _claimed_unit_tokens(mutable_claim, attempt_id)
             if not claimed_tokens:
@@ -626,6 +659,7 @@ class DagRunEngine:
                     "idempotency_tokens": claimed_tokens,
                 },
             )
+            self._require_current_source(mutable_claim)
             return _DURABLE_CLAIM_RECEIPT
 
         def _persist_recovery_required(exc: BaseException) -> None:
@@ -905,8 +939,19 @@ def runner_state_dag_matches(
     if not isinstance(source, dict):
         return False
     current = str(source.get("dag_path", "") or "").strip()
-    expected = repo_relative_text(dag_path, repo_root)
-    return current == expected or current == str(dag_path)
+    source_path = dag_path.expanduser()
+    if not source_path.is_absolute():
+        source_path = repo_root / source_path
+    expected = repo_relative_text(source_path, repo_root)
+    if current not in {expected, str(dag_path), str(source_path)}:
+        return False
+    digest = source.get("dag_sha256")
+    if not isinstance(digest, str) or not digest:
+        return False
+    try:
+        return sha256(source_path.read_bytes()).hexdigest() == digest
+    except OSError:
+        return False
 
 
 def execution_history_rows(state: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -948,6 +993,12 @@ def controlled_real_run_support(
     dag_path: Path | None,
     repo_root: Path,
 ) -> DagRealRunSupport:
+    if dag_path is not None and state.get("ok") is not True:
+        return DagRealRunSupport(
+            supported=False,
+            status="Invalid workflow",
+            message="Resolve the workflow validation errors and reload the plan before running it.",
+        )
     return resolve_real_run_support(
         units=dag_units(state),
         dag_path=dag_path,

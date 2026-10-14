@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+from queue import Empty, Queue
 import shlex
 import subprocess
 import sys
+from threading import Thread
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Pattern, Sequence, Type
 
@@ -305,7 +308,7 @@ def stream_run_command(
     popen_factory: Callable[..., Any] = subprocess.Popen,
     path_separator: str = os.pathsep,
 ) -> str:
-    """Run a command and stream its output into the run log."""
+    """Stream output while enforcing a deadline and propagating terminal failure."""
     process_env = dict(env_vars or os.environ.copy())
     process_env["uv_IGNORE_ACTIVE_VENV"] = "1"
     apps_root = getattr(env, "apps_path", None)
@@ -325,9 +328,11 @@ def stream_run_command(
     if extra_env:
         process_env.update({str(key): str(value) for key, value in extra_env.items() if value is not None})
 
+    argv = _command_argv(cmd)
+    deadline = None if timeout is None else time.monotonic() + max(timeout, 0)
     lines: List[str] = []
-    with popen_factory(
-        _command_argv(cmd),
+    proc = popen_factory(
+        argv,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         shell=False,
@@ -335,28 +340,105 @@ def stream_run_command(
         env=process_env,
         text=True,
         bufsize=1,
-    ) as proc:
+    )
+    output_events: Queue[tuple[str, Any]] = Queue()
+
+    def read_output() -> None:
+        # A pipe read can block even when the child emits no newline. Keep it
+        # off the controller thread so the same deadline covers streaming and
+        # process termination on Windows, macOS and Linux.
         try:
             assert proc.stdout is not None
             for raw_line in proc.stdout:
-                cleaned = ansi_escape_re.sub("", raw_line.rstrip())
-                if cleaned:
-                    lines.append(cleaned)
-                    push_run_log(index_page, cleaned, placeholder)
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            push_run_log(index_page, f"Command timed out after {timeout} seconds.", placeholder)
-        except subprocess.CalledProcessError as err:
-            proc.kill()
-            push_run_log(index_page, f"Command failed: {err}", placeholder)
+                output_events.put(("line", raw_line))
+        except BaseException as exc:
+            output_events.put(("error", exc))
+        finally:
+            output_events.put(("eof", None))
+
+    reader = Thread(target=read_output, name="agilab-workflow-output", daemon=True)
+    terminal = False
+    failure: BaseException | None = None
+
+    def remaining() -> float | None:
+        if deadline is None:
+            return None
+        duration = deadline - time.monotonic()
+        if duration <= 0:
+            raise subprocess.TimeoutExpired(argv, timeout, output="\n".join(lines))
+        return duration
+
+    try:
+        reader.start()
+        while True:
+            try:
+                kind, value = output_events.get(timeout=remaining())
+            except Empty:
+                raise subprocess.TimeoutExpired(
+                    argv, timeout, output="\n".join(lines)
+                ) from None
+            if kind == "eof":
+                break
+            if kind == "error":
+                raise value
+            cleaned = ansi_escape_re.sub("", value.rstrip())
+            if cleaned:
+                lines.append(cleaned)
+                push_run_log(index_page, cleaned, placeholder)
+        status = proc.wait(timeout=remaining())
+        terminal = True
+        if status is None:
+            status = proc.returncode
         combined = "\n".join(lines).strip()
         lowered = combined.lower()
         if "module not found" in lowered:
             apps_root = env.apps_path
             if apps_root and not (Path(apps_root) / ".venv").exists():
                 raise jump_exception_cls(combined)
+        if status != 0:
+            raise subprocess.CalledProcessError(status, argv, output=combined)
         return combined
+    except BaseException as exc:
+        failure = exc
+        if not terminal:
+            # Only terminate the subprocess started by this invocation. A
+            # failed log callback or cancellation must also release its owner.
+            try:
+                proc.kill()
+                proc.wait(timeout=1)
+            except BaseException as cleanup_error:
+                exc.add_note(
+                    f"Workflow subprocess cleanup failed: {type(cleanup_error).__name__}"
+                )
+        message = None
+        if isinstance(exc, subprocess.TimeoutExpired):
+            message = f"Command timed out after {timeout} seconds."
+        elif isinstance(exc, subprocess.CalledProcessError):
+            message = f"Command exited with status {exc.returncode}."
+        if message is not None:
+            try:
+                push_run_log(index_page, message, placeholder)
+            except BaseException as logging_error:
+                exc.add_note(
+                    f"Workflow failure logging failed: {type(logging_error).__name__}"
+                )
+        raise
+    finally:
+        if reader.ident is not None:
+            reader.join(timeout=0.1)
+        # A descendant may retain a pipe after its parent stops. Do not block
+        # the controller on closing a stream that the reader still owns.
+        if not reader.is_alive():
+            close = getattr(proc.stdout, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except BaseException as close_error:
+                    if failure is None:
+                        raise
+                    failure.add_note(
+                        f"Workflow output cleanup failed: {type(close_error).__name__}"
+                    )
 
 
 def run_locked_stage(

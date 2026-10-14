@@ -230,6 +230,87 @@ def test_stage_without_runnable_code_is_skipped_without_dispatch(pipeline, tmp_p
     assert state.stage_records[0]["status"] == "skipped_not_runnable"
 
 
+def test_nonzero_real_subprocess_marks_workflow_failed_and_stops_dependents(
+    pipeline, tmp_path, monkeypatch
+):
+    from agilab.pipeline.pipeline_execution import execute_pipeline_lifecycle
+    from agilab.pipeline.pipeline_runtime_execution_support import stream_run_command
+    import re
+    import subprocess
+
+    module, ui, env = pipeline
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    first = {
+        "id": "first",
+        "C": "import sys; sys.exit(9)",
+        "R": "agi.run",
+        "E": str(runtime),
+    }
+    second = {
+        "id": "dependent",
+        "C": "from pathlib import Path; Path('dependent-ran.txt').write_text('ran')",
+        "R": "agi.run",
+        "E": str(runtime),
+    }
+    monkeypatch.setattr(
+        module._pipeline_runtime, "is_valid_runtime_root", lambda value: bool(value)
+    )
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "start_tracker_run",
+        lambda *_args, **_kwargs: nullcontext(None),
+    )
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "build_mlflow_process_env",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        module._pipeline_runtime,
+        "python_for_stage",
+        lambda *_args, **_kwargs: sys.executable,
+    )
+    adapter, state, _streams = configured_adapter(module, ui, env, tmp_path, first)
+    adapter.plan = module.PipelineExecutionPlan(
+        stages=[first, second],
+        sequence=[0, 1],
+        waves=[[0], [1]],
+        profile="balanced",
+        max_workers=1,
+        stage_ids={0: "first", 1: "dependent"},
+        stage_deps={0: [], 1: ["first"]},
+    )
+
+    def real_stream(run_env, page, command, cwd, **kwargs):
+        return stream_run_command(
+            run_env,
+            page,
+            command,
+            cwd,
+            push_run_log=module._push_run_log,
+            ansi_escape_re=re.compile(r"\x1b\[[0-9;]*m"),
+            jump_exception_cls=RuntimeError,
+            **kwargs,
+        )
+
+    adapter.stream_run_command_fn = real_stream
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        execute_pipeline_lifecycle(
+            state, adapter, describe_error=str, timestamp=lambda: "2026-10-14T00:00:00Z"
+        )
+
+    assert failure.value.returncode == 9
+    assert state.status == "failed"
+    assert state.executed == 0
+    assert [row["status"] for row in state.stage_records] == [
+        "failed",
+        "skipped_after_failure",
+    ]
+    assert not (tmp_path / "dependent-ran.txt").exists()
+    assert not any(kind == "success" for kind, _message in ui.messages)
+
+
 def test_an_invalid_profile_override_is_rejected_before_any_execution_or_lock(pipeline, tmp_path, monkeypatch):
     module, ui, env = pipeline
     ui.session_state.update({"page": [0, "", "", "", "", "", 0], "snippet_file": str(tmp_path / "snippet.py")})
