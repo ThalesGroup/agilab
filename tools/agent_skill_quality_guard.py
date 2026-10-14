@@ -428,9 +428,11 @@ def run_external_validator(
         return ExternalValidatorStatus(mode, command, False, False), ([finding] if mode == "require" else [])
 
     findings: list[Finding] = []
+    executed = False
     for root in roots:
         if not root.exists():
             continue
+        executed = True
         result = subprocess.run(
             [
                 executable,
@@ -454,11 +456,11 @@ def run_external_validator(
                 "external-skill-validator",
                 severity,
                 "external-validator-failed",
-                f"{root.relative_to(REPO_ROOT).as_posix()}: {first_line[:220]}",
+                f"{_rel(root)}: {first_line[:220]}",
                 "tools/agent_skill_quality_guard.py",
             )
         )
-    return ExternalValidatorStatus(mode, command, True, True), findings
+    return ExternalValidatorStatus(mode, command, True, executed), findings
 
 
 def render_markdown(
@@ -556,8 +558,9 @@ def main(argv: list[str] | None = None) -> int:
             for root in roots
             if not root.is_dir()
         )
+    external_targets = scanned if args.skill_dir or args.changed_only else roots
     external_status, external_findings = run_external_validator(
-        roots,
+        external_targets,
         mode=args.external_validator,
         command=args.external_validator_command,
     )
