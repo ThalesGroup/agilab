@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import socket
 import sys
+import threading
 import time
 import tomllib
 import types
@@ -37,6 +38,12 @@ def _import_pipeline_run_controls():
     # Import the implementation directly so another test importing the legacy
     # compatibility shim first cannot leave copied helper globals behind.
     return importlib.import_module("agilab.pipeline.pipeline_run_controls")
+
+
+
+def _read_owned_pipeline_lock_payload(module, handle):
+    with handle["io_lock"]:
+        return module._read_pipeline_lock_payload(Path(handle["path"]))
 
 
 def _pipeline_lock_process(root: str, ready, release) -> None:
@@ -300,12 +307,12 @@ def test_pipeline_run_controls_acquire_refresh_release_and_busy_lock(tmp_path, m
     handle = module._acquire_pipeline_run_lock(env, "page")
     assert handle is not None
     lock_path = Path(handle["path"])
-    payload = json.loads(lock_path.read_text(encoding="utf-8"))
+    payload = _read_owned_pipeline_lock_payload(module, handle)
     assert payload["schema"] == module.PIPELINE_LOCK_SCHEMA
 
     before = payload["heartbeat_at"]
     module._refresh_pipeline_run_lock(handle)
-    refreshed = json.loads(lock_path.read_text(encoding="utf-8"))
+    refreshed = _read_owned_pipeline_lock_payload(module, handle)
     assert refreshed["heartbeat_at"] >= before
 
     module._release_pipeline_run_lock(handle, "page")
@@ -501,7 +508,10 @@ def test_clear_pipeline_lock_does_not_unlock_unowned_file(tmp_path, monkeypatch)
     assert unlocks == []
 
 
-def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(tmp_path, monkeypatch):
+
+def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(
+    tmp_path, monkeypatch
+):
     module = _import_pipeline_run_controls()
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(module, "st", fake_st)
@@ -512,55 +522,119 @@ def test_pipeline_lock_holds_identity_across_refresh_release_and_stale_clear(tmp
         home_abs=tmp_path,
         resolve_share_path=lambda relative: tmp_path / "share" / relative,
     )
+    first = second = None
+    try:
+        first = module._acquire_pipeline_run_lock(env, "page")
+        assert first is not None
+        initial_heartbeat = _read_owned_pipeline_lock_payload(module, first)[
+            "heartbeat_at"
+        ]
+        target_base = tmp_path / "parallel-wave"
+        target_base.mkdir()
+        stages_file = target_base / "lab_stages.toml"
+        stages_file.write_text("", encoding="utf-8")
+        monkeypatch.setattr(
+            module,
+            "_resolve_stage_engine_runtime",
+            lambda *_args, **_kwargs: ("agi.run", str(tmp_path)),
+        )
+        monkeypatch.setattr(
+            module._pipeline_stages, "stage_summary", lambda *_args, **_kwargs: "stage"
+        )
+        monkeypatch.setattr(
+            module._pipeline_runtime,
+            "label_for_stage_runtime",
+            lambda *_args, **_kwargs: "runtime",
+        )
+        monkeypatch.setattr(
+            module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code
+        )
+        monkeypatch.setattr(
+            module._pipeline_runtime,
+            "python_for_stage",
+            lambda *_args, **_kwargs: "python",
+        )
+        monkeypatch.setattr(
+            module, "_stage_output_records", lambda *_args, **_kwargs: []
+        )
 
-    first = module._acquire_pipeline_run_lock(env, "page")
-    assert first is not None
-    initial_heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
-    target_base = tmp_path / "parallel-wave"
-    target_base.mkdir()
-    stages_file = target_base / "lab_stages.toml"
-    stages_file.write_text("", encoding="utf-8")
-    monkeypatch.setattr(module, "_resolve_stage_engine_runtime", lambda *_args, **_kwargs: ("agi.run", str(tmp_path)))
-    monkeypatch.setattr(module._pipeline_stages, "stage_summary", lambda *_args, **_kwargs: "stage")
-    monkeypatch.setattr(module._pipeline_runtime, "label_for_stage_runtime", lambda *_args, **_kwargs: "runtime")
-    monkeypatch.setattr(module._pipeline_runtime, "wrap_code_with_mlflow_resume", lambda code: code)
-    monkeypatch.setattr(module._pipeline_runtime, "python_for_stage", lambda *_args, **_kwargs: "python")
-    monkeypatch.setattr(module, "_stage_output_records", lambda *_args, **_kwargs: [])
+        wave_active = threading.Event()
+        stage_started = threading.Event()
+        completed_heartbeat = threading.Event()
+        write_payload = module._write_pipeline_lock_payload
 
-    def slow_stage(*_args, **_kwargs):
-        time.sleep(0.22)
-        return "ok"
+        def observe_completed_write(fd, payload):
+            write_payload(fd, payload)
+            if (
+                fd == first["fd"]
+                and threading.current_thread() is first["heartbeat_thread"]
+                and wave_active.is_set()
+                and stage_started.is_set()
+            ):
+                completed_heartbeat.set()
 
-    monkeypatch.setattr(module, "_run_stage_subprocess", slow_stage)
-    records: list[dict] = []
-    assert module._run_parallel_agi_wave(
-        stages=[{"C": "print(1)"}, {"C": "print(2)"}],
-        wave=[0, 1],
-        profile="balanced",
-        env=env,
-        index_page="page",
-        stages_file=stages_file,
-        run_id="heartbeat",
-        selected_map={},
-        engine_map={},
-        default_runtime="",
-        target_base=target_base,
-        max_workers=2,
-        manifest_stage_records=records,
-        log_placeholder=None,
-    ) == 2
-    heartbeat = module._read_pipeline_lock_payload(Path(first["path"]))["heartbeat_at"]
-    assert heartbeat > initial_heartbeat
-    assert module._clear_pipeline_run_lock(env, "page", reason="expired-looking metadata") is False
-    module._release_pipeline_run_lock(first, "page")
+        def slow_stage(*_args, **_kwargs):
+            stage_started.set()
+            assert completed_heartbeat.wait(timeout=2.0), (
+                "No real heartbeat completed during the wave"
+            )
+            time.sleep(0.22)
+            return "ok"
 
-    second = module._acquire_pipeline_run_lock(env, "page")
-    assert second is not None
-    second_token = module._read_pipeline_lock_payload(Path(second["path"]))["token"]
-    module._refresh_pipeline_run_lock(first)
-    module._release_pipeline_run_lock(first, "page")
-    assert module._read_pipeline_lock_payload(Path(second["path"]))["token"] == second_token
-    module._release_pipeline_run_lock(second, "page")
+        monkeypatch.setattr(
+            module, "_write_pipeline_lock_payload", observe_completed_write
+        )
+        monkeypatch.setattr(module, "_run_stage_subprocess", slow_stage)
+        records: list[dict] = []
+        wave_active.set()
+        try:
+            assert (
+                module._run_parallel_agi_wave(
+                    stages=[{"C": "print(1)"}, {"C": "print(2)"}],
+                    wave=[0, 1],
+                    profile="balanced",
+                    env=env,
+                    index_page="page",
+                    stages_file=stages_file,
+                    run_id="heartbeat",
+                    selected_map={},
+                    engine_map={},
+                    default_runtime="",
+                    target_base=target_base,
+                    max_workers=2,
+                    manifest_stage_records=records,
+                    log_placeholder=None,
+                )
+                == 2
+            )
+        finally:
+            wave_active.clear()
+        assert completed_heartbeat.is_set()
+        heartbeat = _read_owned_pipeline_lock_payload(module, first)["heartbeat_at"]
+        assert heartbeat > initial_heartbeat
+        assert (
+            module._clear_pipeline_run_lock(
+                env, "page", reason="expired-looking metadata"
+            )
+            is False
+        )
+        module._release_pipeline_run_lock(first, "page")
+
+        second = module._acquire_pipeline_run_lock(env, "page")
+        assert second is not None
+        second_token = _read_owned_pipeline_lock_payload(module, second)["token"]
+        module._refresh_pipeline_run_lock(first)
+        module._release_pipeline_run_lock(first, "page")
+        assert (
+            _read_owned_pipeline_lock_payload(module, second)["token"] == second_token
+        )
+    finally:
+        for handle in (second, first):
+            if handle is not None:
+                module._release_pipeline_run_lock(handle, "page")
+    assert first["fd"] is None and second["fd"] is None
+    assert not first["heartbeat_thread"].is_alive()
+    assert not second["heartbeat_thread"].is_alive()
 
 
 def test_pipeline_lock_is_exclusive_across_processes(tmp_path, monkeypatch):
@@ -1910,3 +1984,110 @@ def test_manifest_default_path_uses_project_scoped_logs_without_mutation(tmp_pat
     assert run == tmp_path / "log/execute/project/pipeline_automation_run-id.json"
     assert latest.parent == run.parent
     assert not run.parent.exists()
+
+
+def test_owned_pipeline_lock_snapshot_waits_for_real_heartbeat_rewrite(
+    tmp_path, monkeypatch
+):
+    module = _import_pipeline_run_controls()
+    monkeypatch.setattr(module, "st", _FakeStreamlit())
+    monkeypatch.setattr(module, "_start_pipeline_lock_heartbeat", lambda _handle: None)
+    env = SimpleNamespace(
+        app="demo",
+        target="demo",
+        home_abs=tmp_path,
+        resolve_share_path=lambda relative: tmp_path / "share" / relative,
+    )
+    handle = module._acquire_pipeline_run_lock(env, "page")
+    assert handle is not None
+    path = Path(handle["path"])
+    initial = _read_owned_pipeline_lock_payload(module, handle)
+    identity = (path.stat().st_dev, path.stat().st_ino)
+    truncated = threading.Event()
+    resume_writer = threading.Event()
+    reader_done = threading.Event()
+    reader_lock_attempted = threading.Event()
+    real_io_lock = handle["io_lock"]
+    snapshots = []
+    failures = []
+    real_truncate = module.os.ftruncate
+
+    def pause_after_truncate(fd, length):
+        real_truncate(fd, length)
+        if fd == handle["fd"] and length == 0:
+            truncated.set()
+            assert resume_writer.wait(timeout=5.0), (
+                "Owned heartbeat writer was not resumed"
+            )
+
+    def refresh():
+        try:
+            module._refresh_pipeline_run_lock(handle)
+        except BaseException as exc:
+            failures.append(exc)
+
+    def read_owned():
+        try:
+            snapshots.append(_read_owned_pipeline_lock_payload(module, handle))
+        except BaseException as exc:
+            failures.append(exc)
+        finally:
+            reader_done.set()
+
+    writer = threading.Thread(target=refresh, name="owned-heartbeat-test-writer")
+    reader = threading.Thread(target=read_owned, name="owned-heartbeat-test-reader")
+
+    class ObservedReaderLock:
+        def __enter__(self):
+            if threading.current_thread() is reader:
+                if real_io_lock.acquire(blocking=False):
+                    real_io_lock.release()
+                    raise AssertionError(
+                        "Owned writer did not hold its actual heartbeat mutex"
+                    )
+                reader_lock_attempted.set()
+            return real_io_lock.__enter__()
+
+        def __exit__(self, *exc_info):
+            return real_io_lock.__exit__(*exc_info)
+
+    monkeypatch.setattr(module.os, "ftruncate", pause_after_truncate)
+    try:
+        writer.start()
+        assert truncated.wait(timeout=2.0)
+        assert module._read_pipeline_lock_payload(path) == {}
+        assert (
+            module._clear_pipeline_run_lock(env, "page", reason="paused real heartbeat")
+            is False
+        )
+        assert module._acquire_pipeline_run_lock(env, "contender") is None
+        # The writer has already captured and acquired the native mutex.
+        # Forward only the reader's acquisition so production type checks stay intact.
+        assert real_io_lock.locked()
+        handle["io_lock"] = ObservedReaderLock()
+        reader.start()
+        assert reader_lock_attempted.wait(timeout=2.0), (
+            "Owned reader did not attempt its actual heartbeat mutex"
+        )
+        assert real_io_lock.locked() and not resume_writer.is_set()
+        assert not reader_done.is_set()
+        resume_writer.set()
+        writer.join(timeout=2.0)
+        reader.join(timeout=2.0)
+        assert not writer.is_alive() and not reader.is_alive()
+        assert failures == []
+        assert snapshots[0]["heartbeat_at"] >= initial["heartbeat_at"]
+        assert snapshots[0]["token"] == handle["token"]
+        assert (path.stat().st_dev, path.stat().st_ino) == identity
+    finally:
+        resume_writer.set()
+        if writer.ident is not None:
+            writer.join(timeout=2.0)
+        if reader.ident is not None:
+            reader.join(timeout=2.0)
+        handle["io_lock"] = real_io_lock
+        monkeypatch.setattr(module.os, "ftruncate", real_truncate)
+        module._release_pipeline_run_lock(handle, "page")
+    assert handle["fd"] is None
+    assert not writer.is_alive() and not reader.is_alive()
+    assert module._read_pipeline_lock_payload(path) == {}
