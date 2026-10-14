@@ -54,15 +54,227 @@ def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
     )
 
 
-def test_target_preview_rechecks_available_inputs_without_mutating_state():
+@pytest.mark.parametrize("stage", ["queue", "relay"])
+@pytest.mark.parametrize("missing_output", ["summary", "reduce"])
+def test_specialized_uav_callback_cannot_complete_without_both_output_files(
+    tmp_path, stage, missing_output
+):
+    queue_path = tmp_path / "queue-input.json"
+    queue_path.write_text("{}")
     state = {
         "units": [
-            {"id": "newly_ready", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "input"}]},
+            {
+                "id": "queue_baseline",
+                "dispatch_status": "runnable" if stage == "queue" else "completed",
+            },
+            {
+                "id": "relay_followup",
+                "dispatch_status": "blocked" if stage == "queue" else "runnable",
+            },
+        ],
+        "artifacts": []
+        if stage == "queue"
+        else [
+            {
+                "artifact": "queue_metrics",
+                "kind": "summary_metrics",
+                "producer": "queue_baseline",
+                "status": "available",
+                "path": str(queue_path),
+            }
+        ],
+    }
+
+    def callback(*, run_root, **kwargs):
+        run_root.mkdir(parents=True, exist_ok=True)
+        for name in ("summary", "reduce"):
+            if name != missing_output:
+                (run_root / f"{name}.json").write_text("{}")
+        return {
+            "summary_metrics_path": "summary.json",
+            "reduce_artifact_path": "reduce.json",
+        }
+
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            run_queue_fn=callback,
+            run_relay_fn=callback,
+            execution_attempt_id="specialized-output-check",
+            persist_execution_claim_fn=lambda state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+        ),
+    )
+    assert not result.ok
+    assert result.state["run_status"] == "failed"
+    failed_id = "queue_baseline" if stage == "queue" else "relay_followup"
+    assert (
+        next(unit for unit in result.state["units"] if unit["id"] == failed_id)[
+            "dispatch_status"
+        ]
+        == "failed"
+    )
+    assert not any(
+        artifact["producer"] == failed_id
+        for artifact in result.state.get("artifacts", [])
+    )
+
+
+@pytest.mark.parametrize("stage", ["queue", "relay"])
+def test_specialized_uav_callback_publishes_only_materialized_output_paths(
+    tmp_path, stage
+):
+    queue_path = tmp_path / "queue-input.json"
+    queue_path.write_text("{}")
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "dispatch_status": "runnable" if stage == "queue" else "completed",
+            },
+            {
+                "id": "relay_followup",
+                "dispatch_status": "blocked" if stage == "queue" else "runnable",
+            },
+        ],
+        "artifacts": []
+        if stage == "queue"
+        else [
+            {
+                "artifact": "queue_metrics",
+                "kind": "summary_metrics",
+                "producer": "queue_baseline",
+                "status": "available",
+                "path": str(queue_path),
+            }
+        ],
+    }
+
+    def callback(*, run_root, **kwargs):
+        run_root.mkdir(parents=True, exist_ok=True)
+        for name in ("summary", "reduce"):
+            (run_root / f"{name}.json").write_text("{}")
+        return {
+            "summary_metrics_path": "summary.json",
+            "reduce_artifact_path": "reduce.json",
+        }
+
+    result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        dag_execution_adapters.DagExecutionContext(
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            run_queue_fn=callback,
+            run_relay_fn=callback,
+            execution_attempt_id="specialized-real-output-check",
+            persist_execution_claim_fn=lambda state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+        ),
+    )
+    assert result.ok
+    expected_producer = "queue_baseline" if stage == "queue" else "relay_followup"
+    outputs = [
+        artifact
+        for artifact in result.state["artifacts"]
+        if artifact["producer"] == expected_producer
+    ]
+    assert len(outputs) == 2
+    assert all(
+        Path(output["path"]).is_absolute() and Path(output["path"]).is_file()
+        for output in outputs
+    )
+    if stage == "relay":
+        assert result.state["run_status"] == "completed"
+
+
+@pytest.mark.parametrize("stage", ["queue", "relay"])
+def test_specialized_uav_noop_cannot_complete_using_previous_attempt_outputs(
+    tmp_path, stage
+):
+    queue_path = tmp_path / "queue-input.json"
+    queue_path.write_text("{}")
+    unit_id = "queue_baseline" if stage == "queue" else "relay_followup"
+    run_root = tmp_path / ".agilab/multi_app_dag_real_runs" / unit_id
+    run_root.mkdir(parents=True)
+    for name in ("summary", "reduce"):
+        (run_root / f"{name}.json").write_text("{}")
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "dispatch_status": "runnable" if stage == "queue" else "completed",
+            },
+            {
+                "id": "relay_followup",
+                "dispatch_status": "blocked" if stage == "queue" else "runnable",
+            },
+        ],
+        "artifacts": []
+        if stage == "queue"
+        else [
+            {
+                "artifact": "queue_metrics",
+                "kind": "summary_metrics",
+                "producer": "queue_baseline",
+                "status": "available",
+                "path": str(queue_path),
+            }
+        ],
+    }
+    calls = []
+
+    def callback(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        return {
+            "summary_metrics_path": "summary.json",
+            "reduce_artifact_path": "reduce.json",
+        }
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        run_queue_fn=callback,
+        run_relay_fn=callback,
+        execution_attempt_id="new-specialized-attempt",
+        persist_execution_claim_fn=lambda state: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    for _ in range(2):
+        result = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+            "uav_queue_to_relay_controlled", state, context
+        )
+        assert not result.ok and "freshly produce" in result.message
+        assert result.state["run_status"] == "failed"
+    assert len(calls) == 1
+
+
+def test_target_preview_rechecks_available_inputs_without_mutating_state(tmp_path):
+    input_path = tmp_path / "input.csv"
+    input_path.write_text("actual input")
+    state = {
+        "units": [
+            {
+                "id": "newly_ready",
+                "dispatch_status": "blocked",
+                "artifact_dependencies": [{"artifact": "input"}],
+            },
             {"id": "already_ready", "dispatch_status": "runnable"},
-            {"id": "waiting", "dispatch_status": "blocked", "artifact_dependencies": [{"artifact": "absent"}]},
+            {
+                "id": "waiting",
+                "dispatch_status": "blocked",
+                "artifact_dependencies": [{"artifact": "absent"}],
+            },
             {"id": "failed", "dispatch_status": "failed", "artifact_dependencies": []},
         ],
-        "artifacts": [{"artifact": "input", "status": "available"}],
+        "artifacts": [
+            {
+                "artifact": "input",
+                "status": "available",
+                "kind": "dataset",
+                "path": str(input_path),
+            }
+        ],
         "events": [],
         "summary": {"runnable_unit_ids": ["already_ready"]},
     }
@@ -74,11 +286,24 @@ def test_target_preview_rechecks_available_inputs_without_mutating_state():
         dag_execution_adapters.planned_stage_ids("unknown", state)
 
 
-def test_uav_target_preview_preserves_adapter_order_and_single_stage_batch():
-    state = {"units": [
-        {"id": "relay_followup", "dispatch_status": "runnable"},
-        {"id": "queue_baseline", "dispatch_status": "runnable"},
-    ], "artifacts": [{"artifact": "queue_metrics", "status": "available"}]}
+def test_uav_target_preview_preserves_adapter_order_and_single_stage_batch(tmp_path):
+    metrics_path = tmp_path / "queue-metrics.json"
+    metrics_path.write_text("{}")
+    state = {
+        "units": [
+            {"id": "relay_followup", "dispatch_status": "runnable"},
+            {"id": "queue_baseline", "dispatch_status": "runnable"},
+        ],
+        "artifacts": [
+            {
+                "artifact": "queue_metrics",
+                "producer": "queue_baseline",
+                "status": "available",
+                "kind": "summary_metrics",
+                "path": str(metrics_path),
+            }
+        ],
+    }
     assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state) == ("queue_baseline",)
     assert dag_execution_adapters.planned_stage_ids("uav_queue_to_relay_controlled", state, batch=True) == ("queue_baseline",)
     state["units"][1]["dispatch_status"] = "completed"
@@ -148,7 +373,7 @@ def test_public_adapter_entrypoints_cannot_accept_a_forged_claim_receipt(tmp_pat
     assert callback_count == 0
 
 
-def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path):
+def test_controlled_contract_adapter_records_declared_receipt_contracts(tmp_path):
     state = {
         "created_at": "2026-05-07T00:00:00Z",
         "units": [
@@ -175,11 +400,13 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
                 "id": "review_forecast",
                 "dispatch_status": "blocked",
                 "execution_contract": {"entrypoint": "beta.review_forecast"},
-                "artifact_dependencies": [{"artifact": "context_artifact", "from": "extract_context"}],
+                "artifact_dependencies": [
+                    {"artifact": "context_artifact", "from": "extract_context"}
+                ],
                 "produces": [
                     {
                         "artifact": "forecast_metrics",
-                        "kind": "summary_metrics",
+                        "kind": "contract_artifact",
                         "path": "forecast/metrics.json",
                     }
                 ],
@@ -188,11 +415,13 @@ def test_controlled_contract_adapter_executes_declared_contract_stages(tmp_path)
                 "id": "publish_report",
                 "dispatch_status": "blocked",
                 "execution_contract": {"entrypoint": "gamma.publish_report"},
-                "artifact_dependencies": [{"artifact": "forecast_metrics", "from": "review_forecast"}],
+                "artifact_dependencies": [
+                    {"artifact": "forecast_metrics", "from": "review_forecast"}
+                ],
                 "produces": [
                     {
                         "artifact": "report_summary",
-                        "kind": "summary_metrics",
+                        "kind": "contract_artifact",
                         "path": "report/summary.json",
                     }
                 ],
@@ -263,6 +492,9 @@ def test_controlled_contract_adapter_uses_entrypoint_runner(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "custom-runner:extract_context"
         calls.append(run_root)
+        output_path = run_root / "alpha/summary.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text('{"stage_completed": 1}\n', encoding="utf-8")
         return {
             "summary_metrics_path": "alpha/summary.json",
             "summary_metrics": {"stage_completed": 1, "custom_runner": 1},
@@ -405,6 +637,9 @@ def test_uav_queue_adapter_reports_missing_required_stages(tmp_path):
 
 def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
     relay_calls: list[dict[str, object]] = []
+    metrics_path = tmp_path / "queue/from-artifact.json"
+    metrics_path.parent.mkdir()
+    metrics_path.write_text("{}")
     state = {
         "created_at": "2026-05-07T00:00:00Z",
         "units": [
@@ -414,7 +649,9 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
         "artifacts": [
             {
                 "artifact": "queue_metrics",
-                "path": "queue/from-artifact.json",
+                "path": str(metrics_path),
+                "kind": "summary_metrics",
+                "producer": "queue_baseline",
                 "status": "available",
             }
         ],
@@ -432,6 +669,10 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
     ) -> dict[str, object]:
         assert idempotency_token == "relay-run:relay_followup"
         relay_calls.append({"run_root": run_root, "queue_result": queue_result})
+        for name in ("summary", "reduce"):
+            path = run_root / f"relay/{name}.json"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("{}")
         return {
             "summary_metrics_path": "relay/summary.json",
             "reduce_artifact_path": "relay/reduce.json",
@@ -455,8 +696,11 @@ def test_uav_queue_adapter_runs_blocked_relay_from_available_artifact(tmp_path):
     assert result.executed_unit_id == "relay_followup"
     assert relay_calls == [
         {
-            "run_root": tmp_path / ".agilab" / "multi_app_dag_real_runs" / "relay_followup",
-            "queue_result": {"summary_metrics_path": "queue/from-artifact.json"},
+            "run_root": tmp_path
+            / ".agilab"
+            / "multi_app_dag_real_runs"
+            / "relay_followup",
+            "queue_result": {"summary_metrics_path": str(metrics_path)},
         }
     ]
     assert result.state["run_status"] == "completed"
@@ -557,8 +801,11 @@ def test_controlled_contract_adapter_uses_unit_id_runner_before_entrypoint_runne
         run_root: Path,
         idempotency_token: str,
     ) -> dict[str, object]:
-        del repo_root, run_root, idempotency_token
+        del repo_root, idempotency_token
         calls.append("unit")
+        output_path = run_root / "unit/summary.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text('{"runner": "unit"}\n', encoding="utf-8")
         return {
             "summary_metrics_path": "unit/summary.json",
             "summary_metrics": {"stage_completed": 1, "runner": "unit"},
