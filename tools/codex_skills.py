@@ -412,6 +412,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "generate":
+        if issues:
+            for issue in issues:
+                print(f"ERROR: {issue}", file=sys.stderr)
+            return 2
         default_generated_dir = root / ".generated"
         json_out = Path(args.json_output) if args.json_output else default_generated_dir / "skills_index.json"
         md_out = Path(args.md_output) if args.md_output else default_generated_dir / "skills_index.md"
@@ -426,7 +430,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f" - {path}")
         else:
             print("No changes in generated outputs")
-        return 2 if issues else 0
+        return 0
 
     if args.command == "create":
         try:
