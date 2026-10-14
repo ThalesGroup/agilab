@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-14T08:47:07Z",
+  "generated_at_utc": "2026-10-14T12:31:55Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -1479,6 +1479,7 @@
     {
       "schema": "agilab.dag_contract_stage_result.v1",
       "sources": [
+        "src/agilab/dag/dag_artifact_contracts.py",
         "src/agilab/dag/dag_execution_adapters.py"
       ]
     },
@@ -1601,6 +1602,7 @@
     {
       "schema": "agilab.distributed_dag_stage_submission.v1",
       "sources": [
+        "src/agilab/dag/dag_artifact_contracts.py",
         "src/agilab/dag/dag_distributed_submitter.py"
       ]
     },

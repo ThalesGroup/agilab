@@ -5,6 +5,7 @@ import pytest
 from agi_node.dag_worker import DagWorker
 import agi_node.dag_worker.dag_worker as dag_module
 from agi_node.agi_dispatcher import BaseWorker
+from agi_node.agi_dispatcher.base_worker_execution_support import _collapse_plan_for_single_worker
 
 
 # Helper to configure DagWorker attributes since its __init__ takes no args
@@ -94,6 +95,15 @@ class InvokeDagWorker(DagWorker):
     def kw_alt(self, *, args=None, previous_result=None):
         return args, previous_result
 
+    def positional_only(self, args, prev_result, /):
+        return args, prev_result
+
+    def mixed_positional_and_keyword(self, args, /, *, prev_result):
+        return args, prev_result
+
+    def positional_args_only(self, args, /):
+        return args
+
     def fallback_pair(self, left, right):
         return left, right
 
@@ -105,6 +115,7 @@ class InvokeDagWorker(DagWorker):
 
 
 # -------------------- Core ordering tests --------------------
+
 
 def test_linear_dependencies_topological_order():
     # One branch; worker_id=0 should pick it (round-robin on index)
@@ -206,10 +217,12 @@ def test_works_dispatches_to_mono_when_mode_0(monkeypatch):
     called = []
 
     def fake_mono(self, workers_tree, workers_tree_info):
-        called.append("mono"); return 0.0
+        called.append("mono")
+        return 0.0
 
     def fake_multi(self, workers_tree, workers_tree_info):
-        called.append("multi"); return 0.0
+        called.append("multi")
+        return 0.0
 
     # New design always dispatches to multi; just patch that
     monkeypatch.setattr(DagWorker, "_exec_multi_process", fake_multi, raising=True)
@@ -223,10 +236,12 @@ def test_works_dispatches_to_multi_when_mode_flag_set(monkeypatch):
     called = []
 
     def fake_mono(self, workers_tree, workers_tree_info):
-        called.append("mono"); return 0.0
+        called.append("mono")
+        return 0.0
 
     def fake_multi(self, workers_tree, workers_tree_info):
-        called.append("multi"); return 0.0
+        called.append("multi")
+        return 0.0
 
     monkeypatch.setattr(DagWorker, "_exec_multi_process", fake_multi, raising=True)
 
@@ -260,6 +275,25 @@ def test_invoke_supports_keyword_args_and_prev_result():
 def test_invoke_supports_previous_result_alias():
     w = _cfg(InvokeDagWorker(), 0, 0, 0)
     assert w._invoke("kw_alt", args=1, prev_result=2) == (1, 2)
+
+
+@pytest.mark.parametrize("method", ["positional_only", "mixed_positional_and_keyword"])
+def test_invoke_binds_positional_only_parameters_before_the_method_call(method):
+    worker = _cfg(InvokeDagWorker(), 0, 0, 0)
+
+    assert worker._invoke(method, args=("payload",), prev_result={"source": 1}) == (
+        ("payload",),
+        {"source": 1},
+    )
+
+
+def test_invoke_supports_a_single_positional_only_args_parameter():
+    worker = _cfg(InvokeDagWorker(), 0, 0, 0)
+
+    assert (
+        worker._invoke("positional_args_only", args="payload", prev_result={})
+        == "payload"
+    )
 
 
 def test_invoke_exception_falls_back_to_positional_call(monkeypatch):
@@ -298,3 +332,144 @@ def test_exec_multi_process_future_exception_is_logged_and_raised(caplog):
             w._exec_multi_process(workers_tree, workers_tree_info)
 
     assert any("generated an exception" in record.message for record in caplog.records)
+
+
+@pytest.mark.parametrize("error_type", [TypeError, ValueError])
+def test_stage_body_error_is_propagated_without_repeating_side_effect(error_type):
+    class FailingWorker(DagWorker):
+        def __init__(self):
+            self.worker_id = 0
+            self.calls = []
+
+        def fail(self, args, prev_result):
+            self.calls.append(args)
+            raise error_type("stage body failed")
+
+    worker = FailingWorker()
+    tree, metadata = branch("P0", [("fail", [], ("side effect",))])
+
+    with pytest.raises(error_type, match="stage body failed"):
+        worker._exec_multi_process([tree], [metadata])
+
+    assert worker.calls == [("side effect",)]
+
+
+@pytest.mark.parametrize("error_type", [TypeError, ValueError])
+def test_positional_only_stage_body_error_is_not_retried(error_type):
+    class FailingWorker(DagWorker):
+        def __init__(self):
+            self.worker_id = 0
+            self.calls = []
+
+        def fail(self, args, prev_result, /):
+            self.calls.append(args)
+            raise error_type("positional stage body failed")
+
+    worker = FailingWorker()
+    tree, metadata = branch("P0", [("fail", [], ("side effect",))])
+
+    with pytest.raises(error_type, match="positional stage body failed"):
+        worker._exec_multi_process([tree], [metadata])
+
+    assert worker.calls == [("side effect",)]
+
+
+def test_collapsed_partitions_preserve_repeated_method_invocations():
+    class PartitionWorker(DagWorker):
+        def __init__(self):
+            self.worker_id = 0
+            self.calls = []
+
+        def transform(self, args):
+            self.calls.append(args)
+            return args
+
+    trees, metadata = zip(
+        branch("P0", [("transform", [], ("A",))]),
+        branch("P1", [("transform", [], ("B",))]),
+    )
+    plan, info = _collapse_plan_for_single_worker(list(trees), list(metadata))
+    worker = PartitionWorker()
+
+    worker.works(plan, info)
+
+    assert sorted(worker.calls) == [("A",), ("B",)]
+
+
+def test_collapsed_repeated_dags_keep_dependencies_in_their_original_tree():
+    class PartitionWorker(DagWorker):
+        def __init__(self):
+            self.worker_id = 0
+            self.results = []
+
+        def produce(self, args):
+            return args
+
+        def consume(self, args, prev_result):
+            self.results.append((args, prev_result["produce"]))
+
+    trees, metadata = zip(
+        branch("P0", [("produce", [], ("A",)), ("consume", ["produce"], ("A",))]),
+        branch(
+            "P1", [("produce", [], ("B",)), ("consume", [make_fn("produce")], ("B",))]
+        ),
+    )
+    # Metadata labels describe individual tasks; they do not identify a tree.
+    metadata = [
+        [
+            (f"{partition}-{index}", weight)
+            for index, (partition, weight) in enumerate(info)
+        ]
+        for info in metadata
+    ]
+    plan, info = _collapse_plan_for_single_worker(list(trees), metadata)
+    worker = PartitionWorker()
+
+    worker.works(plan, info)
+
+    assert sorted(worker.results) == [(("A",), ("A",)), (("B",), ("B",))]
+
+
+def test_collapsed_unique_dependency_can_cross_original_trees():
+    trees, metadata = zip(
+        branch("P0", [("source", [])]),
+        branch("P1", [("consumer", ["source"])]),
+    )
+    plan, info = _collapse_plan_for_single_worker(list(trees), list(metadata))
+    worker = _cfg(DummyDagWorker(), 0, 0, 0)
+
+    worker.works(plan, info)
+
+    assert worker.execution_order == ["source", "consumer"]
+
+
+def test_ambiguous_repeated_dependency_is_rejected_before_any_stage_runs():
+    tree, info = branch(
+        "P0",
+        [
+            ("transform", [], ("A",)),
+            ("transform", [], ("B",)),
+            ("consume", ["transform"]),
+        ],
+    )
+    worker = _cfg(DummyDagWorker(), 0, 0, 0)
+
+    with pytest.raises(ValueError, match="Ambiguous DAG dependency on repeated method"):
+        worker.works([tree], [info])
+
+    assert worker.execution_order == []
+
+
+def test_ambiguous_dependency_across_collapsed_trees_is_rejected():
+    trees, metadata = zip(
+        branch("P0", [("transform", [], ("A",))]),
+        branch("P1", [("transform", [], ("B",))]),
+        branch("P2", [("consume", ["transform"])]),
+    )
+    plan, info = _collapse_plan_for_single_worker(list(trees), list(metadata))
+    worker = _cfg(DummyDagWorker(), 0, 0, 0)
+
+    with pytest.raises(ValueError, match="Ambiguous DAG dependency on repeated method"):
+        worker.works(plan, info)
+
+    assert worker.execution_order == []

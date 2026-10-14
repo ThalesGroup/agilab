@@ -11,6 +11,13 @@ import shlex
 import subprocess
 from typing import Any, Callable, Mapping, Protocol
 
+from .dag_artifact_contracts import (
+    ArtifactOutputSnapshot,
+    artifact_result_path_key as _artifact_path_result_key,
+    is_contract_receipt_artifact,
+    reported_artifact_paths,
+    verified_submission_artifacts,
+)
 from .dag_idempotency import (
     DagExternalExecutionUncertainError,
     execute_idempotently as _execute_idempotently,
@@ -249,11 +256,70 @@ def available_artifact_ids(state: Mapping[str, Any]) -> set[str]:
     }
 
 
+def _artifact_dependency_available(
+    state: Mapping[str, Any], dependency: Mapping[str, Any]
+) -> bool:
+    artifact_id = str(dependency.get("artifact", "")).strip()
+    producer = str(dependency.get("from", "")).strip()
+    if not artifact_id:
+        return False
+    if producer:
+        producer_unit = _dag_unit(state, producer)
+        if producer_unit is None or producer_unit.get("dispatch_status") != "completed":
+            return False
+    artifacts = state.get("artifacts", [])
+    return isinstance(artifacts, list) and any(
+        isinstance(artifact, Mapping)
+        and str(artifact.get("artifact", "")).strip() == artifact_id
+        and artifact.get("status") == "available"
+        and (not producer or str(artifact.get("producer", "")).strip() == producer)
+        and _persisted_artifact_available(artifact)
+        for artifact in artifacts
+    )
+
+
+def _persisted_artifact_available(artifact: Mapping[str, Any]) -> bool:
+    path_value = artifact.get("path")
+    if not isinstance(path_value, (str, Path)) or not str(path_value).strip():
+        return False
+    path = Path(path_value)
+    kind = str(artifact.get("kind", ""))
+    if not path.exists() or (
+        kind in {"contract_artifact", "summary_metrics", "reduce_summary"}
+        and not path.is_file()
+    ):
+        return False
+    return kind == "contract_artifact" or not is_contract_receipt_artifact(path)
+
+
+def _unit_dependencies_available(
+    state: Mapping[str, Any], unit: Mapping[str, Any]
+) -> bool:
+    dependencies = unit.get("artifact_dependencies", [])
+    upstream_ids = unit.get("depends_on", [])
+    if not isinstance(upstream_ids, list):
+        return False
+    policy = unit.get("dispatch_policy", {})
+    policy_upstream = (
+        policy.get("requires_completed_dependencies", [])
+        if isinstance(policy, Mapping)
+        else []
+    )
+    if not isinstance(policy_upstream, list):
+        return False
+    for producer in [*upstream_ids, *policy_upstream]:
+        producer_unit = _dag_unit(state, str(producer))
+        if producer_unit is None or producer_unit.get("dispatch_status") != "completed":
+            return False
+    return isinstance(dependencies, list) and all(
+        isinstance(dependency, Mapping)
+        and _artifact_dependency_available(state, dependency)
+        for dependency in dependencies
+    )
+
+
 def _next_runnable_unit(state: Mapping[str, Any]) -> dict[str, Any] | None:
-    for unit in dag_units(state):
-        if str(unit.get("dispatch_status", "")) == "runnable":
-            return unit
-    return None
+    return next(iter(_runnable_units(state)), None)
 
 
 def planned_stage_ids(
@@ -276,11 +342,16 @@ def _next_uav_queue_to_relay_unit_id(state: Mapping[str, Any]) -> str | None:
     relay = _dag_unit(state, RELAY_UNIT_ID)
     if not isinstance(queue, dict) or not isinstance(relay, dict):
         return None
-    if str(queue.get("dispatch_status", "")) == "runnable":
+    if str(
+        queue.get("dispatch_status", "")
+    ) == "runnable" and _unit_dependencies_available(state, queue):
         return QUEUE_UNIT_ID
     if (
         str(relay.get("dispatch_status", "")) in {"runnable", "blocked"}
-        and "queue_metrics" in available_artifact_ids(state)
+        and _artifact_dependency_available(
+            state, {"artifact": "queue_metrics", "from": QUEUE_UNIT_ID}
+        )
+        and _unit_dependencies_available(state, relay)
     ):
         return RELAY_UNIT_ID
     return None
@@ -291,11 +362,39 @@ def _runnable_units(state: Mapping[str, Any]) -> list[dict[str, Any]]:
         unit
         for unit in dag_units(state)
         if str(unit.get("dispatch_status", "")) == "runnable"
+        and _unit_dependencies_available(state, unit)
     ]
 
 
 def _unblock_ready_units(state: dict[str, Any], *, timestamp: str) -> None:
     for unit in dag_units(state):
+        if unit.get(
+            "dispatch_status"
+        ) == "runnable" and not _unit_dependencies_available(state, unit):
+            unit["dispatch_status"] = "blocked"
+            _append_event(
+                state,
+                timestamp=timestamp,
+                kind="unit_blocked",
+                unit_id=str(unit.get("id", "")),
+                from_status="runnable",
+                to_status="blocked",
+                detail="Declared producer artifacts are not available after completion.",
+            )
+            timestamps = unit.get("timestamps")
+            if isinstance(timestamps, dict):
+                timestamps["updated_at"] = timestamp
+            unit["operator_ui"] = {
+                "state": "waiting_for_artifacts",
+                "severity": "warning",
+                "message": "Waiting for artifacts from the declared completed producers.",
+                "blocked_by_artifacts": [
+                    str(dependency.get("artifact", ""))
+                    for dependency in unit.get("artifact_dependencies", [])
+                    if isinstance(dependency, Mapping)
+                    and not _artifact_dependency_available(state, dependency)
+                ],
+            }
         _unblock_unit_when_artifacts_available(state, unit, timestamp=timestamp)
 
 
@@ -352,14 +451,6 @@ def _contract_artifact_kind(artifact_id: str, declared_kind: str) -> str:
     return "contract_artifact"
 
 
-def _artifact_path_result_key(artifact_kind: str) -> str:
-    if artifact_kind == "reduce_summary":
-        return "reduce_artifact_path"
-    if artifact_kind == "summary_metrics":
-        return "summary_metrics_path"
-    return "contract_artifact_path"
-
-
 def _run_next_uav_queue_to_relay_stage(
     state: Mapping[str, Any],
     *,
@@ -399,12 +490,32 @@ def _run_next_uav_queue_to_relay_stage(
             run_root=run_root,
             unit_id=QUEUE_UNIT_ID,
             idempotency_token=idempotency_token,
-            callback=lambda: run_queue_fn(
-                repo_root=context.repo_root,
+            callback=lambda: _run_uav_stage_callback_once(
+                queue,
                 run_root=run_root,
-                idempotency_token=idempotency_token,
+                prefix="queue",
+                callback=lambda: run_queue_fn(
+                    repo_root=context.repo_root,
+                    run_root=run_root,
+                    idempotency_token=idempotency_token,
+                ),
             ),
         )
+        try:
+            result = _validated_uav_stage_result(
+                queue, run_root=run_root, result=result, prefix="queue"
+            )
+        except Exception as exc:
+            _mark_controlled_stage_failure(
+                mutable_state, queue, timestamp=timestamp, message=str(exc)
+            )
+            _refresh_summary(mutable_state)
+            return DagStageExecutionResult(
+                ok=False,
+                message=str(exc),
+                state=mutable_state,
+                executed_unit_id=QUEUE_UNIT_ID,
+            )
         _mark_controlled_stage_execution(
             mutable_state,
             queue,
@@ -448,13 +559,33 @@ def _run_next_uav_queue_to_relay_stage(
             run_root=run_root,
             unit_id=RELAY_UNIT_ID,
             idempotency_token=idempotency_token,
-            callback=lambda: run_relay_fn(
-                repo_root=context.repo_root,
+            callback=lambda: _run_uav_stage_callback_once(
+                relay,
                 run_root=run_root,
-                queue_result=queue_result,
-                idempotency_token=idempotency_token,
+                prefix="relay",
+                callback=lambda: run_relay_fn(
+                    repo_root=context.repo_root,
+                    run_root=run_root,
+                    queue_result=queue_result,
+                    idempotency_token=idempotency_token,
+                ),
             ),
         )
+        try:
+            result = _validated_uav_stage_result(
+                relay, run_root=run_root, result=result, prefix="relay"
+            )
+        except Exception as exc:
+            _mark_controlled_stage_failure(
+                mutable_state, relay, timestamp=timestamp, message=str(exc)
+            )
+            _refresh_summary(mutable_state)
+            return DagStageExecutionResult(
+                ok=False,
+                message=str(exc),
+                state=mutable_state,
+                executed_unit_id=RELAY_UNIT_ID,
+            )
         _mark_controlled_stage_execution(
             mutable_state,
             relay,
@@ -495,8 +626,11 @@ def _run_next_controlled_contract_dag_stage(
     unit = _next_runnable_unit(mutable_state)
     if unit is not None:
         unit_id = str(unit.get("id", ""))
-        contract_issue = _controlled_contract_unit_issue(unit)
+        contract_issue = _controlled_contract_unit_issue(unit, context=context)
         if contract_issue:
+            _mark_controlled_stage_failure(
+                mutable_state, unit, timestamp=timestamp, message=contract_issue
+            )
             _refresh_summary(mutable_state)
             return DagStageExecutionResult(
                 ok=False,
@@ -566,7 +700,11 @@ def _run_next_controlled_contract_dag_stage(
         _refresh_summary(mutable_state)
         return DagStageExecutionResult(
             ok=True,
-            message=f"Executed `{unit_id}` and published `{artifact_id}`.",
+            message=(
+                f"Recorded contract receipt for `{unit_id}` as `{artifact_id}`."
+                if result.get("receipt_only")
+                else f"Executed `{unit_id}` and published `{artifact_id}`."
+            ),
             state=mutable_state,
             executed_unit_id=unit_id,
         )
@@ -604,7 +742,9 @@ def _run_ready_controlled_contract_dag_stages(
     failure_messages_by_unit_id: dict[str, str] = {}
     for unit in runnable_units:
         unit_id = str(unit.get("id", ""))
-        contract_issue = _controlled_contract_unit_issue(unit)
+        contract_issue = _controlled_contract_unit_issue(
+            unit, context=context, execution_backend=backend
+        )
         if contract_issue:
             _mark_controlled_stage_failure(
                 mutable_state,
@@ -832,20 +972,64 @@ def _distributed_stage_result(
         run_root=run_root,
         unit_id=unit_id,
         idempotency_token=idempotency_token,
-        callback=lambda: submitter(
-            repo_root=context.repo_root,
-            lab_dir=context.lab_dir,
+        callback=lambda: _run_distributed_stage_callback_once(
+            context,
+            unit=unit,
+            artifact=artifact,
+            contract=contract,
             run_root=run_root,
-            unit=dict(unit),
-            artifact=dict(artifact),
-            execution_contract=contract,
             timestamp=timestamp,
             idempotency_token=idempotency_token,
         ),
     )
     result.setdefault("execution_contract", contract)
     result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
-    return result
+    return _validated_contract_stage_result(
+        unit, artifact, run_root=run_root, result=result
+    )
+
+
+def _run_distributed_stage_callback_once(
+    context: DagExecutionContext,
+    *,
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
+    contract: Mapping[str, Any],
+    run_root: Path,
+    timestamp: str,
+    idempotency_token: str,
+) -> dict[str, Any]:
+    freshness = _callback_output_snapshot(unit, run_root=run_root)
+    submitter = context.stage_submit_fn
+    assert submitter is not None
+    result = dict(
+        submitter(
+            repo_root=context.repo_root,
+            lab_dir=context.lab_dir,
+            run_root=run_root,
+            unit=dict(unit),
+            artifact=dict(artifact),
+            execution_contract=dict(contract),
+            timestamp=timestamp,
+            idempotency_token=idempotency_token,
+        )
+    )
+    validated = _validated_contract_stage_result(
+        unit, artifact, run_root=run_root, result=result
+    )
+    submitted = verified_submission_artifacts(
+        validated,
+        run_root=run_root,
+        unit_id=str(unit.get("id", "stage")),
+        idempotency_token=idempotency_token,
+    )
+    for output in validated["produced_artifacts"]:
+        if output["kind"] == "contract_artifact":
+            continue
+        path = Path(output["path"])
+        if (output["artifact"], output["kind"], path.resolve()) not in submitted:
+            freshness.require_fresh(path, artifact_id=output["artifact"])
+    return validated
 
 
 def _contract_stage_result(
@@ -858,7 +1042,7 @@ def _contract_stage_result(
     unit_id = str(unit.get("id", "")).strip() or "stage"
     idempotency_token = _unit_persisted_idempotency_token(unit)
     run_root = _real_run_root(context.lab_dir, unit_id)
-    return _execute_idempotently(
+    result = _execute_idempotently(
         run_root=run_root,
         unit_id=unit_id,
         idempotency_token=idempotency_token,
@@ -870,6 +1054,9 @@ def _contract_stage_result(
             idempotency_token=idempotency_token,
             run_root=run_root,
         ),
+    )
+    return _validated_contract_stage_result(
+        unit, artifact, run_root=run_root, result=result
     )
 
 
@@ -888,7 +1075,14 @@ def _contract_stage_result_once(
     artifact_path = str(artifact.get("path", "")).strip()
     contract = _unit_execution_contract(unit)
     runner = _stage_contract_runner(context, unit_id=unit_id, contract=contract)
+    receipt_only = _contract_receipt_allowed(unit, artifact)
+    command = _contract_command(contract)
+    if runner is None and not command and not receipt_only:
+        raise RuntimeError(
+            f"Controlled DAG stage `{unit_id}` has no registered executor for its entrypoint."
+        )
     if runner is not None:
+        freshness = _callback_output_snapshot(unit, run_root=run_root)
         result = dict(
             runner(
                 repo_root=context.repo_root,
@@ -898,23 +1092,42 @@ def _contract_stage_result_once(
         )
         result.setdefault("execution_contract", contract)
         result.setdefault("idempotency_token", idempotency_token)
-        return result
+        validated = _validated_contract_stage_result(
+            unit, artifact, run_root=run_root, result=result
+        )
+        _require_fresh_stage_outputs(validated, freshness)
+        return validated
 
     run_root.mkdir(parents=True, exist_ok=True)
     output_path = _contract_artifact_path(run_root, artifact_id=artifact_id, declared_path=artifact_path)
-    command = _contract_command(contract)
     command_result: dict[str, Any] = {}
     if command:
-        if output_path.is_dir():
-            raise RuntimeError(f"Controlled contract artifact path is a directory: {output_path}")
-        try:
-            output_path.unlink()
-        except FileNotFoundError:
-            pass
-        else:
-            # A retry must prove that its command produced the declared output;
-            # retaining a prior attempt's file would make evidence/token state lie.
-            fsync_directory(output_path.parent)
+        declared_paths = {output_path}
+        for declared_output in unit.get("produces", []):
+            if isinstance(declared_output, Mapping):
+                output_id = str(
+                    declared_output.get("artifact", "") or declared_output.get("id", "")
+                ).strip()
+                if output_id:
+                    declared_paths.add(
+                        _contract_artifact_path(
+                            run_root,
+                            artifact_id=output_id,
+                            declared_path=str(declared_output.get("path", "")).strip(),
+                        )
+                    )
+        for declared_path in declared_paths:
+            if declared_path.is_dir():
+                raise RuntimeError(
+                    f"Controlled contract artifact path is a directory: {declared_path}"
+                )
+            try:
+                declared_path.unlink()
+            except FileNotFoundError:
+                pass
+            else:
+                # Every declared command output must belong to this attempt.
+                fsync_directory(declared_path.parent)
         command_result = _run_contract_command(
             command,
             run_root=run_root,
@@ -932,9 +1145,34 @@ def _contract_stage_result_once(
         **command_result,
     }
     if not command or not output_path.exists():
-        # Fallback evidence belongs to this attempt. Reset/retry reuses the run
-        # root, so preserving a previous token would make state and evidence lie.
+        if not receipt_only:
+            raise RuntimeError(
+                f"Controlled DAG stage `{unit_id}` did not produce its declared artifact `{artifact_id}`."
+            )
+        # A receipt is permitted only by an explicit contract_artifact declaration.
+        # Scientific outputs must come from the executor, never this metadata.
+        artifact_payload["receipt_only"] = True
         write_json_atomic(output_path, artifact_payload)
+        for declared_output in unit.get("produces", []):
+            if not isinstance(declared_output, Mapping):
+                continue
+            output_id = str(
+                declared_output.get("artifact", "") or declared_output.get("id", "")
+            ).strip()
+            if output_id and output_id != artifact_id:
+                receipt_path = _contract_artifact_path(
+                    run_root,
+                    artifact_id=output_id,
+                    declared_path=str(declared_output.get("path", "")).strip(),
+                )
+                write_json_atomic(
+                    receipt_path,
+                    {
+                        **artifact_payload,
+                        "artifact": output_id,
+                        "artifact_kind": "contract_artifact",
+                    },
+                )
     result = {
         "contract_artifact_path": str(output_path),
         "reduce_artifact_path": str(output_path),
@@ -947,7 +1185,232 @@ def _contract_stage_result_once(
         },
     }
     result.update(command_result)
+    result["receipt_only"] = not command or bool(artifact_payload.get("receipt_only"))
+    return _validated_contract_stage_result(
+        unit, artifact, run_root=run_root, result=result
+    )
+
+
+def _contract_receipt_allowed(
+    unit: Mapping[str, Any], artifact: Mapping[str, Any]
+) -> bool:
+    produces = unit.get("produces")
+    if not isinstance(produces, list):
+        return artifact.get("kind") == "contract_artifact"
+    artifact_id = str(artifact.get("artifact", "")).strip()
+    return (
+        bool(produces)
+        and all(
+            isinstance(output, Mapping) and output.get("kind") == "contract_artifact"
+            for output in produces
+        )
+        and any(
+            str(output.get("artifact", "") or output.get("id", "")).strip()
+            == artifact_id
+            for output in produces
+        )
+    )
+
+
+def _validated_contract_stage_result(
+    unit: Mapping[str, Any],
+    artifact: Mapping[str, str],
+    *,
+    run_root: Path,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    unit_id = str(unit.get("id", "stage"))[:160]
+    if (
+        result.get("status") == "error"
+        or result.get("command_returncode", 0)
+        or result.get("returncode", 0)
+    ):
+        raise RuntimeError(
+            f"Controlled DAG stage `{unit_id}` executor reported a failed result."
+        )
+    primary_id = str(artifact.get("artifact", "")).strip()
+    primary_kind = str(artifact.get("kind", "contract_artifact"))
+    primary_key = _artifact_path_result_key(primary_kind)
+    declared_outputs = unit.get("produces")
+    outputs = declared_outputs if isinstance(declared_outputs, list) else [artifact]
+    reported_paths = reported_artifact_paths(result)
+    primary_reported = (
+        reported_paths.get(primary_id, "")
+        or str(
+            result.get(primary_key, "")
+            or result.get("summary_metrics_path", "")
+            or result.get("reduce_artifact_path", "")
+            or result.get("contract_artifact_path", "")
+        ).strip()
+    )
+    primary_path = (
+        Path(primary_reported)
+        if primary_reported
+        else _contract_artifact_path(
+            run_root,
+            artifact_id=primary_id,
+            declared_path=str(artifact.get("path", "")).strip(),
+        )
+    )
+    if primary_reported and not primary_path.is_absolute():
+        primary_path = run_root / primary_path
+    validated: list[dict[str, str]] = []
+    for output in outputs:
+        if not isinstance(output, Mapping):
+            continue
+        artifact_id = str(output.get("artifact", "") or output.get("id", "")).strip()
+        if not artifact_id:
+            continue
+        kind = _contract_artifact_kind(artifact_id, str(output.get("kind", "")).strip())
+        key = _artifact_path_result_key(kind)
+        path_value = reported_paths.get(artifact_id, "")
+        if not path_value:
+            if artifact_id == primary_id:
+                path_value = str(
+                    result.get(primary_key, "")
+                    or result.get("summary_metrics_path", "")
+                    or result.get("reduce_artifact_path", "")
+                    or result.get("contract_artifact_path", "")
+                ).strip()
+            elif key != primary_key:
+                path_value = str(result.get(key, "")).strip()
+                if path_value:
+                    reported_path = Path(path_value)
+                    if not reported_path.is_absolute():
+                        reported_path = run_root / reported_path
+                    if reported_path.resolve() == primary_path.resolve():
+                        # Legacy kind aliases describe the primary output. They
+                        # cannot prove another artifact with its own declaration.
+                        path_value = ""
+        path = (
+            Path(path_value)
+            if path_value
+            else _contract_artifact_path(
+                run_root,
+                artifact_id=artifact_id,
+                declared_path=str(output.get("path", "")).strip(),
+            )
+        )
+        if path_value and not path.is_absolute():
+            path = run_root / path
+        if not path.exists() or (
+            kind in {"contract_artifact", "summary_metrics", "reduce_summary"}
+            and not path.is_file()
+        ):
+            raise RuntimeError(
+                f"Controlled DAG stage `{unit_id}` did not produce its declared artifact `{artifact_id}`."
+            )
+        if kind != "contract_artifact" and is_contract_receipt_artifact(path):
+            raise RuntimeError(
+                f"Contract receipt cannot satisfy scientific artifact `{artifact_id}`."
+            )
+        evidence_path = str(result.get("submission_evidence_path", "")).strip()
+        if (
+            kind != "contract_artifact"
+            and evidence_path
+            and path.resolve() == Path(evidence_path).resolve()
+        ):
+            raise RuntimeError(
+                f"Distributed DAG stage `{unit_id}` returned a submission receipt instead of `{artifact_id}`."
+            )
+        if result.get("receipt_only") and kind != "contract_artifact":
+            raise RuntimeError(
+                f"A contract receipt cannot satisfy scientific artifact `{artifact_id}`."
+            )
+        validated.append({"artifact": artifact_id, "kind": kind, "path": str(path)})
+        if artifact_id == primary_id:
+            result[primary_key] = str(path)
+    if not validated or not any(
+        output["artifact"] == primary_id for output in validated
+    ):
+        raise RuntimeError(
+            f"Controlled DAG stage `{unit_id}` has no validated primary artifact."
+        )
+    result["produced_artifacts"] = validated
     return result
+
+
+def _validated_uav_stage_result(
+    unit: Mapping[str, Any], *, run_root: Path, result: dict[str, Any], prefix: str
+) -> dict[str, Any]:
+    if result.get("artifact_validation_error"):
+        raise RuntimeError(str(result["artifact_validation_error"]))
+    metrics_id = f"{prefix}_metrics"
+    reduce_id = f"{prefix}_reduce_summary"
+    outputs = [
+        dict(output)
+        for output in unit.get("produces", [])
+        if isinstance(output, Mapping)
+    ]
+    by_id = {
+        str(output.get("artifact", "") or output.get("id", "")): output
+        for output in outputs
+    }
+    for artifact_id, kind in (
+        (metrics_id, "summary_metrics"),
+        (reduce_id, "reduce_summary"),
+    ):
+        if artifact_id not in by_id:
+            output = {"artifact": artifact_id, "kind": kind}
+            outputs.append(output)
+            by_id[artifact_id] = output
+        else:
+            by_id[artifact_id]["kind"] = kind
+    validated = _validated_contract_stage_result(
+        {**unit, "produces": outputs},
+        {**by_id[metrics_id], "artifact": metrics_id},
+        run_root=run_root,
+        result=result,
+    )
+    for output in validated["produced_artifacts"]:
+        if output["artifact"] in {metrics_id, reduce_id}:
+            validated[_artifact_path_result_key(output["kind"])] = output["path"]
+    return validated
+
+
+def _callback_output_snapshot(
+    unit: Mapping[str, Any], *, run_root: Path
+) -> ArtifactOutputSnapshot:
+    declared_paths: list[Path] = []
+    for output in unit.get("produces", []):
+        if not isinstance(output, Mapping):
+            continue
+        value = str(output.get("path", "")).strip()
+        if value:
+            path = Path(value).expanduser()
+            declared_paths.append(path if path.is_absolute() else run_root / path)
+    return ArtifactOutputSnapshot(workspaces=[run_root], declared_paths=declared_paths)
+
+
+def _require_fresh_stage_outputs(
+    result: Mapping[str, Any], freshness: ArtifactOutputSnapshot
+) -> None:
+    for output in result.get("produced_artifacts", []):
+        if output.get("kind") != "contract_artifact":
+            freshness.require_fresh(
+                Path(output["path"]), artifact_id=output["artifact"]
+            )
+
+
+def _run_uav_stage_callback_once(
+    unit: Mapping[str, Any],
+    *,
+    run_root: Path,
+    prefix: str,
+    callback: Callable[[], Mapping[str, Any]],
+) -> dict[str, Any]:
+    freshness = _callback_output_snapshot(unit, run_root=run_root)
+    result = dict(callback())
+    try:
+        validated = _validated_uav_stage_result(
+            unit, run_root=run_root, result=result, prefix=prefix
+        )
+        _require_fresh_stage_outputs(validated, freshness)
+        return validated
+    except Exception as exc:
+        # The callback returned, so its output validation is a known failure.
+        # Persist that result before idempotent replay can bypass this check.
+        return {**result, "status": "error", "artifact_validation_error": str(exc)}
 
 
 def _contract_artifact_path(run_root: Path, *, artifact_id: str, declared_path: str) -> Path:
@@ -1062,13 +1525,28 @@ def _run_contract_command_once(
     }
 
 
-def _controlled_contract_unit_issue(unit: Mapping[str, Any]) -> str:
+def _controlled_contract_unit_issue(
+    unit: Mapping[str, Any],
+    *,
+    context: DagExecutionContext | None = None,
+    execution_backend: str = DAG_STAGE_BACKEND_LOCAL,
+) -> str:
     unit_id = str(unit.get("id", "")).strip() or "stage"
     produces = unit.get("produces")
     if not isinstance(produces, list) or not any(_has_declared_contract_artifact(artifact) for artifact in produces):
         return f"Controlled contract stage `{unit_id}` must declare at least one produced artifact."
-    if not _unit_execution_contract(unit):
+    contract = _unit_execution_contract(unit)
+    if not contract.get("entrypoint") and not _contract_command(contract):
         return f"Controlled contract stage `{unit_id}` must declare `execution.entrypoint` or `execution.command`."
+    if context is not None and execution_backend == DAG_STAGE_BACKEND_LOCAL:
+        artifact = _primary_contract_artifact({}, unit)
+        if (
+            not _contract_command(contract)
+            and _stage_contract_runner(context, unit_id=unit_id, contract=contract)
+            is None
+        ):
+            if not _contract_receipt_allowed(unit, artifact):
+                return f"Controlled DAG stage `{unit_id}` has no registered executor for its entrypoint."
     return ""
 
 
@@ -1133,7 +1611,9 @@ def _replace_artifact(state: dict[str, Any], artifact: dict[str, Any]) -> None:
     artifacts[:] = [
         row
         for row in artifacts
-        if not isinstance(row, dict) or str(row.get("artifact", "")).strip() != artifact_id
+        if not isinstance(row, dict)
+        or (str(row.get("artifact", "")).strip(), str(row.get("producer", "")).strip())
+        != (artifact_id, str(artifact.get("producer", "")).strip())
     ]
     artifacts.append(artifact)
 
@@ -1332,6 +1812,22 @@ def _mark_controlled_stage_execution(
                 "path": primary_path,
             }
         )
+    validated_outputs = result.get("produced_artifacts", [])
+    if isinstance(validated_outputs, list):
+        output_by_id = {
+            str(output.get("artifact", "")): output
+            for output in validated_outputs
+            if isinstance(output, Mapping)
+        }
+        produces = [
+            {
+                **output,
+                **output_by_id.get(
+                    str(output.get("artifact", "") or output.get("id", "")), {}
+                ),
+            }
+            for output in produces
+        ]
     unit["produces"] = produces
     metrics = result.get("summary_metrics", {})
     metrics = metrics if isinstance(metrics, dict) else {}
@@ -1352,6 +1848,20 @@ def _mark_controlled_stage_execution(
         state,
         artifact_record,
     )
+    if isinstance(validated_outputs, list):
+        for output in validated_outputs:
+            if not isinstance(output, Mapping) or output.get("artifact") == artifact_id:
+                continue
+            _replace_artifact(
+                state,
+                {
+                    **dict(output),
+                    "producer": unit_id,
+                    "status": "available",
+                    "available_at": timestamp,
+                    "execution_mode": execution_mode,
+                },
+            )
     if reduce_artifact_id:
         _replace_artifact(
             state,
@@ -1498,8 +2008,7 @@ def _unblock_unit_when_artifacts_available(
         for dependency in unit.get("artifact_dependencies", [])
         if isinstance(dependency, dict) and str(dependency.get("artifact", "")).strip()
     ]
-    missing = [artifact for artifact in dependencies if artifact not in available_artifact_ids(state)]
-    if missing:
+    if not _unit_dependencies_available(state, unit):
         return False
     unit_id = str(unit.get("id", ""))
     previous_status = str(unit.get("dispatch_status", ""))
@@ -1531,6 +2040,12 @@ def _unblock_unit_when_artifacts_available(
 def _unblock_relay_after_queue(state: dict[str, Any], *, timestamp: str) -> None:
     relay = _dag_unit(state, RELAY_UNIT_ID)
     if not isinstance(relay, dict) or str(relay.get("dispatch_status", "")) != "blocked":
+        return
+    if not _artifact_dependency_available(
+        state, {"artifact": "queue_metrics", "from": QUEUE_UNIT_ID}
+    ):
+        return
+    if not _unit_dependencies_available(state, relay):
         return
     previous_status = str(relay.get("dispatch_status", ""))
     relay["dispatch_status"] = "runnable"
@@ -1566,6 +2081,7 @@ def _queue_result_for_relay(state: Mapping[str, Any]) -> dict[str, Any]:
             isinstance(artifact, dict)
             and artifact.get("artifact") == "queue_metrics"
             and artifact.get("status") == "available"
+            and artifact.get("producer") == QUEUE_UNIT_ID
         ):
             return {"summary_metrics_path": str(artifact.get("path", ""))}
     return {}

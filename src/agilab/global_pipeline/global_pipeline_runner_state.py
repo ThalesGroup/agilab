@@ -30,6 +30,7 @@ if _agilab_pkg is not None:
         _agilab_pkg.__path__ = [*package_paths, package_path]
 
 from agilab.global_pipeline.global_pipeline_execution_plan import (  # noqa: E402
+    DEFAULT_DAG_RELATIVE_PATH,
     ExecutionPlan,
     build_execution_plan,
 )
@@ -457,7 +458,15 @@ def build_persisted_runner_state(
     now: str | None = None,
 ) -> dict[str, Any]:
     timestamp = now or _now_iso()
-    runner_state = build_runner_state(repo_root=repo_root, dag_path=dag_path)
+    source_path = (dag_path or DEFAULT_DAG_RELATIVE_PATH).expanduser()
+    if not source_path.is_absolute():
+        source_path = repo_root / source_path
+    source_bytes = source_path.read_bytes()
+    runner_state = build_runner_state(repo_root=repo_root, dag_path=source_path)
+    if source_path.read_bytes() != source_bytes:
+        raise ValueError(
+            "The workflow source changed while its plan was being read. Reload before continuing."
+        )
     units = deepcopy(list(runner_state.state_units))
     state = {
         "schema": SCHEMA,
@@ -470,6 +479,7 @@ def build_persisted_runner_state(
         "issues": [issue.as_dict() for issue in runner_state.issues],
         "source": {
             "dag_path": runner_state.dag_path,
+            "dag_sha256": hashlib.sha256(source_bytes).hexdigest(),
             "execution_order": list(runner_state.execution_order),
             "plan_schema": runner_state.plan_schema,
             "plan_runner_status": runner_state.plan_runner_status,
