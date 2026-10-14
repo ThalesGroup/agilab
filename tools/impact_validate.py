@@ -66,6 +66,14 @@ TEST_GUESS_ROOTS = (
     "src/agilab/core/test",
     "src/agilab/core/agi-env/test",
 )
+# Evidence consumers load the docs helper dynamically; filename matching alone
+# does not select their public documentation boundary regressions.
+INDIRECT_TOOL_TESTS = {
+    "tools/sync_docs_source.py": (
+        "test/test_kpi_evidence_bundle.py",
+        "test/test_production_readiness_report.py",
+    ),
+}
 IMPACT_STATIC_INPUTS = (
     "tools/impact_validate.py",
     "tools/maintenance_memory.py",
@@ -678,6 +686,7 @@ def _guess_tests_for_file(
                 candidate_tests.append(app_test)
 
     candidate_tests.extend(Path(candidate) for candidate in index.tests_for_stem(stem))
+    candidate_tests.extend(Path(candidate) for candidate in INDIRECT_TOOL_TESTS.get(path, ()))
 
     normalized = []
     seen: set[str] = set()

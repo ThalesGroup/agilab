@@ -36,6 +36,13 @@ def _load_sync_docs_module():
     return module
 
 
+def _fake_sync_docs(**kwargs):
+    return SimpleNamespace(
+        require_public_docs_source=_load_sync_docs_module().require_public_docs_source,
+        **kwargs,
+    )
+
+
 def test_build_report_passes_static_production_readiness_contracts() -> None:
     module = _load_module()
 
@@ -90,7 +97,7 @@ def test_explicit_missing_canonical_docs_fails_without_claiming_comparison(
         assert source_required is True
         return "fail", f"configured canonical docs source not found: {source}"
 
-    fake_sync_docs = SimpleNamespace(
+    fake_sync_docs = _fake_sync_docs(
         verify_target_mirror_integrity=verify_target,
         canonical_source_configuration=lambda _repo_root: SimpleNamespace(
             path=configured_source,
@@ -125,6 +132,9 @@ def test_docs_target_check_loads_verifier_from_requested_repo_root(
     tools_dir.mkdir()
     verifier = tools_dir / "sync_docs_source.py"
     verifier.write_text(
+        "def require_public_docs_source(target, repo_root):\n"
+        "    assert target == repo_root / 'docs' / 'source'\n"
+        "    return target\n"
         "def verify_target_mirror_integrity(target):\n"
         "    return True, 'requested-root-verifier:' + __file__\n",
         encoding="utf-8",
@@ -147,7 +157,7 @@ def test_canonical_comparison_exception_does_not_claim_checked(
     def raise_during_comparison(*_args, **_kwargs):
         raise RuntimeError("comparison exploded")
 
-    fake_sync_docs = SimpleNamespace(
+    fake_sync_docs = _fake_sync_docs(
         verify_target_mirror_integrity=lambda _target: (
             True,
             "target integrity verified",
@@ -179,7 +189,7 @@ def test_target_integrity_exception_does_not_claim_checked(monkeypatch) -> None:
     def raise_during_target_check(_target: Path):
         raise RuntimeError("target check exploded")
 
-    fake_sync_docs = SimpleNamespace(
+    fake_sync_docs = _fake_sync_docs(
         verify_target_mirror_integrity=raise_during_target_check,
     )
     monkeypatch.setattr(
@@ -203,7 +213,7 @@ def test_default_missing_canonical_source_is_skipped_and_not_checked(
 ) -> None:
     module = _load_module()
     default_source = tmp_path / "missing-default-source"
-    fake_sync_docs = SimpleNamespace(
+    fake_sync_docs = _fake_sync_docs(
         verify_target_mirror_integrity=lambda _target: (
             True,
             "target integrity verified",
@@ -238,7 +248,7 @@ def test_target_integrity_failure_blocks_canonical_comparison(monkeypatch) -> No
     def unexpected_configuration(_repo_root: Path):
         raise AssertionError("canonical configuration must not be resolved")
 
-    fake_sync_docs = SimpleNamespace(
+    fake_sync_docs = _fake_sync_docs(
         verify_target_mirror_integrity=lambda _target: (
             False,
             "target stamp mismatch",
@@ -260,35 +270,99 @@ def test_target_integrity_failure_blocks_canonical_comparison(monkeypatch) -> No
     assert "target integrity failed" in check["summary"]
 
 
-def test_symlink_canonical_root_fails_without_claiming_tree_comparison(
+@pytest.mark.parametrize(
+    "symlink_location", ["public-root", "docs-parent", "external-override"]
+)
+def test_symlink_docs_source_fails_without_claiming_tree_comparison(
     tmp_path: Path,
     monkeypatch,
+    symlink_location: str,
 ) -> None:
     module = _load_module()
     sync_docs = _load_sync_docs_module()
     repo_root = tmp_path / "public"
     target = repo_root / "docs" / "source"
-    canonical = tmp_path / "canonical"
+    private_source = tmp_path / "thales_agilab" / "docs" / "source"
     target.mkdir(parents=True)
-    canonical.mkdir()
-    (target / "guide.rst").write_text("same\n", encoding="utf-8")
-    (canonical / "guide.rst").write_text("same\n", encoding="utf-8")
-    sync_docs.write_mirror_stamp(canonical, target)
-    configured_link = tmp_path / "configured-canonical"
+    private_source.mkdir(parents=True)
+    (target / "guide.rst").write_text("Public documentation\n", encoding="utf-8")
+    private_guide = private_source / "guide.rst"
+    private_guide.write_text("PRIVATE MUST NOT EXPORT\n", encoding="utf-8")
+    private_before = private_guide.read_bytes()
+    sync_docs.write_target_only_mirror_stamp(target)
+    monkeypatch.delenv(sync_docs.DOCS_SOURCE_ENV, raising=False)
+    monkeypatch.delenv(sync_docs.DOCS_REPOSITORY_ENV, raising=False)
+
+    private_stamp = None
+    private_stamp_before = None
+    if symlink_location == "public-root":
+        target.rename(target.with_name("saved-public-source"))
+        configured_link = target
+        link_destination = private_source
+    elif symlink_location == "docs-parent":
+        private_stamp = sync_docs.write_target_only_mirror_stamp(private_source)
+        private_stamp_before = private_stamp.read_bytes()
+        public_docs = repo_root / "docs"
+        public_docs.rename(public_docs.with_name("saved-public-docs"))
+        configured_link = public_docs
+        link_destination = private_source.parent
+    else:
+        configured_link = tmp_path / "configured-source"
+        link_destination = private_source
+        monkeypatch.setenv(sync_docs.DOCS_SOURCE_ENV, str(configured_link))
     try:
-        configured_link.symlink_to(canonical, target_is_directory=True)
+        configured_link.symlink_to(link_destination, target_is_directory=True)
     except (NotImplementedError, OSError) as exc:
         pytest.skip(f"symlink creation is unavailable: {exc}")
-    monkeypatch.setenv(sync_docs.DOCS_SOURCE_ENV, str(configured_link))
+
+    original_manifest = sync_docs._build_manifest
+    original_read = sync_docs._read_regular_path_bytes
+    original_integrity = sync_docs.verify_target_mirror_integrity
+    integrity_calls = []
+
+    def public_integrity_only(root):
+        if root.resolve().is_relative_to(private_source.parent):
+            pytest.fail("Private docs must be rejected before stamp reads or hashing.")
+        integrity_calls.append(root)
+        return original_integrity(root)
+
+    def public_file_only(path, **kwargs):
+        if path.resolve().is_relative_to(private_source.parent):
+            pytest.fail("Private documentation and stamp bytes must not be read.")
+        return original_read(path, **kwargs)
+
+    def public_manifest_only(root, **kwargs):
+        if root.resolve().is_relative_to(private_source):
+            pytest.fail("Private documentation contents must not be inspected.")
+        return original_manifest(root, **kwargs)
+
+    def reject_tree_comparison(*_args, **_kwargs):
+        pytest.fail("Rejected docs sources must not reach tree comparison.")
+
+    monkeypatch.setattr(sync_docs, "_build_manifest", public_manifest_only)
+    monkeypatch.setattr(sync_docs, "_read_regular_path_bytes", public_file_only)
+    monkeypatch.setattr(sync_docs, "verify_target_mirror_integrity", public_integrity_only)
+    monkeypatch.setattr(
+        sync_docs, "canonical_mirror_alignment_result", reject_tree_comparison
+    )
     monkeypatch.setattr(module, "_load_tool_module", lambda *_args: sync_docs)
 
+    stamp_check = module._check_docs_mirror_stamp(repo_root)
     check = module._check_docs_canonical_alignment(repo_root)
 
+    target_integrity_expected = symlink_location == "external-override"
+    assert stamp_check["status"] == ("pass" if target_integrity_expected else "fail")
     assert check["status"] == "fail"
-    assert check["details"]["target_integrity_checked"] is True
-    assert check["details"]["target_integrity_ok"] is True
+    assert check["details"]["target_integrity_checked"] is target_integrity_expected
     assert check["details"]["canonical_alignment_checked"] is False
-    assert "symlink or junction" in check["summary"]
+    assert check["details"]["target_integrity_ok"] is target_integrity_expected
+    assert len(integrity_calls) == (2 if target_integrity_expected else 0)
+    assert "external and private documentation exports are disabled" in check["summary"]
+    if not target_integrity_expected:
+        assert "external and private documentation exports are disabled" in stamp_check["summary"]
+    assert private_guide.read_bytes() == private_before
+    if private_stamp is not None:
+        assert private_stamp.read_bytes() == private_stamp_before
 
 
 def test_build_report_includes_shared_adoption_hardening_controls() -> None:

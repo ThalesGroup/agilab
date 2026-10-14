@@ -212,6 +212,22 @@ def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
     assert "tools/workflow_parity.py --profile docs" in artifact.commands[0]
 
 
+def test_analyze_paths_includes_indirect_docs_evidence_consumers() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(["tools/sync_docs_source.py"], use_cache=False)
+
+    expected_tests = {
+        "test/test_sync_docs_source.py",
+        "test/test_kpi_evidence_bundle.py",
+        "test/test_production_readiness_report.py",
+    }
+    assert expected_tests <= set(report.guessed_tests)
+    targeted = next(action for action in report.required_validations if action.key == "targeted-pytest")
+    for test_path in expected_tests:
+        assert test_path in targeted.commands[0]
+
+
 def test_analyze_paths_adds_maintenance_memory_check_for_covered_source() -> None:
     module = _load_module()
 
