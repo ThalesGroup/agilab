@@ -112,7 +112,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Workflow Concept View ## Overview Use this skill to separate semantic architecture from execution mechanics. The generic WORKFLOW page stays app-agnostic; the app contributes its own conceptual
 - plan-before-code: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out. (.claude/skills/plan-before-code/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-09-08
+  updated: 2026-10-14
   preview: # Plan Before Code Use this skill to force a planning pass before coding. The goal is not paperwork. The goal is to improve sequencing, reduce avoidable edits, and catch bad assumptions before touching files.
 - repo-skill-maintenance: Maintain repo-managed agent skills across `.claude/skills` and `.codex/skills`, including targeted sync, validation, index regeneration, drift checks, and Tokki skill visibility. Use when adding or updating a shared skill, migrating a user-managed skill into the repo, or reconciling agent skill copies without overwriting unrelated skills. (.claude/skills/repo-skill-maintenance/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

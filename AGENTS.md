@@ -145,6 +145,30 @@ Use this runbook whenever you:
   `AGENTS.md`, a repo skill, or tooling. If automation is not practical, document
   why and name the closest manual or robot validation. Close out with a clear
   status: fixed, validated, awaiting approval, or blocked.
+- **Regression diagnosis before intervention**: Treat a failure in a previously
+  working workflow as a suspected regression, even when the user has not named it.
+  Recover the last verified success, first failure, and intervening changes
+  before proposing a change; record an unavailable baseline instead of inventing one.
+  Compare source, destination, protocol, and execution context.
+  Recheck the current network interface, VPN and active configuration before probes.
+  A later context change does not explain an earlier failure.
+  Search script, skill and configuration history, plus dated logs or authorized
+  messages, for execution evidence; a declared remote or instruction alone does
+  not prove a successful run. Search for contrary evidence and separate verified
+  facts from hypotheses. A destination migration does not establish a new network path.
+  Preserve current security and publication boundaries when investigating history.
+  On managed firewalls and routers, identify the device and configuration owner.
+  Compare previous and running policies with a dated known-good configuration
+  and the intended versioned configuration. Check the active policy/slot,
+  address/service objects and groups, rule order and conditions, network address
+  translation (NAT), routes, including policy-based routing, VLAN interfaces and
+  the return path. Record configuration and audit timestamps, author and reason
+  to establish the change sequence; verify that exports and backups exist and are dated.
+  A documentation discrepancy or an export schedule alone does not prove a change.
+  Require an identified cause and a verification plan before an additional rule.
+  If the cause remains unknown, continue bounded read-only checks and report the
+  unresolved hypothesis. Update the diagnosis after each test; avoid accumulating
+  configuration changes around an unverified explanation.
 - **Python UI duplicate-widget triage**: For duplicate element ID errors, first
   check whether the page, app surface, or entrypoint is being executed twice.
   Add stable widget keys for repeated controls, but do not mask duplicate
@@ -221,6 +245,10 @@ Use this runbook whenever you:
   `src` directory first on `PYTHONPATH` and verify the imported AGILAB module's
   resolved `__file__` and source hash before running tests. Adding `src/agilab`
   alone does not override an editable package installed from another checkout.
+  Keep a borrowed environment read-only with `uv run --no-sync`. Serialize
+  environment synchronization and dependent tests; do not run environment-changing
+  `./dev` or `uv sync` commands concurrently against the same environment. Use an
+  owned worktree environment when synchronization is needed.
 - **Pre-push guard pollution triage**: If a pre-push guard fails on projects,
   app catalogs, docs rows, or generated artifacts that are not part of the
   pushed diff, first classify whether the failure comes from the current diff,
