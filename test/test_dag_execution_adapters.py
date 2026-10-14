@@ -1223,3 +1223,377 @@ def test_recovery_preserves_other_ambiguous_parallel_claims():
     assert recovered["active_execution"]["status"] == "recovery_required"
     assert recovered["units"][0]["execution_attempt"]["status"] == "recovered_failed"
     assert recovered["units"][1] == state["units"][1]
+
+
+def test_authored_uav_dag_executes_its_declared_scientific_settings(
+    tmp_path: Path,
+) -> None:
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    repo_root = Path.cwd()
+    template = (
+        repo_root
+        / "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    payload = json.loads(template.read_text(encoding="utf-8"))
+    engine = DagRunEngine(repo_root=repo_root, lab_dir=tmp_path, dag_path=template)
+    state, *_ = engine.load_or_create_state()
+    for expected in payload["nodes"]:
+        execution = engine.run_next_controlled_stage_transaction(state)
+        assert execution.ok
+        state = execution.state
+        actual = next(unit for unit in state["units"] if unit["id"] == expected["id"])
+        metrics = actual["real_execution"]["summary_metrics"]
+        for key in (
+            "routing_policy",
+            "sim_time_s",
+            "sampling_interval_s",
+            "source_rate_pps",
+            "queue_weight",
+            "random_seed",
+        ):
+            assert metrics[key] == expected["execution"]["params"][key]
+    assert state["run_status"] == "completed"
+
+
+@pytest.mark.parametrize(
+    "error", [TypeError("body type failure"), ValueError("body value failure")]
+)
+def test_uav_callback_contract_compatibility_never_reinvokes_body(
+    error: Exception,
+) -> None:
+    calls = []
+
+    def legacy(*, repo_root, run_root, idempotency_token):
+        calls.append(idempotency_token)
+        raise error
+
+    with pytest.raises(type(error), match="body"):
+        dag_execution_adapters._invoke_uav_stage_runner(
+            legacy,
+            {"execution_contract": {"params": {"sim_time_s": 30}}},
+            repo_root=Path.cwd(),
+            run_root=Path.cwd(),
+            idempotency_token="once",
+        )
+    assert calls == ["once"]
+
+
+def test_uav_adapter_passes_per_unit_contract_to_aware_callback(tmp_path: Path) -> None:
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    template = (
+        Path.cwd()
+        / "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    observed = []
+
+    def queue_run(*, repo_root, run_root, idempotency_token, execution_contract):
+        observed.append(execution_contract)
+        run_root.mkdir(parents=True, exist_ok=True)
+        summary = run_root / "queue_summary.json"
+        reduce = run_root / "queue_reduce.json"
+        summary.write_text(
+            '{"packets_generated": 2, "packets_delivered": 2}', encoding="utf-8"
+        )
+        reduce.write_text("{}", encoding="utf-8")
+        return {
+            "summary_metrics_path": str(summary),
+            "reduce_artifact_path": str(reduce),
+            "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
+        }
+
+    engine = DagRunEngine(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        dag_path=template,
+        run_queue_fn=queue_run,
+    )
+    state, *_ = engine.load_or_create_state()
+    result = engine.run_next_controlled_stage_transaction(state)
+    assert result.ok
+    assert observed == [state["units"][0]["execution_contract"]]
+    assert observed[0]["params"]["sim_time_s"] == 30.0
+
+
+def test_uav_outer_token_cache_rejects_changed_contract_without_callback(
+    tmp_path: Path,
+) -> None:
+    calls = []
+    contract = {"params": {"sim_time_s": 2.0}}
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "app": "uav_queue_project",
+                "dispatch_status": "runnable",
+                "produces": [],
+                "execution_contract": contract,
+            },
+            {
+                "id": "relay_followup",
+                "app": "uav_relay_queue_project",
+                "dispatch_status": "blocked",
+                "produces": [],
+                "depends_on": ["queue_baseline"],
+                "artifact_dependencies": [],
+            },
+        ],
+        "artifacts": [],
+    }
+
+    def queue_run(*, run_root, execution_contract, **kwargs):
+        calls.append(execution_contract)
+        run_root.mkdir(parents=True, exist_ok=True)
+        summary = run_root / "summary.json"
+        reduce = run_root / "reduce.json"
+        summary.write_text(
+            '{"packets_generated": 2, "packets_delivered": 2}', encoding="utf-8"
+        )
+        reduce.write_text("{}", encoding="utf-8")
+        return {
+            "summary_metrics_path": str(summary),
+            "reduce_artifact_path": str(reduce),
+            "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
+            "execution_contract": dict(execution_contract),
+            "execution_inputs_sha256": "bound",
+        }
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        run_queue_fn=queue_run,
+        execution_attempt_id="same-attempt",
+        persist_execution_claim_fn=lambda _: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert first.ok
+    state["units"][0]["execution_contract"] = {"params": {"sim_time_s": 3.0}}
+    second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert not second.ok
+    assert "different execution contract" in second.message
+    assert len(calls) == 1
+
+
+def test_authored_uav_dag_keeps_independent_node_overrides(tmp_path: Path) -> None:
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    source_root = Path.cwd()
+    repo_root = tmp_path / "public-repo"
+    relative = Path(
+        "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    template = repo_root / relative
+    template.parent.mkdir(parents=True)
+    payload = json.loads((source_root / relative).read_text(encoding="utf-8"))
+    queue_params = payload["nodes"][0]["execution"]["params"]
+    relay_params = payload["nodes"][1]["execution"]["params"]
+    queue_params.update(sim_time_s=3.0, source_rate_pps=5.0, random_seed=21)
+    relay_params.update(
+        sim_time_s=4.0,
+        source_rate_pps=9.0,
+        routing_policy="queue_aware",
+        random_seed=23,
+    )
+    template.write_text(json.dumps(payload), encoding="utf-8")
+    for project in ("uav_queue_project", "uav_relay_queue_project"):
+        target = repo_root / "src/agilab/apps/builtin" / project / "src"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to(
+            source_root / "src/agilab/apps/builtin" / project / "src",
+            target_is_directory=True,
+        )
+        for name in ("pyproject.toml", "pipeline_view.dot"):
+            (target.parent / name).write_bytes(
+                (source_root / "src/agilab/apps/builtin" / project / name).read_bytes()
+            )
+    engine = DagRunEngine(
+        repo_root=repo_root, lab_dir=tmp_path / "lab", dag_path=template
+    )
+    state, *_ = engine.load_or_create_state()
+    for expected in payload["nodes"]:
+        result = engine.run_next_controlled_stage_transaction(state)
+        assert result.ok
+        state = result.state
+        unit = next(unit for unit in state["units"] if unit["id"] == expected["id"])
+        metrics = unit["real_execution"]["summary_metrics"]
+        assert {
+            key: metrics[key]
+            for key in expected["execution"]["params"]
+            if key not in {"files", "nfile"}
+        } == {
+            key: value
+            for key, value in expected["execution"]["params"].items()
+            if key not in {"files", "nfile"}
+        }
+    assert (
+        state["units"][1]["real_execution"]["consumed_artifacts"][0]["summary_metrics"]
+        == state["units"][0]["real_execution"]["summary_metrics"]
+    )
+
+
+def test_uav_outer_token_cache_rechecks_exact_relay_context(tmp_path: Path) -> None:
+    import hashlib
+    from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import (
+        _read_queue_context,
+    )
+
+    calls = []
+    queue_path = tmp_path / "queue_summary.json"
+    queue_metrics = {"packets_generated": 8, "packets_delivered": 7}
+    queue_path.write_text(json.dumps(queue_metrics), encoding="utf-8")
+    queue_result = {
+        "summary_metrics_path": str(queue_path),
+        "summary_metrics": queue_metrics,
+        "summary_metrics_sha256": hashlib.sha256(queue_path.read_bytes()).hexdigest(),
+    }
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "app": "uav_queue_project",
+                "dispatch_status": "completed",
+                "produces": [],
+                "real_execution": queue_result,
+            },
+            {
+                "id": "relay_followup",
+                "app": "uav_relay_queue_project",
+                "dispatch_status": "runnable",
+                "produces": [],
+                "depends_on": ["queue_baseline"],
+                "artifact_dependencies": [],
+            },
+        ],
+        "artifacts": [
+            {
+                "artifact": "queue_metrics",
+                "kind": "summary_metrics",
+                "status": "available",
+                "producer": "queue_baseline",
+                "path": str(queue_path),
+            }
+        ],
+    }
+
+    def relay_run(*, run_root, queue_result, **kwargs):
+        calls.append(queue_result)
+        run_root.mkdir(parents=True, exist_ok=True)
+        summary = run_root / "summary.json"
+        reduce = run_root / "reduce.json"
+        summary.write_text(
+            '{"packets_generated": 2, "packets_delivered": 2}', encoding="utf-8"
+        )
+        reduce.write_text("{}", encoding="utf-8")
+        return {
+            "summary_metrics_path": str(summary),
+            "reduce_artifact_path": str(reduce),
+            "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
+            "execution_inputs_sha256": "bound",
+            "consumed_artifacts": [_read_queue_context(queue_result)],
+        }
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path / "lab",
+        run_relay_fn=relay_run,
+        execution_attempt_id="same-relay-attempt",
+        persist_execution_claim_fn=lambda _: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert first.ok
+    queue_path.write_bytes(queue_path.read_bytes() + b" ")
+    second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert not second.ok
+    assert "completed producer hash" in second.message
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("pollution", ["data_out", "export"])
+def test_uav_outer_token_cache_rejects_output_pollution_without_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    pollution: str,
+) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    loader = runtime_support.load_worker
+    calls = []
+
+    def select_worker(*args, **kwargs):
+        calls.append(args[0].target_worker)
+        return loader(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_support, "load_worker", select_worker)
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "app": "uav_queue_project",
+                "dispatch_status": "runnable",
+                "produces": [],
+                "execution_contract": {
+                    "params": {"sim_time_s": 2.0},
+                    "reset_target": False,
+                },
+            },
+            {
+                "id": "relay_followup",
+                "app": "uav_relay_queue_project",
+                "dispatch_status": "blocked",
+                "produces": [],
+                "depends_on": ["queue_baseline"],
+                "artifact_dependencies": [],
+            },
+        ],
+        "artifacts": [],
+    }
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path / "lab",
+        execution_attempt_id="cached-owned-run",
+        persist_execution_claim_fn=lambda _: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert first.ok
+    receipt = first.state["units"][0]["real_execution"]
+    root = (
+        Path(receipt["effective_args"]["data_out"])
+        if pollution == "data_out"
+        else Path(receipt["workspace"]) / "export"
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    sentinel = outside / "sentinel"
+    sentinel.write_text("preserve", encoding="utf-8")
+    (root / "polluted-child").symlink_to(outside, target_is_directory=True)
+    second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled",
+        state,
+        context,
+    )
+    assert not second.ok
+    assert "output contains a symlink" in second.message
+    assert calls == ["uav_queue_worker"]
+    assert list(outside.iterdir()) == [sentinel]
+    assert sentinel.read_text(encoding="utf-8") == "preserve"
