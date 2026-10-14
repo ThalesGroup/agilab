@@ -3,7 +3,7 @@ name: plan-before-code
 description: Plan before editing code. Use this skill for multi-step implementation, debugging, refactors, release work, or any coding task where sequencing, assumptions, or validation matter. It enforces a short plan first, validates assumptions before edits, and verifies results before close-out.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-09-08
+  updated: 2026-10-14
 ---
 
 # Plan Before Code
@@ -72,6 +72,26 @@ Use for risky or multi-step work.
 2. Inspect before proposing a fix.
    - Read the relevant files.
    - Check logs, failing tests, or current behavior when available.
+   - Treat failure in a previously working workflow as a suspected regression,
+     even when the user has not named it. Recover the last verified success, first
+     failure and intervening changes from script, skill and configuration history
+     plus dated execution evidence; record an unavailable baseline.
+   - Compare source, destination, protocol and execution context. Recheck the
+     current interface, VPN and active configuration before probes; a later
+     context change does not explain an earlier failure.
+   - Search for evidence that contradicts the leading hypothesis. A declared
+     remote does not prove execution; a destination migration does not establish
+     a new network path. Preserve current security and publication boundaries.
+   - Before changing managed firewalls or routers, identify the device and
+     configuration owner. Compare dated known-good, running/applied and intended
+     versioned configurations: active policy/slot, address/service objects and
+     groups, rule order and conditions, network address translation, static/default
+     routes and policy-based routing, VLAN interfaces and the return path.
+     Check configuration/audit dates, author and reason, and whether dated exports
+     and backups actually exist. Old documentation or an export schedule is not
+     proof of a change. Require an identified cause and a verification plan before
+     proposing an additional rule; otherwise continue bounded read-only diagnosis
+     and state what remains unverified.
    - Do not start editing from memory.
    - For operational plans such as "next move", "ready for release", "release it",
      or "sync HF", inspect the current workflow/tooling files before proposing

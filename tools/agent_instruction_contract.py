@@ -94,6 +94,51 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agent-contract", "Agent instruction contract"),
             RequiredTerm("agent-learnings", "Agent correction ledger"),
             RequiredTerm("fix-prevention", "Fix prevention close-out"),
+            RequiredTerm(
+                "regression-diagnosis", "Regression diagnosis before intervention"
+            ),
+            RequiredTerm(
+                "regression-detection", "working workflow as a suspected regression"
+            ),
+            RequiredTerm(
+                "regression-current-context",
+                "A later context change does not explain an earlier failure",
+            ),
+            RequiredTerm(
+                "regression-device-owner", "identify the device and configuration owner"
+            ),
+            RequiredTerm(
+                "regression-intended-state", "the intended versioned configuration"
+            ),
+            RequiredTerm("regression-active-policy", "active policy/slot"),
+            RequiredTerm(
+                "regression-backup-evidence",
+                "verify that exports and backups exist and are dated",
+            ),
+            RequiredTerm(
+                "regression-baseline",
+                "last verified success, first failure, and intervening changes",
+            ),
+            RequiredTerm(
+                "regression-context",
+                "Compare source, destination, protocol, and execution context",
+            ),
+            RequiredTerm("regression-counterevidence", "Search for contrary evidence"),
+            RequiredTerm(
+                "regression-migration",
+                "A destination migration does not establish a new network path",
+            ),
+            RequiredTerm("regression-running-policy", "previous and running policies"),
+            RequiredTerm("regression-policy-order", "rule order and conditions"),
+            RequiredTerm(
+                "regression-policy-routing", "routes, including policy-based routing"
+            ),
+            RequiredTerm(
+                "regression-change-sequence", "configuration and audit timestamps"
+            ),
+            RequiredTerm(
+                "regression-intervention", "identified cause and a verification plan"
+            ),
             RequiredTerm("tokki-routing", "tokki run --"),
             RequiredTerm("agent-provenance", "Agent commit provenance"),
         ),
@@ -112,7 +157,10 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("agenticweb", "agenticweb.md"),
             RequiredTerm("compact-validation", "Validation passed."),
             RequiredTerm("tokki-routing", "tokki run --"),
-            RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
+            RequiredTerm(
+                "contract-command",
+                "python3 tools/agent_instruction_contract.py --check",
+            ),
         ),
     ),
     FileContract(
@@ -125,7 +173,10 @@ CONTRACTS: tuple[FileContract, ...] = (
             RequiredTerm("current-rules", "## Current rules"),
             RequiredTerm("concrete-rule", "one concrete rule"),
             RequiredTerm("prune", "Prune entries"),
-            RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
+            RequiredTerm(
+                "contract-command",
+                "python3 tools/agent_instruction_contract.py --check",
+            ),
             RequiredTerm("shell-url-quoting", "gh api repos/.../file?ref=main"),
             RequiredTerm("streamlit-skills-global", "streamlit skills --global"),
             RequiredTerm("tokki-routing", "tokki run --"),
@@ -137,7 +188,10 @@ CONTRACTS: tuple[FileContract, ...] = (
         purpose="repo agent workflow reference",
         required_terms=(
             RequiredTerm("schema", SCHEMA),
-            RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
+            RequiredTerm(
+                "contract-command",
+                "python3 tools/agent_instruction_contract.py --check",
+            ),
             RequiredTerm("short-runbook", "AGENT_CONVENTIONS.md"),
             RequiredTerm("agent-learnings", "AGENT_LEARNINGS.md"),
             RequiredTerm("full-runbook", "AGENTS.md"),
@@ -153,7 +207,10 @@ CONTRACTS: tuple[FileContract, ...] = (
         purpose="public agent workflow docs mirror",
         required_terms=(
             RequiredTerm("schema", SCHEMA),
-            RequiredTerm("contract-command", "python3 tools/agent_instruction_contract.py --check"),
+            RequiredTerm(
+                "contract-command",
+                "python3 tools/agent_instruction_contract.py --check",
+            ),
             RequiredTerm("short-runbook", "AGENT_CONVENTIONS.md"),
             RequiredTerm("agent-learnings", "AGENT_LEARNINGS.md"),
             RequiredTerm("full-runbook", "AGENTS.md"),
@@ -230,7 +287,9 @@ def _iter_headings(text: str) -> Iterable[HeadingEvidence]:
         if title:
             yield HeadingEvidence(level=len(match.group(1)), title=title)
     lines = text.splitlines()
-    rst_level_by_char = {char: index + 1 for index, char in enumerate(RST_HEADING_CHARS)}
+    rst_level_by_char = {
+        char: index + 1 for index, char in enumerate(RST_HEADING_CHARS)
+    }
     for index, line in enumerate(lines[:-1]):
         title = line.strip()
         underline = lines[index + 1].strip()
@@ -255,7 +314,9 @@ def _build_file_evidence(root: Path, contract: FileContract) -> FileEvidence:
             heading_count=0,
             top_headings=(),
             required_terms_present=(),
-            required_terms_missing=tuple(term.label for term in contract.required_terms),
+            required_terms_missing=tuple(
+                term.label for term in contract.required_terms
+            ),
         )
 
     text = _read_text(path)
@@ -283,13 +344,19 @@ def _build_file_evidence(root: Path, contract: FileContract) -> FileEvidence:
 def _expect_mapping(value: Any, *, path: str, issues: list[Issue]) -> Mapping[str, Any]:
     if isinstance(value, Mapping):
         return value
-    issues.append(Issue("error", "agent-instruction-json-object", path, "expected a JSON object"))
+    issues.append(
+        Issue("error", "agent-instruction-json-object", path, "expected a JSON object")
+    )
     return {}
 
 
-def _iter_mapping_rows(value: Any, *, path: str, issues: list[Issue]) -> list[Mapping[str, Any]]:
+def _iter_mapping_rows(
+    value: Any, *, path: str, issues: list[Issue]
+) -> list[Mapping[str, Any]]:
     if not isinstance(value, list):
-        issues.append(Issue("error", "agent-instruction-json-list", path, "expected a JSON list"))
+        issues.append(
+            Issue("error", "agent-instruction-json-list", path, "expected a JSON list")
+        )
         return []
     rows: list[Mapping[str, Any]] = []
     for index, row in enumerate(value):
@@ -310,10 +377,14 @@ def _iter_mapping_rows(value: Any, *, path: str, issues: list[Issue]) -> list[Ma
 def _check_capability_manifest(root: Path) -> list[Issue]:
     path = root / "agilab-capabilities.json"
     issues: list[Issue] = []
-    payload = _expect_mapping(_load_json(path), path="agilab-capabilities.json", issues=issues)
+    payload = _expect_mapping(
+        _load_json(path), path="agilab-capabilities.json", issues=issues
+    )
     commands = {
         str(row.get("id")): row
-        for row in _iter_mapping_rows(payload.get("cli_commands"), path="cli_commands", issues=issues)
+        for row in _iter_mapping_rows(
+            payload.get("cli_commands"), path="cli_commands", issues=issues
+        )
     }
     command = commands.get(CAPABILITY_COMMAND_ID)
     if command is None:
@@ -359,7 +430,9 @@ def _check_capability_manifest(root: Path) -> list[Issue]:
 
     catalog_paths = {
         str(row.get("path"))
-        for row in _iter_mapping_rows(payload.get("catalog_files"), path="catalog_files", issues=issues)
+        for row in _iter_mapping_rows(
+            payload.get("catalog_files"), path="catalog_files", issues=issues
+        )
     }
     for required_path in CATALOG_PATHS:
         if required_path not in catalog_paths:
@@ -468,8 +541,12 @@ def _write_optional(path: Path | None, text: str) -> None:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
-    parser.add_argument("--check", action="store_true", help="exit non-zero when the contract fails")
-    parser.add_argument("--json", action="store_true", help="print JSON instead of Markdown")
+    parser.add_argument(
+        "--check", action="store_true", help="exit non-zero when the contract fails"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="print JSON instead of Markdown"
+    )
     parser.add_argument("--json-output", type=Path)
     parser.add_argument("--markdown-output", type=Path)
     return parser.parse_args(argv)
