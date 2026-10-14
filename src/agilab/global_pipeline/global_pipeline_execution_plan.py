@@ -209,11 +209,29 @@ def _command_parts(value: Any) -> list[str]:
     return []
 
 
-def _execution_contract(row: dict[str, Any], stage_bindings: dict[str, str]) -> dict[str, Any]:
+def _execution_contract(
+    row: dict[str, Any], stage_bindings: dict[str, str]
+) -> dict[str, Any]:
     node_id = _string_field(row, "id")
     execution = row.get("execution")
-    execution = execution if isinstance(execution, dict) else {}
-    entrypoint = str(execution.get("entrypoint", "")).strip() or stage_bindings.get(node_id, "")
+    if execution is None:
+        execution = {}
+    elif not isinstance(execution, dict):
+        raise ValueError(f"Node {node_id!r} execution must be a mapping.")
+    for key in ("params", "run_params"):
+        if key in execution and not isinstance(execution[key], dict):
+            raise ValueError(f"Node {node_id!r} execution.{key} must be a mapping.")
+    if "stages" in execution and not isinstance(execution["stages"], list):
+        raise ValueError(f"Node {node_id!r} execution.stages must be a list.")
+    command_value = execution.get("command")
+    if command_value is not None and not isinstance(command_value, (str, list)):
+        raise ValueError(
+            f"Node {node_id!r} execution.command must be a string or list."
+        )
+    entrypoint_value = execution.get("entrypoint")
+    if entrypoint_value is not None and not isinstance(entrypoint_value, str):
+        raise ValueError(f"Node {node_id!r} execution.entrypoint must be a string.")
+    entrypoint = (entrypoint_value or "").strip() or stage_bindings.get(node_id, "")
     command = _command_parts(execution.get("command"))
     contract: dict[str, Any] = {}
     if entrypoint:
@@ -226,7 +244,9 @@ def _execution_contract(row: dict[str, Any], stage_bindings: dict[str, str]) -> 
     if isinstance(params, dict):
         contract["params"] = dict(params)
     if "steps" in execution or "run_steps" in execution:
-        raise ValueError("Execution contracts must use 'stages'; legacy 'steps'/'run_steps' keys are not supported.")
+        raise ValueError(
+            "Execution contracts must use 'stages'; legacy 'steps'/'run_steps' keys are not supported."
+        )
     stages = execution.get("stages")
     if isinstance(stages, list):
         contract["stages"] = list(stages)
