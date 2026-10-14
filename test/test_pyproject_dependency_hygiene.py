@@ -239,6 +239,26 @@ def test_root_extra_self_aliases_accept_declared_project_version() -> None:
                 )
 
 
+def test_native_chart_pages_own_plotly_runtime() -> None:
+    # Robots and installed page launchers resolve the page's environment, without
+    # the framework UI extra. Native line/bar charts also require Plotly.
+    chart_pages = (
+        "autoencoder_latentspace",
+        "view_queue_resilience",
+        "view_relay_resilience",
+        "view_scenario_cockpit",
+        "view_shap_explanation",
+    )
+    missing = [
+        page
+        for page in chart_pages
+        if "plotly" not in _dependency_names(
+            REPO_ROOT / "src/agilab/apps-pages" / page / "pyproject.toml"
+        )
+    ]
+    assert not missing, f"Native chart pages missing their Plotly runtime: {missing}"
+
+
 def test_root_base_dependencies_do_not_own_app_or_example_stacks() -> None:
     deps = _dependency_names(REPO_ROOT / "pyproject.toml")
 
