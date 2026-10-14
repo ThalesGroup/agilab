@@ -267,14 +267,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
 
+    skills_roots = (CLAUDE_ROOT, PROJECT_AGENT_SKILLS_ROOT, CODEX_ROOT)
+    # A linked provider parent redirects even a real skills directory outside
+    # the repo. Check every provider before reading or changing any skill tree.
+    for skills_root in skills_roots:
+        if _is_link_like(skills_root.parent):
+            reject_skill_symlinks(skills_root.parent)
+
     if not CLAUDE_ROOT.exists():
         raise SystemExit(f"Missing source skills root: {CLAUDE_ROOT}")
 
-    # A linked provider parent redirects even a real skills directory outside
-    # the repo. Preflight the whole mirror before reads or any selected copy.
-    if _is_link_like(CODEX_ROOT.parent):
-        reject_skill_symlinks(CODEX_ROOT.parent)
-    for skills_root in (CLAUDE_ROOT, PROJECT_AGENT_SKILLS_ROOT, CODEX_ROOT):
+    for skills_root in skills_roots:
         if skills_root.exists() or _is_link_like(skills_root):
             reject_skill_symlinks(skills_root)
     skill_dirs = iter_skill_dirs(CLAUDE_ROOT)
