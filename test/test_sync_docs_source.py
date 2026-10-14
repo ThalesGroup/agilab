@@ -561,46 +561,124 @@ def test_transactional_snapshot_preserves_canonical_path_spelling(
     assert names == [canonical_name]
 
 
+@pytest.mark.parametrize("mode", ["--check", "--apply", "--verify-stamp", "--verify-target-integrity", "--write-target-only-stamp", "--refresh-target-integrity-stamp", "--refresh-ui-robot-evidence-stamp"])
+@pytest.mark.parametrize("linked_target", [False, True])
+def test_cli_rejects_external_targets_before_inspection(
+    tmp_path: Path, monkeypatch, capsys, mode: str, linked_target: bool,
+) -> None:
+    module = _load_module()
+    public = _public_docs_source(module, tmp_path)
+    public.mkdir()
+    outside = tmp_path / "outside/docs/source"
+    outside.mkdir(parents=True)
+    external_file = outside / "index.rst"
+    external_file.write_bytes(b"External content must not be inspected\n")
+    if linked_target:
+        public.rmdir()
+        public.symlink_to(outside, target_is_directory=True)
+        target = public
+    else:
+        target = outside
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("target was inspected before enforcing the public boundary")
+
+    for helper in ("_build_full_manifest", "_read_stamp", "_pinned_mutation_boundary", "managed_source_snapshot"):
+        monkeypatch.setattr(module, helper, forbidden)
+
+    with pytest.raises(SystemExit) as error:
+        module.main(["--target", str(target), mode])
+
+    assert error.value.code == 2
+    assert "external and private" in capsys.readouterr().err
+    assert external_file.read_bytes() == b"External content must not be inspected\n"
+    assert sorted(path.name for path in outside.iterdir()) == ["index.rst"]
+    assert not module.stamp_path_for_target(outside).exists()
+
+
+@pytest.mark.parametrize("mode", ["--write-target-only-stamp", "--apply"])
+@pytest.mark.parametrize("stamp_text", [None, "{", '{"format_version": 2}'])
+def test_cli_doc_write_requires_existing_complete_evidence(
+    tmp_path: Path, capsys, mode: str, stamp_text: str | None,
+) -> None:
+    module = _load_module()
+    target = _public_docs_source(module, tmp_path)
+    (target / "data").mkdir(parents=True)
+    (target / "data/ui_robot_evidence.json").write_text("{}", encoding="utf-8")
+    stamp = module.stamp_path_for_target(target)
+    if stamp_text is not None:
+        stamp.write_text(stamp_text, encoding="utf-8")
+
+    assert module.main(["--target", str(target), mode]) == 1
+    assert "restore the tracked public docs stamp" in capsys.readouterr().err
+    if stamp_text is None:
+        assert not stamp.exists()
+    else:
+        assert stamp.read_text(encoding="utf-8") == stamp_text
+
+
+def test_cli_default_target_is_current_public_checkout(tmp_path: Path) -> None:
+    module = _load_module()
+    target = _public_docs_source(module, tmp_path)
+    target.mkdir()
+    (target / "guide.rst").write_text("Public guide\n", encoding="utf-8")
+    module.write_target_only_mirror_stamp(target)
+
+    assert module.main(["--verify-target-integrity", "--quiet"]) == 0
+
+
+def test_cli_doc_write_preserves_stamp_removal_during_publication(
+    tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    module = _load_module()
+    target = _public_docs_source(module, tmp_path)
+    (target / "data").mkdir(parents=True)
+    evidence = target / module.UI_ROBOT_EVIDENCE_PUBLIC_OWNED
+    evidence.write_text('{"fixture":"original proof"}', encoding="utf-8")
+    stamp = module.write_target_only_mirror_stamp(target)
+    original_publish = module._publish_verified_stamp
+
+    def remove_baseline_then_publish(*args, **kwargs):
+        stamp.unlink()
+        evidence.write_text('{"fixture":"unapproved proof"}', encoding="utf-8")
+        return original_publish(*args, **kwargs)
+
+    monkeypatch.setattr(module, "_publish_verified_stamp", remove_baseline_then_publish)
+
+    assert module.main(["--target", str(target), "--write-target-only-stamp"]) == 1
+    assert "stamp changed concurrently before publication" in capsys.readouterr().err
+    assert not stamp.exists()
+    assert evidence.read_text(encoding="utf-8") == '{"fixture":"unapproved proof"}'
+
+
 def test_main_check_and_apply_modes(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    source = _public_docs_source(module, tmp_path)
-    target = tmp_path / "target"
-    source.mkdir()
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
-    (source / "guide.rst").write_text("guide\n", encoding="utf-8")
+    guide = target / "guide.rst"
+    guide.write_text("before\n", encoding="utf-8")
+    module.write_target_only_mirror_stamp(target)
+    guide.write_text("authored public guide\n", encoding="utf-8")
 
-    exit_code = module.main(
-        ["--source", str(source), "--target", str(target), "--check"]
-    )
+    assert module.main(["--target", str(target), "--check"]) == 1
+    assert "mirror stamp mismatch" in capsys.readouterr().out
+    assert module.main(["--target", str(target), "--apply"]) == 0
 
-    assert exit_code == 1
-    assert "create: 1" in capsys.readouterr().out
-
-    exit_code = module.main(
-        ["--source", str(source), "--target", str(target), "--apply"]
-    )
-
-    assert exit_code == 0
-    assert (target / "guide.rst").read_text(encoding="utf-8") == "guide\n"
-    stamp = target.parent / module.STAMP_FILE_NAME
-    assert stamp.exists()
+    assert guide.read_text(encoding="utf-8") == "authored public guide\n"
+    stamp = module.stamp_path_for_target(target)
     payload = json.loads(stamp.read_text(encoding="utf-8"))
     assert payload["file_count"] == 1
     assert payload["managed_target"] == module._logical_target_identity(target)
     assert payload["format_version"] == module.STAMP_FORMAT_VERSION == 3
-    assert payload["source_status"] == "verified"
-    assert payload["source_digest_sha256"] == payload["target_digest_sha256"]
+    assert payload["source_status"] == "unavailable"
+    assert payload["source_digest_sha256"] is None
     assert payload["public_owned_file_count"] == 0
-    assert (
-        payload["public_owned_digest_sha256"]
-        == module._public_owned_state(target)["digest_sha256"]
-    )
+    assert payload["public_owned_digest_sha256"] == module._public_owned_state(target)["digest_sha256"]
     assert payload["public_owned_exclusions"] == sorted(module.PUBLIC_OWNED_EXCLUSIONS)
 
 
-def test_apply_without_delete_fails_before_mutating_target_or_stamp(
+def test_incomplete_plan_rolls_back_target_and_stamp(
     tmp_path: Path,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -614,14 +692,10 @@ def test_apply_without_delete_fails_before_mutating_target_or_stamp(
     stamp_path = module.write_target_only_mirror_stamp(target)
     stamp_before = stamp_path.read_bytes()
 
-    exit_code = module.main(
-        ["--source", str(source), "--target", str(target), "--apply"]
-    )
+    plan = module.make_sync_plan(source, target, delete_extra=False)
+    with pytest.raises(ValueError, match="source and managed mirror target differ"):
+        module.apply_sync_plan_transactionally(source, target, plan)
 
-    captured = capsys.readouterr()
-    assert exit_code == 1
-    assert "No changes were applied" in captured.err
-    assert "rerun with --apply --delete" in captured.err
     assert (target / "guide.rst").read_text(encoding="utf-8") == "stale\n"
     assert not (target / "new.rst").exists()
     assert (target / "removed.rst").read_text(encoding="utf-8") == "extra\n"
@@ -841,7 +915,6 @@ def test_staging_fingerprint_failure_happens_before_target_publication(
 def test_live_source_change_after_snapshot_rolls_back_target_and_stamp(
     tmp_path: Path,
     monkeypatch,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -866,20 +939,11 @@ def test_live_source_change_after_snapshot_rolls_back_target_and_stamp(
         apply_then_mutate_live_source,
     )
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--apply",
-            "--delete",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(ValueError, match="changed after its sync snapshot"):
+        with module.managed_source_snapshot(source) as snapshot:
+            plan = module.make_sync_plan(snapshot, target, delete_extra=True)
+            module.apply_sync_plan_transactionally(snapshot, target, plan, live_source=source)
 
-    assert exit_code == 1
-    assert "changed after its sync snapshot" in capsys.readouterr().err
     assert target_file.read_text(encoding="utf-8") == "target-before\n"
     assert stamp_path.read_bytes() == stamp_before
 
@@ -1216,7 +1280,6 @@ def test_staging_cleanup_exception_is_retried_by_transaction_rollback(
 def test_source_mutation_during_snapshot_fails_before_target_mutation(
     tmp_path: Path,
     monkeypatch,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -1242,22 +1305,10 @@ def test_source_mutation_during_snapshot_fails_before_target_mutation(
 
     monkeypatch.setattr(module.shutil, "copy2", mutate_source_after_snapshot_copy)
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--apply",
-            "--delete",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(ValueError, match="changed while its sync snapshot was being captured"):
+        with module.managed_source_snapshot(source):
+            pytest.fail("mutated source snapshot was accepted")
 
-    assert exit_code == 1
-    assert (
-        "changed while its sync snapshot was being captured" in capsys.readouterr().err
-    )
     assert target_file.read_text(encoding="utf-8") == "target-before\n"
     assert stamp_path.read_bytes() == stamp_before
 
@@ -1273,10 +1324,10 @@ def test_main_missing_configured_source_fails_even_with_skip_missing_source(
     configured_environment: str,
 ) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
-    assert module.main(["--target", str(target), "--write-target-only-stamp"]) == 0
+    module.write_target_only_mirror_stamp(target)
     capsys.readouterr()
     missing_source = tmp_path / "explicitly-configured-missing-source"
     monkeypatch.delenv(module.DOCS_SOURCE_ENV, raising=False)
@@ -1291,59 +1342,25 @@ def test_main_missing_configured_source_fails_even_with_skip_missing_source(
     assert "external and private" in capsys.readouterr().err
 
 
-def test_main_unconfigured_missing_source_allows_explicit_degraded_mode(
-    tmp_path: Path,
-    monkeypatch,
-    capsys,
-) -> None:
+def test_low_level_verifier_allows_explicit_degraded_mode(tmp_path: Path) -> None:
     module = _load_module()
     target = tmp_path / "target"
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
     module.write_target_only_mirror_stamp(target)
-    missing_source = tmp_path / "conventional-missing-source"
-    monkeypatch.setattr(
-        module,
-        "canonical_source_configuration",
-        lambda: module.CanonicalSourceConfiguration(
-            path=missing_source,
-            origin="default",
-            required=False,
-        ),
-    )
+    missing_source = tmp_path / "missing-source"
 
-    exit_code = module.main(
-        [
-            "--target",
-            str(target),
-            "--verify-stamp",
-            "--skip-missing-source",
-            "--quiet",
-        ]
-    )
+    ok, message = module.verify_mirror_stamp(target, missing_source, skip_missing_source=True)
 
-    assert exit_code == 0
-    output = capsys.readouterr().out
-    assert "target integrity only" in output
-    assert "canonical drift NOT CHECKED" in output
-
-    exit_code = module.main(
-        [
-            "--target",
-            str(target),
-            "--check",
-            "--skip-missing-source",
-            "--quiet",
-        ]
-    )
-
-    assert exit_code == 0
-    output = capsys.readouterr().out
-    assert "target integrity only" in output
-    assert "canonical drift NOT CHECKED" in output
+    assert ok
+    assert "target integrity only" in message
+    assert "canonical drift NOT CHECKED" in message
+    status, message = module.verify_canonical_mirror_alignment(target, missing_source)
+    assert status == "skipped"
+    assert "canonical drift NOT CHECKED" in message
 
 
-def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
+def test_verify_stamp_passes_after_apply(tmp_path: Path) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
@@ -1351,49 +1368,30 @@ def test_verify_stamp_passes_after_apply(tmp_path: Path, capsys) -> None:
     target.mkdir()
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
 
-    assert (
-        module.main(["--source", str(source), "--target", str(target), "--apply"]) == 0
-    )
+    plan = module.make_sync_plan(source, target, delete_extra=True)
+    module.apply_sync_plan_transactionally(source, target, plan)
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--verify-stamp",
-        ]
-    )
+    ok, message = module.verify_mirror_stamp(target, source)
 
-    assert exit_code == 0
-    assert "mirror stamp ok:" in capsys.readouterr().out
+    assert ok
+    assert "mirror stamp ok:" in message
 
 
-def test_verify_stamp_detects_canonical_source_drift(tmp_path: Path, capsys) -> None:
+def test_verify_stamp_detects_canonical_source_drift(tmp_path: Path) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
     source.mkdir()
     target.mkdir()
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
-    assert (
-        module.main(["--source", str(source), "--target", str(target), "--apply"]) == 0
-    )
-    capsys.readouterr()
+    plan = module.make_sync_plan(source, target, delete_extra=True)
+    module.apply_sync_plan_transactionally(source, target, plan)
     (source / "guide.rst").write_text("canonical changed\n", encoding="utf-8")
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--verify-stamp",
-        ]
-    )
+    ok, message = module.verify_mirror_stamp(target, source)
 
-    assert exit_code == 1
-    assert "canonical source drift" in capsys.readouterr().out
+    assert not ok
+    assert "canonical source drift" in message
 
 
 def test_verified_stamp_rejects_self_source_and_unsynced_trees(tmp_path: Path) -> None:
@@ -1452,7 +1450,6 @@ def test_make_sync_plan_rejects_samefile_alias(tmp_path: Path) -> None:
 
 def test_target_only_stamp_requires_separate_canonical_alignment_check(
     tmp_path: Path,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -1462,31 +1459,15 @@ def test_target_only_stamp_requires_separate_canonical_alignment_check(
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
 
-    exit_code = module.main(
-        ["--target", str(target), "--write-target-only-stamp", "--quiet"]
-    )
-
-    assert exit_code == 0
-    assert capsys.readouterr().out == ""
+    module.write_target_only_mirror_stamp(target)
     payload = json.loads(
         module.stamp_path_for_target(target).read_text(encoding="utf-8")
     )
     assert payload["source_status"] == "unavailable"
     assert payload["source_digest_sha256"] is None
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--verify-stamp",
-            "--quiet",
-        ]
-    )
-
-    assert exit_code == 0
-    output = capsys.readouterr().out
+    ok, output = module.verify_mirror_stamp(target, source)
+    assert ok
     assert "source_status=unavailable" in output
     assert "canonical drift NOT CHECKED" in output
 
@@ -1496,18 +1477,8 @@ def test_target_only_stamp_requires_separate_canonical_alignment_check(
     assert "canonical source and managed public mirror are aligned" in message
 
     (source / "guide.rst").write_text("canonical changed\n", encoding="utf-8")
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--verify-stamp",
-            "--quiet",
-        ]
-    )
-    assert exit_code == 0
-    output = capsys.readouterr().out
+    ok, output = module.verify_mirror_stamp(target, source)
+    assert ok
     assert "source_status=unavailable" in output
     assert "canonical drift NOT CHECKED" in output
 
@@ -1522,8 +1493,8 @@ def test_refresh_target_integrity_stamp_preserves_verified_evidence_for_exclusio
     capsys,
 ) -> None:
     module = _load_module()
-    source = _public_docs_source(module, tmp_path)
-    target = tmp_path / "target"
+    source = tmp_path / "source"
+    target = _public_docs_source(module, tmp_path)
     source.mkdir()
     target.mkdir()
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
@@ -1644,7 +1615,6 @@ def test_ui_robot_evidence_refresh_supports_authoritative_public_docs(
 
 def test_ui_robot_evidence_refresh_rebaselines_only_existing_ui_evidence(
     tmp_path: Path,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -1672,18 +1642,9 @@ def test_ui_robot_evidence_refresh_rebaselines_only_existing_ui_evidence(
         encoding="utf-8",
     )
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--refresh-ui-robot-evidence-stamp",
-        ]
-    )
+    _path, written = module.refresh_ui_robot_evidence_stamp(source, target)
 
-    assert exit_code == 0
-    assert "UI robot evidence mirror stamp refreshed" in capsys.readouterr().out
+    assert written
     payload = json.loads(stamp_path.read_text(encoding="utf-8"))
     assert payload["source_status"] == "verified"
     assert payload["source_digest_sha256"] == payload_before["source_digest_sha256"]
@@ -1840,7 +1801,6 @@ def test_ui_robot_evidence_refresh_rolls_back_if_evidence_changes_after_validati
 
 def test_ui_robot_evidence_refresh_refuses_other_public_owned_drift(
     tmp_path: Path,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -1859,25 +1819,14 @@ def test_ui_robot_evidence_refresh_refuses_other_public_owned_drift(
     evidence.write_text('{"run_id": 2}\n', encoding="utf-8")
     release_proof.write_text("[release]\nversion = 2\n", encoding="utf-8")
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--refresh-ui-robot-evidence-stamp",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(ValueError, match="data/release_proof.toml"):
+        module.refresh_ui_robot_evidence_stamp(source, target)
 
-    assert exit_code == 1
-    assert "data/release_proof.toml" in capsys.readouterr().err
     assert stamp_path.read_bytes() == stamp_before
 
 
 def test_ui_robot_evidence_refresh_refuses_canonical_source_drift(
     tmp_path: Path,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -1895,19 +1844,9 @@ def test_ui_robot_evidence_refresh_refuses_canonical_source_drift(
     evidence.write_text('{"run_id": 2}\n', encoding="utf-8")
     source_guide.write_text("canonical drift\n", encoding="utf-8")
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--refresh-ui-robot-evidence-stamp",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(ValueError, match="canonical source drift"):
+        module.refresh_ui_robot_evidence_stamp(source, target)
 
-    assert exit_code == 1
-    assert "canonical source drift" in capsys.readouterr().err
     assert stamp_path.read_bytes() == stamp_before
 
 
@@ -1946,8 +1885,8 @@ def test_refresh_target_integrity_stamp_refuses_changed_managed_target(
     capsys,
 ) -> None:
     module = _load_module()
-    source = _public_docs_source(module, tmp_path)
-    target = tmp_path / "target"
+    source = tmp_path / "source"
+    target = _public_docs_source(module, tmp_path)
     source.mkdir()
     target.mkdir()
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
@@ -1976,7 +1915,7 @@ def test_refresh_target_integrity_stamp_preserves_valid_target_only_evidence(
     tmp_path: Path,
 ) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
     stamp_path = module.write_target_only_mirror_stamp(target)
@@ -2000,7 +1939,7 @@ def test_refresh_target_integrity_stamp_refuses_missing_stamp(
     capsys,
 ) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
     stamp_path = module.stamp_path_for_target(target)
@@ -2025,10 +1964,10 @@ def test_target_only_stamp_still_detects_target_mutation(
     capsys,
 ) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
-    assert module.main(["--target", str(target), "--write-target-only-stamp"]) == 0
+    module.write_target_only_mirror_stamp(target)
     capsys.readouterr()
     (target / "guide.rst").write_text("changed\n", encoding="utf-8")
 
@@ -2045,7 +1984,7 @@ def test_target_only_stamp_still_detects_target_mutation(
     assert "mirror stamp mismatch" in capsys.readouterr().out
 
 
-def test_verify_stamp_detects_unmanaged_edit(tmp_path: Path, capsys) -> None:
+def test_verify_stamp_detects_unmanaged_edit(tmp_path: Path) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
     target = tmp_path / "target"
@@ -2053,28 +1992,19 @@ def test_verify_stamp_detects_unmanaged_edit(tmp_path: Path, capsys) -> None:
     target.mkdir()
     (source / "guide.rst").write_text("guide\n", encoding="utf-8")
 
-    assert (
-        module.main(["--source", str(source), "--target", str(target), "--apply"]) == 0
-    )
+    plan = module.make_sync_plan(source, target, delete_extra=True)
+    module.apply_sync_plan_transactionally(source, target, plan)
     (target / "guide.rst").write_text("changed\n", encoding="utf-8")
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--verify-stamp",
-        ]
-    )
+    ok, message = module.verify_mirror_stamp(target, source)
 
-    assert exit_code == 1
-    assert "mirror stamp mismatch" in capsys.readouterr().out
+    assert not ok
+    assert "mirror stamp mismatch" in message
 
 
 def test_verify_stamp_reports_missing_stamp(tmp_path: Path, capsys) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     (target / "guide.rst").write_text("guide\n", encoding="utf-8")
 
@@ -2369,20 +2299,11 @@ def test_apply_does_not_bootstrap_missing_target_through_symlinked_ancestor(
     _symlink_or_skip(docs_alias, outside, target_is_directory=True)
     target = docs_alias / "source"
 
-    exit_code = module.main(
-        [
-            "--source",
-            str(source),
-            "--target",
-            str(target),
-            "--apply",
-            "--delete",
-            "--quiet",
-        ]
-    )
+    with pytest.raises(SystemExit) as error:
+        module.main(["--target", str(target), "--apply", "--delete", "--quiet"])
 
-    assert exit_code == 1
-    assert "automatic bootstrap is disabled" in capsys.readouterr().err
+    assert error.value.code == 2
+    assert "external and private" in capsys.readouterr().err
     assert not (outside / "source").exists()
     assert not module.stamp_path_for_target(target).exists()
 
@@ -2392,8 +2313,8 @@ def test_full_apply_refuses_to_rebaseline_tampered_ui_evidence(
     capsys,
 ) -> None:
     module = _load_module()
-    source = _public_docs_source(module, tmp_path)
-    target = tmp_path / "target"
+    source = tmp_path / "source"
+    target = _public_docs_source(module, tmp_path)
     source.mkdir()
     target.mkdir()
     (source / "guide.rst").write_text("same\n", encoding="utf-8")
@@ -2407,8 +2328,6 @@ def test_full_apply_refuses_to_rebaseline_tampered_ui_evidence(
 
     exit_code = module.main(
         [
-            "--source",
-            str(source),
             "--target",
             str(target),
             "--apply",
@@ -3066,10 +2985,9 @@ def test_special_files_are_rejected_and_cannot_hide_from_target_evidence(
     assert "special filesystem entries" in message
 
 
-def test_check_mode_rejects_source_change_during_planning(
+def test_stable_sync_plan_rejects_source_change_during_planning(
     tmp_path: Path,
     monkeypatch,
-    capsys,
 ) -> None:
     module = _load_module()
     source = _public_docs_source(module, tmp_path)
@@ -3088,12 +3006,9 @@ def test_check_mode_rejects_source_change_during_planning(
 
     monkeypatch.setattr(module, "make_sync_plan", plan_then_mutate)
 
-    exit_code = module.main(
-        ["--source", str(source), "--target", str(target), "--check", "--delete"]
-    )
+    with pytest.raises(ValueError, match="source changed while planning"):
+        module.make_stable_sync_plan(source, target, delete_extra=True)
 
-    assert exit_code == 1
-    assert "source changed while planning" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(
@@ -3111,13 +3026,13 @@ def test_stamp_cli_modes_convert_runtime_failures_to_diagnostics(
     diagnostic: str,
 ) -> None:
     module = _load_module()
-    target = tmp_path / "target"
+    target = _public_docs_source(module, tmp_path)
     target.mkdir()
     if mode == "--write-target-only-stamp":
         monkeypatch.setattr(
             module,
             "write_target_only_mirror_stamp",
-            lambda _target: (_ for _ in ()).throw(RuntimeError("concurrent stamp")),
+            lambda _target, **_kwargs: (_ for _ in ()).throw(RuntimeError("concurrent stamp")),
         )
     else:
         monkeypatch.setattr(

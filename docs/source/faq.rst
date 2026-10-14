@@ -447,7 +447,7 @@ Use the smallest tool that proves the change you made. The usual choices are:
    * - Likely regression subset
      - ``./dev regress``
    * - Match a GitHub workflow locally
-      - ``./dev flow <profile>`` or
+     - ``./dev flow <profile>`` or
        ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <profile>``
    * - Public documentation integrity
      - ``./dev docs`` or

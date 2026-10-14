@@ -94,6 +94,9 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   operator's verified email/key; invented noreply addresses can cause `unknown_key`.
   Run `python3 tools/agent_commit_provenance_guard.py --check-config` before commits
   and verify new signatures on GitHub. Record the operator separately in PR metadata.
+  Before publishing, inspect the target branch's signing requirements; when signatures
+  are required, use the trusted signing flow and confirm GitHub reports `verified`.
+  The provenance guard checks identity and does not sign the commit.
 - PR cleanup must preserve intended work: `clean` or `zero open PRs` do not authorize abandonment. Recover prior decisions, compare each PR with current main and outstanding validation, then complete authorized fixes toward merge.
   Close without merge only for explicit abandonment or verified duplication/supersession, recording reasons and replacement evidence. Backups preserve work but do not integrate it; green generic CI does not replace required runtime or dependency checks.
   Report merged, superseded, explicitly abandoned and pending work separately. Clarify ambiguous disposition before closing; inspect prior-session evidence before explaining an earlier closure. A clean workspace alone does not prove completion.

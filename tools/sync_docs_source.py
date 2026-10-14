@@ -797,9 +797,13 @@ def _publish_verified_stamp(
     boundary: PinnedMutationBoundary,
     payload: dict[str, object],
     verify: Callable[[], tuple[bool, str]],
+    *,
+    expected_previous: StampSnapshot | None = None,
 ) -> tuple[int, int, int, int, str]:
     stamp_path = stamp_path_for_target(boundary.target)
     baseline = _capture_regular_stamp(stamp_path, boundary=boundary)
+    if expected_previous is not None and baseline != expected_previous:
+        raise ValueError("mirror stamp changed concurrently before publication")
     expected = _render_stamp_payload(payload)
     owned_fingerprint: tuple[int, int, int, int, str] | None = None
     try:
@@ -991,22 +995,43 @@ def write_target_only_mirror_stamp(
     target: Path,
     *,
     preserve_public_evidence: bool = False,
+    require_existing: bool = False,
 ) -> Path:
     """Write target integrity, optionally preserving existing public proofs.
 
-    Routine public docs refreshes preserve proof digests. Explicit target-only
+    Routine docs apply preserves all proof digests. CLI target-only writes may
+    refresh release-proof artifacts but must preserve UI proof. Explicit low-level
     recovery keeps its deliberate ability to establish a new proof baseline.
+    CLI operations require an existing v3 stamp inside the mutation boundary;
+    low-level callers retain explicit bootstrap support.
     """
 
     with _pinned_mutation_boundary(target) as boundary:
+        stamp_baseline = _capture_regular_stamp(
+            stamp_path_for_target(boundary.target), boundary=boundary
+        )
+        if require_existing:
+            try:
+                stamp = _stamp_object_from_snapshot(
+                    stamp_baseline, stamp_path_for_target(boundary.target)
+                )
+                if stamp.get("format_version") != STAMP_FORMAT_VERSION:
+                    raise ValueError("existing v3 public docs evidence is required")
+            except ValueError as exc:
+                raise ValueError(
+                    "existing v3 public docs evidence is required; "
+                    "restore the tracked public docs stamp before refreshing"
+                ) from exc
         public_owned_baseline: dict[str, str] | None = None
-        if preserve_public_evidence:
-            stamp_baseline = _capture_regular_stamp(
-                stamp_path_for_target(boundary.target), boundary=boundary
-            )
+        if preserve_public_evidence or require_existing:
             public_owned_baseline = (
                 _validate_existing_public_evidence_before_full_sync(
-                    boundary, stamp_baseline
+                    boundary,
+                    stamp_baseline,
+                    allowed_changes=(
+                        frozenset() if preserve_public_evidence
+                        else RELEASE_REFRESHABLE_PUBLIC_OWNED
+                    ),
                 )
             )
         payload = _build_target_only_stamp_at_boundary(boundary)
@@ -1024,6 +1049,7 @@ def write_target_only_mirror_stamp(
                 source=None,
                 expected_public_owned_files=public_owned_baseline,
             ),
+            expected_previous=stamp_baseline if require_existing else None,
         )
     return stamp_path_for_target(target)
 
@@ -1233,6 +1259,8 @@ def _validate_ui_robot_evidence_at_boundary(
 def _validate_existing_public_evidence_before_full_sync(
     boundary: PinnedMutationBoundary,
     stamp_snapshot: StampSnapshot,
+    *,
+    allowed_changes: frozenset[str] = frozenset(),
 ) -> dict[str, str]:
     """Do not let a managed-tree sync bless unrelated public evidence drift."""
 
@@ -1269,7 +1297,7 @@ def _validate_existing_public_evidence_before_full_sync(
         stamp,
         public_files,
         stamp_path=stamp_path,
-        allowed_changes=frozenset(),
+        allowed_changes=allowed_changes,
     )
     return public_files
 
@@ -3166,7 +3194,7 @@ def build_parser() -> argparse.ArgumentParser:
             "External and private sources are rejected."
         ),
     )
-    parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
+    parser.add_argument("--target", type=Path, default=None)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -3214,7 +3242,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Write target-integrity evidence with source_status=unavailable. "
-            "This never claims that the canonical source was checked."
+            "Requires an existing v3 baseline; restore the tracked public stamp "
+            "if missing or older. Only release-proof artifacts may change among "
+            "public evidence; UI proof needs its validated dedicated refresh. "
+            "This never claims the canonical source was checked."
         ),
     )
     mode.add_argument(
@@ -3253,7 +3284,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    target = _absolute_path(args.target, base=Path.cwd())
+    try:
+        target = require_public_docs_source(
+            args.target if args.target is not None else REPO_ROOT / "docs" / "source"
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
     if args.source is not None:
         try:
             args.source = require_public_docs_source(args.source)
@@ -3334,7 +3370,7 @@ def main(argv: list[str] | None = None) -> int:
         if not target.is_dir():
             parser.error(f"target path is not a directory: {target}")
         try:
-            stamp_path = write_target_only_mirror_stamp(target)
+            stamp_path = write_target_only_mirror_stamp(target, require_existing=True)
         except (OSError, RuntimeError, ValueError) as exc:
             print(f"mirror stamp not written: {exc}", file=sys.stderr)
             return 1
@@ -3418,7 +3454,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.apply:
             try:
                 stamp_path = write_target_only_mirror_stamp(
-                    target, preserve_public_evidence=True
+                    target, preserve_public_evidence=True, require_existing=True
                 )
             except (OSError, RuntimeError, ValueError) as exc:
                 print(f"public docs integrity stamp not written: {exc}", file=sys.stderr)

@@ -68,6 +68,7 @@ STATIC_AGI_GUI_CHUNKS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "test/test_cluster_lan_discovery.py",
             "test/test_dag_distributed_submitter.py",
             "test/test_agilab_dev_shortcuts.py",
+            "test/test_public_docs_private_boundary.py",
             "test/test_ga_regression_selector.py",
             "test/test_evidence_contract.py",
             "test/test_evidence_graph.py",

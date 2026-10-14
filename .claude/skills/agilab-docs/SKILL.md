@@ -39,6 +39,11 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 1. Edit the source file under this checkout's `docs/source`.
    For release/UI evidence, edit or regenerate the public file and run its
    dedicated proof validator.
+   Browser evidence must come from a recorded passing browser run. After its
+   owner validator passes, refresh only its digest with
+   `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --refresh-ui-robot-evidence-stamp`.
+   Ordinary documentation and release refreshes must preserve the existing
+   browser-evidence digest.
 2. Refresh the local integrity stamp from the AGILAB repo root:
    `uv --preview-features extra-build-dependencies run python tools/sync_docs_source.py --apply --delete`
 3. If the change touches an SVG diagram, validate the SVG as XML, render a local

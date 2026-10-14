@@ -18,5 +18,5 @@
   "source_hint": "docs/source",
   "source_status": "unavailable",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "0e204a398091a1b22a8c7ead314fa95659c9d6ed8f397d3810252e7f9ed41cef"
+  "target_digest_sha256": "868119fef6134b480db5ea6cccdb9cea3107c6efaee43220e4cfaeefd9eac66e"
 }

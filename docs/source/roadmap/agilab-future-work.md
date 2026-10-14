@@ -14,23 +14,27 @@ This page tracks remaining work and the delivered baseline for each theme.
 The goal here is to rank the next acceptance criteria without reopening delivered
 work as a new feature request.
 
-## Delivery checkpoint — 2026-10-11
+## Delivery checkpoint — reviewed 2026-10-14
 
 The published root release is
-[`2026.10.11`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11).
-See {doc}`../release-proof` for the package, hosted demonstration and evidence
-boundaries. Later CI or documentation fixes do not imply a new package release.
+[`2026.10.13`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13),
+from source commit `8dd841b0246f6269cafaec7d91e66c70c485a0b2`.
+Its UI profile pins `agi-apps`, `agi-pages` and `agi-gui 2026.10.13`,
+while the shared React runtime remains `agi-web 2026.10.12`. Builtin app
+packages keep their own version constraints. See {doc}`../release-proof` for
+the package, hosted demonstration and evidence boundaries. Later source, CI or
+documentation changes do not imply another package release.
 
 | Theme | Baseline and source status | Remaining work |
 | --- | --- | --- |
 | [P0 release integrity](https://github.com/ThalesGroup/agilab/issues/560) | Published release and explicit release-proof/approval contracts | Keep each subsequent release, package scope, coverage and hosted proof aligned |
 | [P1 first-run UX](https://github.com/ThalesGroup/agilab/issues/561) | Native React entry points and local first-proof route | Qualify newcomer flows and responsiveness on smaller Linux machines |
-| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution and the 1,000-row GUI-to-notebook macOS round trip | Additional environments, app scenarios and larger inputs |
+| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution, the 1,000-row GUI-to-notebook macOS round trip and interactive Jupyter map/curve rendering from public packages | A real deployed-worker export/run/reimport scenario, smaller Linux machines, additional apps and larger inputs |
 | [P3 security](https://github.com/ThalesGroup/agilab/issues/563) | Documented boundaries and supply-chain/release guardrails | Environment-specific shared-deployment and dependency qualification |
 | [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing cluster controls and dynamic `agi-core` worker-loading guards | Real platform, degraded-network and team-operation qualification |
 | [Pinned private apps](https://github.com/ThalesGroup/agilab/issues/565) | Pinned validation contracts and scoped private app checks | Broader scientific workload qualification without publishing private source |
 | [Multi-app DAG](https://github.com/ThalesGroup/agilab/issues/566) | Two-app artifact handoff, retry, partial rerun, durable state and WORKFLOW controls | Larger graphs, more apps, placement and operator consolidation |
-| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Qualified source MVP: seven profiles, a server command registry and four snapshot panes; desktop/mobile navigation, reviewed switching and per-project layout evidence | Publication, actual palette install/scientific-run qualification, broader discovery/actions, cluster scenarios and smaller-machine measurements |
+| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Published MVP in `agilab 2026.10.13` with `agi-web 2026.10.12`: seven profiles, a server command registry and four snapshot panes; navigation, reviewed switching and layout evidence | Actual palette install/scientific-run qualification, broader discovery/actions, hosted-demo qualification, cluster scenarios and smaller-machine measurements |
 | [Data connectors](https://github.com/ThalesGroup/agilab/issues/568) | Catalog, resolution, health-action, adapter and view contracts | Prepared live endpoints: IAM, network, quota, latency and provider behavior |
 
 These nine issues were opened as roadmap themes in June 2026. They and the
@@ -44,11 +48,17 @@ with the relevant optional tools and services; see [Audience bridges](audience-b
 Neither public builtin proofs nor scoped private checks certify every private
 scientific app or every deployment environment.
 
-The workbench source MVP is not included in the published `agilab 2026.10.11`
-package or the current hosted demonstration. Backend tests exercise its native
-install/run queue contract. The browser proof covers navigation, palette
-keyboard behavior, action review/cancellation, reviewed project switching and
-desktop/mobile layout; it did not install or execute scientific workloads.
+The workbench shipped with the `2026.10.12` UI release and remains in the
+`2026.10.13` root package with its pinned shared React runtime. Backend tests
+exercise its native install/run queue contract. The browser proof covers
+navigation, palette keyboard behavior, action review/cancellation, reviewed
+project switching and desktop/mobile layout; it did not install or execute
+scientific workloads. Hosted-demo identity and availability remain separately
+bounded by {doc}`../release-proof`.
+
+Current source also supports verified notebook-build recovery without repeating
+generation. That post-release source change is not represented as part of the
+published `2026.10.13` package.
 
 ## Professional target
 
@@ -84,7 +94,7 @@ unless a higher-priority item is explicitly accepted as a risk.
 
 | Phase | Focus | Exit gate |
 | --- | --- | --- |
-| Phase 0 | Release trust and docs alignment | Clean release lane, fresh docs mirror, green badge guard, no stale public claims |
+| Phase 0 | Release trust and docs alignment | Clean release lane, independently owned public docs, green badge guard, no stale public claims |
 | Phase 1 | Newcomer first proof and notebook parity | Built-in and notebook first proofs install, execute, and open analysis predictably |
 | Phase 2 | Diagnostics, security, and team readiness | Failures are classified; shared/team/cluster use has explicit checks and limits |
 | Phase 3 | Evidence and data integration | Promotion evidence, run diff, connectors, and provenance are consumable outside the UI |
@@ -191,6 +201,12 @@ Concrete items:
   convenience download
 - round-trip the stage order, code, runtime hints, artifacts, and provenance
   enough for review and reuse outside the AGILab UI
+- qualify a public builtin such as `flight_telemetry_project` through explicit
+  worker deployment, an SDK-dispatched run, exported notebook execution in a
+  fresh kernel, artifact comparison and reimport; preserve dynamic `agi-core`
+  worker loading and the authored deployment stages
+- keep smaller-machine Linux qualification separate from macOS UI and kernel
+  proofs; a manager-only fixture or rendered widget does not prove a worker job
 
 Done means:
 
@@ -854,16 +870,16 @@ use this order after the P0-P2 professionalization gates are under control:
    - future apps/templates must opt in when they produce durable worker
      summaries
 5. **Intent-first operator workbench**
-   - qualified source MVP: seven route-derived profiles, an allowlisted command
-     palette and four compact snapshot panes with per-project browser preferences
+   - published MVP: seven route-derived profiles, an allowlisted command palette
+     and four compact snapshot panes with per-project browser preferences
    - navigation opens existing workspaces; reviewed install, run and project
      switch commands reuse the current native lifecycle and AGI SDK
    - browser proof covers keyboard palette behavior, navigation, action
      review/cancellation, reviewed project switching and desktop/mobile layout
    - backend tests cover the install/run queue contract; real installation and
      scientific execution through the palette remain a qualification task
-   - this MVP is not included in the published `agilab 2026.10.11` package or
-     current hosted demonstration
+   - this MVP ships in the `agilab 2026.10.13` root package with
+     `agi-web 2026.10.12`; live hosted-demo scope needs separate evidence
    - the deeper discovery, workspace and action criteria below remain the
      productization scope beyond these compact snapshots
    - draw inspiration from Windows Terminal 1.0's product pattern: one stable

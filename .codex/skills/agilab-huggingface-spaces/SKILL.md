@@ -1,6 +1,6 @@
 ---
 name: agilab-huggingface-spaces
-description: Maintain and deploy the official AGILAB Hugging Face Docker Space using the sibling thales_agilab/huggingface bundle and public agilab checkout.
+description: Maintain and deploy the official AGILAB Hugging Face Docker Space through public release sync or a reviewed packaging-bundle export.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   updated: 2026-10-14
@@ -10,13 +10,20 @@ metadata:
 
 Use this skill when preparing, validating, or deploying the official AGILAB Hugging Face Space.
 
-The current source of truth is the sibling apps/docs checkout, normally
-`../thales_agilab` relative to the public `agilab` checkout:
+For an explicitly selected maintainer packaging-bundle export, the packaging
+contract lives in the private sibling checkout, normally `../thales_agilab`
+relative to the public `agilab` checkout:
 - `<apps-repo>/huggingface/README.md`
 - `<apps-repo>/huggingface/README.advanced.md`
 - `<apps-repo>/huggingface/hf_space_deploy.sh`
 - `<apps-repo>/huggingface/Dockerfile`
 - `<apps-repo>/huggingface/seed_hf_app_settings.py`
+
+Select and review the export in a separate staging area or repository without
+private Git ancestry. A linked private worktree does not provide that boundary.
+Keep private documentation, evidence, datasets and wheelhouse contents outside
+the export. The public `tools/hf_space_release_sync.py` release path uses its
+selected public checkout and does not discover the private packaging bundle.
 
 Do not default to a generic “lightweight one-page demo” plan when the repo already defines a concrete Space contract.
 
@@ -29,7 +36,7 @@ The official Space is currently:
   profile
 - launched on port `7860`
 - backed by the AGILAB native React interface and Python view host
-- built from the public `agilab` repo plus the sibling apps/docs `huggingface` packaging bundle
+- built from the public `agilab` repo, with the maintainer `huggingface` packaging bundle only when explicitly selected
 
 Treat `first-proof` as the default target unless the user explicitly asks for
 the advanced companion Space.

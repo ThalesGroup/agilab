@@ -1923,6 +1923,115 @@ def test_update_public_docs_stamp_claims_public_authored_source(
     assert command[command.index("--target") + 1] == str(public_source)
 
 
+def _public_release_docs_stamp_case(tmp_path, monkeypatch, *, ui_present=True):
+    module = _load_pypi_publish()
+    sync_docs = module._sync_docs_source_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sync_docs, "REPO_ROOT", tmp_path)
+    target = tmp_path / "docs/source"
+    (target / "data").mkdir(parents=True)
+    (target / "index.rst").write_text("Public index\n", encoding="utf-8")
+    (target / "data/release_proof.toml").write_text('[release]\ntag = "old"\n', encoding="utf-8")
+    (target / "release-proof.rst").write_text("Old release proof\n", encoding="utf-8")
+    if ui_present:
+        (target / "data/ui_robot_evidence.json").write_text('{"fixture":"reviewed original proof"}', encoding="utf-8")
+    stamp = sync_docs.write_target_only_mirror_stamp(target)
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/sync_docs_source.py").write_text("# fixture\n", encoding="utf-8")
+
+    def run_sync(command, **_kwargs):
+        if sync_docs.main(command[2:]):
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(module, "run", run_sync)
+    return module, sync_docs, target, stamp
+
+
+@pytest.mark.parametrize("mutation", ["changed", "created", "deleted"])
+def test_release_stamp_refresh_refuses_unapproved_ui_evidence_changes(
+    tmp_path, monkeypatch, mutation,
+) -> None:
+    module, sync_docs, target, stamp = _public_release_docs_stamp_case(
+        tmp_path, monkeypatch, ui_present=mutation != "created",
+    )
+    before = stamp.read_bytes()
+    evidence = target / "data/ui_robot_evidence.json"
+    if mutation == "deleted":
+        evidence.unlink()
+    else:
+        evidence.write_text('{"fixture":"unapproved replacement proof"}', encoding="utf-8")
+    (target / "data/release_proof.toml").write_text('[release]\ntag = "new"\n', encoding="utf-8")
+
+    with pytest.raises(subprocess.CalledProcessError):
+        module.update_public_docs_mirror_stamp_from_current_tree()
+
+    assert stamp.read_bytes() == before
+    assert not sync_docs.verify_target_mirror_integrity(target)[0]
+
+
+def test_release_stamp_refresh_updates_release_proofs_with_unchanged_ui(
+    tmp_path, monkeypatch,
+) -> None:
+    module, sync_docs, target, stamp = _public_release_docs_stamp_case(tmp_path, monkeypatch)
+    before, error = sync_docs._read_stamp(target)
+    assert before and error is None
+    (target / "index.rst").write_text("Release-owned public index update\n", encoding="utf-8")
+    (target / "data/release_proof.toml").write_text('[release]\ntag = "new"\n', encoding="utf-8")
+    (target / "release-proof.rst").write_text("New release proof\n", encoding="utf-8")
+
+    module.update_public_docs_mirror_stamp_from_current_tree()
+
+    after, error = sync_docs._read_stamp(target)
+    assert after and error is None
+    assert after["source_status"] == "unavailable"
+    assert after["source_digest_sha256"] is None
+    before_files = before["public_owned_files_sha256"]
+    after_files = after["public_owned_files_sha256"]
+    assert after_files["data/ui_robot_evidence.json"] == before_files["data/ui_robot_evidence.json"]
+    for path in ("data/release_proof.toml", "release-proof.rst"):
+        assert after_files[path] != before_files[path]
+    assert after["target_digest_sha256"] != before["target_digest_sha256"]
+    ok, message = sync_docs.verify_target_mirror_integrity(target)
+    assert ok, message
+
+
+@pytest.mark.parametrize("replacement", [None, "{", '{"format_version": 2}'])
+def test_release_dispatch_cannot_bootstrap_missing_or_replaced_stamp(
+    tmp_path, monkeypatch, replacement,
+) -> None:
+    module = _load_pypi_publish()
+    sync_docs = module._sync_docs_source_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(sync_docs, "REPO_ROOT", tmp_path)
+    target = tmp_path / "docs/source"
+    (target / "data").mkdir(parents=True)
+    (target / "index.rst").write_text("Public index\n", encoding="utf-8")
+    evidence = target / "data/ui_robot_evidence.json"
+    evidence.write_text('{"fixture":"old proof"}', encoding="utf-8")
+    stamp = sync_docs.write_target_only_mirror_stamp(target)
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "tools/sync_docs_source.py").write_text("# fixture\n", encoding="utf-8")
+
+    def run_after_concurrent_change(command, **_kwargs):
+        stamp.unlink()
+        if replacement is not None:
+            stamp.write_text(replacement, encoding="utf-8")
+        evidence.write_text('{"fixture":"unapproved new proof"}', encoding="utf-8")
+        if sync_docs.main(command[2:]):
+            raise subprocess.CalledProcessError(1, command)
+
+    monkeypatch.setattr(module, "run", run_after_concurrent_change)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        module.update_public_docs_mirror_stamp_from_current_tree()
+
+    if replacement is None:
+        assert not stamp.exists()
+    else:
+        assert stamp.read_text(encoding="utf-8") == replacement
+    assert evidence.read_text(encoding="utf-8") == '{"fixture":"unapproved new proof"}'
+
+
 def test_public_release_reference_refresh_replaces_legacy_mirror_stamp_with_public_ownership(
     tmp_path, monkeypatch
 ) -> None:

@@ -85,6 +85,20 @@ def test_static_plan_preserves_fallback_chunks_when_timings_are_missing(tmp_path
     assert "test/test_view_maps.py" in chunks["views"]
 
 
+@pytest.mark.parametrize("with_timings", [False, True])
+def test_public_docs_boundary_tests_are_in_coverage_plan(tmp_path, with_timings) -> None:
+    module = _load_module()
+    junit = tmp_path / "junit-agi-gui-support.xml"
+    if with_timings:
+        _write_junit(junit, [("test.test_agilab_dev_shortcuts", "docs", 1.0)])
+
+    plan = module.build_plan([str(junit)])
+
+    assert plan.mode == ("timing-balanced" if with_timings else "static")
+    scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
+    assert "test/test_public_docs_private_boundary.py" in scheduled
+
+
 def test_timing_balanced_plan_greedily_spreads_slow_files(tmp_path) -> None:
     module = _load_module()
     junit_path = tmp_path / "junit-agi-gui-support.xml"
