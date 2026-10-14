@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-13
+  updated: 2026-10-14
 ---
 
 # AGILAB Release Verification
@@ -120,19 +120,17 @@ and tests. Then prove the rename with an old-name grep, `tools/app_contract_matr
 `tools/pypi_trusted_publisher_contract.py --package <new-name>`, and a local
 `python -m build <package-dir>` before creating the PyPI pending publisher.
 
-For a release that should prune old PyPI releases and sync Hugging Face, verify
-the required repository secrets exist before dispatching or rerunning the
-workflow. Do not print secret values:
+When the selected release includes Hugging Face sync, verify the required
+repository secret exists before dispatching or rerunning publication. Do not
+print secret values:
 
 ```bash
 gh secret list -R ThalesGroup/agilab
 ```
 
-Expected release automation secrets include `HF_TOKEN`,
-`PYPI_RELEASE_PRUNE_USERNAME`, `PYPI_RELEASE_PRUNE_PASSWORD`, and either
-`PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time `PYPI_RELEASE_PRUNE_OTP` for
-non-interactive PyPI cleanup. If `HF_TOKEN` is missing but the local Hugging
-Face CLI is authenticated, set it without echoing the token:
+Hugging Face sync requires `HF_TOKEN`. Cleanup credentials stay on the
+maintainer's machine and are never publication or manual-plan workflow inputs.
+If `HF_TOKEN` is missing but the local Hugging Face CLI is authenticated, set it without echoing the token:
 
 ```bash
 hf auth token | gh secret set HF_TOKEN -R ThalesGroup/agilab
@@ -169,15 +167,20 @@ because `Requires-Dist` points at pruned versions.
 The public release path is currently GitHub-workflow-owned after the tag or
 workflow dispatch:
 
-- `release-plan`: by default passes `--skip-existing-pypi`, so split packages whose current wheel/sdist already exist on PyPI are omitted from publication, provenance, retention, and release assets. Manual workflow dispatch can set `include_existing_pypi=true` only for deliberate release-asset repair.
+- `release-plan`: by default passes `--skip-existing-pypi`, so split packages whose current wheel/sdist already exist on PyPI are omitted from publication, provenance, and release assets. Manual workflow dispatch can set `include_existing_pypi=true` only for deliberate release-asset repair.
 - `publish-library-packages`: publishes selected split packages with PyPI Trusted Publishing.
 - `publish-agilab`: publishes the top-level `agilab` package only when the umbrella package is still selected.
 - `pypi-provenance-evidence`: verifies PyPI attestations only for `provenance_packages` selected by the release plan.
-- `pypi-release-retention`: prunes older public PyPI releases only for selected provenance packages after a selected package exceeds the configured visible-release threshold (`pypi_retention_min_published_releases`, default `11`, or the `PYPI_RETENTION_MIN_PUBLISHED_RELEASES` repository variable for tag runs); missing current releases or failed cleanup after the threshold is reached are hard failures.
 - `publish-release-assets`: uploads release artifacts and supply-chain evidence to GitHub Releases.
 - `publish-dataset-release-assets`: builds a complete tracked-dataset archive, manifest, and checksums from an LFS-materialized checkout, then creates a separate content-addressed `datasets-<manifest-hash>` GitHub Release only when that dataset payload has not already been published. This job is intentionally independent from PyPI package selection; PyPI packages keep their packaged datasets.
 - `sync-hf-space`: deploys the public Hugging Face Space after release assets only when the umbrella `agilab` release is selected.
 - `sync-hf-space` also runs the hosted smoke check and records the deployed Space commit in release proof; package-only app/page publishes should skip it by release scope.
+
+Publication never runs cleanup. The separate manual `pypi-release-retention`
+workflow creates a read-only plan from reviewed exact `package==version` targets.
+It never receives cleanup credentials or deletes releases. Local deletion needs
+complete verified backups and confirmation; follow
+`docs/pypi-cleanup-maintainer-guide.md` and `agilab-pypi-release-maintenance`.
 
 Confirm this against `.github/workflows/pypi-publish.yaml` before each release
 answer because the workflow can change.
@@ -194,11 +197,11 @@ gh run list --repo ThalesGroup/agilab --workflow pypi-publish.yaml --limit 5
 gh run view <run-id> --repo ThalesGroup/agilab --json status,conclusion,url,jobs
 ```
 
-Success requires the relevant publish, provenance, retention, release-assets,
+Success requires the relevant publish, provenance, release-assets,
 dataset-release-assets, and `sync-hf-space` jobs to be successful or
 intentionally skipped by release scope. If the optimized release plan reports
 `pypi_publish_selected=false`, the
-publish/provenance/retention/release-assets path is expected to skip. Do not
+publish/provenance/release-assets path is expected to skip. Do not
 report that as a failed release unless the user intended a new public
 publication. The dataset release job has a separate skip condition: unchanged
 dataset content should reuse the existing `datasets-<content-hash>` release.
@@ -298,7 +301,7 @@ import json, urllib.request
 expected = "<normalized-version>"  # Example: 2026.5.17.post2
 packages = "<workflow provenance_packages output>".split()
 missing = []
-stale = []
+historical = []
 for name in packages:
     req = urllib.request.Request(
         f"https://pypi.org/pypi/{name}/json",
@@ -310,18 +313,15 @@ for name in packages:
         missing.append((name, releases))
     old = [version for version in releases if version.lower() != expected]
     if old:
-        stale.append((name, old))
-print(json.dumps({"missing_expected": missing, "stale_old_releases": stale}, sort_keys=True))
+        historical.append((name, old))
+print(json.dumps({"missing_expected": missing, "historical_releases": historical}, sort_keys=True))
 PY
 ```
 
-After PyPI pruning, `missing_expected` must be empty. `stale_old_releases`
-can be non-empty when the package is still below the workflow's configured
-cleanup threshold. Once threshold-triggered or explicit strict retention runs,
-remaining stale versions are cleanup debt when PyPI web login,
-unrecognized-login confirmation, or reauthentication blocks deletion. Do not
-confuse a below-threshold retained history or an authentication warning with a
-failed publish or failed provenance check.
+`missing_expected` must be empty for the published package graph.
+`historical_releases` records other visible versions; their presence does not
+fail publication or provenance and does not authorize cleanup. Verify deletion
+only for a separately reviewed exact target set using the maintainer guide.
 
 ### Release Proof and Docs
 
@@ -445,11 +445,10 @@ after the badge/source change.
   deleted version, publish a corrective stable `YYYY.MM.DD` or same-day hotfix
   `YYYY.MM.DD.N` release for the impacted package graph and exact-pin bundle
   closure before deleting anything else. Public `.postN` releases are forbidden.
-- PyPI retention reports success but old releases remain: first check whether
-  the package is below the workflow's configured cleanup threshold. If the
-  threshold was reached, confirm whether PyPI required password/TOTP
-  reauthentication or unrecognized-login confirmation. OIDC Trusted Publishing
-  cannot delete old releases.
+- Historical PyPI versions remain after publication: this is expected.
+  Publication and the manual cleanup-plan workflow never delete releases.
+  Inspect an approved exact cleanup request separately; do not infer failure
+  from an unselected historical version.
 - GitHub Release exists but PyPI missing: inspect `publish-agilab` and split
   package jobs; do not assume release assets imply package upload.
 - PyPI published but `sync-hf-space` skipped: first check
@@ -459,10 +458,10 @@ after the badge/source change.
 - `sync-hf-space` failed immediately with a missing token: configure the
   repository `HF_TOKEN` secret from a valid local or service Hugging Face token,
   then rerun the workflow job or perform a clean-worktree manual sync.
-- PyPI retention records an interactive authentication or unrecognized-login
-  warning: verify `PYPI_RELEASE_PRUNE_TOTP_SECRET` or a one-time
-  `PYPI_RELEASE_PRUNE_OTP`, then use a self-hosted/static-IP runner or manual
-  cleanup from a confirmed device if strict one-release retention is required.
+- Local cleanup authentication or session confirmation fails: preserve the
+  reviewed targets and verified backups, stop deletion, and follow
+  `docs/pypi-cleanup-maintainer-guide.md` for the exact local session. A signed-in
+  browser does not authenticate the CLI; do not move deletion to a CI runner.
 - HF Space changed but release proof stale: inspect the `sync-hf-space` commit
   step before applying a manual docs refresh.
 - Release proof shows the new tag/commit but still mentions an old tag in a
@@ -478,18 +477,19 @@ after the badge/source change.
 
 - Never delete the previous release until the replacement release is published
   and a clean public PyPI install with Python 3.13 succeeds.
-- Delete only explicit stale versions. Protect the expected version in any
-  cleanup script and fail closed when the current page is ambiguous.
+- Delete only explicitly approved exact `package==version` targets after
+  archiving complete verified distributions. Protect current project versions,
+  exact first-party pins, the latest release and every unselected release;
+  recheck protections and backups after authentication immediately before deletion.
 - Treat PyPI credentials, TOTP seeds, recovery codes, cookies, and browser
   session data as secrets. Do not print them, commit them, or store them in
   repo-managed skills.
-- If old releases must be deleted manually, use PyPI's project release pages or
-  a controlled browser session, then re-run the split-package release truth
-  check above.
-- Keep the workflow's configured cleanup threshold as a post-publish cleanup
-  policy, not as a precondition for publishing the replacement package graph.
-  Use explicit manual cleanup only when an operator wants stricter retention for
-  a known package set.
+- Use the separate local helper or the maintainer guide's device-confirmed
+  browser procedure only for that reviewed target set and complete backup.
+  Verify each deleted version is absent while the latest and unselected releases
+  remain available, then rerun the package-graph truth check above.
+- Publication never runs cleanup. The manual retention workflow creates a
+  read-only plan and never receives cleanup credentials or deletes releases.
 
 ## Final Answer Contract
 

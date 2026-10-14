@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-13T20:11:16Z",
+  "generated_at_utc": "2026-10-14T06:19:14Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -921,21 +921,21 @@
     },
     {
       "name": "agilab-pypi-release-maintenance",
-      "description": "Guarded AGILAB PyPI release cleanup workflow. Use when an operator needs to inspect, prune, or delete old AGILAB PyPI package releases, especially after a noisy post-release or retention audit item.",
+      "description": "Plan and review exact AGILAB PyPI release deletions, archive verified distributions, and validate local cleanup without mixing it with publication. Use for an explicit package and version cleanup request or a release-retention review.",
       "path": ".claude/skills/agilab-pypi-release-maintenance/SKILL.md",
-      "updated": "2026-05-27"
+      "updated": "2026-10-14"
     },
     {
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-10-13"
+      "updated": "2026-10-14"
     },
     {
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-10-13"
+      "updated": "2026-10-14"
     },
     {
       "name": "agilab-security-review-patterns",

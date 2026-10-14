@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, native Python UI, run c
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-10-13
+  updated: 2026-10-14
 ---
 
 # AGILab runbook (Agent Skill)
@@ -291,7 +291,12 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     with `YYYY.MM.DD.N` for a same-day public fix.
   - On publish retries, the top-level `agilab` artifact may already exist while split runtime/app/page packages still need publication. Let the preflight/release plan decide what remains instead of checking only the root package.
   - Add `--delete-former-github-release` only when the public release page should keep a single current GitHub Release. This deletes the previous GitHub Release entry after the new one is created, but keeps the previous git tag and PyPI files.
-  - Add `--delete-pypi-release <version>` only when a specific old PyPI version must be removed from the selected packages. This uses an exact `pypi-cleanup --version-regex` match, requires real PyPI web-login credentials in `[pypi_cleanup]`, and cannot use API tokens or trusted publishing credentials.
+  - Publication never runs cleanup. Plan separate local maintenance with
+    `tools/pypi_release_retention.py --delete-release 'package==version'` for
+    explicitly reviewed targets, complete verified distribution backups, and
+    local confirmation. The manual retention workflow only creates a read-only
+    plan. Follow `docs/pypi-cleanup-maintainer-guide.md`; legacy publisher
+    deletion and purge options fail with guidance.
   - PyPI "confirmed device" state is browser/account state, not a CLI or macOS-wide setting.
     For web cleanup flows, log into `https://pypi.org/` from a normal browser profile on the
     maintainer machine, keep PyPI cookies/site data, and add the Mac Touch ID/passkey under
