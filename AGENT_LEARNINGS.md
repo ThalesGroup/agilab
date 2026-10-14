@@ -21,8 +21,8 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## Current rules
 
-- For edits to similar JavaScript collectors, target the named constant and caller (`_above_fold_probe` uses `ABOVE_FOLD_COLLECTOR_JS`).
-  Run a browser DOM canary with visible targets and hidden-content exclusions; mocked payloads do not validate selector edits.
+- Before reusing a completed sub-agent, start its new task with `followup_task` and verify its live status is running before waiting. `send_message` queues a message without starting a completed agent. Recheck status after an interruption, and keep prior results distinct from the new task.
+- For edits to similar JavaScript collectors, target the named constant and caller (`_above_fold_probe` uses `ABOVE_FOLD_COLLECTOR_JS`). Run a browser DOM canary with visible targets and hidden-content exclusions; mocked payloads do not validate selector edits.
 - When replacing buffered logs with streaming capture, regress split and multiline secrets, inherited stdin, open descendant pipes, and late-publication failures; carry omission/completeness metadata into recovered failure evidence too.
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally.
   After schema additions, moves in source, or package-version bumps, regenerate discovery before pushing with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
@@ -93,10 +93,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 - Agent branches require explicit agent author/committer names and the confirmed
   operator's verified email/key; invented noreply addresses can cause `unknown_key`.
   Run `python3 tools/agent_commit_provenance_guard.py --check-config` before commits
-  and verify new signatures on GitHub. Record the operator separately in PR metadata.
-  Before publishing, inspect the target branch's signing requirements; when signatures
-  are required, use the trusted signing flow and confirm GitHub reports `verified`.
-  The provenance guard checks identity and does not sign the commit.
+  and verify new signatures on GitHub. Record the operator separately in PR metadata. Before publishing, inspect the target branch's signing requirements; when signatures are required, use the trusted signing flow and confirm GitHub reports `verified`. The provenance guard checks identity and does not sign the commit.
 - PR cleanup must preserve intended work: `clean` or `zero open PRs` do not authorize abandonment. Recover prior decisions, compare each PR with current main and outstanding validation, then complete authorized fixes toward merge.
   Close without merge only for explicit abandonment or verified duplication/supersession, recording reasons and replacement evidence. Backups preserve work but do not integrate it; green generic CI does not replace required runtime or dependency checks.
   Report merged, superseded, explicitly abandoned and pending work separately. Clarify ambiguous disposition before closing; inspect prior-session evidence before explaining an earlier closure. A clean workspace alone does not prove completion.
