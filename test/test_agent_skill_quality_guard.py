@@ -482,3 +482,229 @@ def test_render_markdown_includes_external_validator_status(tmp_path: Path) -> N
     assert "Skills scanned: 1" in text
     assert "External skill-validator: not executed" in text
     assert "No findings." in text
+
+
+
+def _installed_validator_fixture(module, tmp_path: Path, monkeypatch):
+    command = "agilab-external-validator-fixture"
+    script = tmp_path / "agilab-external-validator-fixture.py"
+    log = tmp_path / "agilab-external-validator-argv-evidence.jsonl"
+    script.write_text(
+        "import json, sys\n"
+        "from pathlib import Path\n"
+        f"log = Path({str(log)!r})\n"
+        "with log.open('a', encoding='utf-8') as handle:\n"
+        "    handle.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        "assert sys.argv[1:4] == ['check', '--allow-extra-frontmatter', '--allow-dirs=agents,templates']\n"
+        "assert len(sys.argv) == 5\n"
+        "target = Path(sys.argv[-1])\n"
+        "skills = [target] if (target / 'SKILL.md').is_file() else list(target.iterdir())\n"
+        "if any((skill / 'agilab-external-validator-rejection.txt').is_file() for skill in skills):\n"
+        "    print('unrelated skill rejected by fixture validator', file=sys.stderr)\n"
+        "    raise SystemExit(1)\n",
+        encoding="utf-8",
+    )
+    original_which = module.shutil.which
+    original_run = module.subprocess.run
+
+    def run(argv, **kwargs):
+        if argv[:2] == [sys.executable, "check"]:
+            return original_run([sys.executable, str(script), *argv[1:]], **kwargs)
+        return original_run(argv, **kwargs)
+
+    monkeypatch.setattr(
+        module.shutil,
+        "which",
+        lambda requested: (
+            sys.executable if requested == command else original_which(requested)
+        ),
+    )
+    monkeypatch.setattr(module.subprocess, "run", run)
+    return command, log
+
+
+def _validator_calls(log: Path) -> list[list[str]]:
+    if not log.exists():
+        return []
+    return [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+
+
+def _validator_repo(module, tmp_path: Path, monkeypatch):
+    repo = tmp_path / "agilab-external-validator-repro-repository"
+    root = repo / ".codex/skills"
+    requested = _write_skill(root, "requested-safe", "Use this reviewed workflow.")
+    unrelated = _write_skill(
+        root, "unrelated-safe", "This skill is outside the requested scope."
+    )
+    (unrelated / "agilab-external-validator-rejection.txt").write_text(
+        "The external validator rejects this unselected fixture.\n", encoding="utf-8"
+    )
+    hooks = repo / "agilab-empty-fixture-hooks"
+    hooks.mkdir()
+    for args in (
+        ("init", "--quiet"),
+        ("config", "user.name", "AGILAB Test"),
+        ("config", "user.email", "agilab-test@example.invalid"),
+        ("config", "commit.gpgsign", "false"),
+        ("config", "core.hooksPath", str(hooks)),
+        ("add", ".codex/skills"),
+        ("commit", "--quiet", "-m", "add validator fixtures"),
+    ):
+        subprocess.run(
+            ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+        )
+    monkeypatch.setattr(module, "REPO_ROOT", repo)
+    monkeypatch.setattr(module, "DEFAULT_ROOTS", (root,))
+    return repo, root, requested
+
+
+@pytest.mark.parametrize("selection", ["explicit", "changed-only"])
+def test_external_validator_follows_selected_skills(
+    tmp_path: Path, monkeypatch, selection: str
+) -> None:
+    module = _load_module()
+    repo, root, requested = _validator_repo(module, tmp_path, monkeypatch)
+    base = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+    ).strip()
+    skill_md = requested / "SKILL.md"
+    skill_md.write_text(
+        skill_md.read_text(encoding="utf-8") + "\nReviewed guidance changed.\n",
+        encoding="utf-8",
+    )
+    for args in (
+        ("add", str(skill_md.relative_to(repo))),
+        ("commit", "--quiet", "-m", "change selected validator fixture"),
+    ):
+        subprocess.run(
+            ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+        )
+    command, log = _installed_validator_fixture(module, tmp_path, monkeypatch)
+    report = tmp_path / "agilab-external-validator-selected-skills-validation.json"
+    argv = [
+        "--roots",
+        str(root),
+        "--external-validator",
+        "require",
+        "--external-validator-command",
+        command,
+        "--json-output",
+        str(report),
+    ]
+    if selection == "explicit":
+        argv.extend(["--skill-dir", str(requested)])
+    else:
+        argv.extend(["--changed-only", "--base-ref", base])
+
+    result = module.main(argv)
+
+    assert result == 0
+    assert [call[-1] for call in _validator_calls(log)] == [str(requested.resolve())]
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == [".codex/skills/requested-safe"]
+    assert payload["findings"] == []
+    assert payload["external_validator"]["executed"] is True
+
+
+@pytest.mark.parametrize(
+    "explicit_roots", [False, True], ids=["default-roots", "requested-roots"]
+)
+def test_external_validator_preserves_full_root_validation(
+    tmp_path: Path, monkeypatch, explicit_roots: bool
+) -> None:
+    module = _load_module()
+    _, root, _ = _validator_repo(module, tmp_path, monkeypatch)
+    command, log = _installed_validator_fixture(module, tmp_path, monkeypatch)
+    report = tmp_path / "agilab-external-validator-full-root-validation.json"
+    argv = [
+        "--external-validator",
+        "require",
+        "--external-validator-command",
+        command,
+        "--json-output",
+        str(report),
+    ]
+    if explicit_roots:
+        argv.extend(["--roots", str(root)])
+
+    result = module.main(argv)
+
+    assert result == 2
+    assert [call[-1] for call in _validator_calls(log)] == [str(root)]
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert len(payload["skills_scanned"]) == 2
+    assert any(
+        finding["rule"] == "external-validator-failed"
+        for finding in payload["findings"]
+    )
+    assert payload["external_validator"]["executed"] is True
+
+
+def test_external_validator_skips_unchanged_skills(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    _validator_repo(module, tmp_path, monkeypatch)
+    command, log = _installed_validator_fixture(module, tmp_path, monkeypatch)
+    report = tmp_path / "agilab-external-validator-no-changes-validation.json"
+
+    result = module.main(
+        [
+            "--changed-only",
+            "--base-ref",
+            "HEAD",
+            "--external-validator",
+            "require",
+            "--external-validator-command",
+            command,
+            "--json-output",
+            str(report),
+        ]
+    )
+
+    assert result == 0
+    assert _validator_calls(log) == []
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == []
+    assert payload["findings"] == []
+    assert payload["external_validator"]["available"] is True
+    assert payload["external_validator"]["executed"] is False
+
+
+def test_external_validator_failure_on_foreign_root_emits_json(tmp_path: Path) -> None:
+    foreign = tmp_path / "agilab-foreign-validator-root"
+    skill = _write_skill(foreign, "foreign-safe", "Use this reviewed workflow.")
+    report = tmp_path / "agilab-foreign-validator-failure-validation.json"
+    repo = MODULE_PATH.parents[1]
+    assert not (repo / "check").exists()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-B",
+            str(MODULE_PATH),
+            "--roots",
+            str(foreign),
+            "--external-validator",
+            "require",
+            "--external-validator-command",
+            sys.executable,
+            "--fail-on",
+            "medium",
+            "--json-output",
+            str(report),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2, result.stderr
+    assert "Traceback" not in result.stderr
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["skills_scanned"] == [skill.resolve().as_posix()]
+    assert len(payload["findings"]) == 1
+    finding = payload["findings"][0]
+    assert finding["rule"] == "external-validator-failed"
+    assert finding["severity"] == "medium"
+    assert foreign.as_posix() in finding["message"]
+    assert payload["external_validator"]["available"] is True
+    assert payload["external_validator"]["executed"] is True
