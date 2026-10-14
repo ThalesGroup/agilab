@@ -76,6 +76,17 @@ class _FakePage:
     def evaluate(self, script: str):
         self.evaluated.append(script)
         if script == _FakeBrowserWidgetRobot.ABOVE_FOLD_COLLECTOR_JS:
+            if "Analysis workspace" in self.contents[-1]:
+                return {
+                    "fold": 700,
+                    "targets": [
+                        {"label": label, "inFold": True}
+                        for label in (
+                            "Analysis workspace", "Choose your result views and notebooks.",
+                            "Run or serve", "Run options", "Analysis views",
+                        )
+                    ],
+                }
             return {
                 "fold": 700,
                 "targets": [
@@ -132,6 +143,12 @@ class _FakeSyncPlaywright:
 
 class _FakeBrowserWidgetRobot(_FakeWidgetRobot):
     ABOVE_FOLD_COLLECTOR_JS = "above-fold-collector-js"
+
+    @staticmethod
+    def _above_fold_result_probe(**kwargs):
+        if kwargs.get("display") == "NATIVE":
+            return SimpleNamespace(kind="above_fold", status="interacted", detail="primary targets visible")
+        return _FakeWidgetRobot._above_fold_result_probe(**kwargs)
 
     def __init__(self) -> None:
         self.closed_contexts: list[tuple[_FakeBrowserContext, str]] = []
@@ -253,6 +270,7 @@ def test_browser_canaries_cover_success_path(monkeypatch) -> None:
         "browser-layout-collector",
         "browser-keyboard-collector",
         "browser-above-fold-collector",
+        "browser-native-above-fold-collector",
         "browser-error-event-capture",
     ]
     assert all(result.success for result in results)
@@ -263,8 +281,9 @@ def test_browser_canaries_cover_success_path(monkeypatch) -> None:
     assert [artifact for _context, artifact in robot.closed_contexts] == ["ui-robot-canary"]
 
     page = browser_type.browser.context.page
-    assert len(page.contents) == 4
+    assert len(page.contents) == 5
     assert page.evaluated == [
+        _FakeBrowserWidgetRobot.ABOVE_FOLD_COLLECTOR_JS,
         _FakeBrowserWidgetRobot.ABOVE_FOLD_COLLECTOR_JS,
         "() => console.error('Uncaught TypeError: canary browser issue')",
     ]

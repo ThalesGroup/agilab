@@ -67,7 +67,13 @@ def test_settings_page_has_stable_robot_expectations() -> None:
 
     assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == ("SETTINGS", "Settings", "README")
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["SETTINGS"] == ("SETTINGS", "README")
-    assert module.PAGE_EXPECTED_TEXT[""] == ("Turn experiments", "Try the flight telemetry demo")
+    assert module.PAGE_EXPECTED_TEXT[""] == (
+        "Run a project, explore its results",
+        "1. Prepare demo",
+        "2. Run demo",
+        "3. Explore results",
+    )
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["HOME"] == module.PAGE_EXPECTED_TEXT[""]
     assert module.PAGE_MIN_WIDGETS["SETTINGS"] == 5
     assert module.PAGE_MIN_WIDGETS[""] == 1
 
@@ -75,6 +81,7 @@ def test_settings_page_has_stable_robot_expectations() -> None:
 def test_core_page_above_fold_expectations_track_current_layout() -> None:
     module = _load_module()
 
+    assert module.PAGE_MIN_WIDGETS["WORKFLOW"] == 2
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
         "PROJECT",
         "Flight Telemetry",
@@ -88,24 +95,25 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
         "Project path",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ORCHESTRATE"] == (
-        "ORCHESTRATE",
-        "Flight Telemetry",
-        "Deploy",
+        "Configure and run your project",
+        "Run or serve",
+        "Run options",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["WORKFLOW"] == (
-        "WORKFLOW",
-        "Flight Telemetry",
-        "Data source",
+        "Build and run a workflow",
+        "Workflow status and outputs",
+        "Notebook",
     )
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["ANALYSIS"] == (
-        "ANALYSIS",
-        "Flight Telemetry",
-        "view_maps",
+        "Analysis workspace",
+        "Choose your result views and notebooks",
+        "Analysis views",
     )
     assert module.PAGE_EXPECTED_TEXT["ANALYSIS"] == (
-        "ANALYSIS",
-        "Flight Telemetry",
-        "view_maps",
+        "Analysis workspace",
+        "Choose your result views and notebooks",
+        "Analysis views",
+        "Save selection",
     )
 
 
@@ -1401,18 +1409,24 @@ def test_above_fold_expected_labels_ignore_app_identity_in_shared_chrome() -> No
     module = _load_module()
 
     assert module._above_fold_expected_labels("ORCHESTRATE", app_name="data_quality_gate_project") == (
-        "ORCHESTRATE",
-        "Deploy",
+        "Configure and run your project",
+        "Run or serve",
+        "Run options",
     )
     assert module._above_fold_expected_labels("ANALYSIS", app_name="weather_forecast_project") == (
-        "ANALYSIS",
+        "Analysis workspace",
+        "Choose your result views and notebooks",
+        "Analysis views",
     )
     assert module._above_fold_expected_labels("WORKFLOW", app_name="weather_forecast_project") == (
-        "WORKFLOW",
+        "Build and run a workflow",
+        "Workflow status and outputs",
+        "Notebook",
     )
     assert module._above_fold_expected_labels("ANALYSIS", app_name="flight_telemetry_project") == (
-        "ANALYSIS",
-        "view_maps",
+        "Analysis workspace",
+        "Choose your result views and notebooks",
+        "Analysis views",
     )
 
 
@@ -1444,16 +1458,16 @@ def test_above_fold_probe_filters_targets_by_initial_fold() -> None:
             return {
                 "fold": 800,
                 "targets": [
-                    {"label": "ORCHESTRATE", "inFold": True},
-                    {"label": "Flight Telemetry", "inFold": True},
-                    {"label": "Deploy", "inFold": False},
+                    {"label": "Configure and run your project", "inFold": True},
+                    {"label": "Run or serve", "inFold": True},
+                    {"label": "Run options", "inFold": False},
                 ],
             }
 
     probe = module._above_fold_probe(_Page(), app_name="flight_telemetry_project", display="ORCHESTRATE")
 
     assert probe.status == "failed"
-    assert "Deploy" in probe.detail
+    assert "Run options" in probe.detail
 
 
 def test_required_text_probe_reads_child_frames() -> None:
