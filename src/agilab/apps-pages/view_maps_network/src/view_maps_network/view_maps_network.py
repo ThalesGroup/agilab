@@ -1651,8 +1651,10 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
             return None
 
     parsed_links = df[link_column].map(_parse_entry)
-    link_edges = df.loc[parsed_links.notna() & df["flight_id"].notna(), ["flight_id"]].copy()
-    link_edges[link_column] = parsed_links.loc[link_edges.index]
+    valid_links = parsed_links.notna() & df["flight_id"].notna()
+    link_edges = df.loc[valid_links, ["flight_id"]].copy()
+    # Preserve row correspondence when concatenated telemetry repeats index labels.
+    link_edges[link_column] = parsed_links.loc[valid_links].to_numpy()
     edges_list = []
     label_text = _label_for_link(link_column)
     position_lookup, node_set = _position_lookup(current_positions)

@@ -1090,6 +1090,43 @@ def test_view_maps_network_colormap_loader_paths(monkeypatch, tmp_path: Path) ->
     assert module._MATPLOTLIB_IMPORT_ERROR is missing
 
 
+@pytest.mark.parametrize(
+    "row_index",
+    [
+        pd.Index([0, 0, 0, 1, 1]),
+        pd.Index([5, 3, 5, 3, 3]),
+        pd.MultiIndex.from_tuples([(1, "a"), (1, "a"), (2, "b"), (2, "b"), (1, "a")]),
+    ],
+    ids=["concatenated", "nonmonotonic", "multiindex"],
+)
+def test_view_maps_network_geomap_preserves_rows_with_duplicate_index(
+    monkeypatch, tmp_path: Path, row_index
+) -> None:
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    telemetry = pd.DataFrame(
+        {
+            "flight_id": ["1", None, "2", "3", "1"],
+            "satcom_link": ["[(1, 2)]", "[(1, 3)]", "invalid", None, "[(2, 3)]"],
+        },
+        index=row_index,
+    )
+    original = telemetry.copy(deep=True)
+    positions = pd.DataFrame(
+        {
+            "flight_id": ["1", "2", "3"],
+            "long": [0.0, 1.0, 2.0],
+            "lat": [10.0, 11.0, 12.0],
+            "alt": [100.0, 200.0, 300.0],
+        }
+    )
+
+    edges = module.create_edges_geomap(telemetry, "satcom_link", positions)
+
+    assert edges["source"].tolist() == [[0.0, 10.0, 100.0], [1.0, 11.0, 200.0]]
+    assert edges["target"].tolist() == [[1.0, 11.0, 200.0], [2.0, 12.0, 300.0]]
+    pd.testing.assert_frame_equal(telemetry, original)
+
+
 def test_view_maps_network_parses_edges_and_geomap_layers(
     monkeypatch, tmp_path: Path
 ) -> None:
