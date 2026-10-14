@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -12,6 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, TextIO
 
+from .dag_artifact_contracts import (
+    ArtifactOutputSnapshot,
+    artifact_result_path_key as _artifact_result_path_key,
+    is_contract_receipt_artifact,
+    reported_artifact_paths,
+)
 from .dag_idempotency import execute_idempotently, write_json_atomic
 
 from agilab.orchestrate.orchestrate_page_support import compute_run_mode
@@ -220,6 +227,22 @@ def _submit_distributed_stage_once(
     request_payload = request_payload_from_execution_contract(execution_contract)
     request_payload["idempotency_token"] = token
     run_root.mkdir(parents=True, exist_ok=True)
+    outputs = unit.get("produces")
+    declared_outputs = outputs if isinstance(outputs, list) else [artifact]
+    roots, output_roots = _distributed_output_roots(config, run_root, request_payload)
+    declared_paths = [
+        candidate
+        for output in declared_outputs
+        if isinstance(output, Mapping)
+        for candidate in _distributed_path_candidates(
+            str(output.get("path", "")).strip(), output_roots
+        )
+        if any(candidate.resolve().is_relative_to(root) for root in roots)
+    ]
+    freshness = ArtifactOutputSnapshot(
+        workspaces=[run_root, *output_roots[len(roots) :]],
+        declared_paths=declared_paths,
+    )
 
     runner_result = dict(
         runner_fn(
@@ -237,6 +260,10 @@ def _submit_distributed_stage_once(
             idempotency_token=token,
         )
     )
+    if runner_result.get("status") == "error" or runner_result.get("returncode", 0):
+        raise RuntimeError(
+            f"Distributed DAG stage `{unit_id}` runner reported a failed result."
+        )
     evidence_path = _distributed_evidence_path(run_root, artifact)
     evidence_payload = {
         "schema": "agilab.distributed_dag_stage_submission.v1",
@@ -258,7 +285,6 @@ def _submit_distributed_stage_once(
         },
         "runner_result": _jsonable(runner_result),
     }
-    write_json_atomic(evidence_path, evidence_payload)
 
     default_metrics = {
         "stage_completed": 1,
@@ -271,9 +297,6 @@ def _submit_distributed_stage_once(
         default_metrics.update(runner_metrics)
 
     result: dict[str, Any] = {
-        "contract_artifact_path": str(evidence_path),
-        "reduce_artifact_path": str(evidence_path),
-        "summary_metrics_path": str(evidence_path),
         "submission_evidence_path": str(evidence_path),
         "summary_metrics": default_metrics,
         "distributed_submission": {
@@ -289,8 +312,158 @@ def _submit_distributed_stage_once(
     }
     result.update(runner_result)
     result["summary_metrics"] = default_metrics
-    result.setdefault("submission_evidence_path", str(evidence_path))
+    result["submission_evidence_path"] = str(evidence_path)
+    verified_outputs: list[dict[str, str]] = []
+    primary_id = str(artifact.get("artifact", "") or artifact.get("id", "")).strip()
+    validation_passed = False
+    try:
+        for output in declared_outputs:
+            if not isinstance(output, Mapping):
+                continue
+            artifact_id = str(
+                output.get("artifact", "") or output.get("id", "")
+            ).strip()
+            if not artifact_id:
+                continue
+            kind = str(output.get("kind", "")).strip()
+            if kind == "contract_artifact":
+                output_path = evidence_path
+            else:
+                output_path = _distributed_output_path(
+                    config=config,
+                    run_root=run_root,
+                    output=output,
+                    request_payload=request_payload,
+                    runner_result=runner_result,
+                    primary_artifact_id=primary_id,
+                    primary_kind=str(artifact.get("kind", "")),
+                    primary_declared_path=str(artifact.get("path", "")),
+                )
+                freshness.require_fresh(output_path, artifact_id=artifact_id)
+            verified_outputs.append(
+                {"artifact": artifact_id, "kind": kind, "path": str(output_path)}
+            )
+            if artifact_id == primary_id:
+                result[_artifact_result_path_key(kind)] = str(output_path)
+        validation_passed = bool(verified_outputs)
+    finally:
+        # Persist submission evidence only after observing output generations.
+        # Writing the receipt must not itself make a scientific directory fresh.
+        evidence_payload["artifact_validation"] = {
+            "status": "passed" if validation_passed else "failed",
+            "produced_artifacts": verified_outputs,
+        }
+        write_json_atomic(evidence_path, evidence_payload)
+    if not verified_outputs:
+        raise RuntimeError(
+            f"Distributed DAG stage `{unit_id}` has no declared output artifact."
+        )
+    result["produced_artifacts"] = verified_outputs
+    result["receipt_only"] = all(
+        output["kind"] == "contract_artifact" for output in verified_outputs
+    )
     return result
+
+
+def _distributed_output_path(
+    *,
+    config: DagDistributedStageConfig,
+    run_root: Path,
+    output: Mapping[str, Any],
+    request_payload: Mapping[str, Any],
+    runner_result: Mapping[str, Any],
+    primary_artifact_id: str,
+    primary_kind: str,
+    primary_declared_path: str = "",
+) -> Path:
+    """Find real outputs in the stage workspace or the SDK's worker data share."""
+    artifact_id = str(output.get("artifact", "") or output.get("id", "")).strip()
+    kind = str(output.get("kind", "")).strip()
+    key = _artifact_result_path_key(kind)
+    reported_paths = reported_artifact_paths(runner_result)
+    reported_path = reported_paths.get(artifact_id, "")
+    explicit_path = bool(reported_path)
+    if not explicit_path:
+        reported_path = str(runner_result.get(key, "")).strip()
+        if artifact_id != primary_artifact_id and key == _artifact_result_path_key(
+            primary_kind
+        ):
+            reported_path = ""
+    declared_path = str(output.get("path", "")).strip()
+    roots, output_roots = _distributed_output_roots(config, run_root, request_payload)
+    candidates: list[Path] = []
+    for value in (reported_path, declared_path):
+        candidates.extend(_distributed_path_candidates(value, output_roots))
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if artifact_id != primary_artifact_id and not explicit_path:
+            primary_reported = (
+                reported_paths.get(primary_artifact_id, "")
+                or str(
+                    runner_result.get(_artifact_result_path_key(primary_kind), "")
+                ).strip()
+                or primary_declared_path
+            )
+            if primary_reported:
+                primary_candidates = _distributed_path_candidates(
+                    primary_reported, output_roots
+                )
+                if any(resolved == primary.resolve() for primary in primary_candidates):
+                    # Legacy kind aliases can all describe the primary output.
+                    continue
+        if not any(resolved.is_relative_to(root) for root in roots):
+            continue
+        if resolved.exists() and (
+            kind not in {"summary_metrics", "reduce_summary"} or resolved.is_file()
+        ):
+            if is_contract_receipt_artifact(resolved):
+                raise RuntimeError(
+                    f"Submission or contract receipt cannot satisfy scientific artifact `{artifact_id}`."
+                )
+            return resolved
+    raise RuntimeError(
+        f"Distributed DAG stage did not produce declared artifact `{artifact_id}` "
+        "in its stage workspace or configured worker data share."
+    )
+
+
+def _distributed_output_roots(
+    config: DagDistributedStageConfig,
+    run_root: Path,
+    request_payload: Mapping[str, Any],
+) -> tuple[list[Path], list[Path]]:
+    roots = [run_root.resolve()]
+    # Reuse the SDK's home-relative share and module-scoped data-root semantics.
+    from agi_cluster.agi_distributor.runtime.runtime_misc_support import (
+        _absolute_workers_data_share_root,
+        normalize_workers_data_path,
+    )
+
+    normalized_share = normalize_workers_data_path(
+        config.workers_data_path,
+        args=dict(request_payload),
+        worker_args=dict(request_payload.get("params") or {}),
+    )
+    if normalized_share:
+        roots.append(_absolute_workers_data_share_root(None, normalized_share))
+    data_out = str(request_payload.get("data_out", "") or "").strip()
+    data_root = Path(data_out).expanduser() if data_out else None
+    output_roots = list(roots)
+    if data_root is not None and ".." not in data_root.parts:
+        for share_root in roots[1:]:
+            scoped_root = (share_root / data_root).resolve()
+            if scoped_root.is_relative_to(share_root):
+                output_roots.append(scoped_root)
+    return roots, output_roots
+
+
+def _distributed_path_candidates(value: str, roots: list[Path]) -> list[Path]:
+    if not value:
+        return []
+    candidate = Path(value).expanduser()
+    if candidate.is_absolute():
+        return [candidate]
+    return [root / candidate for root in roots] if ".." not in candidate.parts else []
 
 
 def run_agilab_stage_subprocess(
@@ -419,7 +592,30 @@ def _run_agilab_stage_subprocess_once(
         raise RuntimeError(
             f"Distributed DAG stage `{app_name}` failed: {_tail(failure_detail, max_chars=3800)}"
         )
+    stage_result = _stage_result_payload(stdout_tail)
+    if isinstance(stage_result, Mapping):
+        reported_artifact_paths(stage_result)
+        for key in (
+            "contract_artifact_path",
+            "reduce_artifact_path",
+            "summary_metrics_path",
+            "summary_metrics",
+            "produced_artifacts",
+        ):
+            if key in stage_result:
+                payload[key] = stage_result[key]
     return payload
+
+
+def _stage_result_payload(stdout_tail: str) -> Any:
+    for line in reversed(stdout_tail.strip().splitlines()):
+        try:
+            parsed = json.loads(line.strip())
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, Mapping) and "result" in parsed:
+            return parsed["result"]
+    return None
 
 
 def _run_worker_log_file_tee(
@@ -596,11 +792,14 @@ if __name__ == "__main__":
 
 def _distributed_evidence_path(run_root: Path, artifact: Mapping[str, Any]) -> Path:
     artifact_id = str(artifact.get("artifact", "") or artifact.get("id", "") or "stage_result").strip()
-    declared_path = str(artifact.get("path", "") or "").strip()
-    declared = Path(declared_path)
-    if declared_path and not declared.is_absolute() and ".." not in declared.parts:
-        return run_root / declared
-    return run_root / f"{artifact_id}.json"
+    safe_artifact_id = (
+        re.sub(r"[^A-Za-z0-9_.-]+", "-", artifact_id).strip(".-") or "stage-result"
+    )
+    return (
+        run_root
+        / "distributed_submission_evidence"
+        / f"{safe_artifact_id}-distributed-submission-evidence.json"
+    )
 
 
 def _load_settings_file(path_value: Any) -> dict[str, Any]:

@@ -226,7 +226,7 @@ def test_build_global_submitter_runs_configured_runner(tmp_path: Path) -> None:
         lab_dir=tmp_path / "lab",
         run_root=tmp_path / "run",
         unit={"id": "flight_context", "app": "flight_telemetry_project"},
-        artifact={"artifact": "stage_result"},
+        artifact={"artifact": "stage_result", "kind": "contract_artifact"},
         execution_contract={"params": {}, "stages": []},
         timestamp="2026-05-07T00:00:00Z",
         idempotency_token="factory-attempt:flight_context",
@@ -263,7 +263,13 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
 
     def _runner(**kwargs):
         calls.append(kwargs)
-        return {"summary_metrics": {"runner_confirmed": 1}}
+        output_path = kwargs["run_root"] / "flight/reduce.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text('{"scientific_output": true}\n', encoding="utf-8")
+        return {
+            "reduce_artifact_path": str(output_path),
+            "summary_metrics": {"runner_confirmed": 1},
+        }
 
     result = dag_distributed_submitter.submit_distributed_stage(
         config=config,
@@ -321,7 +327,10 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         "distributed-attempt:flight_context"
     )
     assert evidence["cluster"]["worker_nodes"] == 2
-    assert result["reduce_artifact_path"] == str(evidence_path)
+    assert result["reduce_artifact_path"] != str(evidence_path)
+    assert json.loads(Path(result["reduce_artifact_path"]).read_text()) == {
+        "scientific_output": True
+    }
     assert result["summary_metrics"]["worker_slots"] == 3
     assert result["summary_metrics"]["runner_confirmed"] == 1
     assert result["idempotency_token"] == "distributed-attempt:flight_context"
@@ -336,7 +345,7 @@ def test_submit_distributed_stage_runs_fake_runner_and_writes_evidence(tmp_path:
         lab_dir=tmp_path / "lab",
         run_root=tmp_path / "lab/.agilab/multi_app_dag_real_runs/default_metrics",
         unit={"id": "flight_context", "app": "flight_telemetry_project"},
-        artifact={"artifact": "default_metrics"},
+        artifact={"artifact": "default_metrics", "kind": "contract_artifact"},
         execution_contract={},
         timestamp="2026-05-07T00:00:01Z",
         idempotency_token="distributed-attempt:default_metrics",
@@ -509,14 +518,23 @@ def test_payload_worker_and_evidence_helpers_cover_fallbacks(tmp_path: Path) -> 
     assert dag_distributed_submitter._coerce_workers({"": 1, "valid": "2", "zero": 0, "bad": "x"}) == {"valid": 2}
 
     run_root = tmp_path / "run"
-    assert dag_distributed_submitter._distributed_evidence_path(run_root, {"artifact": "safe", "path": "safe/out.json"}) == (
-        run_root / "safe/out.json"
+    assert dag_distributed_submitter._distributed_evidence_path(
+        run_root, {"artifact": "safe", "path": "safe/out.json"}
+    ) == (
+        run_root
+        / "distributed_submission_evidence/safe-distributed-submission-evidence.json"
     )
-    assert dag_distributed_submitter._distributed_evidence_path(run_root, {"id": "fallback", "path": "../unsafe"}) == (
-        run_root / "fallback.json"
+    assert dag_distributed_submitter._distributed_evidence_path(
+        run_root, {"id": "fallback", "path": "../unsafe"}
+    ) == (
+        run_root
+        / "distributed_submission_evidence/fallback-distributed-submission-evidence.json"
     )
-    assert dag_distributed_submitter._distributed_evidence_path(run_root, {"path": str(tmp_path / "absolute")}) == (
-        run_root / "stage_result.json"
+    assert dag_distributed_submitter._distributed_evidence_path(
+        run_root, {"path": str(tmp_path / "absolute")}
+    ) == (
+        run_root
+        / "distributed_submission_evidence/stage_result-distributed-submission-evidence.json"
     )
 
     assert dag_distributed_submitter._tail("abcdef", max_chars=3) == "def"
@@ -595,6 +613,36 @@ def test_stage_subprocess_runner_generates_isolated_agilab_run_script(monkeypatc
     assert result["idempotency_token"] == "subprocess-attempt:flight_context"
     assert duplicate == result
     assert call_count == 1
+
+
+def test_stage_subprocess_preserves_per_artifact_output_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
+    outputs = [
+        {"artifact": "x", "kind": "dataset", "path": "x.csv"},
+        {"artifact": "y", "kind": "dataset", "path": "y.csv"},
+    ]
+
+    def fake_run(command, **kwargs):
+        kwargs["stdout"].write(
+            json.dumps({"result": {"produced_artifacts": outputs}}) + "\n"
+        )
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(dag_distributed_submitter.subprocess, "run", fake_run)
+    result = dag_distributed_submitter.run_agilab_stage_subprocess(
+        config=dag_distributed_submitter.DagDistributedStageConfig(
+            "local-test", {"local": 1}, "share", 4
+        ),
+        repo_root=tmp_path,
+        run_root=tmp_path / "run",
+        apps_path=tmp_path / "apps",
+        app_name="uav_queue_project",
+        request_payload={"params": {}, "stages": []},
+        timestamp="now",
+        idempotency_token="per-artifact-output-test",
+    )
+    assert result["produced_artifacts"] == outputs
 
 
 def test_stage_subprocess_runner_streams_worker_logs_before_completion(monkeypatch, tmp_path: Path) -> None:
