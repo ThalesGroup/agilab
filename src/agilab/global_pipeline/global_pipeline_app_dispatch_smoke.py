@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import importlib
+import json
 from pathlib import Path
 import sys
 from types import SimpleNamespace
@@ -206,6 +208,162 @@ def _make_env(run_root: Path, *, target: str) -> SimpleNamespace:
     )
 
 
+
+
+def _require_owned_output_tree(run_root: Path, path: Path, *, label: str) -> None:
+    root = run_root.resolve()
+    path = path.absolute()
+    if not path.is_relative_to(root):
+        raise ValueError(f"Controlled UAV {label} output escapes the owned run root.")
+    cursor = root
+    for part in path.relative_to(root).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ValueError(
+                f"Controlled UAV {label} output contains a symlink: {cursor}"
+            )
+    if path.exists():
+        for child in path.rglob("*"):
+            if child.is_symlink():
+                raise ValueError(f"Controlled UAV {label} output contains a symlink: {child}")
+
+
+def _queue_family_args(
+    args_class: Any,
+    contract: Mapping[str, Any] | None,
+    *,
+    run_root: Path,
+    project_name: str,
+) -> Any:
+    if contract is None:
+        args = args_class(
+            routing_policy="queue_aware",
+            sim_time_s=2.0,
+            sampling_interval_s=0.5,
+            source_rate_pps=4.0,
+            random_seed=2026,
+            reset_target=True,
+        )
+        if hasattr(args, "data_out"):
+            output = Path(args.data_out)
+            if not output.is_absolute():
+                output = run_root.resolve() / "share" / output
+            _require_owned_output_tree(run_root, output, label="data_out")
+        return args
+    unsupported = set(contract) - {
+        "entrypoint",
+        "params",
+        "data_in",
+        "data_out",
+        "reset_target",
+        "stages",
+    }
+    if unsupported or contract.get("stages"):
+        raise ValueError(
+            "Controlled UAV execution does not support commands, extra contract fields, or nonempty stages."
+        )
+    stage = QUEUE_UNIT_ID if project_name == "uav_queue_project" else RELAY_UNIT_ID
+    if (
+        contract.get("entrypoint", f"{project_name}.{stage}")
+        != f"{project_name}.{stage}"
+    ):
+        raise ValueError("Controlled UAV execution has a mismatched entrypoint.")
+    params = contract.get("params", {})
+    if not isinstance(params, Mapping):
+        raise ValueError("Controlled UAV execution params must be a mapping.")
+    values = dict(params)
+    for key in ("data_in", "data_out", "reset_target"):
+        if key in contract:
+            values[key] = contract[key]
+    args = args_class(**values)
+    if args.nfile != 1:
+        raise ValueError(
+            "Controlled UAV execution supports exactly one scenario (nfile=1)."
+        )
+    pattern = Path(args.files)
+    if pattern.is_absolute() or ".." in pattern.parts:
+        raise ValueError("Controlled UAV files pattern must remain inside data_in.")
+    root = run_root.resolve()
+    share = (root / "share").resolve()
+    if not share.is_relative_to(root):
+        raise ValueError("Controlled UAV share directory escapes the owned run root.")
+    for key in ("data_in", "data_out"):
+        candidate = Path(getattr(args, key)).expanduser()
+        if candidate.is_absolute() or ".." in candidate.parts:
+            raise ValueError(
+                f"Controlled UAV {key} must be a relative path inside the owned share."
+            )
+        if key == "data_out":
+            _require_owned_output_tree(run_root, root / "share" / candidate, label=key)
+        resolved = (share / candidate).resolve()
+        if not resolved.is_relative_to(share) or resolved == share:
+            raise ValueError(f"Controlled UAV {key} escapes the owned share.")
+        setattr(args, key, resolved)
+    if args.data_in.is_relative_to(args.data_out) or args.data_out.is_relative_to(
+        args.data_in
+    ):
+        raise ValueError("Controlled UAV data_in and data_out must not overlap.")
+    return args
+
+
+def _read_queue_context(queue_result: Mapping[str, Any]) -> dict[str, Any]:
+    value = str(queue_result.get("summary_metrics_path", "")).strip()
+    if not value:
+        raise ValueError("Upstream queue_metrics is missing its producer path.")
+    if queue_result.get("producer", QUEUE_UNIT_ID) != QUEUE_UNIT_ID:
+        raise ValueError("Upstream queue_metrics has a mismatched producer.")
+    path = Path(value)
+    workspace = queue_result.get("workspace")
+    if not path.is_absolute():
+        if not workspace:
+            raise ValueError("Relative queue_metrics requires its producer workspace.")
+        path = Path(str(workspace)) / path
+    path = path.resolve()
+    if workspace and not path.is_relative_to(Path(str(workspace)).resolve()):
+        raise ValueError("Upstream queue_metrics escapes its producer workspace.")
+    try:
+        raw = path.read_bytes()
+        metrics = json.loads(raw)
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"Upstream queue_metrics could not be read as JSON: {exc}"
+        ) from exc
+    try:
+        # The encoder rejects NaN/Infinity recursively, including nested metric values.
+        json.dumps(metrics, allow_nan=False)
+    except ValueError as exc:
+        raise ValueError("Upstream queue_metrics contains nonfinite values.") from exc
+    if not isinstance(metrics, dict) or not metrics:
+        raise ValueError("Upstream queue_metrics must be a nonempty metrics mapping.")
+    for key in ("packets_generated", "packets_delivered"):
+        count = metrics.get(key)
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise ValueError(f"Upstream queue_metrics has invalid {key}.")
+    if metrics["packets_delivered"] > metrics["packets_generated"]:
+        raise ValueError("Upstream queue_metrics delivers more packets than generated.")
+    expected = queue_result.get("summary_metrics")
+    if expected is not None and metrics != expected:
+        raise ValueError(
+            "Upstream queue_metrics differs from its completed producer result."
+        )
+    digest = hashlib.sha256(raw).hexdigest()
+    expected_digest = queue_result.get("summary_metrics_sha256")
+    if expected_digest and digest != expected_digest:
+        raise ValueError(
+            "Upstream queue_metrics differs from its completed producer hash."
+        )
+    return {
+        "artifact": "queue_metrics",
+        "path": value,
+        "producer": QUEUE_UNIT_ID,
+        "size_bytes": len(raw),
+        "sha256": digest,
+        "summary_metrics": metrics,
+        "role": "upstream_context",
+        "numerically_conditioned": False,
+    }
+
+
 def _run_queue_family_app_once(
     *,
     repo_root: Path,
@@ -219,29 +377,38 @@ def _run_queue_family_app_once(
     target: str,
     app_entry: str,
     idempotency_token: str,
+    execution_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     token = str(idempotency_token).strip()
     if not token:
-        raise ValueError("A non-empty idempotency token is required before real app execution.")
+        raise ValueError(
+            "A non-empty idempotency token is required before real app execution."
+        )
     _ensure_app_project_on_path(repo_root, project_name)
     _drop_app_module_cache((manager_package,))
     manager_module = importlib.import_module(manager_package)
     args_class = getattr(manager_module, args_class_name)
     manager_class = getattr(manager_module, manager_class_name)
 
+    _require_owned_output_tree(run_root, run_root.resolve() / "export", label="export")
+    args = _queue_family_args(
+        args_class, execution_contract, run_root=run_root, project_name=project_name
+    )
     env = _make_env(run_root, target=target)
     env.target_worker = worker_package
     env.target_worker_class = worker_class_name
-    args = args_class(
-        routing_policy="queue_aware",
-        sim_time_s=2.0,
-        sampling_interval_s=0.5,
-        source_rate_pps=4.0,
-        random_seed=2026,
-        reset_target=True,
-    )
     manager = manager_class(env, args=args)
-    source = sorted(manager.args.data_in.glob("*.json"))[0]
+    pattern = getattr(manager.args, "files", "*.json")
+    sources = sorted(manager.args.data_in.glob(pattern))
+    if not sources:
+        raise FileNotFoundError(
+            f"No scenario file matches {pattern!r} in {manager.args.data_in}."
+        )
+    source = sources[0]
+    if execution_contract is not None and not source.resolve().is_relative_to(
+        manager.args.data_in.resolve()
+    ):
+        raise ValueError("Controlled UAV scenario escapes data_in.")
 
     from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
 
@@ -269,9 +436,13 @@ def _run_queue_family_app_once(
     summary_path = export_root / f"{stem}_summary_metrics.json"
     reduce_path = export_root / "reduce_summary_worker_0.json"
     if not summary_path.is_file():
-        raise FileNotFoundError(f"{project_name} summary metrics were not written: {summary_path}")
+        raise FileNotFoundError(
+            f"{project_name} summary metrics were not written: {summary_path}"
+        )
     if not reduce_path.is_file():
-        raise FileNotFoundError(f"{project_name} reduce artifact was not written: {reduce_path}")
+        raise FileNotFoundError(
+            f"{project_name} reduce artifact was not written: {reduce_path}"
+        )
 
     return {
         "app_entry": app_entry,
@@ -282,6 +453,9 @@ def _run_queue_family_app_once(
         "summary_metrics_path": _relative(summary_path, run_root),
         "reduce_artifact_path": _relative(reduce_path, run_root),
         "summary_metrics": metrics,
+        "summary_metrics_sha256": hashlib.sha256(summary_path.read_bytes()).hexdigest(),
+        "source_scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "effective_args": manager.args.model_dump(mode="json"),
         "idempotency_token": token,
     }
 
@@ -299,16 +473,27 @@ def _run_queue_family_app(
     target: str,
     app_entry: str,
     idempotency_token: str,
+    execution_contract: Mapping[str, Any] | None = None,
+    consumed_artifacts: tuple[dict[str, Any], ...] = (),
 ) -> dict[str, Any]:
     token = str(idempotency_token).strip()
     if not token:
-        raise ValueError("A non-empty idempotency token is required before real app execution.")
-    return execute_idempotently(
-        run_root=run_root,
-        unit_id=target,
-        idempotency_token=token,
-        scope="queue-family-app",
-        callback=lambda: _run_queue_family_app_once(
+        raise ValueError(
+            "A non-empty idempotency token is required before real app execution."
+        )
+    inputs_digest = hashlib.sha256(
+        json.dumps(
+            {
+                "execution_contract": execution_contract,
+                "consumed_artifacts": consumed_artifacts,
+            },
+            sort_keys=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    def _execute_once() -> dict[str, Any]:
+        result = _run_queue_family_app_once(
             repo_root=repo_root,
             run_root=run_root,
             project_name=project_name,
@@ -320,8 +505,46 @@ def _run_queue_family_app(
             target=target,
             app_entry=app_entry,
             idempotency_token=token,
-        ),
+            execution_contract=execution_contract,
+        )
+        result["execution_inputs_sha256"] = inputs_digest
+        if execution_contract is not None:
+            result["execution_contract"] = dict(execution_contract)
+        if consumed_artifacts:
+            result["consumed_artifacts"] = list(consumed_artifacts)
+            result["relay_numerically_conditioned_on_queue_metrics"] = False
+        return result
+
+    result = execute_idempotently(
+        run_root=run_root,
+        unit_id=target,
+        idempotency_token=token,
+        scope="queue-family-app",
+        callback=_execute_once,
     )
+
+    if result.get("execution_inputs_sha256") != inputs_digest:
+        raise ValueError(
+            "This idempotency token is already bound to different execution inputs."
+        )
+    _require_owned_output_tree(run_root, run_root.resolve() / "export", label="export")
+    effective_args = result.get("effective_args", {})
+    if isinstance(effective_args, Mapping) and effective_args.get("data_out"):
+        _require_owned_output_tree(
+            run_root, Path(effective_args["data_out"]), label="data_out"
+        )
+    source = result.get("source_scenario")
+    if source and result.get("source_scenario_sha256"):
+        path = Path(str(source))
+        path = path if path.is_absolute() else run_root / path
+        if (
+            hashlib.sha256(path.read_bytes()).hexdigest()
+            != result["source_scenario_sha256"]
+        ):
+            raise ValueError(
+                "This idempotency token is already bound to different scenario bytes."
+            )
+    return result
 
 
 def run_queue_baseline_app(
@@ -329,6 +552,7 @@ def run_queue_baseline_app(
     repo_root: Path,
     run_root: Path,
     idempotency_token: str,
+    execution_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     return _run_queue_family_app(
         repo_root=repo_root,
@@ -342,6 +566,7 @@ def run_queue_baseline_app(
         target="multi_app_dag_dispatch_smoke_queue",
         app_entry="uav_queue.UavQueue + uav_queue_worker.UavQueueWorker",
         idempotency_token=idempotency_token,
+        execution_contract=execution_contract,
     )
 
 
@@ -351,7 +576,9 @@ def run_relay_followup_app(
     run_root: Path,
     queue_result: Mapping[str, Any],
     idempotency_token: str,
+    execution_contract: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    context = _read_queue_context(queue_result)
     result = _run_queue_family_app(
         repo_root=repo_root,
         run_root=run_root,
@@ -363,15 +590,10 @@ def run_relay_followup_app(
         worker_class_name="UavRelayQueueWorker",
         target="multi_app_dag_dispatch_smoke_relay",
         app_entry="uav_relay_queue.UavRelayQueue + uav_relay_queue_worker.UavRelayQueueWorker",
+        consumed_artifacts=(context,),
         idempotency_token=idempotency_token,
+        execution_contract=execution_contract,
     )
-    result["consumed_artifacts"] = [
-        {
-            "artifact": "queue_metrics",
-            "path": str(queue_result.get("summary_metrics_path", "")),
-            "producer": QUEUE_UNIT_ID,
-        }
-    ]
     return result
 
 
