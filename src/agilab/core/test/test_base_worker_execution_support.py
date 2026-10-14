@@ -805,6 +805,27 @@ def test_collapse_plan_for_single_worker_passes_through_non_list_shapes():
     assert execution_support._collapse_plan_for_single_worker(*single) == single
 
 
+def test_collapse_dag_plan_copies_declarations_and_preserves_source_tree():
+    first = {"functions name": "produce", "args": ["A"]}
+    second = {"functions name": "produce", "args": ["B"]}
+    generic = {"dataframe": "unchanged"}
+    plan = [[(first, [])], [[second, []], generic]]
+    metadata = [[("A", 1)], [("B", 1), ("generic", 1)]]
+
+    merged, info = execution_support._collapse_plan_for_single_worker(plan, metadata)
+
+    assert execution_support.DAG_SOURCE_TREE_KEY not in first
+    assert execution_support.DAG_SOURCE_TREE_KEY not in second
+    assert merged[0][0][0] == {**first, execution_support.DAG_SOURCE_TREE_KEY: 0}
+    assert merged[0][1][0] == {**second, execution_support.DAG_SOURCE_TREE_KEY: 1}
+    assert merged[0][0][0] is not first
+    assert merged[0][1][0] is not second
+    assert isinstance(merged[0][0], tuple)
+    assert isinstance(merged[0][1], list)
+    assert merged[0][2] is generic
+    assert info == [[("A", 1), ("B", 1), ("generic", 1)]]
+
+
 def test_run_worker_executes_every_partition_locally(monkeypatch, tmp_path):
     env = SimpleNamespace(
         wenv_abs=tmp_path / "demo_worker",

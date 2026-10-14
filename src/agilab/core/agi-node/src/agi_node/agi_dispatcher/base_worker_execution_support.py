@@ -26,6 +26,7 @@ DISTRIBUTION_PLAN_WRAP_EXCEPTIONS = (
     ModuleNotFoundError,
 )
 WORKER_CODE_BOUNDARY_EXCEPTIONS: tuple[type[Exception], ...] = (Exception,)
+DAG_SOURCE_TREE_KEY = "_agilab_dag_source_tree"
 
 
 def _resolve_primary_cython_dist_path(
@@ -97,7 +98,25 @@ def _collapse_plan_for_single_worker(
     if not all(isinstance(part, list) for part in workers_plan):
         return workers_plan, workers_plan_metadata
 
-    merged_plan = [item for part in workers_plan for item in part]
+    merged_plan = []
+    for tree_index, part in enumerate(workers_plan):
+        for item in part:
+            if (
+                isinstance(item, (list, tuple))
+                and len(item) == 2
+                and isinstance(item[0], dict)
+                and "functions name" in item[0]
+            ):
+                # Keep dependency scope when identical method names appear in
+                # different DAG trees. Copy the declaration, never the caller's
+                # plan: dataframe and other non-DAG payloads keep their shape.
+                function = {**item[0], DAG_SOURCE_TREE_KEY: tree_index}
+                item = (
+                    (function, item[1])
+                    if isinstance(item, tuple)
+                    else [function, item[1]]
+                )
+            merged_plan.append(item)
     if isinstance(workers_plan_metadata, list) and all(
         isinstance(part, list) for part in workers_plan_metadata
     ):

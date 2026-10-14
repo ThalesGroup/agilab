@@ -201,6 +201,7 @@ def validate_multi_app_dag(payload: Mapping[str, Any], *, repo_root: Path) -> Mu
     edge_rows: list[Mapping[str, Any]] = [
         edge for edge in edges_payload if isinstance(edge, dict)
     ]
+    incoming_artifacts: set[tuple[str, str]] = set()
     for index, edge in enumerate(edges_payload):
         location = f"edges[{index}]"
         if not isinstance(edge, dict):
@@ -225,6 +226,23 @@ def validate_multi_app_dag(payload: Mapping[str, Any], *, repo_root: Path) -> Mu
         target_consumes = _artifact_ids(target_node.get("consumes")) if target_node else set()
         if target_node and target_consumes and artifact_id not in target_consumes:
             issues.append(_issue(location, f"target node does not consume artifact {artifact_id!r}"))
+        if source_node and target_node and source_id != target_id:
+            if artifact_id in _artifact_ids(source_node.get("produces")):
+                incoming_artifacts.add((target_id, artifact_id))
+
+    for node_index, node in enumerate(nodes_payload):
+        if not isinstance(node, dict) or not isinstance(node.get("consumes"), list):
+            continue
+        node_id = _string_field(node, "id")
+        for artifact_index, artifact in enumerate(node["consumes"]):
+            if not isinstance(artifact, dict):
+                continue
+            artifact_id = _string_field(artifact, "id")
+            if artifact_id and (node_id, artifact_id) not in incoming_artifacts:
+                issues.append(_issue(
+                    f"nodes[{node_index}].consumes[{artifact_index}]",
+                    f"consumed artifact {artifact_id!r} requires an incoming edge from a producing node",
+                ))
 
     execution_order, acyclic = _topological_order(list(nodes_by_id), edge_rows)
     if nodes_by_id and not acyclic:

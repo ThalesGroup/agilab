@@ -47,6 +47,34 @@ multi_app_dag = _load_module("agilab.multi_app_dag", "src/agilab/multi_app_dag.p
 multi_app_dag_draft = _load_module("agilab.multi_app_dag_draft", "src/agilab/multi_app_dag_draft.py")
 
 
+@pytest.mark.parametrize("artifact_rows_argument", ["produced_artifact_rows", "consumed_artifact_rows"])
+@pytest.mark.parametrize("unknown_stage", ["", "removed_stage", "x" * 1000], ids=["blank", "removed", "oversized"])
+def test_dag_draft_rejects_orphan_artifact_rows_before_serialization(artifact_rows_argument, unknown_stage):
+    artifact_rows = {"produced_artifact_rows": [], "consumed_artifact_rows": []}
+    artifact_rows[artifact_rows_argument] = [
+        {"node": unknown_stage, "id": "metrics", "path": "metrics.json"}
+    ]
+
+    with pytest.raises(ValueError, match="row 1:.*does not match a stage") as error:
+        multi_app_dag_draft.build_dag_payload_from_editor(
+            {},
+            dag_id="orphan-artifact-row",
+            label="Orphan artifact row",
+            description="Keep editor rows until their stage reference is corrected.",
+            stage_rows=[
+                {"id": "queue", "app": "uav_queue_project"},
+                {"id": "relay", "app": "uav_relay_queue_project"},
+            ],
+            handoff_rows=[],
+            **artifact_rows,
+        )
+
+    table = "Produced artifacts" if artifact_rows_argument == "produced_artifact_rows" else "Consumed artifacts"
+    assert table in str(error.value)
+    assert "Choose an existing stage" in str(error.value)
+    assert len(str(error.value)) < 200
+
+
 def test_dag_draft_spec_builds_payload_from_structured_rows():
     payload = multi_app_dag_draft.build_dag_payload_from_editor(
         {"execution": {"mode": "sequential_dependency_order", "runner_status": "contract_only"}},

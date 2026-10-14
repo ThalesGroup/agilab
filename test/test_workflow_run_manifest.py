@@ -986,6 +986,13 @@ def test_dag_run_engine_emits_workflow_evidence_on_state_writes(tmp_path: Path) 
         *, repo_root: Path, run_root: Path, idempotency_token: str
     ) -> dict[str, object]:
         assert idempotency_token.endswith(":queue_baseline")
+        run_root.mkdir(parents=True, exist_ok=True)
+        (run_root / "queue_metrics.json").write_text(
+            json.dumps({"packets_generated": 3, "packets_delivered": 3}), encoding="utf-8"
+        )
+        (run_root / "queue_reduce.json").write_text(
+            json.dumps({"packets_generated": 3, "packets_delivered": 3}), encoding="utf-8"
+        )
         return {
             "summary_metrics_path": str(run_root / "queue_metrics.json"),
             "reduce_artifact_path": str(run_root / "queue_reduce.json"),
