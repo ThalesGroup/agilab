@@ -101,6 +101,18 @@ class DagSourceChangedError(ValueError):
     """Raised before execution of a plan whose selected source changed."""
 
 
+class DagPlanInvalidError(ValueError):
+    """Raised before live execution of an invalid or unvalidated plan."""
+
+
+def _require_valid_plan(state: Mapping[str, Any]) -> None:
+    if state.get("ok") is not True:
+        raise DagPlanInvalidError(
+            "The selected workflow is invalid or unvalidated. "
+            "Resolve its validation errors and reload the plan before running it."
+        )
+
+
 class _RunnerStateResult(Protocol):
     state: dict[str, Any]
 
@@ -594,6 +606,7 @@ class DagRunEngine:
         expected_revision = runner_state_revision(state)
         _raise_if_active_attempt(self.state_path, state)
         self._require_current_source(state)
+        _require_valid_plan(state)
         attempt_id = self.attempt_id_fn()
         claim_persisted = False
         claim_revision = ""
@@ -605,6 +618,7 @@ class DagRunEngine:
             if claim_persisted:
                 raise RuntimeError("A DAG execution attempt may persist only one pre-execution claim.")
             self._require_current_source(claim_state)
+            _require_valid_plan(claim_state)
             mutable_claim = claim_state if isinstance(claim_state, dict) else dict(claim_state)
             claimed_tokens = _claimed_unit_tokens(mutable_claim, attempt_id)
             if not claimed_tokens:
@@ -979,6 +993,12 @@ def controlled_real_run_support(
     dag_path: Path | None,
     repo_root: Path,
 ) -> DagRealRunSupport:
+    if dag_path is not None and state.get("ok") is not True:
+        return DagRealRunSupport(
+            supported=False,
+            status="Invalid workflow",
+            message="Resolve the workflow validation errors and reload the plan before running it.",
+        )
     return resolve_real_run_support(
         units=dag_units(state),
         dag_path=dag_path,

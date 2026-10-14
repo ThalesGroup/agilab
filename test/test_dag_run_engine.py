@@ -202,6 +202,7 @@ def _write_source_identity_repo(tmp_path: Path, marker: str = "old") -> Path:
     path = _write_parallel_contract_repo(tmp_path)
     payload = json.loads(path.read_text(encoding="utf-8"))
     node = payload["nodes"][0]
+    dependent = payload["nodes"][1]
     node["execution"] = {
         "command": [
             sys.executable,
@@ -211,11 +212,52 @@ def _write_source_identity_repo(tmp_path: Path, marker: str = "old") -> Path:
             f"output.write_text({json.dumps(marker)}); Path({json.dumps(marker + '-command.txt')}).write_text('ran')",
         ]
     }
-    payload["nodes"] = [node]
-    payload["edges"] = []
+    dependent["consumes"] = [
+        {"id": "queue_metrics", "kind": "summary_metrics", "path": "queue/metrics.json"}
+    ]
+    dependent["execution"] = {
+        "command": [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; p=Path('flight/metrics.json'); "
+            "p.parent.mkdir(parents=True, exist_ok=True); p.write_text('{}')",
+        ]
+    }
+    payload["nodes"] = [node, dependent]
+    payload["edges"] = [{"from": "queue_context", "to": "flight_context", "artifact": "queue_metrics"}]
     payload["execution"]["stage_bindings"] = {}
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+@pytest.mark.parametrize("method", ["run_next_controlled_stage", "run_ready_controlled_stages"])
+def test_invalid_consumption_plan_cannot_create_an_attempt_or_execute(tmp_path, method):
+    path = _write_source_identity_repo(tmp_path)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["edges"] = []
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    attempts = []
+    engine = dag_run_engine.DagRunEngine(
+        repo_root=tmp_path / "repo",
+        lab_dir=tmp_path / "lab",
+        dag_path=path,
+        attempt_id_fn=lambda: attempts.append("attempt") or "must-not-be-created",
+    )
+    state, _, _ = engine.load_or_create_state()
+    persisted_before = engine.state_path.read_bytes()
+
+    assert state["ok"] is False
+    assert any("requires an incoming edge" in issue["message"] for issue in state["issues"])
+    support = engine.real_run_support(state)
+    assert support.supported is False
+    assert "validation errors" in support.message
+    with pytest.raises(dag_run_engine.DagPlanInvalidError, match="invalid or unvalidated"):
+        getattr(engine, method)(state)
+
+    assert attempts == []
+    assert engine.state_path.read_bytes() == persisted_before
+    assert "active_execution" not in state
+    assert not (engine.lab_dir / ".agilab" / "multi_app_dag_real_runs").exists()
 
 
 def test_public_state_persistence_binds_source_for_engine_execution(tmp_path):
@@ -223,39 +265,6 @@ def test_public_state_persistence_binds_source_for_engine_execution(tmp_path):
     from agilab.global_pipeline.global_pipeline_runner_state import persist_runner_state
 
     path = _write_source_identity_repo(tmp_path)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["nodes"].append(
-        {
-            "id": "flight_context",
-            "app": "flight_telemetry_project",
-            "purpose": "Provide a second application in a valid multi-app DAG.",
-            "consumes": [
-                {
-                    "id": "queue_metrics",
-                    "kind": "summary_metrics",
-                    "path": "queue/metrics.json",
-                }
-            ],
-            "produces": [
-                {
-                    "id": "flight_metrics",
-                    "kind": "summary_metrics",
-                    "path": "flight/metrics.json",
-                }
-            ],
-            "execution": {
-                "command": [
-                    sys.executable,
-                    "-c",
-                    "from pathlib import Path; p=Path('flight/metrics.json'); p.parent.mkdir(parents=True, exist_ok=True); p.write_text('{}')",
-                ]
-            },
-        }
-    )
-    payload["edges"] = [
-        {"from": "queue_context", "to": "flight_context", "artifact": "queue_metrics"}
-    ]
-    path.write_text(json.dumps(payload), encoding="utf-8")
     engine = dag_run_engine.DagRunEngine(
         repo_root=tmp_path / "repo", lab_dir=tmp_path / "lab", dag_path=path
     )

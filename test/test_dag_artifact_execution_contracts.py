@@ -383,6 +383,12 @@ def test_public_engine_cannot_persist_success_for_an_unavailable_data_executor(
         '[project]\nname="uav_queue_project"\nversion="0.0.0"\n'
     )
     (app / "pipeline_view.dot").write_text("digraph { start -> end; }\n")
+    consumer_app = repo / "src/agilab/apps/builtin/flight_telemetry_project"
+    consumer_app.mkdir(parents=True)
+    (consumer_app / "pyproject.toml").write_text(
+        '[project]\nname="flight_telemetry_project"\nversion="0.0.0"\n'
+    )
+    (consumer_app / "pipeline_view.dot").write_text("digraph { start -> end; }\n")
     dag = app / "dag_templates/missing-data-executor.json"
     dag.parent.mkdir()
     dag.write_text(
@@ -414,19 +420,54 @@ def test_public_engine_cannot_persist_success_for_an_unavailable_data_executor(
                                 "path": "data/scientific_dataset.csv",
                             }
                         ],
+                    },
+                    {
+                        "id": "z_consumer",
+                        "app": "flight_telemetry_project",
+                        "execution": {
+                            "command": [
+                                sys.executable,
+                                "-c",
+                                "from pathlib import Path; p=Path('consumer/metrics.json'); "
+                                "p.parent.mkdir(parents=True, exist_ok=True); p.write_text('{}')",
+                            ]
+                        },
+                        "produces": [
+                            {
+                                "id": "consumer_metrics",
+                                "kind": "summary_metrics",
+                                "path": "consumer/metrics.json",
+                            }
+                        ],
+                        "consumes": [
+                            {
+                                "id": "scientific_dataset",
+                                "kind": "dataset",
+                                "path": "data/scientific_dataset.csv",
+                            }
+                        ],
+                    },
+                ],
+                "edges": [
+                    {
+                        "from": "generate_data",
+                        "to": "z_consumer",
+                        "artifact": "scientific_dataset",
                     }
                 ],
-                "edges": [],
             }
         )
     )
     engine = DagRunEngine(repo_root=repo, lab_dir=tmp_path / "workspace", dag_path=dag)
     state, state_path, _ = engine.load_or_create_state()
+    assert state["ok"] is True
+    assert engine.real_run_support(state).supported is True
     result = engine.run_next_controlled_stage(state)
     assert not result.ok
     persisted = json.loads(state_path.read_text())
     assert all(a.get("status") != "available" for a in persisted.get("artifacts", []))
-    assert persisted["units"][0]["dispatch_status"] != "completed"
+    assert persisted["units"][0]["dispatch_status"] == "failed"
+    assert "has no registered executor" in result.message
     assert not list((tmp_path / "workspace").rglob("scientific_dataset.csv"))
 
 
