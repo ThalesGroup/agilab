@@ -2366,9 +2366,10 @@ def _check_production_readiness_report(repo_root: Path) -> dict[str, Any]:
 def _check_docs_mirror_stamp(repo_root: Path) -> dict[str, Any]:
     try:
         sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
-        ok, message = sync_docs_source.verify_target_mirror_integrity(
-            repo_root / "docs" / "source"
+        target = sync_docs_source.require_public_docs_source(
+            repo_root / "docs" / "source", repo_root
         )
+        ok, message = sync_docs_source.verify_target_mirror_integrity(target)
     except Exception as exc:
         ok, message = False, str(exc)
     return _check_result(
@@ -2389,7 +2390,9 @@ def _check_docs_canonical_alignment(repo_root: Path) -> dict[str, Any]:
     canonical_alignment_checked = False
     try:
         sync_docs_source = _load_tool_module(repo_root, "sync_docs_source")
-        target = repo_root / "docs" / "source"
+        target = sync_docs_source.require_public_docs_source(
+            repo_root / "docs" / "source", repo_root
+        )
         target_integrity_ok, target_message = (
             sync_docs_source.verify_target_mirror_integrity(target)
         )
