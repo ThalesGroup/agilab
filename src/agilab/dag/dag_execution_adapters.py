@@ -219,12 +219,15 @@ def _run_ready_adapter_stages_uncommitted(
     max_workers: int | None = None,
     execution_backend: str = DAG_STAGE_BACKEND_LOCAL,
 ) -> DagBatchExecutionResult:
-    if adapter_id == CONTROLLED_CONTRACT_ADAPTER:
+    backend = _normalize_stage_backend(execution_backend)
+    if adapter_id == CONTROLLED_CONTRACT_ADAPTER or (
+        adapter_id == UAV_QUEUE_ADAPTER and backend == DAG_STAGE_BACKEND_DISTRIBUTED
+    ):
         return _run_ready_controlled_contract_dag_stages(
             state,
             context=context,
             max_workers=max_workers,
-            execution_backend=execution_backend,
+            execution_backend=backend,
         )
 
     result = _run_next_adapter_stage_uncommitted(adapter_id, state, context)
@@ -233,7 +236,9 @@ def _run_ready_adapter_stages_uncommitted(
             ok=True,
             message=result.message,
             state=result.state,
-            executed_unit_ids=(result.executed_unit_id,) if result.executed_unit_id else (),
+            executed_unit_ids=(result.executed_unit_id,)
+            if result.executed_unit_id
+            else (),
         )
     return DagBatchExecutionResult(
         ok=False,
@@ -296,6 +301,97 @@ def _persisted_artifact_available(artifact: Mapping[str, Any]) -> bool:
     ):
         return False
     return kind == "contract_artifact" or not is_contract_receipt_artifact(path)
+
+
+def _distributed_input_artifacts(
+    state: Mapping[str, Any],
+    *,
+    unit: Mapping[str, Any],
+    context: DagExecutionContext,
+) -> list[dict[str, Any]]:
+    """Forward original producer bindings; never baseline an existing input again."""
+    dependencies = unit.get("artifact_dependencies", [])
+    if not isinstance(dependencies, list):
+        raise ValueError("Declared upstream artifacts must be a list.")
+    artifacts = state.get("artifacts", [])
+    artifacts = artifacts if isinstance(artifacts, list) else []
+    inputs = []
+    identity_fields = (
+        "resolved_path",
+        "size_bytes",
+        "sha256",
+        "identity_kind",
+        "entry_count",
+        "producer_run_root",
+    )
+    for dependency in dependencies:
+        if not isinstance(dependency, Mapping):
+            raise ValueError("Declared upstream artifact dependency must be a mapping.")
+        artifact_id = str(dependency.get("artifact", "")).strip()
+        producer = str(dependency.get("from", "")).strip()
+        matches = [
+            artifact
+            for artifact in artifacts
+            if isinstance(artifact, Mapping)
+            and str(artifact.get("artifact", "") or artifact.get("id", "")).strip()
+            == artifact_id
+            and artifact.get("status") == "available"
+            and (not producer or str(artifact.get("producer", "")).strip() == producer)
+        ]
+        if not artifact_id or len(matches) != 1:
+            raise ValueError(
+                f"Declared upstream artifact `{artifact_id}` is missing or ambiguous."
+            )
+        original = dict(matches[0])
+        producer = str(original.get("producer", "")).strip()
+        producer_unit = _dag_unit(state, producer)
+        if (
+            not producer
+            or producer_unit is None
+            or producer_unit.get("dispatch_status") != "completed"
+        ):
+            raise ValueError(
+                f"Declared upstream artifact `{artifact_id}` has no completed producer."
+            )
+        outputs = producer_unit.get("produces", [])
+        outputs = outputs if isinstance(outputs, list) else []
+        bound = [
+            output
+            for output in outputs
+            if isinstance(output, Mapping)
+            and str(output.get("artifact", "") or output.get("id", "")).strip()
+            == artifact_id
+            and str(output.get("kind", "")).strip()
+            == str(original.get("kind", "")).strip()
+            and str(output.get("path", "")).strip()
+            == str(original.get("path", "")).strip()
+        ]
+        if len(bound) != 1:
+            raise ValueError(
+                f"Declared upstream artifact `{artifact_id}` has no unique original producer binding."
+            )
+        for key in identity_fields:
+            if key in original and key in bound[0] and original[key] != bound[0][key]:
+                raise ValueError(
+                    f"Declared upstream artifact `{artifact_id}` has conflicting original identity."
+                )
+            if key in bound[0]:
+                original[key] = bound[0][key]
+        if any(
+            key not in original for key in ("resolved_path", "size_bytes", "sha256")
+        ):
+            raise ValueError(
+                f"Declared upstream artifact `{artifact_id}` is missing its original identity."
+            )
+        original.update(
+            artifact=artifact_id,
+            producer=producer,
+        )
+        original.setdefault(
+            "producer_run_root", str(_real_run_root(context.lab_dir, producer))
+        )
+        inputs.append(original)
+    return inputs
 
 
 def _unit_dependencies_available(
@@ -785,6 +881,7 @@ def _run_ready_controlled_contract_dag_stages(
         )
 
     jobs: list[tuple[dict[str, Any], dict[str, str], str, str]] = []
+    inputs_by_unit_id: dict[str, list[dict[str, Any]]] = {}
     failed_unit_ids: list[str] = []
     failure_messages_by_unit_id: dict[str, str] = {}
     for unit in runnable_units:
@@ -792,6 +889,13 @@ def _run_ready_controlled_contract_dag_stages(
         contract_issue = _controlled_contract_unit_issue(
             unit, context=context, execution_backend=backend
         )
+        if not contract_issue and backend == DAG_STAGE_BACKEND_DISTRIBUTED:
+            try:
+                inputs_by_unit_id[unit_id] = _distributed_input_artifacts(
+                    mutable_state, unit=unit, context=context
+                )
+            except ValueError as exc:
+                contract_issue = str(exc)
         if contract_issue:
             _mark_controlled_stage_failure(
                 mutable_state,
@@ -838,6 +942,7 @@ def _run_ready_controlled_contract_dag_stages(
                     artifact=artifact,
                     timestamp=timestamp,
                     execution_backend=backend,
+                    input_artifacts=inputs_by_unit_id.get(str(unit.get("id", ""))),
                 ): str(unit.get("id", ""))
                 for unit, artifact, _artifact_kind, _artifact_path_key in jobs
             }
@@ -938,9 +1043,10 @@ def _failed_stage_text(unit_ids: list[str], messages_by_unit_id: Mapping[str, st
 
 
 def _normalize_stage_backend(value: str) -> str:
-    if str(value).strip().lower() == DAG_STAGE_BACKEND_DISTRIBUTED:
-        return DAG_STAGE_BACKEND_DISTRIBUTED
-    return DAG_STAGE_BACKEND_LOCAL
+    backend = str(value).strip().lower()
+    if backend not in {DAG_STAGE_BACKEND_LOCAL, DAG_STAGE_BACKEND_DISTRIBUTED}:
+        raise ValueError(f"Unsupported DAG stage execution backend: {value!r}.")
+    return backend
 
 
 def _stage_backend_label(backend: str) -> str:
@@ -992,9 +1098,16 @@ def _stage_execution_result(
     artifact: Mapping[str, str],
     timestamp: str,
     execution_backend: str,
+    input_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if execution_backend == DAG_STAGE_BACKEND_DISTRIBUTED:
-        return _distributed_stage_result(context, unit=unit, artifact=artifact, timestamp=timestamp)
+        return _distributed_stage_result(
+            context,
+            unit=unit,
+            artifact=artifact,
+            timestamp=timestamp,
+            input_artifacts=input_artifacts,
+        )
     return _contract_stage_result(context, unit=unit, artifact=artifact, timestamp=timestamp)
 
 
@@ -1004,13 +1117,20 @@ def _distributed_stage_result(
     unit: Mapping[str, Any],
     artifact: Mapping[str, str],
     timestamp: str,
+    input_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    from .dag_distributed_submitter import (
+        require_distributed_input_receipts,
+        validate_distributed_stage_inputs,
+    )
+
     submitter = context.stage_submit_fn
     if submitter is None:
         raise RuntimeError(
             "Distributed DAG stage backend is not configured. "
             "Use the local contract backend or provide a stage submitter."
         )
+    inputs = validate_distributed_stage_inputs(unit, input_artifacts)
     unit_id = str(unit.get("id", "")).strip() or "stage"
     idempotency_token = _unit_persisted_idempotency_token(unit)
     contract = _unit_execution_contract(unit)
@@ -1027,10 +1147,14 @@ def _distributed_stage_result(
             run_root=run_root,
             timestamp=timestamp,
             idempotency_token=idempotency_token,
+            input_artifacts=inputs,
         ),
     )
     result.setdefault("execution_contract", contract)
     result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
+    require_distributed_input_receipts(
+        result, inputs, app_name=str(unit.get("app", ""))
+    )
     return _validated_contract_stage_result(
         unit, artifact, run_root=run_root, result=result, bind_output_identity=False
     )
@@ -1045,21 +1169,42 @@ def _run_distributed_stage_callback_once(
     run_root: Path,
     timestamp: str,
     idempotency_token: str,
+    input_artifacts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    from .dag_distributed_submitter import require_distributed_input_receipts
+
     freshness = _callback_output_snapshot(unit, run_root=run_root)
     submitter = context.stage_submit_fn
     assert submitter is not None
-    result = dict(
-        submitter(
-            repo_root=context.repo_root,
-            lab_dir=context.lab_dir,
-            run_root=run_root,
-            unit=dict(unit),
-            artifact=dict(artifact),
-            execution_contract=dict(contract),
-            timestamp=timestamp,
-            idempotency_token=idempotency_token,
-        )
+    kwargs = dict(
+        repo_root=context.repo_root,
+        lab_dir=context.lab_dir,
+        run_root=run_root,
+        unit=dict(unit),
+        artifact=dict(artifact),
+        execution_contract=dict(contract),
+        timestamp=timestamp,
+        idempotency_token=idempotency_token,
+    )
+    try:
+        signature = inspect.signature(submitter)
+    except (TypeError, ValueError):
+        if input_artifacts:
+            kwargs["input_artifacts"] = input_artifacts
+    else:
+        if "input_artifacts" in signature.parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in signature.parameters.values()
+        ):
+            kwargs["input_artifacts"] = input_artifacts or []
+        elif input_artifacts:
+            raise RuntimeError(
+                "Distributed submitter cannot accept declared upstream artifacts."
+            )
+        signature.bind(**kwargs)
+    result = dict(submitter(**kwargs))
+    require_distributed_input_receipts(
+        result, input_artifacts or [], app_name=str(unit.get("app", ""))
     )
     validated = _validated_contract_stage_result(
         unit, artifact, run_root=run_root, result=result, bind_output_identity=True

@@ -4,8 +4,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## When to add a rule
 
-- Add a rule only after a user, reviewer, or failed validation corrects an agent
-  behavior that is not already covered by the repo runbooks.
+- Add a rule only after a user, reviewer, or failed validation corrects an agent behavior that is not already covered by the repo runbooks.
 - Write one concrete rule that changes behavior; avoid generic warnings such as "be careful".
 - Tighten an existing rule instead of adding a duplicate.
 - Promote durable workflow rules into `AGENTS.md`, `AGENT_CONVENTIONS.md`,
@@ -21,6 +20,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## Current rules
 
+- Before calling an SDK patch approval-ready, check changed calls against real helper signatures and include a regression using the real pure helper; mock process/network effects at their boundaries. Keep in-memory proposal results separate from validation of applied source.
 - Before reusing a completed sub-agent, start its new task with `followup_task` and verify its live status is running before waiting. `send_message` queues a message without starting a completed agent. Recheck status after an interruption, and keep prior results distinct from the new task.
 - For edits to similar JavaScript collectors, target the named constant and caller (`_above_fold_probe` uses `ABOVE_FOLD_COLLECTOR_JS`). Run a browser DOM canary with visible targets and hidden-content exclusions; mocked payloads do not validate selector edits.
 - When replacing buffered logs with streaming capture, regress split and multiline secrets, inherited stdin, open descendant pipes, and late-publication failures; carry omission/completeness metadata into recovered failure evidence too.

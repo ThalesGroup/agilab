@@ -4,6 +4,7 @@ import random
 import socket
 import time
 from contextlib import redirect_stdout
+from ipaddress import ip_address
 from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from agi_cluster.agi_distributor.deployment import deployment_remote_support
@@ -58,6 +59,25 @@ def _validate_scheduler_port(port_text: str) -> int:
     if not 0 < port < 65536:
         raise ValueError("Scheduler port is not valid")
     return port
+
+
+def loopback_scheduler_host(scheduler: str) -> str | None:
+    """Return the selected local bind host only for a loopback scheduler."""
+    try:
+        host, _port = _parse_scheduler_string(scheduler)
+        if host.casefold() != "localhost" and not ip_address(host).is_loopback:
+            return None
+    except ValueError:
+        return None
+    return host
+
+
+def loopback_dashboard_address(scheduler: str) -> str | None:
+    """Confine local diagnostics when the selected scheduler is loopback."""
+    host = loopback_scheduler_host(scheduler)
+    if host is None:
+        return None
+    return f"[{host}]:0" if ":" in host else f"{host}:0"
 
 
 def get_default_local_ip(

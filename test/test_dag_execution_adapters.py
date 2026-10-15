@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -45,6 +46,370 @@ def _load_dag_execution_adapters():
 
 
 dag_execution_adapters = _load_dag_execution_adapters()
+
+
+@pytest.mark.parametrize("backend", ["distributed", " DISTRIBUTED "])
+def test_uav_engine_routes_requested_distributed_backend_without_local_callbacks(
+    tmp_path, backend
+):
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    dag_path = Path(
+        "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+    )
+    authored = {node["id"]: node for node in json.loads(dag_path.read_text())["nodes"]}
+    local_calls = []
+    submissions = []
+
+    def local_tripwire(**kwargs):
+        local_calls.append(kwargs)
+        raise AssertionError("A distributed request must not execute local science")
+
+    def submit(**kwargs):
+        from agilab.dag.dag_distributed_submitter import _input_artifact_fingerprint
+
+        submissions.append(kwargs)
+        output = kwargs["run_root"] / kwargs["artifact"]["path"]
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({"fixture_stage": kwargs["unit"]["id"]}))
+        inputs = kwargs.get("input_artifacts", [])
+        return {
+            "summary_metrics_path": str(output),
+            "input_artifact_fingerprint": _input_artifact_fingerprint(inputs),
+            "consumed_artifacts": [
+                {
+                    **item,
+                    "role": "upstream_context",
+                    "read_scope": "child_orchestrator",
+                    "numerically_conditioned": False,
+                    "summary_metrics": json.loads(Path(item["path"]).read_text()),
+                }
+                for item in inputs
+            ],
+        }
+
+    engine = DagRunEngine(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        dag_path=dag_path,
+        run_queue_fn=local_tripwire,
+        run_relay_fn=local_tripwire,
+        stage_submit_fn=submit,
+    )
+    state, _, _ = engine.load_or_create_state()
+    relay_dependencies = state["units"][1]["artifact_dependencies"]
+    assert relay_dependencies
+    for stage in ("queue_baseline", "relay_followup"):
+        result = engine.run_ready_controlled_stages(state, execution_backend=backend)
+        assert result.ok, result.message
+        assert result.executed_unit_ids == (stage,)
+        assert len(submissions) == (1 if stage == "queue_baseline" else 2)
+        state = result.state
+        unit = next(unit for unit in state["units"] if unit["id"] == stage)
+        assert unit["execution_mode"] == "distributed_stage"
+        assert submissions[-1]["execution_contract"] == authored[stage]["execution"]
+        assert (
+            submissions[-1]["unit"]["execution_contract"]
+            == authored[stage]["execution"]
+        )
+        assert (
+            submissions[-1]["idempotency_token"]
+            == unit["execution_attempt"]["idempotency_token"]
+        )
+    assert submissions[1]["unit"]["artifact_dependencies"] == relay_dependencies
+    assert submissions[0]["idempotency_token"] != submissions[1]["idempotency_token"]
+    assert submissions[0]["input_artifacts"] == []
+    forwarded = submissions[1]["input_artifacts"]
+    assert len(forwarded) == 1
+    producer_output = state["units"][0]["produces"][0]
+    assert forwarded[0]["producer"] == "queue_baseline"
+    assert forwarded[0]["producer_run_root"] == str(submissions[0]["run_root"])
+    for key in ("artifact", "kind", "path", "resolved_path", "size_bytes", "sha256"):
+        assert forwarded[0][key] == producer_output[key]
+    assert local_calls == []
+
+
+def test_uav_engine_unconfigured_distributed_backend_does_not_fall_back(tmp_path):
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    local_calls = []
+
+    def local_tripwire(**kwargs):
+        local_calls.append(kwargs)
+        raise AssertionError("An unavailable distributed backend must not run locally")
+
+    engine = DagRunEngine(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        dag_path=Path(
+            "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+        ),
+        run_queue_fn=local_tripwire,
+        run_relay_fn=local_tripwire,
+    )
+    state, _, _ = engine.load_or_create_state()
+    result = engine.run_ready_controlled_stages(state, execution_backend="distributed")
+    assert not result.ok
+    assert local_calls == []
+    assert "Distributed DAG stage backend is not configured" in result.message
+
+
+@pytest.mark.parametrize("backend", [None, "local"], ids=["default", "explicit"])
+def test_uav_engine_local_backend_keeps_specialized_callbacks(tmp_path, backend):
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    local_calls = []
+
+    def local_callback(**kwargs):
+        local_calls.append(kwargs)
+        run_root = kwargs["run_root"]
+        run_root.mkdir(parents=True, exist_ok=True)
+        summary = run_root / "local-summary.json"
+        reduce = run_root / "local-reduce.json"
+        summary.write_text("{}")
+        reduce.write_text("{}")
+        return {
+            "summary_metrics_path": str(summary),
+            "reduce_artifact_path": str(reduce),
+        }
+
+    def distributed_tripwire(**kwargs):
+        raise AssertionError("Local execution must not reach the distributed submitter")
+
+    engine = DagRunEngine(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        dag_path=Path(
+            "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
+        ),
+        run_queue_fn=local_callback,
+        run_relay_fn=local_callback,
+        stage_submit_fn=distributed_tripwire,
+    )
+    state, _, _ = engine.load_or_create_state()
+    result = engine.run_ready_controlled_stages(
+        state, **({} if backend is None else {"execution_backend": backend})
+    )
+    assert result.ok, result.message
+    assert result.executed_unit_ids == ("queue_baseline",)
+    assert len(local_calls) == 1
+    assert result.state["units"][0]["execution_mode"] == "real_app_entry"
+
+
+@pytest.mark.parametrize(
+    "adapter_id", ["uav_queue_to_relay_controlled", "controlled_contract_dag"]
+)
+def test_ready_adapters_reject_unknown_backend_without_executing(tmp_path, adapter_id):
+    def tripwire(**kwargs):
+        raise AssertionError("Unknown backends must not reach an execution callback")
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        run_queue_fn=tripwire,
+        run_relay_fn=tripwire,
+        stage_submit_fn=tripwire,
+    )
+    state = {"units": [], "artifacts": []}
+    with pytest.raises(ValueError, match="Unsupported DAG stage execution backend"):
+        dag_execution_adapters._run_ready_adapter_stages_uncommitted(
+            adapter_id, state, context, execution_backend="distributd"
+        )
+    assert state == {"units": [], "artifacts": []}
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "missing-identity",
+        "conflicting-identity",
+        "ambiguous-producer",
+        "wrong-producer",
+        "different-path",
+    ],
+)
+def test_distributed_input_resolution_rejects_unbound_rows_before_reads(
+    tmp_path, monkeypatch, case
+):
+    source = tmp_path / "queue.json"
+    source.write_text("{}")
+    bound = {
+        "artifact": "queue_metrics",
+        "kind": "summary_metrics",
+        "path": str(source),
+        "resolved_path": str(source.resolve()),
+        "size_bytes": source.stat().st_size,
+        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+    }
+    producer = {
+        "id": "queue_baseline",
+        "dispatch_status": "completed",
+        "produces": [bound],
+    }
+    available = {
+        "artifact": "queue_metrics",
+        "kind": "summary_metrics",
+        "path": str(source),
+        "producer": "queue_baseline",
+        "status": "available",
+    }
+    consumer = {
+        "artifact_dependencies": [
+            {"artifact": "queue_metrics", "from": "queue_baseline"}
+        ]
+    }
+    state = {"units": [producer], "artifacts": [available]}
+    if case == "missing-identity":
+        bound.pop("sha256")
+    elif case == "conflicting-identity":
+        available["sha256"] = "0" * 64
+    elif case == "ambiguous-producer":
+        consumer["artifact_dependencies"][0].pop("from")
+        state["units"].append({**producer, "id": "other"})
+        state["artifacts"].append({**available, "producer": "other"})
+    elif case == "wrong-producer":
+        consumer["artifact_dependencies"][0]["from"] = "other"
+    else:
+        bound["path"] = str(tmp_path / "different.json")
+
+    def unexpected_read(*args, **kwargs):
+        raise AssertionError("Unbound upstream rows must fail before target reads")
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(), lab_dir=tmp_path
+    )
+    monkeypatch.setattr(Path, "open", unexpected_read)
+    with pytest.raises(ValueError, match="Declared upstream artifact"):
+        dag_execution_adapters._distributed_input_artifacts(
+            state, unit=consumer, context=context
+        )
+
+
+def test_distributed_outer_cache_rejects_new_valid_input_binding(tmp_path):
+    from agilab.dag.dag_distributed_submitter import (
+        _input_artifact_fingerprint,
+        validate_distributed_stage_inputs,
+    )
+
+    source = tmp_path / "queue.json"
+    source.write_text('{"seed":1}')
+    inputs = [
+        {
+            "artifact": "queue_metrics",
+            "producer": "queue_baseline",
+            "kind": "summary_metrics",
+            "path": str(source),
+            "resolved_path": str(source.resolve()),
+            "size_bytes": source.stat().st_size,
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        }
+    ]
+    artifact = {
+        "artifact": "relay_metrics",
+        "kind": "summary_metrics",
+        "path": "relay.json",
+    }
+    unit = {
+        "id": "relay_followup",
+        "app": "uav_relay_queue_project",
+        "produces": [artifact],
+        "artifact_dependencies": [
+            {"artifact": "queue_metrics", "from": "queue_baseline"}
+        ],
+        "execution_contract": {"entrypoint": "uav_relay_queue_project.relay_followup"},
+        "execution_attempt": {"idempotency_token": "same-consumer-token"},
+    }
+    calls = []
+
+    def submit(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        output = kwargs["run_root"] / "relay.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text("{}")
+        forwarded = kwargs["input_artifacts"]
+        return {
+            "summary_metrics_path": str(output),
+            "input_artifact_fingerprint": _input_artifact_fingerprint(forwarded),
+            "consumed_artifacts": [
+                {
+                    **item,
+                    "role": "upstream_context",
+                    "read_scope": "child_orchestrator",
+                    "numerically_conditioned": False,
+                    "summary_metrics": json.loads(Path(item["path"]).read_text()),
+                }
+                for item in forwarded
+            ],
+        }
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path,
+        stage_submit_fn=submit,
+    )
+
+    def execute():
+        return dag_execution_adapters._distributed_stage_result(
+            context,
+            unit=unit,
+            artifact=artifact,
+            timestamp="now",
+            input_artifacts=inputs,
+        )
+
+    first = execute()
+    assert execute() == first
+    assert calls == ["same-consumer-token"]
+    source.write_text('{"seed":2}')
+    inputs[0]["sha256"] = hashlib.sha256(source.read_bytes()).hexdigest()
+    assert validate_distributed_stage_inputs(unit, inputs)
+    with pytest.raises(ValueError):
+        execute()
+    assert calls == ["same-consumer-token"]
+
+
+def test_distributed_no_input_legacy_submitter_keeps_original_signature(tmp_path):
+    artifact = {
+        "artifact": "metrics",
+        "kind": "summary_metrics",
+        "path": "metrics.json",
+    }
+    unit = {
+        "id": "standalone",
+        "produces": [artifact],
+        "execution_contract": {"entrypoint": "fixture.standalone"},
+        "execution_attempt": {"idempotency_token": "legacy-no-inputs"},
+    }
+    calls = []
+
+    def submit(
+        *,
+        repo_root,
+        lab_dir,
+        run_root,
+        unit,
+        artifact,
+        execution_contract,
+        timestamp,
+        idempotency_token,
+    ):
+        calls.append(idempotency_token)
+        run_root.mkdir(parents=True, exist_ok=True)
+        output = run_root / "metrics.json"
+        output.write_text("{}")
+        return {"summary_metrics_path": str(output)}
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(), lab_dir=tmp_path, stage_submit_fn=submit
+    )
+    result = dag_execution_adapters._distributed_stage_result(
+        context,
+        unit=unit,
+        artifact=artifact,
+        timestamp="now",
+    )
+    assert Path(result["summary_metrics_path"]).read_text() == "{}"
+    assert calls == ["legacy-no-inputs"]
 
 
 def test_adapter_registry_exposes_uav_queue_to_relay_adapter():
