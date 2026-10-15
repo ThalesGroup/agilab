@@ -253,6 +253,29 @@ def test_export_project_action_creates_zip_and_honors_gitignore(tmp_path: Path):
         assert sorted(archive.namelist()) == [".gitignore", "keep.txt"]
 
 
+def test_export_project_action_reports_progress_before_archive_write(tmp_path: Path):
+    module = _load_project_module()
+    project_root = tmp_path / "demo_project"
+    project_root.mkdir()
+    (project_root / "keep.txt").write_text("ok", encoding="utf-8")
+    export_root = tmp_path / "exports"
+    output_zip = export_root / "demo_project.zip"
+    phases: list[tuple[str, bool]] = []
+
+    result = module._export_project_action(
+        SimpleNamespace(app="demo_project", active_app=project_root, export_apps=export_root),
+        on_progress=lambda phase: phases.append((phase, output_zip.exists())),
+    )
+
+    assert phases == [
+        ("Checking project and export settings", False),
+        ("Writing project archive", False),
+    ]
+    assert result.status == "success"
+    with zipfile.ZipFile(output_zip) as archive:
+        assert archive.read("keep.txt") == b"ok"
+
+
 def test_export_project_action_rejects_external_file_symlink(tmp_path: Path):
     module = _load_project_module()
     project_root = tmp_path / "demo_project"
@@ -270,8 +293,10 @@ def test_export_project_action_rejects_external_file_symlink(tmp_path: Path):
         export_apps=export_root,
     )
 
-    result = module._export_project_action(env)
+    phases: list[str] = []
+    result = module._export_project_action(env, on_progress=phases.append)
 
+    assert phases == ["Checking project and export settings", "Writing project archive"]
     assert result.status == "error"
     assert "external file symlink" in str(result.detail)
     assert not (export_root / "demo_project.zip").exists()
@@ -302,8 +327,10 @@ def test_export_project_action_reports_missing_project(tmp_path: Path):
         export_apps=tmp_path / "exports",
     )
 
-    result = module._export_project_action(env)
+    phases: list[str] = []
+    result = module._export_project_action(env, on_progress=phases.append)
 
+    assert phases == ["Checking project and export settings"]
     assert result.status == "error"
     assert result.title == "Project 'missing_project' does not exist."
     assert "select another project" in str(result.next_action)
@@ -451,12 +478,15 @@ def test_import_project_action_reports_invalid_archive(tmp_path: Path):
     marker.write_text("keep", encoding="utf-8")
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
+    phases: list[str] = []
     result = module._import_project_action(
         env,
         project_zip="demo_project.zip",
         overwrite=True,
+        on_progress=phases.append,
     )
 
+    assert phases == ["Checking archive and destination", "Checking archive contents"]
     assert result.status == "error"
     assert result.title == "Project archive 'demo_project.zip' could not be imported."
     assert "valid exported project zip" in str(result.next_action)
@@ -479,18 +509,178 @@ def test_import_project_action_rejects_zip_slip_member(tmp_path: Path):
     marker.write_text("keep", encoding="utf-8")
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
+    phases: list[str] = []
     result = module._import_project_action(
         env,
         project_zip="demo_project.zip",
         overwrite=True,
+        on_progress=phases.append,
     )
 
+    assert phases == ["Checking archive and destination", "Checking archive contents"]
     assert result.status == "error"
     assert "could not be imported" in result.title
     assert "Unsafe archive member path" in str(result.detail)
     assert not (tmp_path / "escape.txt").exists()
     assert marker.read_text(encoding="utf-8") == "keep"
     assert not list(apps_root.glob(".demo_project.import-*"))
+
+
+def test_import_project_action_reports_quota_rejection_before_extraction(
+    tmp_path: Path, monkeypatch
+):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    phases: list[str] = []
+
+    def reject_quota(*_args, **_kwargs):
+        raise ValueError("Archive exceeds extraction quota")
+
+    monkeypatch.setattr(module, "validate_archive_extraction_quota", reject_quota)
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="demo_project.zip",
+        overwrite=True,
+        on_progress=phases.append,
+    )
+
+    assert phases == ["Checking archive and destination", "Checking archive contents"]
+    assert result.status == "error"
+    assert "extraction quota" in str(result.detail)
+    assert marker.read_text(encoding="utf-8") == "keep"
+    assert not (target_dir / "new.txt").exists()
+    assert not list(apps_root.glob(".demo_project.import-*"))
+
+
+def test_import_project_action_progress_follows_staging_and_replacement(tmp_path: Path):
+    module = _load_project_module()
+    export_root = tmp_path / "exports"
+    apps_root = tmp_path / "apps"
+    target_dir = apps_root / "demo_project"
+    target_dir.mkdir(parents=True)
+    marker = target_dir / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+    _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
+    phases: list[tuple[str, bool, bool, bool]] = []
+
+    def report(phase: str) -> None:
+        staged_files = list(apps_root.glob(".demo_project.import-*/demo_project/new.txt"))
+        phases.append(
+            (phase, marker.exists(), (target_dir / "new.txt").exists(), bool(staged_files))
+        )
+
+    result = module._import_project_action(
+        SimpleNamespace(export_apps=export_root, apps_path=apps_root),
+        project_zip="demo_project.zip",
+        overwrite=True,
+        on_progress=report,
+    )
+
+    assert phases == [
+        ("Checking archive and destination", True, False, False),
+        ("Checking archive contents", True, False, False),
+        ("Extracting project files", True, False, False),
+        ("Preparing imported project", True, False, True),
+        ("Checking imported project", False, True, False),
+    ]
+    assert result.status == "success"
+    assert (target_dir / "new.txt").read_text(encoding="utf-8") == "new"
+    assert not list(apps_root.glob(".demo_project.import-*"))
+
+
+def test_import_activation_preserves_result_through_reruns_once(tmp_path: Path, monkeypatch):
+    module = _load_project_module()
+    callbacks = []
+    messages: list[tuple[str, str]] = []
+    activated: list[str] = []
+    env = SimpleNamespace(
+        apps_path=tmp_path / "apps",
+        export_apps=tmp_path / "exports",
+        st_resources=tmp_path / "resources",
+        change_app=activated.append,
+    )
+    state = {"env": env, "archives": ["demo_project.zip"], "clean_import": False}
+
+    class Rerun(BaseException):
+        pass
+
+    def rerun():
+        raise Rerun
+
+    ui = SimpleNamespace(
+        session_state=state,
+        query_params={},
+        header=lambda *_args: None,
+        caption=lambda *_args: None,
+        success=lambda message: messages.append(("success", message)),
+        info=lambda message: messages.append(("info", message)),
+        dialog=lambda _title: lambda function: function,
+        rerun=rerun,
+        sidebar=SimpleNamespace(
+            caption=lambda *_args: None,
+            checkbox=lambda *_args, **_kwargs: False,
+            button=lambda *_args, **_kwargs: True,
+        ),
+    )
+    monkeypatch.setattr(module, "st", ui)
+    monkeypatch.setattr(module, "compact_choice", lambda *_args, **_kwargs: "demo_project.zip")
+    monkeypatch.setattr(module, "on_project_change", lambda _project: None)
+    monkeypatch.setattr(
+        module,
+        "run_streamlit_action",
+        lambda *_args, **kwargs: callbacks.append(kwargs["on_success"]),
+    )
+    module.handle_project_import()
+    result = module.ActionResult.success(
+        "Project 'demo_project' successfully imported.",
+        detail="Previous project backup remains available.",
+        next_action="Review the imported project.",
+        data={"import_target": "demo_project"},
+    )
+
+    with pytest.raises(Rerun):
+        callbacks[0](result)
+
+    assert activated == ["demo_project"]
+    assert state[module.PROJECT_ACTION_BANNER_KEY] == result
+    assert state["switch_to_edit"] is True
+
+    monkeypatch.setattr(module, "ensure_page_env", lambda *_args: env)
+    monkeypatch.setattr(module, "render_page_chrome", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "background_services_enabled", lambda: False)
+    monkeypatch.setattr(module, "_project_editor_resource_fingerprint", lambda *_args: ())
+    monkeypatch.setattr(module, "_load_project_editor_resources", lambda *_args: ({}, {}, ""))
+    monkeypatch.setattr(module, "get_templates", lambda: [])
+    monkeypatch.setattr(module, "get_projects_zip", lambda: [])
+    monkeypatch.setattr(module, "_consume_notebook_import_query_seed", lambda *_args: None)
+    monkeypatch.setattr(module, "_consume_project_section_query_seed", lambda *_args: None)
+    monkeypatch.setattr(module, "render_project_sidebar", lambda *_args: None)
+
+    with pytest.raises(Rerun):
+        module.page()
+    assert state[module.PROJECT_ACTION_BANNER_KEY] == result
+    assert messages == []
+
+    module.page()
+    assert state["sidebar_selection"] == "Edit"
+    assert module.PROJECT_ACTION_BANNER_KEY not in state
+    assert messages == [
+        ("success", result.title),
+        ("info", result.detail),
+        ("info", "Next: Review the imported project."),
+    ]
+    module.page()
+    assert len(messages) == 3
+
+    state[module.PROJECT_ACTION_BANNER_KEY] = "Legacy project confirmation."
+    module.page()
+    assert messages[-1] == ("success", "Legacy project confirmation.")
 
 
 def test_import_project_action_preserves_existing_project_after_partial_extract(
@@ -558,7 +748,13 @@ def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, mo
         {"README.md": "demo", "src/demo.py": "print('ok')\n"},
     )
     cleaned: list[Path] = []
-    monkeypatch.setattr(module, "clean_project", lambda path: cleaned.append(path))
+    phases: list[str] = []
+
+    def clean_project(path: Path) -> None:
+        assert phases[-1] == "Preparing imported project"
+        cleaned.append(path)
+
+    monkeypatch.setattr(module, "clean_project", clean_project)
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
     result = module._import_project_action(
@@ -566,6 +762,7 @@ def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, mo
         project_zip="demo_project.zip",
         clean=True,
         overwrite=False,
+        on_progress=phases.append,
     )
 
     target_dir = apps_root / "demo_project"
@@ -577,6 +774,7 @@ def test_import_project_action_imports_archive_and_runs_clean(tmp_path: Path, mo
     assert len(cleaned) == 1
     assert cleaned[0].name == "demo_project"
     assert cleaned[0].parent.name.startswith(".demo_project.import-")
+    assert phases[-1] == "Checking imported project"
 
 
 def test_import_project_action_requires_overwrite_for_existing_project(tmp_path: Path):
@@ -589,12 +787,15 @@ def test_import_project_action_requires_overwrite_for_existing_project(tmp_path:
     _write_project_archive(export_root / "demo_project.zip", {"new.txt": "new"})
     env = SimpleNamespace(export_apps=export_root, apps_path=apps_root)
 
+    phases: list[str] = []
     result = module._import_project_action(
         env,
         project_zip="demo_project.zip",
         overwrite=False,
+        on_progress=phases.append,
     )
 
+    assert phases == ["Checking archive and destination"]
     assert result.status == "warning"
     assert result.title == "Project 'demo_project' already exists."
     assert "Confirm overwrite" in str(result.next_action)
@@ -648,12 +849,20 @@ def test_import_project_action_rolls_back_when_atomic_swap_fails(
 
     monkeypatch.setattr(Path, "replace", _fail_staged_swap)
 
+    phases: list[str] = []
     result = module._import_project_action(
         SimpleNamespace(export_apps=export_root, apps_path=apps_root),
         project_zip="demo_project.zip",
         overwrite=True,
+        on_progress=phases.append,
     )
 
+    assert phases == [
+        "Checking archive and destination",
+        "Checking archive contents",
+        "Extracting project files",
+        "Preparing imported project",
+    ]
     assert result.status == "error"
     assert "swap failed" in str(result.detail)
     assert marker.read_text(encoding="utf-8") == "keep"
