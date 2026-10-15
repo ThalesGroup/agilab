@@ -438,3 +438,248 @@ def test_build_lock_refuses_symlink(tmp_path):
         with checkpoint.build_lock(tmp_path):
             pass
     assert target.read_text() == "untouched"
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("source", [], "metadata must be an object"),
+        ("source", {"sha256": "invalid"}, "source hash is invalid"),
+        ("prerequisites", [], "metadata must be an object"),
+        ("protected_files", {}, "protections are missing"),
+        ("seconds_before_verification", True, "duration is invalid"),
+        ("seconds_before_verification", -0.1, "duration is invalid"),
+        ("seconds_before_verification", float("nan"), "duration is invalid"),
+        ("seconds_before_verification", float("inf"), "duration is invalid"),
+        ("seconds_before_verification", "1.25", "duration is invalid"),
+    ],
+)
+def test_capture_refuses_invalid_controller_inputs_without_creating_checkpoint(
+    completed_build, field, value, message
+):
+    root, arguments = completed_build
+    original = (root / "fixture_project" / "source" / "original.ipynb").read_bytes()
+    arguments[field] = value
+
+    with pytest.raises(ValueError, match=message):
+        capture(completed_build)
+
+    assert not (root / checkpoint.CHECKPOINT_FILENAME).exists()
+    assert (
+        root / "fixture_project" / "source" / "original.ipynb"
+    ).read_bytes() == original
+
+
+@pytest.mark.parametrize("binding", ["license", "prerequisites"])
+def test_capture_refuses_controller_source_bindings_that_differ_from_files(
+    completed_build, binding
+):
+    root, arguments = completed_build
+    if binding == "license":
+        (root / "fixture_project" / "source" / "LICENSE").write_text("Fixture license")
+        arguments["source"]["license_sha256"] = "0" * 64
+        message = "original license changed"
+    else:
+        arguments["prerequisites"]["safe_to_build"] = False
+        message = "prerequisites changed"
+
+    with pytest.raises(ValueError, match=message):
+        capture(completed_build)
+
+    assert not (root / checkpoint.CHECKPOINT_FILENAME).exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("missing_run_id", "run identifier is missing"),
+        ("artifact_collection", "artifact metadata is invalid"),
+        ("relative_output_path", "stdout path is missing or invalid"),
+        ("directory_output", "stdout is not a regular file"),
+        ("unconfirmed_trace", "terminal provider trace evidence"),
+        ("trace_directory_is_file", "trace evidence is incomplete"),
+        ("trace_file_is_directory", "trace evidence is incomplete"),
+        ("invalid_command", "source binding is invalid"),
+        ("invalid_context_metadata", "source binding is invalid"),
+        ("terminal_manifest_differs", "manifest differs from its terminal result"),
+    ],
+)
+def test_capture_requires_complete_native_terminal_evidence(
+    completed_build, mutation, message
+):
+    root, arguments = completed_build
+    manifest = copy.deepcopy(arguments["provider_manifest"])
+    if mutation == "missing_run_id":
+        manifest["run_id"] = ""
+    elif mutation == "artifact_collection":
+        manifest["artifacts"] = []
+    elif mutation == "relative_output_path":
+        manifest["artifacts"]["stdout"]["path"] = "stdout.log"
+    elif mutation == "directory_output":
+        manifest["artifacts"]["stdout"]["path"] = str(root / "agent")
+    elif mutation == "unconfirmed_trace":
+        manifest["artifacts"]["agent_trace"]["exists"] = False
+    elif mutation == "trace_directory_is_file":
+        trace = manifest["artifacts"]["agent_trace"]
+        trace["tool_output_dir"] = trace["events"]
+    elif mutation == "trace_file_is_directory":
+        manifest["artifacts"]["agent_trace"]["meta"] = str(root / "agent")
+    elif mutation == "invalid_command":
+        manifest["command"] = []
+    elif mutation == "invalid_context_metadata":
+        manifest["context"]["metadata"] = []
+    else:
+        manifest["run_id"] = "different-terminal-result"
+    if mutation != "terminal_manifest_differs":
+        persist_manifest(root, manifest)
+    arguments["provider_manifest"] = manifest
+
+    with pytest.raises(ValueError, match=message):
+        capture(completed_build)
+
+    assert not (root / checkpoint.CHECKPOINT_FILENAME).exists()
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("different_root", "recovery root changed"),
+        ("invalid_prerequisites", "prerequisites are invalid"),
+        ("inventory_is_list", "inventory must be an object"),
+        ("invalid_inventory_descriptor", "inventory descriptor is invalid"),
+        ("boolean_inventory_size", "inventory descriptor is invalid"),
+        ("negative_inventory_size", "inventory descriptor is invalid"),
+        ("invalid_inventory_hash", "inventory descriptor is invalid"),
+        ("invalid_manifest_descriptor", "provider checkpoint descriptor is invalid"),
+        ("windows_inventory_path", "Unsafe notebook checkpoint path"),
+    ],
+)
+def test_recovery_refuses_self_consistent_but_invalid_checkpoint_metadata(
+    completed_build, mutation, message
+):
+    root, _ = completed_build
+    payload = capture(completed_build)
+    if mutation == "different_root":
+        payload["execution_root"] = str(root.parent)
+    elif mutation == "invalid_prerequisites":
+        payload["prerequisites"] = []
+    elif mutation == "inventory_is_list":
+        payload["project_files"] = []
+    elif mutation == "invalid_manifest_descriptor":
+        payload["provider_manifest"] = {"path": "agent/agent_run_manifest.json"}
+    elif mutation == "windows_inventory_path":
+        payload["project_files"] = {
+            "data\\input.csv": {"size_bytes": 0, "sha256": "0" * 64}
+        }
+    else:
+        descriptor = next(iter(payload["project_files"].values()))
+        if mutation == "invalid_inventory_descriptor":
+            descriptor["unrecognized_field"] = True
+        elif mutation == "boolean_inventory_size":
+            descriptor["size_bytes"] = False
+        elif mutation == "negative_inventory_size":
+            descriptor["size_bytes"] = -1
+        else:
+            descriptor["sha256"] = "invalid"
+    payload["sha256"] = sha256_payload(
+        {k: v for k, v in payload.items() if k != "sha256"}
+    )
+    path = root / checkpoint.CHECKPOINT_FILENAME
+    path.write_text(json.dumps(payload))
+    saved = path.read_bytes()
+
+    with pytest.raises(ValueError, match=message):
+        checkpoint.load_checkpoint(root)
+
+    assert path.read_bytes() == saved
+
+
+@pytest.mark.parametrize("raw", ["[]", "null", '{"seconds_before_verification": NaN}'])
+def test_recovery_refuses_non_object_or_nonfinite_json(completed_build, raw):
+    root, _ = completed_build
+    capture(completed_build)
+    path = root / checkpoint.CHECKPOINT_FILENAME
+    path.write_text(raw)
+
+    with pytest.raises(
+        ValueError, match="JSON must be an object|Invalid notebook checkpoint number"
+    ):
+        checkpoint.load_checkpoint(root)
+
+    assert path.read_text() == raw
+
+
+def test_recovery_detects_checkpoint_content_changed_without_matching_digest(
+    completed_build,
+):
+    root, _ = completed_build
+    payload = capture(completed_build)
+    path = root / checkpoint.CHECKPOINT_FILENAME
+    payload["created_at"] = "changed after capture"
+    path.write_text(json.dumps(payload))
+
+    with pytest.raises(ValueError, match="build checkpoint changed"):
+        checkpoint.load_checkpoint(root)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["tuple", "non_string", "duplicate", "missing_result", "missing_file"]
+)
+def test_completion_refuses_invalid_file_lists_without_sealing(
+    completed_build, mutation
+):
+    root, _ = completed_build
+    capture(completed_build)
+    names = complete_files(root)
+    if mutation == "tuple":
+        names = tuple(names)
+    elif mutation == "non_string":
+        names.append(None)
+    elif mutation == "duplicate":
+        names.append("result.json")
+    elif mutation == "missing_result":
+        names.remove("result.json")
+    else:
+        (root / "verification.log").unlink()
+    saved = (root / checkpoint.CHECKPOINT_FILENAME).read_bytes()
+
+    with pytest.raises(
+        ValueError,
+        match="file list is invalid|requires its result|requires a regular file",
+    ):
+        checkpoint.seal_completion(root, names)
+
+    assert (root / checkpoint.CHECKPOINT_FILENAME).read_bytes() == saved
+
+
+def test_checkpoint_roundtrip_in_uninstalled_source_environment(
+    completed_build, monkeypatch
+):
+    root, _ = completed_build
+    installed_version = checkpoint.importlib.metadata.version
+
+    def unavailable_version(name):
+        if name == "agilab":
+            raise checkpoint.importlib.metadata.PackageNotFoundError(name)
+        return installed_version(name)
+
+    monkeypatch.setattr(checkpoint.importlib.metadata, "version", unavailable_version)
+    saved = capture(completed_build)
+
+    assert saved["runtime"]["agilab_version"] is None
+    assert checkpoint.load_checkpoint(root) == saved
+
+
+@pytest.mark.parametrize("root_kind", ["file", "missing", "symlink"])
+def test_build_lock_requires_an_existing_non_symlink_directory(tmp_path, root_kind):
+    candidate = tmp_path / "build-root"
+    if root_kind == "file":
+        candidate.write_text("preserve me")
+    elif root_kind == "symlink":
+        candidate.symlink_to(tmp_path, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="existing directory without a symlink"):
+        with checkpoint.build_lock(candidate):
+            pytest.fail("invalid build root accepted")
+
+    assert not (tmp_path / checkpoint.LOCK_FILENAME).exists()

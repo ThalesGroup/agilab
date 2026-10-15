@@ -48,6 +48,370 @@ def _load_dag_execution_adapters():
 dag_execution_adapters = _load_dag_execution_adapters()
 
 
+def _contract_transaction_engine(tmp_path, nodes, *, edges=(), **callbacks):
+    from agilab.dag.dag_run_engine import DagRunEngine
+
+    repo_root = tmp_path / "repo"
+    app_root = repo_root / "src/agilab/apps/builtin/adapter_contract_project"
+    for app_name in ("adapter_contract_project", "adapter_review_project"):
+        app_dir = app_root.parent / app_name
+        app_dir.mkdir(parents=True)
+        (app_dir / "pyproject.toml").write_text(
+            f'[project]\nname = "{app_name}"\nversion = "0.0.0"\n'
+        )
+        (app_dir / "pipeline_view.dot").write_text("digraph { start -> end; }\n")
+    nodes = [
+        {
+            "app": "adapter_contract_project"
+            if index == 0
+            else "adapter_review_project",
+            "purpose": "Verify outputs.",
+            **node,
+        }
+        for index, node in enumerate(nodes)
+    ]
+    edges = list(edges)
+    if len(nodes) == 1:
+        upstream = nodes[0]["produces"][0]
+        nodes.append(
+            {
+                "id": "downstream_review",
+                "app": "adapter_review_project",
+                "purpose": "Review the producer's verified output.",
+                "execution": {"entrypoint": "adapter_review_project.review"},
+                "consumes": [upstream],
+                "produces": [
+                    {
+                        "id": "final_receipt",
+                        "kind": "contract_artifact",
+                        "path": "final.json",
+                    }
+                ],
+            }
+        )
+        edges.append(
+            {
+                "from": nodes[0]["id"],
+                "to": "downstream_review",
+                "artifact": upstream["id"],
+                "handoff": "Review verified output.",
+            }
+        )
+    dag_path = app_root / "dag_templates/adapter_transactions.json"
+    dag_path.parent.mkdir()
+    dag_path.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.multi_app_dag.v1",
+                "dag_id": "adapter-transactions",
+                "label": "Adapter transaction contracts",
+                "description": "Exercise authored outputs through durable execution.",
+                "execution": {
+                    "mode": "sequential_dependency_order",
+                    "runner_status": "controlled_contract_stage_execution",
+                    "adapter": "controlled_contract_dag",
+                    "stage_bindings": {
+                        node["id"]: node["execution"].get("entrypoint", "")
+                        for node in nodes
+                    },
+                },
+                "nodes": nodes,
+                "edges": edges,
+            }
+        )
+    )
+    return DagRunEngine(
+        repo_root=repo_root,
+        lab_dir=tmp_path / "lab",
+        dag_path=dag_path,
+        **callbacks,
+    )
+
+
+@pytest.mark.parametrize("failed_stage", [None, "second"])
+def test_contract_engine_local_batch_persists_independent_outcomes(
+    tmp_path, failed_stage
+):
+    calls = []
+
+    def runner(*, run_root, **kwargs):
+        stage = run_root.name
+        calls.append(stage)
+        assert stage != failed_stage, "A stage without an executor must never run"
+        output = run_root / "metrics.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps({"stage": stage}))
+        return {"summary_metrics_path": "metrics.json"}
+
+    nodes = [
+        {
+            "id": stage,
+            "execution": {"entrypoint": f"adapter_contract_project.{stage}"},
+            "produces": [
+                {
+                    "id": f"{stage}_metrics",
+                    "kind": "summary_metrics",
+                    "path": "metrics.json",
+                }
+            ],
+        }
+        for stage in ("first", "second")
+    ]
+    engine = _contract_transaction_engine(
+        tmp_path,
+        nodes,
+        stage_run_fns={
+            stage: runner for stage in ("first", "second") if stage != failed_stage
+        },
+    )
+    state, *_ = engine.load_or_create_state()
+    original = json.dumps(state, sort_keys=True)
+    result = engine.run_ready_controlled_stages(state, max_workers=2)
+
+    expected_calls = ["first"] if failed_stage else ["first", "second"]
+    assert sorted(calls) == expected_calls
+    assert json.dumps(state, sort_keys=True) == original
+    assert result.ok is (failed_stage is None)
+    assert result.executed_unit_ids == (
+        ("first",) if failed_stage else ("first", "second")
+    )
+    assert result.failed_unit_ids == (("second",) if failed_stage else ())
+    if failed_stage:
+        assert "has no registered executor for its entrypoint" in result.message
+    else:
+        assert "ready local DAG stage(s)" in result.message
+    persisted, *_ = engine.load_or_create_state()
+    assert persisted == result.state
+    assert "active_execution" not in persisted
+    units = {unit["id"]: unit for unit in persisted["units"]}
+    assert units["first"]["dispatch_status"] == "completed"
+    assert units["second"]["dispatch_status"] == (
+        "failed" if failed_stage else "completed"
+    )
+    assert {
+        row["artifact"]
+        for row in persisted["artifacts"]
+        if row["status"] == "available"
+    } == {f"{stage}_metrics" for stage in result.executed_unit_ids}
+    again = engine.run_ready_controlled_stages(persisted)
+    assert not again.ok
+    assert again.executed_unit_ids == ()
+    assert "No controlled contract DAG stages are ready" in again.message
+    assert sorted(calls) == expected_calls
+
+
+@pytest.mark.parametrize(
+    ("case", "message"),
+    [
+        ("status-error", "executor reported a failed result"),
+        ("command-failed", "executor reported a failed result"),
+        ("returncode-failed", "executor reported a failed result"),
+        ("receipt-file", "Contract receipt cannot satisfy scientific artifact"),
+        ("submission-receipt", "returned a submission receipt"),
+        ("receipt-only", "A contract receipt cannot satisfy scientific artifact"),
+        ("missing-output", "did not produce its declared artifact"),
+    ],
+)
+def test_contract_engine_refuses_invalid_executor_evidence(tmp_path, case, message):
+    from agilab.dag.dag_idempotency import DagExternalExecutionUncertainError
+    from agilab.dag.dag_run_engine import RunnerStateRecoveryRequiredError
+
+    calls = []
+
+    def runner(*, run_root, **kwargs):
+        calls.append(run_root)
+        output = run_root / "metrics.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if case != "missing-output":
+            output.write_text(
+                json.dumps({"schema": "agilab.dag_contract_stage_result.v1"})
+                if case == "receipt-file"
+                else '{"received": 17}'
+            )
+        result = {"summary_metrics_path": "metrics.json"}
+        result.update(
+            {
+                "status-error": {"status": "error"},
+                "command-failed": {"command_returncode": 7},
+                "returncode-failed": {"returncode": 9},
+                "submission-receipt": {"submission_evidence_path": str(output)},
+                "receipt-only": {"receipt_only": True},
+            }.get(case, {})
+        )
+        return result
+
+    engine = _contract_transaction_engine(
+        tmp_path,
+        [
+            {
+                "id": "science",
+                "execution": {"entrypoint": "adapter_contract_project.science"},
+                "produces": [
+                    {"id": "metrics", "kind": "summary_metrics", "path": "metrics.json"}
+                ],
+            }
+        ],
+        stage_run_fns={"science": runner},
+    )
+    state, *_ = engine.load_or_create_state()
+    with pytest.raises(DagExternalExecutionUncertainError, match=message) as error:
+        engine.run_next_controlled_stage(state)
+    assert len(calls) == 1
+    persisted, *_ = engine.load_or_create_state()
+    unit = persisted["units"][0]
+    assert unit["dispatch_status"] == "running"
+    assert persisted["active_execution"]["status"] == "recovery_required"
+    assert persisted["active_execution"]["unit_tokens"] == {
+        "science": unit["execution_attempt"]["idempotency_token"]
+    }
+    assert (
+        error.value.idempotency_token == unit["execution_attempt"]["idempotency_token"]
+    )
+    assert not any(row["status"] == "available" for row in persisted["artifacts"])
+    with pytest.raises(RunnerStateRecoveryRequiredError):
+        engine.run_next_controlled_stage(persisted)
+    assert len(calls) == 1
+
+
+def test_contract_engine_receipt_only_stage_materializes_all_declared_receipts(
+    tmp_path,
+):
+    outputs = [
+        {"id": "context_receipt", "kind": "contract_artifact", "path": "context.json"},
+        {
+            "id": "review_receipt",
+            "kind": "contract_artifact",
+            "path": "review/context.json",
+        },
+    ]
+    engine = _contract_transaction_engine(
+        tmp_path,
+        [
+            {
+                "id": "review",
+                "execution": {"entrypoint": "adapter_contract_project.review"},
+                "produces": outputs,
+            }
+        ],
+    )
+    state, *_ = engine.load_or_create_state()
+    result = engine.run_next_controlled_stage(state)
+    assert result.ok, result.message
+    assert "Recorded contract receipt" in result.message
+    unit = result.state["units"][0]
+    assert unit["contract_execution"]["receipt_only"] is True
+    assert {row["artifact"] for row in unit["produces"]} == {
+        "context_receipt",
+        "review_receipt",
+    }
+    for row in unit["produces"]:
+        payload = json.loads(Path(row["path"]).read_text())
+        assert payload["receipt_only"] is True
+        assert payload["artifact"] == row["artifact"]
+        assert payload["artifact_kind"] == "contract_artifact"
+        assert (
+            payload["idempotency_token"]
+            == unit["execution_attempt"]["idempotency_token"]
+        )
+    assert result.state["provenance"]["real_app_execution"] is False
+    assert engine.load_or_create_state()[0] == result.state
+
+
+def test_contract_engine_scientific_entrypoint_requires_an_executor_before_claim(
+    tmp_path,
+):
+    engine = _contract_transaction_engine(
+        tmp_path,
+        [
+            {
+                "id": "science",
+                "execution": {"entrypoint": "adapter_contract_project.science"},
+                "produces": [
+                    {"id": "metrics", "kind": "summary_metrics", "path": "metrics.json"}
+                ],
+            }
+        ],
+    )
+    state, *_ = engine.load_or_create_state()
+    result = engine.run_next_controlled_stage(state)
+    assert not result.ok
+    assert "has no registered executor for its entrypoint" in result.message
+    unit = result.state["units"][0]
+    assert unit["dispatch_status"] == "failed"
+    assert "execution_attempt" not in unit
+    assert not (engine.lab_dir / ".agilab/multi_app_dag_real_runs").exists()
+    assert engine.load_or_create_state()[0] == result.state
+
+
+@pytest.mark.parametrize("pollution", ["removed", "directory", "receipt"])
+def test_contract_engine_reblocks_consumer_when_available_science_disappears(
+    tmp_path, pollution
+):
+    calls = []
+
+    def producer(*, run_root, **kwargs):
+        calls.append("producer")
+        output = run_root / "metrics.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text('{"received": 17}')
+        return {"summary_metrics_path": str(output)}
+
+    def consumer(**kwargs):
+        raise AssertionError(
+            "A missing upstream scientific artifact must stop dispatch"
+        )
+
+    outputs = {"id": "metrics", "kind": "summary_metrics", "path": "metrics.json"}
+    engine = _contract_transaction_engine(
+        tmp_path,
+        [
+            {
+                "id": "producer",
+                "execution": {"entrypoint": "adapter_contract_project.producer"},
+                "produces": [outputs],
+            },
+            {
+                "id": "consumer",
+                "execution": {"entrypoint": "adapter_contract_project.consumer"},
+                "consumes": [outputs],
+                "produces": [
+                    {"id": "review", "kind": "summary_metrics", "path": "review.json"}
+                ],
+            },
+        ],
+        edges=[
+            {
+                "from": "producer",
+                "to": "consumer",
+                "artifact": "metrics",
+                "handoff": "Use metrics.",
+            }
+        ],
+        stage_run_fns={"producer": producer, "consumer": consumer},
+    )
+    state, *_ = engine.load_or_create_state()
+    produced = engine.run_next_controlled_stage(state)
+    assert produced.ok, produced.message
+    assert produced.state["units"][1]["dispatch_status"] == "runnable"
+    output = Path(produced.state["units"][0]["produces"][0]["path"])
+    output.unlink()
+    if pollution == "directory":
+        output.mkdir()
+    elif pollution == "receipt":
+        output.write_text(json.dumps({"schema": "agilab.dag_contract_stage_result.v1"}))
+    result = engine.run_ready_controlled_stages(produced.state)
+    assert not result.ok
+    assert result.executed_unit_ids == ()
+    assert calls == ["producer"]
+    blocked = result.state["units"][1]
+    assert blocked["dispatch_status"] == "blocked"
+    assert blocked["operator_ui"]["state"] == "waiting_for_artifacts"
+    assert blocked["operator_ui"]["blocked_by_artifacts"] == ["metrics"]
+    assert "execution_attempt" not in blocked
+    assert not (engine.lab_dir / ".agilab/multi_app_dag_real_runs/consumer").exists()
+    assert engine.load_or_create_state()[0] == result.state
+
+
 @pytest.mark.parametrize("backend", ["distributed", " DISTRIBUTED "])
 def test_uav_engine_routes_requested_distributed_backend_without_local_callbacks(
     tmp_path, backend
