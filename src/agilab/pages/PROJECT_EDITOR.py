@@ -31,7 +31,7 @@ import importlib.util
 import sys
 import tempfile
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 os.environ.setdefault(
     "STREAMLIT_CONFIG_FILE",
@@ -1752,7 +1752,11 @@ def _project_export_path_is_confined(path: Path, root: Path) -> bool:
         candidate = parent
 
 
-def _export_project_action(env: AgiEnv) -> ActionResult:
+def _export_project_action(
+    env: AgiEnv, *, on_progress: Callable[[str], None] | None = None
+) -> ActionResult:
+    if on_progress is not None:
+        on_progress("Checking project and export settings")
     input_dir = Path(env.active_app)
     if not input_dir.exists():
         return ActionResult.error(
@@ -1770,6 +1774,8 @@ def _export_project_action(env: AgiEnv) -> ActionResult:
     spec = read_gitignore(gitignore_path)
 
     try:
+        if on_progress is not None:
+            on_progress("Writing project archive")
         with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as out:
             for root, directories, files in os.walk(input_dir, followlinks=False):
                 rel_root = os.path.relpath(root, input_dir)
@@ -1838,7 +1844,9 @@ def handle_export_project():
             failure_title="Project export failed.",
             failure_next_action="Check the project path, export directory, and filesystem permissions.",
         ),
-        lambda: _export_project_action(env),
+        action_with_progress=lambda report: _export_project_action(
+            env, on_progress=report
+        ),
         on_success=_remember_export,
     )
 
@@ -1849,7 +1857,10 @@ def _import_project_action(
     project_zip: str,
     clean: bool = False,
     overwrite: bool = False,
+    on_progress: Callable[[str], None] | None = None,
 ) -> ActionResult:
+    if on_progress is not None:
+        on_progress("Checking archive and destination")
     selected_archive = str(project_zip).strip()
     if not selected_archive or selected_archive == "-- Select a file --":
         return ActionResult.error(
@@ -1943,6 +1954,8 @@ def _import_project_action(
     backup_dir = staging_root.with_name(f"{staging_root.name}-previous")
     target_moved = False
     try:
+        if on_progress is not None:
+            on_progress("Checking archive contents")
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             validate_archive_members_stay_within_dest(zip_ref, staged_dir)
             validate_archive_extraction_quota(
@@ -1950,9 +1963,13 @@ def _import_project_action(
                 staged_dir,
                 archive_size_bytes=zip_path.stat().st_size,
             )
+            if on_progress is not None:
+                on_progress("Extracting project files")
             zip_ref.extractall(staged_dir)
         if not staged_dir.exists():
             raise ValueError("Project archive did not contain any project files")
+        if on_progress is not None:
+            on_progress("Preparing imported project")
         if clean:
             clean_project(staged_dir)
 
@@ -2029,6 +2046,8 @@ def _import_project_action(
     finally:
         shutil.rmtree(staging_root, ignore_errors=True)
 
+    if on_progress is not None:
+        on_progress("Checking imported project")
     if not target_dir.exists():
         return ActionResult.error(
             f"Error while importing '{import_target}'.",
@@ -5038,6 +5057,15 @@ def handle_project_delete():
         st.info("Select a project and confirm deletion to remove it.")
 
 
+def _activate_imported_project(env, result: ActionResult) -> None:
+    imported_project = str(result.data["import_target"])
+    env.change_app(imported_project)
+    on_project_change(imported_project)
+    st.session_state[PROJECT_ACTION_BANNER_KEY] = result
+    st.session_state["switch_to_edit"] = True
+    st.rerun()
+
+
 def handle_project_import():
     """
     Handle the 'Import' tab in the sidebar for project loading.
@@ -5069,13 +5097,6 @@ def handle_project_import():
 
         target_dir = env.apps_path / import_target
 
-        def _activate_import(result):
-            imported_project = str(result.data["import_target"])
-            env.change_app(imported_project)
-            on_project_change(imported_project)
-            st.session_state["switch_to_edit"] = True
-            st.rerun()
-
         def _run_import_action(*, overwrite: bool) -> None:
             run_streamlit_action(
                 st,
@@ -5085,13 +5106,14 @@ def handle_project_import():
                     failure_title="Project import failed.",
                     failure_next_action="Check the archive, destination path, and filesystem permissions.",
                 ),
-                lambda: _import_project_action(
+                action_with_progress=lambda report: _import_project_action(
                     env,
                     project_zip=selected_archive,
                     clean=st.session_state["clean_import"],
                     overwrite=overwrite,
+                    on_progress=report,
                 ),
-                on_success=_activate_import,
+                on_success=lambda result: _activate_imported_project(env, result),
             )
 
         @st.dialog("Import project")
@@ -5200,7 +5222,9 @@ def page():
         st.session_state.setdefault(key, value)
 
     banner = st.session_state.pop(PROJECT_ACTION_BANNER_KEY, None)
-    if banner:
+    if isinstance(banner, ActionResult):
+        render_action_result(st, banner)
+    elif banner:
         st.success(banner)
 
     _consume_notebook_import_query_seed(st.session_state, st.query_params)
