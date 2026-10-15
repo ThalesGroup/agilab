@@ -34,7 +34,7 @@ Use this runbook whenever you:
   `./dev app-contracts` enforces `tools/app_contracts/worker_dynamic_import_contract.py` in CI.
   A loader change needs regressions for all supported execution modes and cache
   invalidation; an interface change must prove it uses the SDK-selected class.
-  Every `AGI.run` mode, including `0` (local Python), requires a deployed worker
+  Every `AGI.run` mode, including local Python, requires a deployed worker
   environment. Readiness checks must follow the SDK contract. Deployment is an
   explicit ORCHESTRATE Resources action or authored `AGI.install` stage; notebook
   export must preserve the author's plan. Ordinary Python stages and explicitly
@@ -686,6 +686,22 @@ Use this runbook whenever you:
   workflow-data and worker-deployment settings for data and worker environments.
   Do not propagate a manager's local resources path into remote worker settings.
   With the selector unset, preserve the historical default behavior.
+- **Source builtin qualification**: Reproduce the complete PROJECT clone lifecycle,
+  including `_repair_cloned_builtin_source_paths` and environment finalization.
+  The lower-level SDK clone helper only copies and renames the project; omitted
+  post-processing is a harness defect, not evidence of a product regression.
+  Check the cloned source manifests' resolved SDK paths before installation,
+  then verify the controller, project manager and deployed worker interpreters
+  independently. Validate the selected input file's schema and row count before
+  dispatch; use supported input selectors to exclude dataset metadata. Keep
+  dynamic worker loading intact. Inspect the rendered application and error
+  nodes; an HTTP 200 response alone does not qualify a successful UI bootstrap.
+- **Native web render lifecycle**: Persist workflow values and log text across
+  renders. Create containers and placeholders in the active render before any
+  action writes to them. Cover action handling across two real `ViewSession`
+  renders, including stage actions and workflow startup failures. Keep failures
+  visible through refreshes, and verify engine execution and new artifacts in
+  browser qualification.
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.

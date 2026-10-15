@@ -5082,7 +5082,7 @@ def test_display_lab_tab_warns_when_pipeline_start_is_blocked(monkeypatch, tmp_p
     )
 
     assert ("warning", "Workflow is already running.") in fake_st.messages
-    assert ("rerun", "called") in fake_st.messages
+    assert ("rerun", "called") not in fake_st.messages
 
 
 def test_display_lab_tab_refuses_run_when_page_state_detects_legacy_snippet(monkeypatch, tmp_path):
@@ -6158,11 +6158,12 @@ def test_display_lab_tab_can_pin_run_logs(monkeypatch, tmp_path):
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
     panels = fake_st.session_state["agilab:pinned_expanders"]
-    buttons = editor_calls[-1]["buttons"]
+    log_editor = next(call for call in editor_calls if call["body"] == "line 1\nline 2")
+    buttons = log_editor["buttons"]
     assert isinstance(buttons, list)
     assert [button["name"] for button in buttons[:2]] == ["Copy", "Pin"]
-    assert editor_calls[-1]["theme"] == "dark"
-    assert editor_calls[-1]["height"] == 400
+    assert log_editor["theme"] == "dark"
+    assert log_editor["height"] == 400
     assert panels["pipeline_run_logs:demo"]["title"] == "Workflow logs: flight_telemetry_project"
     assert panels["pipeline_run_logs:demo"]["body"] == "line 1\nline 2"
     assert panels["pipeline_run_logs:demo"]["source"] == f"WORKFLOW {log_file}"
@@ -6292,7 +6293,9 @@ def test_display_lab_tab_overlay_run_covers_runpy_and_missing_log_path(monkeypat
 
     pipeline_lab.display_lab_tab(tmp_path, "demo", tmp_path / "lab_stages.toml", tmp_path / "flight_telemetry_project", env, deps)
 
-    assert placeholder_messages == ["Starting overlay run…"]
+    assert placeholder_messages == []
+    assert ("caption", "Starting overlay run…") in fake_st.messages
+    assert "demo__run_placeholder" not in fake_st.session_state
     assert run_lab_calls
     assert any("unable to prepare log file: no log" in message for message in pushed_logs)
     assert any("runpy executed (no captured stdout)" in message for message in pushed_logs)

@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+import pytest
+
 from agi_env import (
     agi_logger,
     credential_store_support,
@@ -203,17 +205,17 @@ def test_agi_env_small_helpers_cover_remaining_branches(tmp_path: Path, monkeypa
     assert state["project_changed"] is True
 
     env_store = {"KEEP_ME": "old", "DROP_ME": "legacy"}
-    output = pagelib_execution_support.run_lab(
-        [0, "desc", "print('ok')"],
-        tmp_path / "snippet.py",
-        str(tmp_path / "snippet.py"),
-        env_overrides={"KEEP_ME": "new", "DROP_ME": None},
-        warning_fn=lambda _message: None,
-        os_module=SimpleNamespace(environ=env_store),
-        sys_module=SimpleNamespace(stdout=None, stderr=None),
-        runpy_module=SimpleNamespace(run_path=lambda _path: (_ for _ in ()).throw(RuntimeError("boom"))),
-    )
-    assert "Error: boom" in output
+    with pytest.raises(RuntimeError, match="boom"):
+        pagelib_execution_support.run_lab(
+            [0, "desc", "print('ok')"],
+            tmp_path / "snippet.py",
+            str(tmp_path / "snippet.py"),
+            env_overrides={"KEEP_ME": "new", "DROP_ME": None},
+            warning_fn=lambda _message: None,
+            os_module=SimpleNamespace(environ=env_store),
+            sys_module=SimpleNamespace(stdout=None, stderr=None),
+            runpy_module=SimpleNamespace(run_path=lambda _path: (_ for _ in ()).throw(RuntimeError("boom"))),
+        )
     assert env_store["KEEP_ME"] == "old"
     assert env_store["DROP_ME"] == "legacy"
 

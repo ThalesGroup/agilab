@@ -326,6 +326,8 @@ def resolve_apps_path(
 ) -> Path | None:
     """Resolve the apps path from CLI, user .env, or packaged install marker."""
     apps_arg = args.apps_path
+    if apps_arg is not None:
+        return Path(apps_arg).expanduser() if apps_arg else None
     marker_apps_path: Path | None = None
     marker_error: Exception | None = None
     agi_path_file = default_agilab_path_file(

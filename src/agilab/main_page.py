@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlencode
 from agi_env.agi_logger import AgiLogger
+from agi_env.runtime.runtime_bootstrap_support import resolve_resources_path
 from agi_env.ui.sidecar_registry import isolated_import_process_state
 from agilab.ui.page_bootstrap import configure_page_config
 
@@ -937,7 +938,7 @@ def openai_status_banner(env: Any) -> None:
     _about_layout.openai_status_banner(env, env_file_path=ENV_FILE_PATH)
 
 
-ENV_FILE_PATH = Path.home() / ".agilab/.env"
+ENV_FILE_PATH = resolve_resources_path() / ".env"
 try:
     TEMPLATE_ENV_PATH = importlib_resources.files("agi_env") / "resources/.agilab/.env"
 except (ModuleNotFoundError, FileNotFoundError, AttributeError, OSError):

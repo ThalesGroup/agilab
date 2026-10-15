@@ -39,6 +39,10 @@ The selector is resolved before configuration is loaded, and local child
 processes inherit the selected context. Changing the process selector does not
 redirect an already constructed environment's child processes.
 
+The web interface uses the same resources context for its ``.env`` file. An
+explicit ``--apps-path`` selects the application directory before installation
+marker discovery, so this selection does not read the user installation marker.
+
 Use a separate process for concurrent contexts. Configure run data through the
 existing ``AGILAB_WORKFLOW_DATA_ROOT`` contract below, and provision worker
 environments through the normal deployment settings. A resources directory

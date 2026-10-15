@@ -49,4 +49,5 @@ with open(snippet_file, "r", encoding="utf-8") as snippet:
         st.error(f"Failed to run snippet `{snippet_file}`: {err}")
         st.caption("Full traceback")
         st.code(f"{snippet_file}: {err}\n{traceback.format_exc()}", language="text")
+        raise
 st.session_state.data = df

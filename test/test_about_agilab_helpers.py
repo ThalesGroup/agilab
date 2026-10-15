@@ -1173,6 +1173,118 @@ def test_bootstrap_resolve_apps_path_prefers_cli_then_env(tmp_path):
     )
 
 
+@pytest.mark.parametrize("explicit_empty", [False, True])
+def test_bootstrap_explicit_apps_path_never_reads_install_marker(tmp_path, monkeypatch, explicit_empty):
+    bootstrap = about_agilab._about_bootstrap
+    cli_apps = "" if explicit_empty else str(tmp_path / "cli_apps")
+    marker_reads = []
+
+    def denied_marker(path):
+        marker_reads.append(path)
+        raise PermissionError("global install marker must not be read")
+
+    monkeypatch.setattr(bootstrap, "apps_path_from_agilab_path_file", denied_marker)
+    args = bootstrap.parse_startup_args(["--apps-path", cli_apps])
+    result = bootstrap.resolve_apps_path(
+        args, env_file_path=tmp_path / ".env",
+        load_env_file_map=lambda _path: pytest.fail("explicit CLI must not load fallback dotenv"),
+        home_path=tmp_path,
+    )
+
+    assert result == (None if explicit_empty else Path(cli_apps))
+    assert marker_reads == []
+
+
+def test_bootstrap_unset_apps_path_preserves_install_marker_permission_failure(tmp_path, monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    args = bootstrap.parse_startup_args([])
+    assert args.apps_path is None
+
+    def denied_marker(_path):
+        raise PermissionError("install marker denied")
+
+    monkeypatch.setattr(bootstrap, "apps_path_from_agilab_path_file", denied_marker)
+    with pytest.raises(PermissionError, match="install marker denied"):
+        bootstrap.resolve_apps_path(
+            args, env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: pytest.fail("permission failure must not silently fall back"),
+            home_path=tmp_path,
+        )
+
+
+def test_bootstrap_invalid_explicit_apps_path_does_not_fall_back(tmp_path, monkeypatch):
+    bootstrap = about_agilab._about_bootstrap
+    args = bootstrap.parse_startup_args(["--apps-path", "~/invalid-cli-apps"])
+    original_expanduser = Path.expanduser
+
+    def invalid_cli(path):
+        if str(path) == args.apps_path:
+            raise RuntimeError("invalid explicit CLI path")
+        return original_expanduser(path)
+
+    monkeypatch.setattr(Path, "expanduser", invalid_cli)
+    monkeypatch.setattr(
+        bootstrap, "apps_path_from_agilab_path_file",
+        lambda _path: pytest.fail("invalid CLI must not read the marker fallback"),
+    )
+    with pytest.raises(RuntimeError, match="invalid explicit CLI path"):
+        bootstrap.resolve_apps_path(
+            args, env_file_path=tmp_path / ".env",
+            load_env_file_map=lambda _path: pytest.fail("invalid CLI must not load fallback dotenv"),
+            home_path=tmp_path,
+        )
+
+
+@pytest.mark.parametrize("explicit_resources", [False, True])
+def test_navigation_initialization_uses_selected_resources_dotenv(tmp_path, monkeypatch, explicit_resources):
+    from contextlib import nullcontext
+
+    fake_home = tmp_path / "home"
+    default_env = fake_home / ".agilab/.env"
+    selected_resources = tmp_path / "selected-resources"
+    selected_env = selected_resources / ".env"
+    for path in (default_env, selected_env):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("RESOURCE_CONTEXT=selected\n", encoding="utf-8")
+    reads = []
+    forbidden_reads = []
+    original_open = Path.open
+
+    def guarded_open(path, mode="r", *args, **kwargs):
+        if "r" in mode and path in (default_env, selected_env):
+            if explicit_resources and path == default_env:
+                forbidden_reads.append(path)
+                raise PermissionError("global dotenv is not readable in this context")
+            reads.append(path)
+        return original_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    monkeypatch.setattr(Path, "home", classmethod(lambda _cls: fake_home))
+    if explicit_resources:
+        monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(selected_resources))
+    else:
+        monkeypatch.delenv("AGILAB_RESOURCES_DIR", raising=False)
+    module_spec = importlib.util.spec_from_file_location("agilab_navigation_resources_test", MODULE_PATH)
+    assert module_spec and module_spec.loader
+    module = importlib.util.module_from_spec(module_spec)
+    with use_session(ViewSession(lambda: None)):
+        module_spec.loader.exec_module(module)
+
+    def bootstrap(**kwargs):
+        loaded = kwargs["load_env_file_map"](kwargs["env_file_path"], include_commented=False)
+        assert loaded["RESOURCE_CONTEXT"] == "selected"
+        return SimpleNamespace(handled_recovery=True)
+
+    monkeypatch.setattr(module, "st", SimpleNamespace(session_state={}, spinner=lambda *_: nullcontext()))
+    monkeypatch.setattr(module, "_about_bootstrap", SimpleNamespace(bootstrap_page_environment=bootstrap))
+
+    assert module._ensure_navigation_environment(tmp_path / "ui-resources", rerun_after_bootstrap=False) is None
+    expected = selected_env if explicit_resources else default_env
+    assert module.ENV_FILE_PATH == expected
+    assert reads == [expected]
+    assert forbidden_reads == []
+
+
 def test_bootstrap_reports_a_busy_peer_render_as_recoverable_startup(monkeypatch):
     """A busy inline render lease stops startup cleanly instead of raising.
 
@@ -4363,10 +4475,11 @@ def test_env_editor_field_label_for_python_keys():
 
 def test_visible_env_editor_keys_keeps_template_order_and_adds_worker_overrides():
     template_keys = ["AGI_PYTHON_VERSION", "AGI_PYTHON_FREE_THREADED", "OPENAI_API_KEY"]
+    worker_prefix_field = "10.0.0.5_CMD_PREFIX"
     existing_entries = [
         {"type": "entry", "key": "OPENAI_API_KEY", "value": "dummy"},
         {"type": "entry", "key": "127.0.0.1_PYTHON_VERSION", "value": "3.12"},
-        {"type": "entry", "key": "10.0.0.5_CMD_PREFIX", "value": "ssh"},
+        {"type": "entry", "key": worker_prefix_field, "value": "ssh"},
         {"type": "entry", "key": "worker-a_PYTHON_VERSION", "value": "3.12"},
     ]
 

@@ -20,7 +20,7 @@ import threading
 import time
 import faulthandler
 
-faulthandler.enable()
+faulthandler.enable(file=sys.__stderr__)
 
 USAGE = """
 Usage: python cli.py <cmd> [arg]
