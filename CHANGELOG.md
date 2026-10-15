@@ -26,6 +26,22 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Notebook authoring and recovery
+
+- Preserve notebook documents, cell state, and explicit Manager or Worker roles through project and workflow import. Review supported setup conversion without installing dependencies or executing the notebook.
+- Retry verification from saved notebook-build evidence without another provider call; retain project import confirmation, transfer progress, and current workflow run logs.
+
+### Distributed execution and saved parameters
+
+- Execute authored DAG stages through SDK-selected workers, preserve upstream artifact identities and complete child consumption receipts, and reject changed caches or outputs from another workflow.
+- Keep workflow resource and data roots isolated across manager and worker reconstruction.
+- Preserve valid saved numeric zeros in built-in app forms, including random seeds and queue, mission, data quality, and assessment parameters.
+
+### Public evidence
+
+- Keep public documentation independently owned by the public checkout and preserve existing public evidence when refreshing its integrity stamp.
+
+
 ## [2026.10.13] - 2026-10-13
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13
