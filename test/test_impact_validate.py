@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 MODULE_PATH = Path("tools/impact_validate.py").resolve()
 
@@ -222,6 +224,33 @@ def test_analyze_paths_includes_indirect_docs_evidence_consumers() -> None:
         "test/test_kpi_evidence_bundle.py",
         "test/test_production_readiness_report.py",
     }
+    assert expected_tests <= set(report.guessed_tests)
+    targeted = next(action for action in report.required_validations if action.key == "targeted-pytest")
+    for test_path in expected_tests:
+        assert test_path in targeted.commands[0]
+
+
+@pytest.mark.parametrize(
+    "paths",
+    [
+        ("src/agilab/dag/dag_artifact_contracts.py",),
+        ("src/agilab/dag/dag_execution_adapters.py",),
+        ("src/agilab/global_pipeline/global_pipeline_app_dispatch_smoke.py",),
+        (
+            "src/agilab/dag/dag_artifact_contracts.py",
+            "src/agilab/dag/dag_execution_adapters.py",
+            "src/agilab/global_pipeline/global_pipeline_app_dispatch_smoke.py",
+        ),
+    ],
+)
+def test_analyze_paths_includes_dag_artifact_pipeline_consumer(paths: tuple[str, ...]) -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(list(paths), use_cache=False)
+
+    expected_tests = {"test/test_pipeline_lab.py"}
+    if "src/agilab/dag/dag_artifact_contracts.py" in paths:
+        expected_tests.add("test/test_dag_artifact_execution_contracts.py")
     assert expected_tests <= set(report.guessed_tests)
     targeted = next(action for action in report.required_validations if action.key == "targeted-pytest")
     for test_path in expected_tests:
