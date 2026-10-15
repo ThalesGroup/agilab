@@ -2,7 +2,7 @@
   "file_count": 292,
   "format_version": 3,
   "managed_target": "docs/source",
-  "public_owned_digest_sha256": "68278cf256aa9b07a79566a5bb95df8a37de723860f6ec98c402dfac5f63c271",
+  "public_owned_digest_sha256": "28909b7007d1b30eb4dc3c375fe19dbe626d3ed7ac14c60b071d106e52c6f3af",
   "public_owned_exclusions": [
     "data/release_proof.toml",
     "data/ui_robot_evidence.json",
@@ -10,9 +10,9 @@
   ],
   "public_owned_file_count": 3,
   "public_owned_files_sha256": {
-    "data/release_proof.toml": "ed7d65d200f71e28f0ed51b26df9f2433fd25fd62f6538f5f66709291b8417d1",
+    "data/release_proof.toml": "205f4efa06a10e4522ee5131dbd5d2578a4b80693e8aa86d2327a2ada66695d1",
     "data/ui_robot_evidence.json": "18c47a02a0122f6de1dbcffbdee31b6ed4eb53223d0dcb44b9a64bdc07e0dbac",
-    "release-proof.rst": "29a711f1d505c8e0815dafeeabf9b22484fef84397c28f5cc515fb842a11cc0f"
+    "release-proof.rst": "38a2e4eae50f2f5b9f342f56f574bfd973c94f19e34ac908547f5ca9d580a3b1"
   },
   "source_digest_sha256": null,
   "source_hint": "docs/source",
