@@ -45,6 +45,38 @@ untrusted notebooks.
 Import, recovery and reviewed source edits
 ------------------------------------------
 
+In **PROJECT**, choose **From notebook** when creating a project; in
+**WORKFLOW**, open **Notebook** and upload the notebook. Review the runtime
+roles, then select **Preserve notebook state** to compile the selected runnable
+cells into one stage. Variables, aliases, mutations and function globals remain
+in the same Python namespace when that stage runs, in original cell order.
+The option is off by default, keeping the existing cell-by-cell editing mode
+available.
+
+State preservation requires one reviewed runtime and environment for the
+selected cells. Incompatible choices block import before files are written or
+a project is cloned; choose consistent runtimes or define explicit artifact
+boundaries before splitting the work. A selected cell still needs its inputs;
+the option does not restore omitted cells or a previous Jupyter kernel.
+AGILAB supervisor exports keep their authored workflow graph in either mode.
+For an ordinary notebook, reimporting cells already present in a shared stage
+requires explicitly removing their earlier notebook stages first. Overlapping imports involving a shared stage are
+blocked so the workflow cannot silently retain both copies; unrelated stages
+remain intact.
+
+Import only prepares the workflow: it does not execute notebook code, install
+packages or prove result correctness. Supply the required files and dependencies
+before running it through the normal workflow controls. Compiled stages retain
+the original cell sources and their hashes in ``lab_stages.toml``.
+
+.. figure:: _static/native-ui/agilab_notebook_import_preserve_state_20261015.png
+   :alt: Notebook import review with Preserve notebook state selected
+   :width: 100%
+
+   State preservation selected in the native notebook import review.
+   This deterministic local fixture demonstrates import controls, without a live
+   provider call. Import itself does not run the notebook.
+
 The WORKFLOW notebook upload path preserves a complete, hash-verified source
 document in ``notebook_import_contract.json``. The original source remains
 recoverable without executing it. Cell IDs, ordering, raw and empty cells,
