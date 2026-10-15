@@ -73,8 +73,8 @@ for key, default in (
     ("thresholds_json", str(current_payload.get("thresholds_json") or "")),
     ("baseline_rows", int(current_payload.get("baseline_rows", 240) or 240)),
     ("candidate_rows", int(current_payload.get("candidate_rows", 220) or 220)),
-    ("drift_strength", float(current_payload.get("drift_strength", 0.35) or 0.35)),
-    ("seed", int(current_payload.get("seed", 2026) or 2026)),
+    ("drift_strength", float(current_payload["drift_strength"])),
+    ("seed", int(current_payload["seed"])),
     ("include_quality_issues", bool(current_payload.get("include_quality_issues", False))),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):

@@ -657,3 +657,144 @@ def test_r_runtime_bridge_form_reports_actionable_x_parse_error(tmp_path: Path) 
     assert any("Invalid R Runtime Bridge parameters" in str(item.value) for item in at.error)
     markdown_text = "\n".join(str(item.value) for item in at.markdown)
     assert "comma-separated list of numbers" in markdown_text
+
+
+@pytest.mark.parametrize(
+    ("app_name", "zero_field", "seed_field", "edit_field", "edit_value"),
+    [
+        pytest.param(
+            "mission_decision_project",
+            "latency_weight",
+            "random_seed",
+            "nfile",
+            2,
+            id="mission-latency",
+        ),
+        pytest.param(
+            "mission_decision_project",
+            "cost_weight",
+            "random_seed",
+            "nfile",
+            2,
+            id="mission-cost",
+        ),
+        pytest.param(
+            "mission_decision_project",
+            "reliability_weight",
+            "random_seed",
+            "nfile",
+            2,
+            id="mission-reliability",
+        ),
+        pytest.param(
+            "mission_decision_project",
+            "risk_weight",
+            "random_seed",
+            "nfile",
+            2,
+            id="mission-risk",
+        ),
+        pytest.param(
+            "data_quality_gate_project",
+            "drift_strength",
+            "seed",
+            "baseline_rows",
+            250,
+            id="data-quality-drift",
+        ),
+    ],
+)
+def test_mission_and_data_quality_forms_preserve_saved_zeros_through_drafts_and_reload(
+    app_name: str,
+    zero_field: str,
+    seed_field: str,
+    edit_field: str,
+    edit_value: int,
+    tmp_path: Path,
+) -> None:
+    form_path = (
+        REPO_ROOT / "src/agilab/apps/builtin" / app_name / "src/app_args_form.py"
+    )
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    # Keep the other mission weights at their positive defaults: all-zero weights are invalid.
+    input_settings = (
+        'data_in = "inputs"\n' if app_name == "mission_decision_project" else ""
+    )
+    settings_file.write_text(
+        f'[args]\n{input_settings}data_out = "custom-results"\n'
+        f"{zero_field} = 0.0\n{seed_field} = 0\nreset_target = false\n",
+        encoding="utf-8",
+    )
+    env = _make_strict_builtin_env(form_path, settings_file, tmp_path)
+    (env.share_root / "inputs").mkdir(parents=True)
+    (env.share_root / "inputs/scenario.json").write_text("{}", encoding="utf-8")
+    _clear_form_package_modules(form_path)
+
+    def fresh_form():
+        form = AppTest.from_file(str(form_path), default_timeout=30)
+        form.session_state["env"] = env
+        form.session_state["_env"] = env
+        form.session_state["app_settings"] = {"args": {}, "cluster": {}}
+        return form
+
+    def assert_zero_parameters(form):
+        assert not form.exception
+        widgets = (
+            form.slider
+            if app_name == "data_quality_gate_project"
+            else form.number_input
+        )
+        assert widgets(key=f"{app_name}:app_args_form:{zero_field}").value == 0.0
+        assert (
+            form.number_input(key=f"{app_name}:app_args_form:{seed_field}").value == 0
+        )
+        assert (
+            form.checkbox(key=f"{app_name}:app_args_form:reset_target").value is False
+        )
+
+    at = fresh_form()
+    settings_before = settings_file.read_bytes()
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+
+    at.number_input(key=f"{app_name}:app_args_form:{edit_field}").set_value(edit_value)
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("../outside")
+    at.run()
+    assert_zero_parameters(at)
+    assert at.error
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert (
+        at.number_input(key=f"{app_name}:app_args_form:{edit_field}").value
+        == edit_value
+    )
+    assert at.text_input(key=f"{app_name}:app_args_form:data_out").value == "../outside"
+    assert settings_file.read_bytes() == settings_before
+
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("custom-results")
+    at.run()
+    assert_zero_parameters(at)
+    assert any("Saved to" in str(item.value) for item in at.success)
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))["args"]
+    assert persisted[zero_field] == 0.0
+    assert persisted[seed_field] == 0
+    assert persisted[edit_field] == edit_value
+    assert persisted["reset_target"] is False
+    assert persisted["data_out"] == "custom-results"
+
+    reloaded = fresh_form()
+    reloaded.run()
+    assert_zero_parameters(reloaded)
+    assert (
+        reloaded.number_input(key=f"{app_name}:app_args_form:{edit_field}").value
+        == edit_value
+    )
+    assert (
+        reloaded.text_input(key=f"{app_name}:app_args_form:data_out").value
+        == "custom-results"
+    )
