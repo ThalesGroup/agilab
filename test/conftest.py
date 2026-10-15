@@ -108,6 +108,7 @@ def isolate_home_for_root_tests(tmp_path, monkeypatch):
     monkeypatch.setenv("HOMEPATH", str(fake_home)[len(fake_home.drive):] if fake_home.drive else str(fake_home))
     monkeypatch.setenv("LOCALAPPDATA", str(fake_localappdata))
     monkeypatch.setenv("APPDATA", str(fake_roaming_appdata))
+    monkeypatch.delenv("AGILAB_RESOURCES_DIR", raising=False)
     monkeypatch.delenv("AGI_CLUSTER_ENABLED", raising=False)
     monkeypatch.setenv("AGI_CLUSTER_SHARE", "")
     monkeypatch.setenv("AGI_LOCAL_SHARE", "")
