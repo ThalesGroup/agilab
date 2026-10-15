@@ -61,11 +61,11 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
   request a review from a stronger model before closing, pushing, or merging
   when that is available. If no stronger model is available, say so explicitly
   and still run the normal local review and validation path.
-- When a source Streamlit UI is running, do not run plain repo-level `uv run`
-  validation commands against the same `.venv`. Use `./dev`, which isolates uv
-  subprocesses in `.venv-dev`, or pass an explicit ignored
-  `UV_PROJECT_ENVIRONMENT` so validation cannot strip Streamlit static assets
-  from the live UI environment.
+- Isolate validation from a running source UI with `./dev` (`.venv-dev`) or an ignored
+  `UV_PROJECT_ENVIRONMENT`; plain `uv run` must not strip its live `.venv` dependencies or static assets.
+- Use `--no-sync` only for prepared environments. Unset inherited `UV_NO_SYNC`
+  before profiles provision fresh app/worker environments so official child commands
+  synchronize dependencies; diagnose setup before changing product code for missing distributions.
 - When a shared Streamlit helper needs to remember that a page has been
   configured, store that marker in `st.session_state`, not on the imported
   `streamlit` module. Module attributes are process-global and can leak layout
