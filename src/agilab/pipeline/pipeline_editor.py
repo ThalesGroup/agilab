@@ -109,6 +109,15 @@ build_lab_stages_preview = _notebook_pipeline_import_module.build_lab_stages_pre
 build_notebook_import_contract = _notebook_pipeline_import_module.build_notebook_import_contract
 build_notebook_import_preflight = _notebook_pipeline_import_module.build_notebook_import_preflight
 build_notebook_pipeline_import = _notebook_pipeline_import_module.build_notebook_pipeline_import
+build_notebook_setup_conversion = (
+    _notebook_pipeline_import_module.build_notebook_setup_conversion
+)
+build_notebook_source_export = (
+    _notebook_pipeline_import_module.build_notebook_source_export
+)
+build_notebook_before_setup_conversion_export = (
+    _notebook_pipeline_import_module.build_notebook_before_setup_conversion_export
+)
 discover_notebook_import_view_manifest = _notebook_pipeline_import_module.discover_notebook_import_view_manifest
 apply_notebook_runtime_roles = _notebook_pipeline_import_module.apply_notebook_runtime_roles
 normalize_notebook_runtime_role = _notebook_pipeline_import_module.normalize_notebook_runtime_role
@@ -505,6 +514,224 @@ def prepare_notebook_import_preview(
             f"{exc}"
         ) from exc
     return prepared
+
+
+def _notebook_setup_original_preview(preview: Dict[str, Any]) -> Dict[str, Any]:
+    original = preview.get("setup_original_preview")
+    return original if isinstance(original, dict) else preview
+
+
+def notebook_setup_review_signature(
+    preview: Dict[str, Any],
+    *,
+    setup_cell_ids: Iterable[str] | None = None,
+    target_path: str | Path | None = None,
+) -> str:
+    """Bind explicit setup choices to the preserved document and destination."""
+    original = _notebook_setup_original_preview(preview)
+    imported = original.get("notebook_import", {})
+    document = build_notebook_source_export(imported)
+    identity = {
+        "notebook": document,
+        "source_signature": original.get("source_signature", ""),
+        "module": original.get("module", ""),
+        "target": str(Path(target_path).expanduser().absolute())
+        if target_path is not None
+        else "",
+        "setup_cell_ids": sorted(set(setup_cell_ids or ())),
+    }
+    return hashlib.sha256(
+        json.dumps(identity, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+
+def prepare_notebook_setup_preview(
+    preview: Dict[str, Any],
+    *,
+    setup_cell_ids: Iterable[str] | None = None,
+    target_path: str | Path | None = None,
+) -> Dict[str, Any]:
+    """Rebuild an explicit conversion from the original preview, without side effects."""
+    original = _notebook_setup_original_preview(preview)
+    selected = sorted(set(setup_cell_ids or ()))
+    original_import = original.get("notebook_import", {})
+    if isinstance(original_import, Mapping) and original_import.get(
+        "notebook_document"
+    ):
+        # Previously converted uploads must retain a valid original snapshot,
+        # including when this review selects no additional conversion.
+        build_notebook_before_setup_conversion_export(original_import)
+    if not selected:
+        return original
+    document = build_notebook_source_export(original_import)
+    converted = build_notebook_setup_conversion(original_import, cell_ids=selected)
+    imported = build_notebook_pipeline_import(
+        notebook=converted,
+        source_notebook=str(original.get("source_name", "") or "uploaded.ipynb"),
+    )
+    preflight = build_notebook_import_preflight(imported)
+    module = str(original.get("module", "") or "notebook_import_project")
+    reviewed = dict(original)
+    signature = notebook_setup_review_signature(
+        original, setup_cell_ids=selected, target_path=target_path
+    )
+    source_before = {
+        str(cell.get("id", "") or f"cell-{index}"): cell
+        for index, cell in enumerate(document.get("cells", []), start=1)
+        if isinstance(cell, dict)
+    }
+    source_after = {
+        str(cell.get("id", "") or f"cell-{index}"): cell
+        for index, cell in enumerate(converted.get("cells", []), start=1)
+        if isinstance(cell, dict)
+    }
+    diffs = []
+    for cell_id in selected:
+        before = source_before[cell_id].get("source", [])
+        after = source_after[cell_id].get("source", [])
+        before = before if isinstance(before, str) else "".join(before)
+        after = after if isinstance(after, str) else "".join(after)
+        diffs.extend(
+            line + "\n"
+            for line in difflib.unified_diff(
+                before.splitlines(),
+                after.splitlines(),
+                fromfile=f"{cell_id} before setup conversion",
+                tofile=f"{cell_id} reviewed source",
+                lineterm="",
+            )
+        )
+    reviewed.update(
+        {
+            "notebook_import": imported,
+            "preflight": preflight,
+            "cell_count": int(
+                imported.get("summary", {}).get("pipeline_stage_count", 0) or 0
+            ),
+            "toml_content": build_lab_stages_preview(imported, module_name=module),
+            "contract": build_notebook_import_contract(
+                imported, preflight=preflight, module_name=module
+            ),
+            "setup_original_preview": copy.deepcopy(original),
+            "setup_cell_ids": selected,
+            "setup_source_diff": "".join(diffs),
+            "setup_requirements": list(imported.get("declared_requirements", [])),
+            "setup_review_signature": signature,
+            "source_signature": signature,
+        }
+    )
+    return reviewed
+
+
+def render_notebook_setup_review(
+    target: Any,
+    preview: Dict[str, Any],
+    index_page: str,
+    target_path: str | Path,
+) -> tuple[Dict[str, Any], list[str], str]:
+    """Offer only explicit supported setup edits before the ordinary import gate."""
+    original = _notebook_setup_original_preview(preview)
+    imported = original.get("notebook_import", {})
+    if not isinstance(imported, dict) or not imported.get("notebook_document"):
+        return original, [], ""
+    options = {}
+    try:
+        document = build_notebook_source_export(imported)
+        before_setup = build_notebook_before_setup_conversion_export(imported)
+        for index, cell in enumerate(document.get("cells", []), start=1):
+            if not isinstance(cell, dict) or cell.get("cell_type") != "code":
+                continue
+            source = cell.get("source", [])
+            source = source if isinstance(source, str) else "".join(source)
+            # Only candidate discovery; the existing converter owns acceptance.
+            if not any(
+                re.match(r"^[!%]pip\s+install\s+|^%matplotlib\s+", line.strip())
+                for line in source.splitlines()
+            ):
+                continue
+            cell_id = str(cell.get("id", "") or f"cell-{index}")
+            try:
+                build_notebook_setup_conversion(imported, cell_ids=[cell_id])
+            except (TypeError, ValueError):
+                continue
+            first_line = next(
+                (line.strip() for line in source.splitlines() if line.strip()), "setup"
+            )
+            options[cell_id] = f"Cell {index} ({cell_id}): {first_line[:100]}"
+        if not options and before_setup is None:
+            return original, [], ""
+        expander = getattr(target, "expander", None)
+        if callable(expander):
+            target = expander("Notebook setup review", expanded=True)
+        scope = notebook_setup_review_signature(original, target_path=target_path)
+        selection_key = f"{index_page}__notebook_setup_cells_{scope[:24]}"
+        original["setup_selection_widget_key"] = selection_key
+        multiselect = getattr(target, "multiselect", None)
+        selected = (
+            list(
+                multiselect(
+                    "Setup cells to convert",
+                    list(options),
+                    default=[],
+                    format_func=options.get,
+                    key=selection_key,
+                    help=(
+                        "Explicitly replace supported pip setup with declared requirements, or inline "
+                        "plot setup with a batch backend. No packages are installed and no notebook code runs."
+                    ),
+                )
+            )
+            if options and callable(multiselect)
+            else []
+        )
+        reviewed = prepare_notebook_setup_preview(
+            original, setup_cell_ids=selected, target_path=target_path
+        )
+        reviewed = dict(reviewed)
+        reviewed["setup_original_preview"] = original
+        reviewed["setup_review_signature"] = notebook_setup_review_signature(
+            original, setup_cell_ids=selected, target_path=target_path
+        )
+        reviewed["source_signature"] = reviewed["setup_review_signature"]
+        if selected:
+            target.caption(
+                "Review these source edits before importing. Requirements are declarations only; "
+                "they are not installed. Review and add them to the project environment before execution."
+            )
+            target.caption(
+                "Declared requirements: "
+                + (", ".join(reviewed["setup_requirements"]) or "none")
+            )
+            code = getattr(target, "code", None)
+            if callable(code):
+                code(reviewed["setup_source_diff"], language="diff")
+            else:
+                target.caption(reviewed["setup_source_diff"])
+            before_setup = build_notebook_before_setup_conversion_export(
+                reviewed["notebook_import"]
+            )
+        if before_setup is not None:
+            download = getattr(target, "download_button", None)
+            if callable(download):
+                download(
+                    "Download notebook before setup conversion",
+                    data=json.dumps(before_setup, ensure_ascii=False, indent=2) + "\n",
+                    file_name=f"{Path(str(original.get('source_name', 'notebook.ipynb'))).stem}_before_setup_conversion.ipynb",
+                    mime="application/x-ipynb+json",
+                    key=f"{index_page}__notebook_before_setup_{scope[:24]}",
+                )
+            target.caption(
+                "The import contract preserves the complete notebook document before setup "
+                "conversion. Its JSON content is preserved; source recovery otherwise exports "
+                "the reviewed notebook."
+            )
+        return reviewed, selected, ""
+    except (TypeError, ValueError, KeyError) as exc:
+        detail = f"Notebook setup review is blocked: {exc}"
+        error = getattr(target, "error", None)
+        if callable(error):
+            error(detail)
+        return original, [], detail
 
 
 def notebook_import_preserve_state_key(
@@ -2136,6 +2363,7 @@ def on_preview_notebook_import(
     """Build a notebook import preview from the sidebar uploader without writing files."""
     uploaded_file = st.session_state.get(key)
     preview_key = _notebook_import_preview_key(index_page)
+    cancel_notebook_import_preview(index_page)
     if not uploaded_file:
         st.session_state.pop(preview_key, None)
         _emit_streamlit_message("error", "No notebook file was uploaded.")
@@ -2177,6 +2405,8 @@ def confirm_notebook_import_preview(
     selected_stage_ids: Iterable[str] | None = None,
     runtime_roles: Mapping[str, Any] | None = None,
     preserve_notebook_state: bool | None = None,
+    setup_cell_ids: Iterable[str] | None = None,
+    setup_review_signature: str | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -2184,7 +2414,21 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
+    setup_cell_ids = tuple(setup_cell_ids or ())
     try:
+        if (
+            setup_review_signature is not None
+            and setup_review_signature
+            != notebook_setup_review_signature(
+                preview, setup_cell_ids=setup_cell_ids, target_path=stages_file
+            )
+        ):
+            raise ValueError(
+                "Notebook setup choices, source or destination changed; review the notebook again."
+            )
+        preview = prepare_notebook_setup_preview(
+            preview, setup_cell_ids=setup_cell_ids, target_path=stages_file
+        )
         preview_with_roles = _notebook_import_preview_with_runtime_roles(
             preview, runtime_roles
         )
@@ -2246,14 +2490,18 @@ def confirm_notebook_import_preview(
     if index_page in st.session_state and isinstance(st.session_state[index_page], list):
         st.session_state[index_page][-1] = cell_count
     st.session_state.page_broken = True
-    st.session_state.pop(preview_key, None)
+    cancel_notebook_import_preview(index_page)
     _bump_history_revision()
     return cell_count
 
 
 def cancel_notebook_import_preview(index_page: str) -> None:
     """Discard the current notebook import preview."""
-    st.session_state.pop(_notebook_import_preview_key(index_page), None)
+    preview = st.session_state.pop(_notebook_import_preview_key(index_page), None)
+    if isinstance(preview, dict):
+        selection_key = preview.get("setup_selection_widget_key")
+        if isinstance(selection_key, str):
+            st.session_state.pop(selection_key, None)
 
 
 def render_notebook_import_preview(
@@ -2269,10 +2517,14 @@ def render_notebook_import_preview(
     preview = st.session_state.get(_notebook_import_preview_key(index_page))
     if not isinstance(preview, dict):
         return
+    original_preview = preview
+    target = container if container is not None else getattr(st, "sidebar", st)
+    preview, setup_cell_ids, setup_detail = render_notebook_setup_review(
+        target, original_preview, index_page, stages_file
+    )
     preflight = preview.get("preflight", {})
     summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
     risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
-    target = container if container is not None else getattr(st, "sidebar", st)
     caption = getattr(target, "caption", None)
     if callable(caption):
         caption(
@@ -2293,7 +2545,9 @@ def render_notebook_import_preview(
     preview_to_write: Dict[str, Any] | None = None
     role_detail = ""
     plan_detail = ""
-    preserve_notebook_state = False
+    preserve_notebook_state = bool(
+        original_preview.get("preserve_notebook_state", False)
+    )
     if _notebook_import_preview_is_safe(preview):
         runtime_roles = _render_notebook_import_runtime_role_controls(
             target,
@@ -2308,7 +2562,7 @@ def render_notebook_import_preview(
             selected_label = selectbox(
                 "Notebook import scope",
                 labels,
-                key=f"{index_page}__notebook_import_stage",
+                key=f"{index_page}__notebook_import_stage_{preview.get('source_signature', '')}",
                 help=(
                     "Choose one cell for a focused AGILAB stage, or keep all cells "
                     "for the full notebook import."
@@ -2345,8 +2599,13 @@ def render_notebook_import_preview(
                     ),
                 )
             )
-        preview["preserve_notebook_state"] = preserve_notebook_state
-        st.session_state[_notebook_import_preview_key(index_page)] = preview
+        if callable(checkbox) and preserve_notebook_state != bool(
+            original_preview.get("preserve_notebook_state", False)
+        ):
+            st.session_state[_notebook_import_preview_key(index_page)] = {
+                **original_preview,
+                "preserve_notebook_state": preserve_notebook_state,
+            }
         try:
             preview_to_write = prepare_notebook_import_preview(
                 preview,
@@ -2378,6 +2637,7 @@ def render_notebook_import_preview(
         and preview_to_write is not None
         and not role_detail
         and not plan_detail
+        and not setup_detail
     )
     confirmed = False
     if _notebook_import_preview_is_safe(preview):
@@ -2398,6 +2658,8 @@ def render_notebook_import_preview(
             selected_stage_ids=selected_stage_ids,
             runtime_roles=runtime_roles,
             preserve_notebook_state=preserve_notebook_state,
+            setup_cell_ids=setup_cell_ids,
+            setup_review_signature=preview.get("setup_review_signature"),
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)

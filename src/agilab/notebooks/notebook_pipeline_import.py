@@ -1272,6 +1272,37 @@ def build_notebook_source_export(
     return exported
 
 
+def _notebook_before_setup_conversion_record(
+    previous: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    if "original_notebook_document" not in previous:
+        return None
+    record = previous["original_notebook_document"]
+    if (
+        not isinstance(record, Mapping)
+        or record.get("schema") != NOTEBOOK_DOCUMENT_SCHEMA
+        or not isinstance(record.get("notebook"), Mapping)
+        or _notebook_document_hash(record["notebook"]) != record.get("sha256")
+    ):
+        raise ValueError(
+            "The notebook before setup conversion has an invalid fingerprint; "
+            "recover that notebook before another conversion."
+        )
+    return copy.deepcopy(dict(record))
+
+
+def build_notebook_before_setup_conversion_export(
+    notebook_import: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Recover a validated complete document saved before the first setup conversion."""
+    reviewed = build_notebook_source_export(notebook_import)
+    previous = _agilab_export_payload(reviewed).get("setup_conversion", {})
+    if not isinstance(previous, Mapping):
+        raise ValueError("Existing setup conversion metadata must be an object.")
+    record = _notebook_before_setup_conversion_record(previous)
+    return record["notebook"] if record is not None else None
+
+
 def notebook_source_cell_edits_from_stages(
     notebook_import: Mapping[str, Any], stages: Iterable[Mapping[str, Any]],
 ) -> dict[str, str]:
@@ -1422,16 +1453,35 @@ def build_notebook_setup_conversion(
         or not isinstance(previous_ids, list) or not all(isinstance(value, str) for value in previous_ids)
     ):
         raise ValueError("Existing setup conversion declarations are invalid; review them before another conversion.")
+    original_record = _notebook_before_setup_conversion_record(previous)
+    if original_record is None:
+        original_record = {
+            "schema": NOTEBOOK_DOCUMENT_SCHEMA,
+            "sha256": _notebook_document_hash(original),
+            "notebook": original,
+        }
     cells_by_hash = {_notebook_document_hash(cell): copy.deepcopy(dict(cell)) for cell in [*previous_cells, *retained]}
     declaration = copy.deepcopy(dict(previous))
-    declaration.update({
-        "schema": "agilab.notebook_setup_conversion.v1", "requirements": list(dict.fromkeys([*previous_requirements, *requirements])),
-        "original_setup_cells": list(cells_by_hash.values()), "selected_cell_ids": sorted(set(previous_ids) | selected),
-        "installs_dependencies": False, "executes_notebook": False,
-        "next_action": "Review requirements and add them to the project environment before execution.",
-    })
+    declaration.update(
+        {
+            "schema": "agilab.notebook_setup_conversion.v1",
+            "requirements": list(
+                dict.fromkeys([*previous_requirements, *requirements])
+            ),
+            "original_setup_cells": list(cells_by_hash.values()),
+            "selected_cell_ids": sorted(set(previous_ids) | selected),
+            "original_notebook_document": copy.deepcopy(dict(original_record)),
+            "installs_dependencies": False,
+            "executes_notebook": False,
+            "next_action": "Review requirements and add them to the project environment before execution.",
+        }
+    )
     if previous:
-        declaration["upstream_conversion"] = copy.deepcopy(dict(previous))
+        upstream = copy.deepcopy(dict(previous))
+        if "original_notebook_document" in upstream:
+            upstream.pop("original_notebook_document")
+            upstream["original_notebook_document_sha256"] = original_record["sha256"]
+        declaration["upstream_conversion"] = upstream
     converted_notebook["metadata"]["agilab"]["setup_conversion"] = declaration
     return converted_notebook
 
