@@ -211,6 +211,77 @@ def test_builtin_app_args_form_renders_without_streamlit_exception(
     assert not at.exception
 
 
+@pytest.mark.parametrize("app_name", ["uav_queue_project", "uav_relay_queue_project"])
+def test_uav_form_preserves_saved_zero_parameters_through_reruns_and_reload(
+    app_name: str, tmp_path: Path
+) -> None:
+    form_path = REPO_ROOT / "src/agilab/apps/builtin" / app_name / "src/app_args_form.py"
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    settings_file.write_text(
+        '[args]\ndata_in = "inputs"\ndata_out = "custom-results"\n'
+        'queue_weight = 0.0\nrandom_seed = 0\nreset_target = false\n',
+        encoding="utf-8",
+    )
+    env = _make_strict_builtin_env(form_path, settings_file, tmp_path)
+    (env.share_root / "inputs").mkdir(parents=True)
+    (env.share_root / "inputs/scenario.json").write_text("{}", encoding="utf-8")
+    _clear_form_package_modules(form_path)
+
+    def fresh_form():
+        form = AppTest.from_file(str(form_path), default_timeout=30)
+        form.session_state["env"] = env
+        form.session_state["_env"] = env
+        form.session_state["app_settings"] = {"args": {}, "cluster": {}}
+        return form
+
+    def assert_zero_parameters(form):
+        assert not form.exception
+        assert form.number_input(key=f"{app_name}:app_args_form:queue_weight").value == 0.0
+        assert form.number_input(key=f"{app_name}:app_args_form:random_seed").value == 0
+        assert form.checkbox(key=f"{app_name}:app_args_form:reset_target").value is False
+
+    at = fresh_form()
+    settings_before = settings_file.read_bytes()
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+
+    # An invalid path keeps the edited fields as drafts instead of persisting them.
+    at.text_input(key=f"{app_name}:app_args_form:files").set_value("draft*.json")
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("../outside")
+    at.run()
+    assert_zero_parameters(at)
+    assert any("Invalid data_out path" in str(item.value) for item in at.error)
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert at.text_input(key=f"{app_name}:app_args_form:files").value == "draft*.json"
+    assert at.text_input(key=f"{app_name}:app_args_form:data_out").value == "../outside"
+    assert settings_file.read_bytes() == settings_before
+
+    # Repairing the path saves the form's valid draft, including both numeric zeros.
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("custom-results")
+    at.run()
+    assert_zero_parameters(at)
+    assert any("Saved to" in str(item.value) for item in at.success)
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))["args"]
+    assert persisted["queue_weight"] == 0.0
+    assert persisted["random_seed"] == 0
+    assert persisted["reset_target"] is False
+    assert persisted["files"] == "draft*.json"
+    assert persisted["data_in"] == "inputs"
+    assert persisted["data_out"] == "custom-results"
+
+    reloaded = fresh_form()
+    reloaded.run()
+    assert_zero_parameters(reloaded)
+    assert reloaded.text_input(key=f"{app_name}:app_args_form:files").value == "draft*.json"
+    assert reloaded.text_input(key=f"{app_name}:app_args_form:data_out").value == "custom-results"
+
+
 def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> None:
     form_path = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
     settings_file = tmp_path / "flight_telemetry_project" / "app_settings.toml"
