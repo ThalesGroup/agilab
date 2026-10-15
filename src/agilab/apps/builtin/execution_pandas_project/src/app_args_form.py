@@ -87,7 +87,7 @@ for key, default in (
     ("kernel_mode", str(current_payload.get("kernel_mode", "typed_numeric") or "typed_numeric")),
     ("pool_executor", str(current_payload.get("pool_executor", "auto") or "auto")),
     ("output_format", str(current_payload.get("output_format", "csv") or "csv")),
-    ("seed", int(current_payload.get("seed", 42) or 42)),
+    ("seed", int(current_payload["seed"])),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
     if _reseed or _k(key) not in st.session_state:

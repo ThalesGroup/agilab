@@ -58,7 +58,7 @@ for key, default in (
     ("data_in", str(current_payload.get("data_in", "minimal_app/dataset") or "minimal_app/dataset")),
     ("data_out", str(current_payload.get("data_out", "minimal_app/dataframe") or "minimal_app/dataframe")),
     ("files", str(current_payload.get("files", "*") or "*")),
-    ("nfile", int(current_payload.get("nfile", 1) or 1)),
+    ("nfile", int(current_payload["nfile"])),
     ("nskip", int(current_payload.get("nskip", 0) or 0)),
     ("nread", int(current_payload.get("nread", 0) or 0)),
     ("reset_target", bool(current_payload.get("reset_target", False))),

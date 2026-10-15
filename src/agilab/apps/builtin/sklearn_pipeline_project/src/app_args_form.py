@@ -65,7 +65,7 @@ for key, default in (
     ("sample_count", int(current_payload.get("sample_count", 240) or 240)),
     ("test_size", float(current_payload.get("test_size", 0.25) or 0.25)),
     ("regularization_c", float(current_payload.get("regularization_c", 1.0) or 1.0)),
-    ("seed", int(current_payload.get("seed", 2026) or 2026)),
+    ("seed", int(current_payload["seed"])),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
     if _reseed or _k(key) not in st.session_state:

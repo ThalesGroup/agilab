@@ -282,6 +282,171 @@ def test_uav_form_preserves_saved_zero_parameters_through_reruns_and_reload(
     assert reloaded.text_input(key=f"{app_name}:app_args_form:data_out").value == "custom-results"
 
 
+@pytest.mark.parametrize(
+    ("app_name", "zero_field", "zero_value", "edit_field", "edit_value"),
+    [
+        pytest.param(
+            "sklearn_pipeline_project",
+            "seed",
+            0,
+            "sample_count",
+            260,
+            id="sklearn-seed",
+        ),
+        pytest.param(
+            "weather_forecast_project",
+            "random_state",
+            0,
+            "nfile",
+            2,
+            id="weather-random-state",
+        ),
+        pytest.param(
+            "execution_polars_project", "seed", 0, "nfile", 2, id="polars-seed"
+        ),
+        pytest.param(
+            "execution_pandas_project", "seed", 0, "nfile", 2, id="pandas-seed"
+        ),
+        pytest.param(
+            "learning_assessment_project",
+            "minimum_evidence_confidence",
+            0.0,
+            "nfile",
+            2,
+            id="learning-evidence-confidence",
+        ),
+        pytest.param(
+            "learning_assessment_project",
+            "minimum_regression_coverage",
+            0.0,
+            "nfile",
+            2,
+            id="learning-regression-coverage",
+        ),
+        pytest.param(
+            "learning_assessment_project",
+            "ai_temperature",
+            0.0,
+            "nfile",
+            2,
+            id="learning-ai-temperature",
+        ),
+        pytest.param(
+            "flight_telemetry_project",
+            "sampling_rate",
+            0.0,
+            "nfile",
+            2,
+            id="flight-sampling-rate",
+        ),
+        pytest.param(
+            "minimal_app_project", "nfile", 0, "nskip", 1, id="minimal-all-files"
+        ),
+    ],
+)
+def test_builtin_forms_preserve_saved_zero_parameters_through_drafts_and_reload(
+    app_name: str,
+    zero_field: str,
+    zero_value: int | float,
+    edit_field: str,
+    edit_value: int,
+    tmp_path: Path,
+) -> None:
+    form_path = (
+        REPO_ROOT / "src/agilab/apps/builtin" / app_name / "src/app_args_form.py"
+    )
+    settings_file = _seed_settings_for_form(form_path, tmp_path)
+    input_settings = (
+        'data_in = "inputs"\n' if app_name != "sklearn_pipeline_project" else ""
+    )
+    if input_settings and zero_field != "nfile":
+        input_settings += "nfile = 1\n"
+    context_settings = (
+        'case_source = "standalone_ai"\nai_topic = "Zero temperature regression"\n'
+        if zero_field == "ai_temperature"
+        else ""
+    )
+    settings_file.write_text(
+        f'[args]\n{input_settings}{context_settings}data_out = "custom-results"\n'
+        f"{zero_field} = {zero_value}\nreset_target = false\n",
+        encoding="utf-8",
+    )
+    env = _make_strict_builtin_env(form_path, settings_file, tmp_path)
+    (env.share_root / "inputs").mkdir(parents=True)
+    if app_name == "learning_assessment_project":
+        (env.share_root / "inputs/sample.json").write_text("{}", encoding="utf-8")
+    else:
+        (env.share_root / "inputs/sample.csv").write_text(
+            "value\n1\n", encoding="utf-8"
+        )
+    _clear_form_package_modules(form_path)
+
+    def fresh_form():
+        form = AppTest.from_file(str(form_path), default_timeout=30)
+        form.session_state["env"] = env
+        form.session_state["_env"] = env
+        form.session_state["app_settings"] = {"args": {}, "cluster": {}}
+        return form
+
+    def assert_zero_parameters(form):
+        assert not form.exception
+        assert (
+            form.number_input(key=f"{app_name}:app_args_form:{zero_field}").value
+            == zero_value
+        )
+        assert (
+            form.checkbox(key=f"{app_name}:app_args_form:reset_target").value is False
+        )
+
+    at = fresh_form()
+    settings_before = settings_file.read_bytes()
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert settings_file.read_bytes() == settings_before
+
+    at.number_input(key=f"{app_name}:app_args_form:{edit_field}").set_value(edit_value)
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("../outside")
+    at.run()
+    assert_zero_parameters(at)
+    assert at.error
+    assert settings_file.read_bytes() == settings_before
+    at.run()
+    assert_zero_parameters(at)
+    assert (
+        at.number_input(key=f"{app_name}:app_args_form:{edit_field}").value
+        == edit_value
+    )
+    assert at.text_input(key=f"{app_name}:app_args_form:data_out").value == "../outside"
+    assert settings_file.read_bytes() == settings_before
+
+    at.text_input(key=f"{app_name}:app_args_form:data_out").set_value("custom-results")
+    at.run()
+    assert_zero_parameters(at)
+    assert any("Saved to" in str(item.value) for item in at.success)
+    persisted = tomllib.loads(settings_file.read_text(encoding="utf-8"))["args"]
+    assert persisted[zero_field] == zero_value
+    assert persisted[edit_field] == edit_value
+    assert persisted["reset_target"] is False
+    assert persisted["data_out"] == "custom-results"
+
+    settings_after_save = settings_file.read_bytes()
+    reloaded = fresh_form()
+    reloaded.run()
+    assert_zero_parameters(reloaded)
+    assert (
+        reloaded.number_input(key=f"{app_name}:app_args_form:{edit_field}").value
+        == edit_value
+    )
+    assert (
+        reloaded.text_input(key=f"{app_name}:app_args_form:data_out").value
+        == "custom-results"
+    )
+    assert settings_file.read_bytes() == settings_after_save
+
+
 def test_flight_app_args_form_repairs_foreign_workspace_args(tmp_path: Path) -> None:
     form_path = REPO_ROOT / "src/agilab/apps/builtin/flight_telemetry_project/src/app_args_form.py"
     settings_file = tmp_path / "flight_telemetry_project" / "app_settings.toml"
