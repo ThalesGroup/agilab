@@ -486,11 +486,15 @@ def test_distributed_output_resolves_inside_the_authored_data_out_root(tmp_path)
 
 
 def test_distributed_summary_artifact_cannot_be_a_directory(tmp_path):
-    (tmp_path / "run/summary.json").mkdir(parents=True)
+    path = tmp_path / "run/summary.json"
+    path.mkdir(parents=True)
     with pytest.raises(RuntimeError, match="did not produce declared artifact"):
         _distributed_run(
             tmp_path,
-            runner=lambda **kwargs: {},
+            runner=lambda **kwargs: {
+                "produced_artifacts": [{"artifact": "metrics", "path": str(path)}]
+            },
+            data_out="summaries",
             artifact={
                 "artifact": "metrics",
                 "kind": "summary_metrics",
@@ -791,7 +795,7 @@ def test_distributed_noop_cannot_publish_an_older_output_for_a_new_token(
         if explicit_report
         else {}
     )
-    with pytest.raises(RuntimeError, match="freshly produce.*dataset"):
+    with pytest.raises(RuntimeError, match="did not produce declared artifact `dataset`"):
         _distributed_run(
             tmp_path,
             runner=lambda **kwargs: result,
@@ -919,7 +923,7 @@ def test_submission_receipt_write_cannot_make_an_old_dataset_directory_fresh(tmp
     run_root = tmp_path / "run"
     run_root.mkdir()
     (run_root / "old-data.csv").write_text("previous data")
-    with pytest.raises(RuntimeError, match="freshly produce.*dataset"):
+    with pytest.raises(RuntimeError, match="did not produce declared artifact `dataset`"):
         _distributed_run(
             tmp_path,
             runner=lambda **kwargs: {},
@@ -1339,7 +1343,7 @@ def test_nested_cached_transport_cannot_validate_modified_scientific_output(
     )
     path.write_bytes(b"value,2\n")
     # Transport-cache completion is not a fresh scientific execution.
-    with pytest.raises(RuntimeError, match="freshly produce.*dataset"):
+    with pytest.raises(RuntimeError, match="did not produce declared artifact `dataset`"):
         _distributed_run(
             tmp_path, runner=submitter.run_agilab_stage_subprocess, token=token
         )
