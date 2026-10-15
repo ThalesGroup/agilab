@@ -29,7 +29,7 @@ documentation changes do not imply another package release.
 | --- | --- | --- |
 | [P0 release integrity](https://github.com/ThalesGroup/agilab/issues/560) | Published release and explicit release-proof/approval contracts | Keep each subsequent release, package scope, coverage and hosted proof aligned |
 | [P1 first-run UX](https://github.com/ThalesGroup/agilab/issues/561) | Native React entry points and local first-proof route | Qualify newcomer flows and responsiveness on smaller Linux machines |
-| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution, the 1,000-row GUI-to-notebook macOS round trip and interactive Jupyter map/curve rendering from public packages | A real deployed-worker export/run/reimport scenario, smaller Linux machines, additional apps and larger inputs |
+| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution, the 1,000-row GUI-to-notebook macOS round trip and interactive Jupyter map/curve rendering from public packages | Published-package qualification of deployed-worker notebook runs, smaller Linux machines, additional apps and larger inputs |
 | [P3 security](https://github.com/ThalesGroup/agilab/issues/563) | Documented boundaries and supply-chain/release guardrails | Environment-specific shared-deployment and dependency qualification |
 | [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing cluster controls and dynamic `agi-core` worker-loading guards | Real platform, degraded-network and team-operation qualification |
 | [Pinned private apps](https://github.com/ThalesGroup/agilab/issues/565) | Pinned validation contracts and scoped private app checks | Broader scientific workload qualification without publishing private source |
@@ -183,6 +183,11 @@ Done means:
   without reading source code, finding hidden files, or guessing page actions
 
 ### P2. Notebook interop and no-lock-in
+
+Resource-isolated source qualification is tracked in
+[PR #1164](https://github.com/ThalesGroup/agilab/pull/1164). Its real worker,
+browser export, fresh-kernel and reimport checkpoints are recorded separately
+from published-package evidence.
 
 Goal:
 
@@ -1168,7 +1173,12 @@ Current shipped baseline:
   `queue_baseline` and `relay_followup` through the real checked-in
   `uav_queue_project` and `uav_relay_queue_project` manager/worker entries,
   writes the actual `queue_metrics`, `relay_metrics`, and reducer artifacts,
-  and persists them in dispatch-state JSON
+  and persists them in dispatch-state JSON. The source changes in
+  [PR #1164](https://github.com/ThalesGroup/agilab/pull/1164) add captured scenario
+  copies and consumed-byte hashes. A source that differs or is missing when
+  validated fails the run; cached results require a valid matching scenario hash,
+  including when an older receipt is replayed. Published-package qualification
+  of these snapshot guarantees remains open.
 - `tools/global_pipeline_operator_state_report.py --compact` reads that
   persisted full-DAG dispatch state and exposes completed unit state,
   queue-to-relay handoffs, available artifacts, and retry/partial-rerun action

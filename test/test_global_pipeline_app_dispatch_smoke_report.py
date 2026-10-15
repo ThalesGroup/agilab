@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -286,11 +288,18 @@ def test_app_entrypoint_reuses_completed_token_without_repeating_callback(
 ) -> None:
     module = _load_core_module()
     callback_count = 0
+    source = tmp_path / "run" / "scenario.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("{}", encoding="utf-8")
 
     def _run_once(**_kwargs):
         nonlocal callback_count
         callback_count += 1
-        return {"summary_metrics": {"stage_completed": 1}}
+        return {
+            "summary_metrics": {"stage_completed": 1},
+            "source_scenario": str(source),
+            "source_scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        }
 
     monkeypatch.setattr(module, "_run_queue_family_app_once", _run_once)
     kwargs = {
@@ -685,6 +694,295 @@ def test_queue_same_token_rejects_changed_inputs_without_repeating_worker(
     assert calls == ["uav_queue_worker"]
 
 
+@pytest.fixture
+def scenario_cache_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    implementation_path = CORE_PATH.parent / "global_pipeline" / CORE_PATH.name
+    spec = importlib.util.spec_from_file_location(
+        "scenario_cache_app_dispatch_smoke_test_module", implementation_path
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    assert Path(module.__file__).resolve() == implementation_path
+    run_root = tmp_path / "run"
+    source = run_root / "share/input/scenario.json"
+    source.parent.mkdir(parents=True)
+    original = b'{"version":1}'
+    source.write_bytes(original)
+    case = module.SimpleNamespace(
+        module=module, source=source, original=original, trace=[], consumed=[],
+        executed_paths=[], hooks={}, phase="", mutate=None,
+    )
+    args = module.SimpleNamespace(
+        data_in=source.parent, data_out=run_root / "share/results", files="*.json"
+    )
+    args.model_dump = lambda **_kwargs: {
+        "data_in": str(args.data_in), "data_out": str(args.data_out)
+    }
+
+    def mutate_at(phase):
+        if phase in case.hooks:
+            case.hooks[phase]()
+        if case.phase == phase and case.mutate is not None:
+            case.mutate()
+
+    class FakeManager:
+        def __init__(self, _env, *, args):
+            self.args = args
+
+    class FakeWorker:
+        def start(self):
+            case.trace.append("start")
+            assert Path(self.args["data_in"]) == source.parent
+            assert Path(self.args["data_out"]) == args.data_out
+            self.data_out = args.data_out
+            mutate_at("start")
+
+        def work_pool(self, path):
+            case.trace.append("pool")
+            case.executed_paths.append(Path(path))
+            case.consumed.append(Path(path).read_bytes())
+            mutate_at("pool")
+            return {"summary_metrics": {"artifact_stem": "fixture"}}
+
+        def work_done(self, result):
+            case.trace.append("done")
+            output = self.env.AGILAB_EXPORT_ABS / self.env.target / "queue_analysis/fixture"
+            output.mkdir(parents=True)
+            (output / "fixture_summary_metrics.json").write_text(
+                json.dumps(result["summary_metrics"]), encoding="utf-8"
+            )
+            (output / "reduce_summary_worker_0.json").write_text("{}", encoding="utf-8")
+            mutate_at("done")
+
+    def load_worker(_env, mode, **_kwargs):
+        assert mode == 0
+        case.trace.append("load")
+        return FakeWorker
+
+    monkeypatch.setattr(module, "_ensure_app_project_on_path", lambda *_args: None)
+    monkeypatch.setattr(module, "_drop_app_module_cache", lambda *_args: None)
+    monkeypatch.setattr(module, "_queue_family_args", lambda *_args, **_kwargs: args)
+    monkeypatch.setattr(module.importlib, "import_module", lambda _name: module.SimpleNamespace(
+        FixtureManager=FakeManager, FixtureArgs=object,
+    ))
+    monkeypatch.setattr(runtime_support, "load_worker", load_worker)
+
+    def run():
+        return module._run_queue_family_app(
+            repo_root=tmp_path, run_root=run_root, project_name="fixture_project",
+            manager_package="fixture", worker_package="fixture_worker",
+            manager_class_name="FixtureManager", args_class_name="FixtureArgs",
+            worker_class_name="FixtureWorker", target="fixture", app_entry="fixture",
+            idempotency_token="scenario-fixture", execution_contract={},
+        )
+
+    def ledger_path():
+        paths = sorted((run_root / ".agilab-idempotency").glob("*.json"))
+        assert len(paths) == 1
+        return paths[0]
+
+    def ledger():
+        return json.loads(ledger_path().read_text(encoding="utf-8"))
+
+    case.run = run
+    case.ledger = ledger
+    case.ledger_path = ledger_path
+    return case
+
+
+@pytest.mark.parametrize("phase", ["start", "pool", "done"])
+@pytest.mark.parametrize("drift", ["change", "delete"])
+def test_scenario_cache_rejects_source_drift_during_execution(
+    scenario_cache_case, phase: str, drift: str,
+) -> None:
+    case = scenario_cache_case
+    case.phase = phase
+    case.mutate = (
+        (lambda: case.source.write_bytes(b'{"version":2}'))
+        if drift == "change" else case.source.unlink
+    )
+
+    with pytest.raises(RuntimeError):
+        case.run()
+
+    recorded = case.ledger()
+    assert recorded["status"] == "failed"
+    assert "result" not in recorded
+    assert case.trace == ["load", "start", "pool", "done"]
+    trace = list(case.trace)
+    with pytest.raises(RuntimeError, match="already failed"):
+        case.run()
+    assert case.trace == trace
+    assert all(not path.exists() for path in case.executed_paths)
+
+
+@pytest.mark.parametrize("raw", [b'{"version":1}', b""])
+def test_scenario_cache_binds_initial_bytes_and_reuses_completed_token(
+    scenario_cache_case, raw: bytes,
+) -> None:
+    case = scenario_cache_case
+    case.source.write_bytes(raw)
+    first = case.run()
+    assert case.run() == first
+    assert first["source_scenario_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert case.consumed == [raw]
+    assert case.trace == ["load", "start", "pool", "done"]
+    assert case.ledger()["result"]["source_scenario_sha256"] == first["source_scenario_sha256"]
+    assert case.executed_paths[0] != case.source
+    assert case.executed_paths[0].name == case.source.name
+    assert not case.executed_paths[0].exists()
+
+
+def test_scenario_cache_worker_consumes_snapshot_despite_source_change_and_restore(
+    scenario_cache_case,
+) -> None:
+    case = scenario_cache_case
+    case.hooks["start"] = lambda: case.source.write_bytes(b'{"version":2}')
+    case.hooks["done"] = lambda: case.source.write_bytes(case.original)
+
+    result = case.run()
+
+    assert case.consumed == [case.original]
+    assert result["source_scenario_sha256"] == hashlib.sha256(case.original).hexdigest()
+    assert case.source.read_bytes() == case.original
+    assert not case.executed_paths[0].exists()
+    assert case.run() == result
+    assert case.trace == ["load", "start", "pool", "done"]
+
+
+@pytest.mark.parametrize("drift", ["change", "delete"])
+def test_scenario_cache_rejects_modified_execution_snapshot(
+    scenario_cache_case, drift: str,
+) -> None:
+    case = scenario_cache_case
+    case.phase = "done"
+
+    def mutate_snapshot():
+        path = case.executed_paths[0]
+        path.chmod(0o600)
+        if drift == "change":
+            path.write_bytes(b'{"version":2}')
+        else:
+            path.unlink()
+
+    case.mutate = mutate_snapshot
+    with pytest.raises(RuntimeError):
+        case.run()
+    assert case.ledger()["status"] == "failed"
+    assert "result" not in case.ledger()
+    assert all(not path.exists() for path in case.executed_paths)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("source_scenario_sha256", "missing"),
+        ("source_scenario_sha256", None),
+        ("source_scenario_sha256", ""),
+        ("source_scenario_sha256", False),
+        ("source_scenario_sha256", "g" * 64),
+        ("source_scenario_sha256", "f" * 63),
+        ("source_scenario", "missing"),
+        ("source_scenario", None),
+        ("source_scenario", ""),
+        ("source_scenario", 42),
+    ],
+)
+def test_scenario_cache_legacy_incomplete_provenance_is_not_rebaselined(
+    scenario_cache_case, field: str, value,
+) -> None:
+    case = scenario_cache_case
+    case.run()
+    recorded = case.ledger()
+    if value == "missing":
+        del recorded["result"][field]
+    else:
+        recorded["result"][field] = value
+    path = case.ledger_path()
+    path.write_text(json.dumps(recorded), encoding="utf-8")
+    previous = path.read_bytes()
+
+    with pytest.raises(ValueError, match="provenance"):
+        case.run()
+    assert path.read_bytes() == previous
+    assert case.trace == ["load", "start", "pool", "done"]
+
+
+@pytest.mark.parametrize("missing_hash", [False, True])
+def test_scenario_cache_incomplete_new_receipt_never_completes(
+    scenario_cache_case, monkeypatch: pytest.MonkeyPatch, missing_hash: bool,
+) -> None:
+    case = scenario_cache_case
+    receipt = {"source_scenario": str(case.source)}
+    if not missing_hash:
+        receipt["source_scenario_sha256"] = None
+    monkeypatch.setattr(
+        case.module, "_run_queue_family_app_once", lambda **_kwargs: receipt
+    )
+    with pytest.raises(RuntimeError, match="provenance"):
+        case.run()
+    assert case.ledger()["status"] == "failed"
+    assert "result" not in case.ledger()
+    assert case.trace == []
+
+
+@pytest.mark.parametrize("missing", ["file", "directory"])
+def test_scenario_cache_missing_input_never_selects_worker(
+    scenario_cache_case, missing: str,
+) -> None:
+    case = scenario_cache_case
+    case.source.unlink()
+    if missing == "directory":
+        case.source.parent.rmdir()
+
+    with pytest.raises(RuntimeError, match="No scenario"):
+        case.run()
+    assert case.trace == []
+    assert case.ledger()["status"] == "failed"
+
+
+def test_scenario_cache_source_disappearing_before_read_never_selects_worker(
+    scenario_cache_case, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = scenario_cache_case
+    read_bytes = Path.read_bytes
+
+    def remove_before_read(path):
+        if path == case.source:
+            path.unlink(missing_ok=True)
+        return read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", remove_before_read)
+    with pytest.raises(RuntimeError):
+        case.run()
+    assert case.trace == []
+    assert case.ledger()["status"] == "failed"
+
+
+@pytest.mark.parametrize("drift", ["change", "delete"])
+def test_scenario_cache_replay_rejects_changed_or_deleted_source_without_worker(
+    scenario_cache_case, drift: str,
+) -> None:
+    case = scenario_cache_case
+    first = case.run()
+    if drift == "change":
+        case.source.write_bytes(b'{"version":2}')
+    else:
+        case.source.unlink()
+
+    with pytest.raises((ValueError, FileNotFoundError)):
+        case.run()
+    assert case.trace == ["load", "start", "pool", "done"]
+    assert case.ledger()["result"] == first
+    case.source.write_bytes(case.original)
+    assert case.run() == first
+    assert case.trace == ["load", "start", "pool", "done"]
+
+
 @pytest.mark.parametrize(
     "bad_context",
     [
@@ -766,11 +1064,18 @@ def test_relay_persists_exact_context_and_rejects_same_token_context_drift(
     path = tmp_path / "queue.json"
     metrics = {"packets_generated": 8, "packets_delivered": 7}
     path.write_text(json.dumps(metrics), encoding="utf-8")
+    source = tmp_path / "relay" / "scenario.json"
+    source.parent.mkdir(parents=True)
+    source.write_text("{}", encoding="utf-8")
     calls = []
 
     def run_once(**kwargs):
         calls.append(kwargs)
-        return {"summary_metrics": {"packets_generated": 5, "packets_delivered": 5}}
+        return {
+            "summary_metrics": {"packets_generated": 5, "packets_delivered": 5},
+            "source_scenario": str(source),
+            "source_scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        }
 
     monkeypatch.setattr(module, "_run_queue_family_app_once", run_once)
     kwargs = dict(

@@ -134,6 +134,7 @@ def run_lab(
         if warning_fn is not None:
             warning_fn(f"Error: {exc}")
         print(f"Error: {exc}", file=output)
+        raise
     finally:
         for key, value in previous_env.items():
             if value is sentinel:

@@ -11,6 +11,30 @@ from pathlib import Path
 CLUSTER_SHARE_ORIGIN_ENV_FILE = "env_file"
 CLUSTER_SHARE_ORIGIN_PROCESS_ENV = "process_env"
 CLUSTER_SHARE_ORIGIN_DEFAULT = "default"
+RESOURCES_DIR_ENV = "AGILAB_RESOURCES_DIR"
+
+
+def resolve_resources_path(*, home_path: Path | None = None, environ=None) -> Path:
+    """Select resources before dotenv loading, without creating a directory."""
+    selected_env = os.environ if environ is None else environ
+    if RESOURCES_DIR_ENV not in selected_env:
+        return (Path.home() if home_path is None else Path(home_path)) / ".agilab"
+    raw_path = selected_env[RESOURCES_DIR_ENV]
+    if not isinstance(raw_path, str) or not raw_path.strip() or "\x00" in raw_path:
+        raise ValueError(f"{RESOURCES_DIR_ENV} must name an absolute directory")
+    selected_path = Path(raw_path)
+    if not selected_path.is_absolute():
+        raise ValueError(f"{RESOURCES_DIR_ENV} must name an absolute directory")
+    try:
+        selected_path = selected_path.resolve(strict=False)
+        for candidate in (selected_path, *selected_path.parents):
+            if candidate.exists():
+                if not candidate.is_dir():
+                    raise ValueError("resource path has a non-directory ancestor")
+                break
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(f"{RESOURCES_DIR_ENV} is not a usable absolute directory") from exc
+    return selected_path
 
 
 @dataclass(frozen=True)

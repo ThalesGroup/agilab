@@ -11,6 +11,7 @@ import importlib
 import json
 from pathlib import Path
 import sys
+import tempfile
 from types import SimpleNamespace
 from typing import Any, Mapping
 
@@ -369,6 +370,28 @@ def _read_queue_context(queue_result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _require_scenario_provenance(result: Mapping[str, Any], run_root: Path) -> None:
+    source = result.get("source_scenario")
+    digest = result.get("source_scenario_sha256")
+    if (
+        not isinstance(source, str)
+        or not source.strip()
+        or not isinstance(digest, str)
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise ValueError(
+            "Scenario provenance is missing or invalid. Reconcile this run and "
+            "use a new idempotency token."
+        )
+    path = Path(source)
+    path = path if path.is_absolute() else run_root / path
+    if hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+        raise ValueError(
+            "This idempotency token is already bound to different scenario bytes."
+        )
+
+
 def _run_queue_family_app_once(
     *,
     repo_root: Path,
@@ -414,6 +437,8 @@ def _run_queue_family_app_once(
         manager.args.data_in.resolve()
     ):
         raise ValueError("Controlled UAV scenario escapes data_in.")
+    scenario_bytes = source.read_bytes()
+    scenario_sha256 = hashlib.sha256(scenario_bytes).hexdigest()
 
     from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
 
@@ -423,16 +448,27 @@ def _run_queue_family_app_once(
         load_module_fn=runtime_support.load_module,
         sys_modules=sys.modules,
     )
-    worker = worker_class()
-    worker.env = env
-    worker.args = manager.args.model_dump(mode="json")
-    worker._worker_id = 0
-    worker.worker_id = 0
-    worker.verbose = 0
-    worker.start()
+    # The SDK-selected worker reads this exact captured input, even if the
+    # authored file changes and is restored while the worker runs. Keep its
+    # basename and original data_in/data_out arguments unchanged.
+    with tempfile.TemporaryDirectory(prefix=".agilab-scenario-", dir=run_root) as staging:
+        snapshot = Path(staging) / source.name
+        snapshot.write_bytes(scenario_bytes)
+        snapshot.chmod(0o400)
+        if snapshot.read_bytes() != scenario_bytes:
+            raise ValueError("Scenario snapshot differs from its captured input.")
+        worker = worker_class()
+        worker.env = env
+        worker.args = manager.args.model_dump(mode="json")
+        worker._worker_id = 0
+        worker.worker_id = 0
+        worker.verbose = 0
+        worker.start()
 
-    result = worker.work_pool(str(source))
-    worker.work_done(result)
+        result = worker.work_pool(str(snapshot))
+        worker.work_done(result)
+        if snapshot.read_bytes() != scenario_bytes:
+            raise ValueError("Scenario snapshot changed during app execution.")
 
     metrics = dict(result["summary_metrics"])
     stem = str(metrics["artifact_stem"])
@@ -448,6 +484,8 @@ def _run_queue_family_app_once(
         raise FileNotFoundError(
             f"{project_name} reduce artifact was not written: {reduce_path}"
         )
+    if hashlib.sha256(source.read_bytes()).hexdigest() != scenario_sha256:
+        raise ValueError(f"Scenario changed during app execution: {source}")
 
     prefix = "queue" if project_name == "uav_queue_project" else "relay"
     produced_artifacts = [
@@ -478,7 +516,7 @@ def _run_queue_family_app_once(
         "summary_metrics": metrics,
         "summary_metrics_sha256": produced_artifacts[0]["sha256"],
         "produced_artifacts": produced_artifacts,
-        "source_scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        "source_scenario_sha256": scenario_sha256,
         "effective_args": manager.args.model_dump(mode="json"),
         "idempotency_token": token,
     }
@@ -531,6 +569,7 @@ def _run_queue_family_app(
             idempotency_token=token,
             execution_contract=execution_contract,
         )
+        _require_scenario_provenance(result, run_root)
         result["execution_inputs_sha256"] = inputs_digest
         if execution_contract is not None:
             result["execution_contract"] = dict(execution_contract)
@@ -557,6 +596,7 @@ def _run_queue_family_app(
         _require_owned_output_tree(
             run_root, Path(effective_args["data_out"]), label="data_out"
         )
+    _require_scenario_provenance(result, run_root)
     if any(
         key in result
         for key in (
@@ -602,17 +642,6 @@ def _run_queue_family_app(
                 raise ValueError(
                     f"Cached produced artifact `{artifact_id}` has inconsistent producer hashes."
                 )
-    source = result.get("source_scenario")
-    if source and result.get("source_scenario_sha256"):
-        path = Path(str(source))
-        path = path if path.is_absolute() else run_root / path
-        if (
-            hashlib.sha256(path.read_bytes()).hexdigest()
-            != result["source_scenario_sha256"]
-        ):
-            raise ValueError(
-                "This idempotency token is already bound to different scenario bytes."
-            )
     return result
 
 

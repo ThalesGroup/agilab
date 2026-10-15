@@ -30,7 +30,9 @@ from agi_env.runtime.package_layout_support import (
     resolve_resource_root,
 )
 from agi_env.runtime.runtime_bootstrap_support import (
+    RESOURCES_DIR_ENV,
     parse_int_env_value,
+    resolve_resources_path,
     resolve_share_runtime_config,
     sync_repository_apps,
 )
@@ -77,6 +79,7 @@ def initialize_agi_env_instance(
     optional_pages_bundles_root_fn: Callable[[], Path | None],
     ensure_dir_fn: Callable[[str | Path], Path],
     module_logger,
+    resources_environ: dict[str, str] | None = None,
 ) -> None:
     """Populate an ``AgiEnv`` singleton after the public constructor guard passes."""
 
@@ -87,6 +90,7 @@ def initialize_agi_env_instance(
         verbose=verbose,
         load_dotenv_values_fn=load_dotenv_values_fn,
         module_logger=module_logger,
+        resources_environ=resources_environ,
     )
     envars = loaded.envars
 
@@ -170,6 +174,7 @@ def _load_environment(
     verbose: int,
     load_dotenv_values_fn: Callable,
     module_logger,
+    resources_environ: dict[str, str] | None = None,
 ) -> _LoadedEnvironment:
     try:
         env.is_managed_pc = getpass.getuser().startswith("T0")
@@ -189,7 +194,11 @@ def _load_environment(
     elif verbose >= 3:
         env.uv = "uv --verbose"
 
-    env.resources_path = home_abs / env._agi_resources.name
+    selected_env = os.environ if resources_environ is None else resources_environ
+    env.resources_path = resolve_resources_path(home_path=home_abs, environ=selected_env)
+    env._agilab_resources_context = (
+        env.resources_path if RESOURCES_DIR_ENV in selected_env else None
+    )
     env_path = env.resources_path / ".env"
     env.benchmark = env.resources_path / "benchmark.json"
     env.envars = load_dotenv_values_fn(env_path, verbose=verbose)

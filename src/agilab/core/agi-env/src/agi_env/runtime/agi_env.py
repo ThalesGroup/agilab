@@ -88,7 +88,11 @@ from agi_env.runtime.installation_support import (
     locate_agilab_installation_path,
     read_agilab_installation_marker,
 )
-from agi_env.runtime.runtime_bootstrap_support import parse_int_env_value
+from agi_env.runtime.runtime_bootstrap_support import (
+    RESOURCES_DIR_ENV,
+    parse_int_env_value,
+    resolve_resources_path,
+)
 from agi_env.runtime.optional_path_provider import resolve_optional_path
 from agi_env.runtime.worker_runtime_support import configure_worker_runtime
 from agi_env.runtime.windows_link_support import (
@@ -358,6 +362,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 return cls(apps_path=requested_apps_path, app=app_name, verbose=verbose, **kwargs)
 
             env = cls.current()
+            requested_resources_context = (
+                resolve_resources_path() if RESOURCES_DIR_ENV in os.environ else None
+            )
+            if requested_resources_context != getattr(env, "_agilab_resources_context", None):
+                raise RuntimeError(
+                    "AgiEnv resources context changed; use AgiEnv.reset() or a new session."
+                )
             current_apps_path = Path(getattr(env, "apps_path", "") or "").expanduser().resolve(strict=False)
             current_app = Path(str(getattr(env, "app", "") or "")).name
             current_active_app = Path(getattr(env, "active_app", "") or "").expanduser().resolve(strict=False)
@@ -398,6 +409,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             # rebuild on the next bootstrap instead of leaking stale state.
             type.__setattr__(cls, "envars", {})
             type.__setattr__(cls, "resources_path", None)
+            type.__setattr__(cls, "_agilab_resources_context", None)
             type.__setattr__(cls, "logger", None)
     install_type: int | None = None  # deprecated: derived from flags for backward compatibility
     apps_path: Path | None = None
@@ -420,6 +432,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     err_log: object = None
     # Minimal class-level fallbacks to support limited static usage pre-init
     resources_path: Path = Path.home() / ".agilab"
+    _agilab_resources_context: Path | None = None
     envars: dict[str, str] = {}
     home_abs: Path
     active_app: Path
@@ -457,6 +470,21 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                  **kwargs):
 
         allow_reinitialize = bool(kwargs.pop("_agilab_reinitialize", False))
+        if allow_reinitialize and getattr(self, "_agilab_initialized", False):
+            resources_context = getattr(self, "_agilab_resources_context", None)
+            resources_environ = (
+                {} if resources_context is None
+                else {RESOURCES_DIR_ENV: str(resources_context)}
+            )
+        else:
+            resources_value = os.environ.get(RESOURCES_DIR_ENV)
+            resources_environ = (
+                {} if resources_value is None else {
+                    RESOURCES_DIR_ENV: str(resolve_resources_path(
+                        environ={RESOURCES_DIR_ENV: resources_value},
+                    )),
+                }
+            )
         verbose = 0 if verbose is None else verbose
         app, active_app_override = coerce_active_app_request(app, kwargs, path_cls=Path)
         init_signature = self._init_signature(
@@ -467,6 +495,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             debug=debug,
             python_variante=python_variante,
             kwargs=kwargs,
+            resources_environ=resources_environ,
         )
 
         if getattr(self, "_agilab_initialized", False) and not allow_reinitialize:
@@ -493,6 +522,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             optional_pages_bundles_root_fn=_optional_pages_bundles_root,
             ensure_dir_fn=_ensure_dir,
             module_logger=logger,
+            resources_environ=resources_environ,
         )
 
     @staticmethod
@@ -505,13 +535,20 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         debug: bool,
         python_variante: str,
         kwargs: dict,
+        resources_environ: dict[str, str] | None = None,
     ) -> tuple:
+        selected_env = os.environ if resources_environ is None else resources_environ
+        resources_context = (
+            resolve_resources_path(environ=selected_env)
+            if RESOURCES_DIR_ENV in selected_env else None
+        )
         return (
             AgiEnv._signature_value(apps_path),
             AgiEnv._signature_value(app),
             AgiEnv._signature_value(active_app_override),
             str(python_variante),
             tuple(sorted((str(key), AgiEnv._signature_value(value)) for key, value in kwargs.items())),
+            AgiEnv._signature_value(resources_context),
         )
 
     @staticmethod
@@ -754,9 +791,29 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     @classmethod
     def _ensure_defaults(cls):
         """Ensure minimal class-level defaults exist for limited static usage."""
+        resources_context = (
+            resolve_resources_path() if RESOURCES_DIR_ENV in os.environ else None
+        )
+        previous_context = getattr(cls, "_agilab_resources_context", None)
+        instance = cls._instance
+        if instance is not None and getattr(instance, "_agilab_initialized", False):
+            if resources_context != previous_context:
+                raise RuntimeError(
+                    "AgiEnv resources context changed; use AgiEnv.reset() or a new session."
+                )
+        else:
+            context_changed = resources_context != previous_context
+            if resources_context is not None:
+                context_changed = context_changed or cls.resources_path != resources_context
+                cls.resources_path = resources_context
+            elif previous_context is not None:
+                cls.resources_path = None
+            if context_changed:
+                cls.envars = None
+            cls._agilab_resources_context = resources_context
         if getattr(cls, "resources_path", None) is None:
             try:
-                cls.resources_path = Path.home() / ".agilab"
+                cls.resources_path = resolve_resources_path(environ={})
             except (OSError, RuntimeError):
                 cls.resources_path = Path(".agilab").resolve()
         if getattr(cls, "envars", None) is None or not isinstance(cls.envars, dict):
@@ -1100,8 +1157,18 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             extra_paths = list(instance._pythonpath_entries)
         else:
             extra_paths = list(AgiEnv._pythonpath_entries)
+        base_env = os.environ.copy()
+        if instance is not None:
+            resources_context = getattr(instance, "_agilab_resources_context", None)
+        else:
+            resources_context = (
+                resolve_resources_path(environ=base_env) if RESOURCES_DIR_ENV in base_env else None
+            )
+        base_env.pop(RESOURCES_DIR_ENV, None)
+        if resources_context is not None:
+            base_env[RESOURCES_DIR_ENV] = str(resources_context)
         return build_subprocess_env(
-            base_env=os.environ.copy(),
+            base_env=base_env,
             venv=venv,
             pythonpath_entries=extra_paths,
             sys_prefix=sys.prefix,
@@ -1118,6 +1185,10 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             base_env["APPS_PATH"] = str(self.apps_path)
         if self.app:
             base_env["APP_DEFAULT"] = str(self.app)
+        base_env.pop(RESOURCES_DIR_ENV, None)
+        resources_context = getattr(self, "_agilab_resources_context", None)
+        if resources_context is not None:
+            base_env[RESOURCES_DIR_ENV] = str(resources_context)
         return build_subprocess_env(
             base_env=base_env,
             venv=venv,

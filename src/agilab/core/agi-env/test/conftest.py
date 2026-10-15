@@ -100,6 +100,7 @@ def isolate_agi_env_test_environment(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("APPS_REPOSITORY", raising=False)
     monkeypatch.delenv("APPS_PATH", raising=False)
     monkeypatch.delenv("AGILAB_LOG_ABS", raising=False)
+    monkeypatch.delenv("AGILAB_RESOURCES_DIR", raising=False)
     monkeypatch.delenv("CLUSTER_CREDENTIALS", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("AZURE_OPENAI_API_KEY", raising=False)

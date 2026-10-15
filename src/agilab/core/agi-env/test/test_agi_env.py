@@ -27,6 +27,208 @@ from agi_env.defaults import get_default_openai_model
 logger = AgiLogger.get_logger(__name__)
 
 
+def test_explicit_resources_context_is_selected_before_loading_dotenv(tmp_path, monkeypatch):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+    from agi_env.runtime.env_config_support import load_dotenv_values
+
+    selected = tmp_path / "isolated-resources"
+    selected.mkdir()
+    (selected / ".env").write_text("IS_SOURCE_ENV=0\nTABLE_MAX_ROWS=13\n", encoding="utf-8")
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(selected))
+    monkeypatch.setenv("IS_SOURCE_ENV", "1")
+    state = SimpleNamespace()
+    seen = []
+
+    def load_selected(path, **kwargs):
+        seen.append(path)
+        assert path == selected / ".env"
+        return load_dotenv_values(path, **kwargs)
+
+    loaded = initialization._load_environment(
+        state, verbose=0, load_dotenv_values_fn=load_selected, module_logger=logger,
+    )
+
+    assert seen == [selected / ".env"]
+    assert state.resources_path == selected.resolve()
+    assert loaded.env_path == selected / ".env"
+    assert state.benchmark == selected / "benchmark.json"
+    assert loaded.envars["IS_SOURCE_ENV"] == "0"
+    assert loaded.envars["TABLE_MAX_ROWS"] == "13"
+    initialization._apply_environment_layout_flags(state, envars=loaded.envars, is_agilab_installed=False)
+    assert state.is_source_env is False
+
+
+def test_invalid_resources_context_fails_before_dotenv_is_read(monkeypatch):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", "relative/resources")
+    with pytest.raises(ValueError, match="AGILAB_RESOURCES_DIR"):
+        initialization._load_environment(
+            SimpleNamespace(), verbose=0,
+            load_dotenv_values_fn=lambda *_args, **_kwargs: pytest.fail("dotenv was read"),
+            module_logger=logger,
+        )
+
+
+def test_preinit_env_updates_use_explicit_resources_without_touching_default(tmp_path, monkeypatch):
+    selected = tmp_path / "isolated-resources"
+    default_env = Path.home() / ".agilab/.env"
+    default_before = default_env.read_bytes()
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(selected))
+    monkeypatch.delenv("RESOURCE_SCOPE_PROBE", raising=False)
+
+    AgiEnv.set_env_var("RESOURCE_SCOPE_PROBE", "isolated")
+
+    assert AgiEnv.resources_path == selected.resolve()
+    assert "RESOURCE_SCOPE_PROBE=isolated" in (selected / ".env").read_text(encoding="utf-8")
+    assert default_env.read_bytes() == default_before
+
+
+def test_resources_context_participates_in_instance_identity(tmp_path, monkeypatch):
+    request = dict(apps_path=tmp_path / "apps", app="demo_project", active_app_override=None,
+                   verbose=0, debug=False, python_variante="", kwargs={})
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(tmp_path / "first"))
+    first = AgiEnv._init_signature(**request)
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(tmp_path / "second"))
+    second = AgiEnv._init_signature(**request)
+
+    assert first != second
+
+
+@pytest.mark.parametrize("session", [False, True])
+def test_local_child_environment_freezes_instance_resources_context(tmp_path, monkeypatch, session):
+    selected = (tmp_path / "selected").resolve()
+    other = tmp_path / "other-process-context"
+    state = object.__new__(AgiEnv)
+    state._agilab_resources_context = selected
+    state.resources_path = selected
+    state._pythonpath_entries = []
+    state.envars = {"AGILAB_RESOURCES_DIR": str(tmp_path / "dotenv-must-not-select-context")}
+    state.apps_path = None
+    state.app = None
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(other))
+    if session:
+        child_env = state._build_env_for_instance()
+    else:
+        monkeypatch.setattr(AgiEnv, "_instance", state)
+        child_env = AgiEnv._build_env()
+
+    assert child_env["AGILAB_RESOURCES_DIR"] == str(selected)
+    assert os.environ["AGILAB_RESOURCES_DIR"] == str(other)
+
+
+def test_default_session_child_does_not_inherit_another_resources_context(tmp_path, monkeypatch):
+    state = object.__new__(AgiEnv)
+    state._agilab_resources_context = None
+    state._pythonpath_entries = []
+    state.envars = {"AGILAB_RESOURCES_DIR": str(tmp_path / "untrusted-dotenv")}
+    state.apps_path = None
+    state.app = None
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(tmp_path / "other-context"))
+
+    child_env = state._build_env_for_instance()
+
+    assert "AGILAB_RESOURCES_DIR" not in child_env
+
+
+@pytest.mark.parametrize("via_symlink", [False, True])
+def test_constructor_freezes_resources_context_before_dotenv_and_rejects_reuse(tmp_path, monkeypatch, via_symlink):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+
+    selected = tmp_path / "selected"
+    other = tmp_path / "other"
+    configured = tmp_path / "selected-link" if via_symlink else selected
+    if via_symlink:
+        configured.symlink_to(selected, target_is_directory=True)
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(configured))
+    loaded_paths = []
+
+    def initialize(instance, **kwargs):
+        if via_symlink:
+            configured.unlink()
+            configured.symlink_to(other, target_is_directory=True)
+        monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(other))
+        initialization._load_environment(
+            instance, verbose=0,
+            load_dotenv_values_fn=lambda path, **_: loaded_paths.append(path) or {},
+            module_logger=logger, resources_environ=kwargs["resources_environ"],
+        )
+        instance._agilab_initialized = True
+        instance._agilab_init_signature = kwargs["init_signature"]
+
+    monkeypatch.setattr(agi_env_module, "initialize_agi_env_instance", initialize)
+    state = object.__new__(AgiEnv)
+    state._agilab_session_scoped = True
+    AgiEnv.__init__(state, apps_path=tmp_path / "apps", app="demo_project")
+
+    assert loaded_paths == [selected / ".env"]
+    assert state._agilab_resources_context == selected.resolve()
+    with pytest.raises(RuntimeError, match="different configuration"):
+        AgiEnv.__init__(state, apps_path=tmp_path / "apps", app="demo_project")
+    assert loaded_paths == [selected / ".env"]
+
+
+def test_for_app_rejects_changed_resources_context_before_matching_app_reuse(tmp_path, monkeypatch):
+    state = object.__new__(AgiEnv)
+    state._agilab_resources_context = (tmp_path / "selected").resolve()
+    state.apps_path = tmp_path / "apps"
+    state.app = "demo_project"
+    state.active_app = state.apps_path / state.app
+    monkeypatch.setattr(AgiEnv, "_instance", state)
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(tmp_path / "other"))
+
+    with pytest.raises(RuntimeError, match="resources context changed"):
+        AgiEnv.for_app(apps_path=state.apps_path, app=state.app)
+
+
+@pytest.mark.parametrize("explicit", [False, True])
+def test_app_reinitialization_keeps_bound_resources_context(tmp_path, monkeypatch, explicit):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+
+    state = object.__new__(AgiEnv)
+    selected = (tmp_path / "selected").resolve() if explicit else None
+    state._agilab_resources_context = selected
+    state._agilab_initialized = True
+    state._agilab_session_scoped = True
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(tmp_path / "other"))
+    loaded_paths = []
+
+    def initialize(instance, **kwargs):
+        initialization._load_environment(
+            instance, verbose=0,
+            load_dotenv_values_fn=lambda path, **_: loaded_paths.append(path) or {},
+            module_logger=logger, resources_environ=kwargs["resources_environ"],
+        )
+
+    monkeypatch.setattr(agi_env_module, "initialize_agi_env_instance", initialize)
+    state.reinitialize_for_app(apps_path=tmp_path / "apps", app="another_project")
+
+    expected = selected if explicit else Path.home() / ".agilab"
+    assert loaded_paths == [expected / ".env"]
+    assert state._agilab_resources_context == selected
+
+
+def test_preinit_resources_context_switch_reloads_selected_dotenv(tmp_path, monkeypatch):
+    loaded_paths = []
+    monkeypatch.setattr(
+        agi_env_module, "_load_dotenv_values",
+        lambda path, **_: loaded_paths.append(path) or {"CONTEXT": str(path.parent)},
+    )
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(first))
+    AgiEnv._ensure_defaults()
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(second))
+    AgiEnv._ensure_defaults()
+    monkeypatch.delenv("AGILAB_RESOURCES_DIR")
+    AgiEnv._ensure_defaults()
+
+    default = Path.home() / ".agilab"
+    assert loaded_paths == [first / ".env", second / ".env", default / ".env"]
+    assert AgiEnv.resources_path == default
+    assert AgiEnv.envars["CONTEXT"] == str(default)
+
+
 @pytest.mark.parametrize("operation", ("session", "constructor", "reset"))
 def test_initialization_lock_times_out_for_peer_operations(monkeypatch, operation):
     outcomes: list[BaseException | str] = []
@@ -137,6 +339,7 @@ _AGIENV_PROCESS_ENV_KEYS = {
     "AGI_LOCAL_SHARE",
     "AGI_LOG_DIR",
     "AGILAB_SHARE_USER",
+    "AGILAB_RESOURCES_DIR",
     "APP_DEFAULT",
     "APPS_PATH",
     "APPS_REPOSITORY",

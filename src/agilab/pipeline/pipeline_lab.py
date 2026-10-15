@@ -4249,6 +4249,64 @@ def get_existing_snippets(env: AgiEnv, stages_file: Path, deps: "PipelineLabDeps
 
     return registry.as_option_map()
 
+
+def _render_pipeline_run_log_panel(
+    *,
+    index_page: str,
+    env: Any,
+    build_page_state: Callable[[], Any],
+) -> Any:
+    """Render one compact log panel and return its current-render target."""
+    log_page_state = build_page_state()
+    log_body = "\n".join(log_page_state.run_logs)
+    last_log_file = log_page_state.last_run_log_file
+    with st.expander("Run logs", expanded=False):
+        clear_logs = render_log_actions(
+            st,
+            body=log_body,
+            download_key=f"{index_page}__download_logs_global",
+            file_name=f"{index_page}_workflow.log",
+            clear_key=f"{index_page}__clear_logs_global",
+        )
+        if clear_logs:
+            result = clear_pipeline_run_logs(st.session_state, index_page)
+            if result.ok:
+                record_action_history(
+                    st.session_state,
+                    page_label="WORKFLOW",
+                    env=env,
+                    title="Workflow logs cleared",
+                    status="info",
+                    detail=result.message,
+                )
+                toast(st, result.message, state="info")
+            else:
+                st.warning(result.message)
+            log_page_state = build_page_state()
+            log_body = "\n".join(log_page_state.run_logs)
+            last_log_file = log_page_state.last_run_log_file
+        log_placeholder = st.empty()
+        if last_log_file:
+            st.caption(f"Most recent run log: {last_log_file}")
+        source = f"WORKFLOW {last_log_file}" if last_log_file else "WORKFLOW"
+        render_pinnable_code_editor(
+            st,
+            code_editor,
+            f"pipeline_run_logs:{index_page}",
+            title=f"Workflow logs: {getattr(env, 'app', None) or index_page}",
+            body=log_body,
+            key=f"{index_page}__run_logs_editor",
+            body_format="code",
+            language="text",
+            source=source,
+            empty_message="No runs recorded yet.",
+            info_name="Run logs",
+            height=WORKFLOW_RUN_LOG_HEIGHT,
+            theme="dark",
+        )
+    return log_placeholder
+
+
 def display_lab_tab(
     lab_dir: Path,
     index_page_str: str,
@@ -4258,6 +4316,8 @@ def display_lab_tab(
     deps: "PipelineLabDeps",
 ) -> None:
     load_all_stages = deps.load_all_stages
+    # Native containers belong to one render; only log text survives reruns.
+    st.session_state.pop(f"{index_page_str}__run_placeholder", None)
     save_stage = deps.save_stage
     remove_stage = deps.remove_stage
     _force_persist_stage = deps.force_persist_stage
@@ -4265,7 +4325,6 @@ def display_lab_tab(
     _restore_pipeline_snapshot = deps.restore_pipeline_snapshot
     run_all_stages = deps.run_all_stages
     _prepare_run_log_file = deps.prepare_run_log_file
-    _get_run_placeholder = deps.get_run_placeholder
     _push_run_log = deps.push_run_log
     _rerun_fragment_or_app = deps.rerun_fragment_or_app
     _bump_history_revision = deps.bump_history_revision
@@ -4705,7 +4764,6 @@ def display_lab_tab(
         return
 
     run_logs_key = f"{index_page_str}__run_logs"
-    run_placeholder_key = f"{index_page_str}__run_placeholder"
     delete_undo_key = f"{index_page_str}__undo_delete_snapshot"
     _hydrate_pipeline_page_run_state_from_disk(
         index_page_str,
@@ -4737,6 +4795,14 @@ def display_lab_tab(
         )
 
     render_page_state = _build_page_state()
+
+    # Bind one current-render log target before any stage or workflow action.
+    log_placeholder = _render_pipeline_run_log_panel(
+        index_page=index_page_str, env=env, build_page_state=_build_page_state,
+    )
+
+    def _get_run_placeholder(_index_page: str) -> Any:
+        return log_placeholder
 
     @st.fragment
     def _render_pipeline_stage_fragment(stage: int, entry: Dict[str, Any]) -> None:
@@ -5209,7 +5275,7 @@ def display_lab_tab(
                 engine_map[stage] = engine
                 if venv_root:
                     st.session_state["lab_selected_venv"] = venv_root
-                stored_placeholder = st.session_state.get(run_placeholder_key)
+                stored_placeholder = _get_run_placeholder(index_page_str)
                 st.session_state[run_logs_key] = []
                 if stored_placeholder is not None:
                     stored_placeholder.caption("Starting overlay run…")
@@ -6096,8 +6162,8 @@ def display_lab_tab(
             force_confirm_key=force_run_confirm_key,
         )
         if not start_result.ok:
+            st.session_state.pop(f"{index_page_str}__run_log_file", None)
             st.warning(start_result.message)
-            st.rerun()
             return
         run_placeholder = start_result.details.get("log_placeholder")
         # Collapse all stage expanders after running the pipeline
@@ -6283,50 +6349,3 @@ def display_lab_tab(
         )
     elif dag_based_app:
         st.caption("This DAG workflow tracks stage contracts, workplan state, and run logs instead of a dataframe export.")
-
-    with st.expander("Run logs", expanded=True):
-        clear_logs = render_log_actions(
-            st,
-            body=log_body,
-            download_key=f"{index_page_str}__download_logs_global",
-            file_name=f"{index_page_str}_workflow.log",
-            clear_key=f"{index_page_str}__clear_logs_global",
-        )
-        if clear_logs:
-            result = clear_pipeline_run_logs(st.session_state, index_page_str)
-            if result.ok:
-                record_action_history(
-                    st.session_state,
-                    page_label="WORKFLOW",
-                    env=env,
-                    title="Workflow logs cleared",
-                    status="info",
-                    detail=result.message,
-                )
-                toast(st, result.message, state="info")
-            else:
-                st.warning(result.message)
-            log_page_state = _build_page_state()
-            logs = list(log_page_state.run_logs)
-            log_body = "\n".join(logs)
-            last_log_file = log_page_state.last_run_log_file
-        log_placeholder = st.empty()
-        st.session_state[run_placeholder_key] = log_placeholder
-        if last_log_file:
-            st.caption(f"Most recent run log: {last_log_file}")
-        source = f"WORKFLOW {last_log_file}" if last_log_file else "WORKFLOW"
-        render_pinnable_code_editor(
-            st,
-            code_editor,
-            f"pipeline_run_logs:{index_page_str}",
-            title=f"Workflow logs: {getattr(env, 'app', None) or index_page_str}",
-            body=log_body,
-            key=f"{index_page_str}__run_logs_editor",
-            body_format="code",
-            language="text",
-            source=source,
-            empty_message="No runs recorded yet.",
-            info_name="Run logs",
-            height=WORKFLOW_RUN_LOG_HEIGHT,
-            theme="dark",
-        )

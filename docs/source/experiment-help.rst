@@ -9,6 +9,10 @@ Run controls appear before graph inspection. **Workflow status and outputs**,
 inspector remains visible, and collapsing the other sections preserves their
 controls and state.
 
+**Run logs** starts collapsed before the stage editors. Expand it to follow
+execution. Startup warnings stay visible, and Python errors mark their stage
+as failed.
+
 Page snapshot
 -------------
 

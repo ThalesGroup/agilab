@@ -11,10 +11,13 @@ then imports the target normally and asserts its body ran only once.
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import importlib.util
 import sys
 from pathlib import Path
+
+import pytest
 
 _MODULE_SHIM_PATH = (
     Path(__file__).resolve().parents[1] / "src/agilab/compat/module_shim.py"
@@ -155,3 +158,101 @@ def test_execute_target_does_not_clobber_in_progress_import(tmp_path, monkeypatc
     # The pre-existing entry must be left untouched.
     assert sys.modules[target_name] is sentinel
     assert sys.modules[target_name].VALUE == "pre-existing"
+
+
+@pytest.fixture
+def actual_codex_runner(tmp_path):
+    """Exercise the real compatibility entrypoint without leaking its cached state."""
+    from agi_env.pagelib_execution_support import run_lab
+    from agi_web.python_view_session import ViewSession, use_session
+
+    target_name = "agilab.agent_runtime.agi_codex"
+    previous_target = sys.modules.pop(target_name, None)
+    codex = _MODULE_SHIM_PATH.parents[1] / "agi_codex.py"
+    snippet = tmp_path / "workflow_actual_codex_snippet.py"
+
+    def runner(code):
+        return run_lab(["description", "question", code], snippet, str(codex))
+
+    def session_for(source):
+        session = ViewSession(source)
+        session.state.update(loaded_df=None, snippet_file=str(snippet))
+        return session
+
+    try:
+        yield runner, session_for, use_session
+    finally:
+        sys.modules.pop(target_name, None)
+        if previous_target is not None:
+            sys.modules[target_name] = previous_target
+
+
+def test_actual_codex_executes_each_successive_snippet(tmp_path, actual_codex_runner):
+    runner, session_for, use_session = actual_codex_runner
+    counter = tmp_path / "workflow_actual_codex_execution_counter.txt"
+    session = session_for(lambda: None)
+
+    with use_session(session):
+        first = runner(
+            "from pathlib import Path\n"
+            "print('first fragment executed')\n"
+            f"Path({str(counter)!r}).write_text('first\\n', encoding='utf-8')\n"
+        )
+        second = runner(
+            "from pathlib import Path\n"
+            "print('second fragment executed')\n"
+            f"with Path({str(counter)!r}).open('a', encoding='utf-8') as output:\n"
+            "    output.write('second\\n')\n"
+        )
+
+    assert first == "first fragment executed"
+    assert second == "second fragment executed"
+    assert counter.read_text(encoding="utf-8") == "first\nsecond\n"
+
+
+@pytest.mark.parametrize(
+    ("error_type", "asynchronous"),
+    [(ValueError, False), (RuntimeError, True)],
+)
+def test_actual_codex_failure_reaches_view_dispatch(
+    actual_codex_runner, error_type, asynchronous
+):
+    from agi_web import python_ui as st
+
+    runner, session_for, _use_session = actual_codex_runner
+    message = "actual workflow fragment failed"
+    failure = f"raise {error_type.__name__}({message!r})\n"
+    code = (
+        "import asyncio\nasync def main():\n    "
+        + failure
+        + "asyncio.run(main())\n"
+        if asynchronous
+        else failure
+    )
+
+    def source():
+        if st.button("Run actual workflow fragment", key="actual-fragment-run"):
+            runner(code)
+            st.session_state["fragment_completed"] = True
+
+    session = session_for(source)
+
+    async def dispatch_from_active_loop():
+        initial = session.render()
+        control = next(iter(session.widgets.values()))
+        return session.dispatch(
+            {"id": control.id, "value": True, "revision": initial["revision"]}
+        )
+
+    payload = asyncio.run(dispatch_from_active_loop())
+
+    def flatten(nodes):
+        for node in nodes:
+            yield node
+            yield from flatten(node["children"])
+
+    nodes = list(flatten(payload["nodes"]["main"]))
+    assert not session.state.get("fragment_completed", False)
+    assert payload["error"] == f"{error_type.__name__}: {message}"
+    assert any(node["kind"] == "error" and message in node["props"]["body"] for node in nodes)
+    assert any(node["kind"] == "exception" for node in nodes)

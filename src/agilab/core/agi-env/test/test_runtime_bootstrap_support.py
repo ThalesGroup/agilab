@@ -21,6 +21,38 @@ def test_parse_int_env_value_falls_back_for_blank_and_invalid():
     assert parse_int_env_value({"TABLE_MAX_ROWS": "42"}, "TABLE_MAX_ROWS", 100) == 42
 
 
+def test_resolve_resources_path_preserves_default_and_selects_explicit_root(tmp_path):
+    from agi_env.runtime import runtime_bootstrap_support as bootstrap
+
+    default_home = tmp_path / "home"
+    selected = tmp_path / "isolated" / "new-resources"
+    assert bootstrap.resolve_resources_path(home_path=default_home, environ={}) == default_home / ".agilab"
+    assert bootstrap.resolve_resources_path(
+        home_path=default_home, environ={"AGILAB_RESOURCES_DIR": str(selected)},
+    ) == selected.resolve()
+    assert not selected.exists()
+
+
+@pytest.mark.parametrize("raw", ["", " ", "relative/resources", "~/.agilab", "/invalid\x00resources"])
+def test_resolve_resources_path_rejects_invalid_explicit_values(tmp_path, raw):
+    from agi_env.runtime import runtime_bootstrap_support as bootstrap
+
+    with pytest.raises(ValueError, match="AGILAB_RESOURCES_DIR"):
+        bootstrap.resolve_resources_path(home_path=tmp_path, environ={"AGILAB_RESOURCES_DIR": raw})
+
+
+@pytest.mark.parametrize("child", [False, True])
+def test_resolve_resources_path_rejects_files_and_non_directory_ancestors(tmp_path, child):
+    from agi_env.runtime import runtime_bootstrap_support as bootstrap
+
+    obstacle = tmp_path / "file"
+    obstacle.write_text("Preserve this file\n", encoding="utf-8")
+    selected = obstacle / "resources" if child else obstacle
+    with pytest.raises(ValueError, match="AGILAB_RESOURCES_DIR"):
+        bootstrap.resolve_resources_path(environ={"AGILAB_RESOURCES_DIR": str(selected)})
+    assert obstacle.read_text(encoding="utf-8") == "Preserve this file\n"
+
+
 def test_default_share_roots_are_user_scoped_and_filesystem_safe():
     environ = {"USER": "alice@example.com"}
 

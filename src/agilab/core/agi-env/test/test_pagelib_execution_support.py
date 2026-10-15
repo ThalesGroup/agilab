@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -56,16 +58,57 @@ def test_run_lab_handles_empty_query_and_execution_error(tmp_path):
 
     assert run_lab(None, snippet, codex) is None
 
-    output = run_lab(
-        ["D", "Q", "print('hello')"],
-        snippet,
-        codex,
-        warning_fn=warnings.append,
-        runpy_module=SimpleNamespace(run_path=lambda _path: (_ for _ in ()).throw(ValueError("lab bug"))),
+    with pytest.raises(ValueError, match="lab bug"):
+        run_lab(
+            ["D", "Q", "print('hello')"],
+            snippet,
+            codex,
+            warning_fn=warnings.append,
+            runpy_module=SimpleNamespace(run_path=lambda _path: (_ for _ in ()).throw(ValueError("lab bug"))),
+        )
+
+    assert warnings == ["Error: lab bug"]
+
+
+@pytest.mark.parametrize("error_type", [ValueError, RuntimeError])
+def test_run_lab_real_execution_restores_process_state_after_failure(
+    tmp_path, monkeypatch, error_type
+):
+    snippet = tmp_path / "failing_workflow_snippet.py"
+    warnings: list[str] = []
+    monkeypatch.setenv("AGILAB_TEST_EXISTING", "before")
+    monkeypatch.delenv("AGILAB_TEST_ADDED", raising=False)
+    monkeypatch.setenv("AGILAB_TEST_REMOVED", "restore-me")
+    stdout, stderr = sys.stdout, sys.stderr
+    code = (
+        "import os\n"
+        "assert os.environ['AGILAB_TEST_EXISTING'] == 'during'\n"
+        "assert os.environ['AGILAB_TEST_ADDED'] == 'temporary'\n"
+        "assert 'AGILAB_TEST_REMOVED' not in os.environ\n"
+        "print('captured before failure')\n"
+        f"raise {error_type.__name__}('workflow execution failed')\n"
     )
 
-    assert output == "Error: lab bug"
-    assert warnings == ["Error: lab bug"]
+    with pytest.raises(error_type, match="workflow execution failed") as caught:
+        run_lab(
+            ["description", "question", code],
+            snippet,
+            str(snippet),
+            env_overrides={
+                "AGILAB_TEST_EXISTING": "during",
+                "AGILAB_TEST_ADDED": "temporary",
+                "AGILAB_TEST_REMOVED": None,
+            },
+            warning_fn=warnings.append,
+        )
+
+    assert caught.type is error_type
+    assert warnings == ["Error: workflow execution failed"]
+    assert sys.stdout is stdout
+    assert sys.stderr is stderr
+    assert os.environ["AGILAB_TEST_EXISTING"] == "before"
+    assert "AGILAB_TEST_ADDED" not in os.environ
+    assert os.environ["AGILAB_TEST_REMOVED"] == "restore-me"
 
 
 def test_run_agi_reports_missing_target_and_permission_errors(tmp_path):
