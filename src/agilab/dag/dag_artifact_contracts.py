@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,188 @@ _RECEIPT_JSON_READ_LIMIT = 1024 * 1024
 _NON_OUTPUT_DIRECTORIES = frozenset(
     {".venv", ".venv-dev", "__pycache__", ".git", ".cache", "node_modules"}
 )
+
+
+def artifact_file_identity(path: Path) -> dict[str, Any]:
+    """Capture the bytes bound to one produced file, without loading it at once."""
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"Produced artifact must be a regular file: {path}")
+    digest = hashlib.sha256()
+    size_bytes = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            size_bytes += len(chunk)
+            digest.update(chunk)
+    return {"size_bytes": size_bytes, "sha256": digest.hexdigest()}
+
+
+def artifact_identity(path: Path, *, run_root: Path) -> dict[str, Any]:
+    """Hash one declared artifact; never traverse linked or runtime metadata trees."""
+    if path.is_symlink():
+        raise ValueError(f"Produced artifact contains a symlink: {path}")
+    path = path.resolve()
+    if path.is_file():
+        return artifact_file_identity(path)
+    if not path.is_dir():
+        raise ValueError(f"Produced artifact is missing or unsupported: {path}")
+    digest = hashlib.sha256()
+    size_bytes = 0
+    entry_count = 0
+    # These are the same non-output directories the freshness contract excludes.
+    # Private runtime metadata is excluded only at its defined stage-root paths.
+    metadata = {
+        run_root.resolve() / ".agilab-idempotency",
+        run_root.resolve() / "distributed_submission_evidence",
+    }
+
+    def walk_error(error: OSError) -> None:
+        raise error
+
+    for current, directories, files in os.walk(
+        path, followlinks=False, onerror=walk_error
+    ):
+        current_path = Path(current)
+        directories[:] = sorted(
+            name
+            for name in directories
+            if name not in _NON_OUTPUT_DIRECTORIES
+            and (current_path / name).absolute() not in metadata
+        )
+        for name in directories:
+            if (current_path / name).is_symlink():
+                raise ValueError(
+                    f"Produced artifact contains a symlink: {current_path / name}"
+                )
+        entries = [
+            {
+                "path": current_path.relative_to(path).as_posix(),
+                "kind": "directory",
+            }
+        ]
+        for name in sorted(files):
+            child = current_path / name
+            identity = artifact_file_identity(child)
+            size_bytes += identity["size_bytes"]
+            entries.append(
+                {
+                    "path": child.relative_to(path).as_posix(),
+                    "kind": "file",
+                    **identity,
+                }
+            )
+        for entry in entries:
+            digest.update(
+                json.dumps(entry, sort_keys=True, separators=(",", ":")).encode("ascii")
+            )
+            digest.update(b"\n")
+            entry_count += 1
+    return {
+        "identity_kind": "directory",
+        "entry_count": entry_count,
+        "size_bytes": size_bytes,
+        "sha256": digest.hexdigest(),
+    }
+
+
+def require_artifact_location(
+    path: Path,
+    *,
+    artifact_id: str,
+    expected: Mapping[str, Any],
+    bind_new: bool = False,
+) -> str:
+    """Check the frozen target before any receipt probe or artifact-content read."""
+    if path.is_symlink():
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` contains a symlink: {path}"
+        )
+    try:
+        resolved = str(path.resolve())
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` has an invalid location: {path}"
+        ) from exc
+    original = expected.get("resolved_path")
+    if original is None and bind_new:
+        return resolved
+    # Do not resolve the stored canonical spelling again: a changed ancestor may
+    # now redirect that exact spelling to a different target.
+    if not isinstance(original, str) or original != resolved:
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` resolves to a different original location; "
+            "a parent symlink or missing original location requires a fresh explicit attempt."
+        )
+    return resolved
+
+
+def require_artifact_identity(
+    path: Path,
+    *,
+    artifact_id: str,
+    expected: Mapping[str, Any],
+    run_root: Path,
+    bind_location: bool = False,
+) -> dict[str, Any]:
+    """Reject changed files and legacy cache entries lacking an original binding."""
+    require_artifact_location(
+        path, artifact_id=artifact_id, expected=expected, bind_new=bind_location
+    )
+    size_bytes = expected.get("size_bytes")
+    sha256 = expected.get("sha256")
+    if (
+        isinstance(size_bytes, bool)
+        or not isinstance(size_bytes, int)
+        or size_bytes < 0
+        or not isinstance(sha256, str)
+        or re.fullmatch(r"[0-9a-f]{64}", sha256) is None
+    ):
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` has no valid original byte identity. "
+            "Run a fresh explicit attempt."
+        )
+    try:
+        actual = artifact_identity(path, run_root=run_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` cannot be verified: {exc}"
+        ) from exc
+    expected_identity = {"size_bytes": size_bytes, "sha256": sha256}
+    if expected.get("identity_kind") == "directory":
+        count = expected.get("entry_count")
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            raise ValueError(
+                f"Cached produced artifact `{artifact_id}` has no valid original directory identity."
+            )
+        expected_identity.update(identity_kind="directory", entry_count=count)
+    if actual != expected_identity:
+        raise ValueError(
+            f"Cached produced artifact `{artifact_id}` differs from its completed producer bytes."
+        )
+    return actual
+
+
+def bind_artifact_identities(
+    outputs: list[dict[str, Any]], *, run_root: Path, bind_new: bool
+) -> list[dict[str, Any]]:
+    """Bind only fresh executor outputs; never establish a baseline from a cache."""
+    for output in outputs:
+        path = Path(output["path"])
+        path = path if path.is_absolute() else run_root / path
+        location = require_artifact_location(
+            path, artifact_id=output["artifact"], expected=output, bind_new=bind_new
+        )
+        if bind_new and not any(key in output for key in ("size_bytes", "sha256")):
+            identity = artifact_identity(path, run_root=run_root)
+        else:
+            identity = require_artifact_identity(
+                path,
+                artifact_id=output["artifact"],
+                expected=output,
+                run_root=run_root,
+                bind_location=bind_new,
+            )
+        output.update(identity, resolved_path=location)
+    return outputs
 
 
 class ArtifactOutputSnapshot:
@@ -192,7 +375,16 @@ def verified_submission_artifacts(
     paths = reported_artifact_paths(validation)
     verified: set[tuple[str, str, Path]] = set()
     for output in validation.get("produced_artifacts", []):
+        if output.get("kind") == "contract_artifact":
+            continue
         artifact_id = str(output.get("artifact", "") or output.get("id", "")).strip()
+        output_path = Path(paths[artifact_id])
+        output_path = (
+            output_path if output_path.is_absolute() else run_root / output_path
+        )
+        require_artifact_identity(
+            output_path, artifact_id=artifact_id, expected=output, run_root=run_root
+        )
         verified.add(
             (
                 artifact_id,

@@ -14,6 +14,11 @@ import sys
 from types import SimpleNamespace
 from typing import Any, Mapping
 
+from agilab.dag.dag_artifact_contracts import (
+    artifact_file_identity,
+    reported_artifact_paths,
+    require_artifact_identity,
+)
 from agilab.dag.dag_idempotency import execute_idempotently
 from agilab.global_pipeline.global_pipeline_dispatch_state import (
     PERSISTENCE_FORMAT,
@@ -444,6 +449,24 @@ def _run_queue_family_app_once(
             f"{project_name} reduce artifact was not written: {reduce_path}"
         )
 
+    prefix = "queue" if project_name == "uav_queue_project" else "relay"
+    produced_artifacts = [
+        {
+            "artifact": f"{prefix}_metrics",
+            "kind": "summary_metrics",
+            "path": _relative(summary_path, run_root),
+            "resolved_path": str(summary_path.resolve()),
+            **artifact_file_identity(summary_path),
+        },
+        {
+            "artifact": f"{prefix}_reduce_summary",
+            "kind": "reduce_summary",
+            "path": _relative(reduce_path, run_root),
+            "resolved_path": str(reduce_path.resolve()),
+            **artifact_file_identity(reduce_path),
+        },
+    ]
+
     return {
         "app_entry": app_entry,
         "source_scenario": _relative(source, run_root),
@@ -453,7 +476,8 @@ def _run_queue_family_app_once(
         "summary_metrics_path": _relative(summary_path, run_root),
         "reduce_artifact_path": _relative(reduce_path, run_root),
         "summary_metrics": metrics,
-        "summary_metrics_sha256": hashlib.sha256(summary_path.read_bytes()).hexdigest(),
+        "summary_metrics_sha256": produced_artifacts[0]["sha256"],
+        "produced_artifacts": produced_artifacts,
         "source_scenario_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
         "effective_args": manager.args.model_dump(mode="json"),
         "idempotency_token": token,
@@ -533,6 +557,51 @@ def _run_queue_family_app(
         _require_owned_output_tree(
             run_root, Path(effective_args["data_out"]), label="data_out"
         )
+    if any(
+        key in result
+        for key in (
+            "app_entry",
+            "produced_artifacts",
+            "summary_metrics_path",
+            "reduce_artifact_path",
+        )
+    ):
+        prefix = "queue" if project_name == "uav_queue_project" else "relay"
+        paths = reported_artifact_paths(result)
+        records = {
+            str(record.get("artifact", "") or record.get("id", "")).strip(): record
+            for record in result.get("produced_artifacts", [])
+            if isinstance(record, Mapping)
+        }
+        for artifact_id, path_key in (
+            (f"{prefix}_metrics", "summary_metrics_path"),
+            (f"{prefix}_reduce_summary", "reduce_artifact_path"),
+        ):
+            path = Path(str(result.get(path_key, "")))
+            path = path if path.is_absolute() else run_root / path
+            recorded_path = Path(paths.get(artifact_id, ""))
+            recorded_path = (
+                recorded_path
+                if recorded_path.is_absolute()
+                else run_root / recorded_path
+            )
+            if artifact_id not in records or recorded_path.resolve() != path.resolve():
+                raise ValueError(
+                    f"Cached produced artifact `{artifact_id}` has no matching original path. "
+                    "Run a fresh explicit attempt."
+                )
+            identity = require_artifact_identity(
+                path,
+                artifact_id=artifact_id,
+                expected=records[artifact_id],
+                run_root=run_root,
+            )
+            if path_key == "summary_metrics_path" and (
+                result.get("summary_metrics_sha256") != identity["sha256"]
+            ):
+                raise ValueError(
+                    f"Cached produced artifact `{artifact_id}` has inconsistent producer hashes."
+                )
     source = result.get("source_scenario")
     if source and result.get("source_scenario_sha256"):
         path = Path(str(source))

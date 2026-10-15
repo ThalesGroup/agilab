@@ -15,6 +15,8 @@ from typing import Any, Callable, Mapping, Protocol
 
 from .dag_artifact_contracts import (
     ArtifactOutputSnapshot,
+    bind_artifact_identities,
+    require_artifact_location,
     artifact_result_path_key as _artifact_path_result_key,
     is_contract_receipt_artifact,
     reported_artifact_paths,
@@ -1030,7 +1032,7 @@ def _distributed_stage_result(
     result.setdefault("execution_contract", contract)
     result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
     return _validated_contract_stage_result(
-        unit, artifact, run_root=run_root, result=result
+        unit, artifact, run_root=run_root, result=result, bind_output_identity=False
     )
 
 
@@ -1060,7 +1062,7 @@ def _run_distributed_stage_callback_once(
         )
     )
     validated = _validated_contract_stage_result(
-        unit, artifact, run_root=run_root, result=result
+        unit, artifact, run_root=run_root, result=result, bind_output_identity=True
     )
     submitted = verified_submission_artifacts(
         validated,
@@ -1101,7 +1103,7 @@ def _contract_stage_result(
         ),
     )
     return _validated_contract_stage_result(
-        unit, artifact, run_root=run_root, result=result
+        unit, artifact, run_root=run_root, result=result, bind_output_identity=False
     )
 
 
@@ -1138,7 +1140,7 @@ def _contract_stage_result_once(
         result.setdefault("execution_contract", contract)
         result.setdefault("idempotency_token", idempotency_token)
         validated = _validated_contract_stage_result(
-            unit, artifact, run_root=run_root, result=result
+            unit, artifact, run_root=run_root, result=result, bind_output_identity=True
         )
         _require_fresh_stage_outputs(validated, freshness)
         return validated
@@ -1232,7 +1234,7 @@ def _contract_stage_result_once(
     result.update(command_result)
     result["receipt_only"] = not command or bool(artifact_payload.get("receipt_only"))
     return _validated_contract_stage_result(
-        unit, artifact, run_root=run_root, result=result
+        unit, artifact, run_root=run_root, result=result, bind_output_identity=True
     )
 
 
@@ -1263,6 +1265,7 @@ def _validated_contract_stage_result(
     *,
     run_root: Path,
     result: dict[str, Any],
+    bind_output_identity: bool | None = None,
 ) -> dict[str, Any]:
     unit_id = str(unit.get("id", "stage"))[:160]
     if (
@@ -1279,6 +1282,10 @@ def _validated_contract_stage_result(
     declared_outputs = unit.get("produces")
     outputs = declared_outputs if isinstance(declared_outputs, list) else [artifact]
     reported_paths = reported_artifact_paths(result)
+    original_outputs = {
+        str(output.get("artifact", "") or output.get("id", "")).strip(): output
+        for output in result.get("produced_artifacts", [])
+    }
     primary_reported = (
         reported_paths.get(primary_id, "")
         or str(
@@ -1299,7 +1306,7 @@ def _validated_contract_stage_result(
     )
     if primary_reported and not primary_path.is_absolute():
         primary_path = run_root / primary_path
-    validated: list[dict[str, str]] = []
+    validated: list[dict[str, Any]] = []
     for output in outputs:
         if not isinstance(output, Mapping):
             continue
@@ -1338,6 +1345,14 @@ def _validated_contract_stage_result(
         )
         if path_value and not path.is_absolute():
             path = run_root / path
+        original = original_outputs.get(artifact_id, {})
+        if bind_output_identity is not None:
+            require_artifact_location(
+                path,
+                artifact_id=artifact_id,
+                expected=original,
+                bind_new=bind_output_identity,
+            )
         if not path.exists() or (
             kind in {"contract_artifact", "summary_metrics", "reduce_summary"}
             and not path.is_file()
@@ -1362,7 +1377,25 @@ def _validated_contract_stage_result(
             raise RuntimeError(
                 f"A contract receipt cannot satisfy scientific artifact `{artifact_id}`."
             )
-        validated.append({"artifact": artifact_id, "kind": kind, "path": str(path)})
+        original = original_outputs.get(artifact_id, {})
+        validated.append(
+            {
+                **{
+                    key: original[key]
+                    for key in (
+                        "size_bytes",
+                        "sha256",
+                        "identity_kind",
+                        "entry_count",
+                        "resolved_path",
+                    )
+                    if key in original
+                },
+                "artifact": artifact_id,
+                "kind": kind,
+                "path": str(path),
+            }
+        )
         if artifact_id == primary_id:
             result[primary_key] = str(path)
     if not validated or not any(
@@ -1371,12 +1404,21 @@ def _validated_contract_stage_result(
         raise RuntimeError(
             f"Controlled DAG stage `{unit_id}` has no validated primary artifact."
         )
+    if bind_output_identity is not None:
+        bind_artifact_identities(
+            validated, run_root=run_root, bind_new=bind_output_identity
+        )
     result["produced_artifacts"] = validated
     return result
 
 
 def _validated_uav_stage_result(
-    unit: Mapping[str, Any], *, run_root: Path, result: dict[str, Any], prefix: str
+    unit: Mapping[str, Any],
+    *,
+    run_root: Path,
+    result: dict[str, Any],
+    prefix: str,
+    bind_output_identity: bool = False,
 ) -> dict[str, Any]:
     if "execution_inputs_sha256" in result or "app_entry" in result:
         _require_owned_output_tree(
@@ -1429,6 +1471,7 @@ def _validated_uav_stage_result(
         {**by_id[metrics_id], "artifact": metrics_id},
         run_root=run_root,
         result=result,
+        bind_output_identity=bind_output_identity,
     )
     for output in validated["produced_artifacts"]:
         if output["artifact"] in {metrics_id, reduce_id}:
@@ -1471,7 +1514,11 @@ def _run_uav_stage_callback_once(
     result = dict(callback())
     try:
         validated = _validated_uav_stage_result(
-            unit, run_root=run_root, result=result, prefix=prefix
+            unit,
+            run_root=run_root,
+            result=result,
+            prefix=prefix,
+            bind_output_identity=True,
         )
         _require_fresh_stage_outputs(validated, freshness)
         return validated
