@@ -254,6 +254,8 @@ def test_execution_completion_rejects_invalid_or_incomplete_final_state(
 def test_distributed_stage_smoke_persists_real_engine_waves_once(
     monkeypatch, tmp_path: Path
 ) -> None:
+    from agilab.dag.dag_distributed_submitter import _input_artifact_fingerprint
+
     module = _load_module()
     output = tmp_path / "agilab-dag-durable-wave-smoke.json"
     dag_path = Path.cwd() / module.DEFAULT_DAG_RELATIVE_PATH
@@ -277,11 +279,35 @@ def test_distributed_stage_smoke_persists_real_engine_waves_once(
             assert submissions == ["flight_context"]
             assert persisted["summary"]["completed_unit_ids"] == ["flight_context"]
             assert Path(persisted["artifacts"][0]["path"]).is_file()
+            inputs = kwargs["input_artifacts"]
+            assert len(inputs) == 1
+            assert inputs[0]["producer"] == "flight_context"
+            producer_output = next(
+                unit for unit in persisted["units"] if unit["id"] == "flight_context"
+            )["produces"][0]
+            for key in (
+                "artifact",
+                "kind",
+                "path",
+                "resolved_path",
+                "size_bytes",
+                "sha256",
+            ):
+                assert inputs[0][key] == producer_output[key]
         submissions.append(unit_id)
         path = kwargs["run_root"] / "agilab-dag-fixture-scientific-output.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"stage": unit_id, "value": 1}), encoding="utf-8")
-        return {"produced_artifacts": [{**kwargs["artifact"], "path": str(path)}]}
+        return {
+            "produced_artifacts": [{**kwargs["artifact"], "path": str(path)}],
+            "input_artifact_fingerprint": _input_artifact_fingerprint(
+                kwargs["input_artifacts"]
+            ),
+            "consumed_artifacts": [
+                {**item, "role": "declared_input_reference"}
+                for item in kwargs["input_artifacts"]
+            ],
+        }
 
     monkeypatch.setattr(module, "submit_distributed_stage", _external_stage)
     report = module.build_smoke_report(

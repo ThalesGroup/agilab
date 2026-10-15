@@ -828,3 +828,734 @@ def test_settings_sharing_denial_stops_at_deadline_without_busy_loop(tmp_path, m
     assert module._read_settings_file_stdlib(path) == {}
     assert len(calls) == (2 if windows else 1)
     assert delays == ([0.01] if windows else [])
+
+
+def _upstream_stage_case(tmp_path, monkeypatch):
+    """A declared producer fixture; no worker, installation or science runs."""
+    import hashlib
+
+    module = dag_distributed_submitter
+    _write_app(tmp_path, "src/agilab/apps/builtin", "uav_relay_queue_project")
+    producer = tmp_path / "queue" / "metrics.json"
+    producer.parent.mkdir()
+    metrics = {"packets_generated": 3, "packets_delivered": 2, "packets_dropped": 1}
+    producer.write_text(json.dumps(metrics), encoding="utf-8")
+    row = {
+        "id": " queue_metrics ",
+        "producer": " queue_baseline ",
+        "kind": "summary_metrics",
+        "path": str(producer),
+        "resolved_path": str(producer.resolve()),
+        "size_bytes": producer.stat().st_size,
+        "sha256": hashlib.sha256(producer.read_bytes()).hexdigest(),
+    }
+    run_root = tmp_path / "relay"
+    config = module.DagDistributedStageConfig(
+        scheduler="127.0.0.1:18786", workers={"127.0.0.1": 1},
+        workers_data_path=str(tmp_path / "share"), mode=4,
+    )
+    monkeypatch.setattr(
+        module, "_distributed_output_roots",
+        lambda _config, root, _request: ([root], [root]),
+    )
+    artifact = {"artifact": "relay_metrics", "kind": "summary_metrics", "path": "relay.json"}
+    unit = {
+        "id": "relay_followup", "app": "uav_relay_queue_project",
+        "produces": [artifact],
+        "artifact_dependencies": [{"from": " queue_baseline ", "artifact": " queue_metrics "}],
+    }
+    contract = {
+        "params": {"sim_seconds": 30.0, "packet_rate_pps": 14.0, "random_seed": 2026},
+        "stages": [{"name": "on_map", "args": {}}],
+        "data_in": "uav_relay_queue/scenarios", "data_out": "uav_relay_queue/results",
+        "reset_target": False,
+    }
+    calls = []
+
+    def runner(**kwargs):
+        calls.append(kwargs)
+        output = run_root / "relay.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text('{"packets_generated": 3, "packets_delivered": 2}', encoding="utf-8")
+        receipts = []
+        for item in kwargs["request_payload"].get("input_artifacts", []):
+            receipts.append({
+                **item, "summary_metrics": metrics, "role": "upstream_context",
+                "read_scope": "child_orchestrator", "numerically_conditioned": False,
+            })
+        return {"summary_metrics_path": str(output), "consumed_artifacts": receipts}
+
+    kwargs = dict(
+        config=config, runner_fn=runner, repo_root=tmp_path, lab_dir=tmp_path / "lab",
+        run_root=run_root, unit=unit, artifact=artifact, execution_contract=contract,
+        timestamp="2026-10-15T00:00:00Z", idempotency_token="context-transport:relay",
+        input_artifacts=[row],
+    )
+    return kwargs, calls, row, metrics
+
+
+@pytest.mark.parametrize("check", ["source", "script", "receipt"])
+def test_declared_upstream_context_reaches_distributed_child(tmp_path, monkeypatch, check):
+    kwargs, calls, row, metrics = _upstream_stage_case(tmp_path, monkeypatch)
+    result = dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    payload = calls[0]["request_payload"]
+    if check == "source":
+        item = payload["input_artifacts"][0]
+        assert (item["artifact"], item["producer"]) == ("queue_metrics", "queue_baseline")
+        assert (item["path"], item["sha256"]) == (row["path"], row["sha256"])
+        assert payload["params"] == kwargs["execution_contract"]["params"]
+        assert payload["data_in"] == "uav_relay_queue/scenarios"
+        assert payload["reset_target"] is False
+    elif check == "script":
+        script = dag_distributed_submitter._stage_run_script(
+            config=kwargs["config"], apps_path=tmp_path / "apps",
+            app_name="uav_relay_queue_project", request_payload=payload,
+        )
+        assert script.index("_read_queue_context(") < script.index("await AGI.run(")
+    else:
+        receipt = result["consumed_artifacts"][0]
+        assert receipt["summary_metrics"] == metrics
+        assert receipt["sha256"] == row["sha256"]
+        assert receipt["role"] == "upstream_context"
+        assert receipt["read_scope"] == "child_orchestrator"
+        assert receipt["numerically_conditioned"] is False
+        evidence = json.loads(Path(result["submission_evidence_path"]).read_text())
+        assert evidence["runner_result"]["consumed_artifacts"] == result["consumed_artifacts"]
+
+
+@pytest.mark.parametrize("problem", ["missing", "wrong_producer", "ambiguous", "bad_identity"])
+def test_distributed_context_rejects_unbound_inputs_before_runner(tmp_path, monkeypatch, problem):
+    kwargs, calls, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    if problem == "missing":
+        kwargs["input_artifacts"] = None
+    elif problem == "wrong_producer":
+        row["producer"] = "other_producer"
+    elif problem == "ambiguous":
+        kwargs["input_artifacts"] = [row, dict(row)]
+    else:
+        row["sha256"] = "invalid"
+
+    original_open = Path.open
+
+    def no_target_read(path, *args, **options):
+        if path == Path(row["path"]):
+            pytest.fail("Invalid producer metadata must fail before target reads")
+        return original_open(path, *args, **options)
+
+    monkeypatch.setattr(Path, "open", no_target_read)
+    with pytest.raises(ValueError, match="upstream artifact"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert not calls
+
+
+@pytest.mark.parametrize("change", ["bytes", "missing", "redirect"])
+def test_distributed_context_rejects_changed_original_before_cached_result(tmp_path, monkeypatch, change):
+    kwargs, calls, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    producer = Path(row["path"])
+    if change == "bytes":
+        producer.write_text('{"packets_generated": 999, "packets_delivered": 0}')
+    elif change == "missing":
+        producer.unlink()
+    else:
+        original_dir = producer.parent
+        target_dir = tmp_path / "redirected-producer"
+        original_dir.rename(target_dir)
+        original_dir.symlink_to(target_dir, target_is_directory=True)
+        original_open = Path.open
+
+        def no_redirect_read(path, *args, **options):
+            if path.name == producer.name:
+                pytest.fail("Redirected target was opened before location rejection")
+            return original_open(path, *args, **options)
+
+        monkeypatch.setattr(Path, "open", no_redirect_read)
+    with pytest.raises(ValueError, match="produced artifact"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert len(calls) == 1
+
+
+def test_distributed_context_cache_rejects_new_valid_producer_binding(tmp_path, monkeypatch):
+    import hashlib
+
+    kwargs, calls, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    result = dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert dag_distributed_submitter.submit_distributed_stage(**kwargs) == result
+    replacement = tmp_path / "replacement.json"
+    replacement.write_bytes(Path(row["path"]).read_bytes())
+    row.update(
+        path=str(replacement), resolved_path=str(replacement.resolve()),
+        sha256=hashlib.sha256(replacement.read_bytes()).hexdigest(),
+        size_bytes=replacement.stat().st_size,
+    )
+    with pytest.raises(ValueError, match="original upstream inputs"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("receipt_change", ["missing", "identity", "context"])
+def test_distributed_runner_must_return_actual_context_receipt(tmp_path, monkeypatch, receipt_change):
+    kwargs, calls, _, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    runner = kwargs["runner_fn"]
+
+    def endpoint(**arguments):
+        result = runner(**arguments)
+        if receipt_change == "missing":
+            result.pop("consumed_artifacts")
+        elif receipt_change == "identity":
+            result["consumed_artifacts"][0]["sha256"] = "0" * 64
+        else:
+            result["consumed_artifacts"][0].pop("summary_metrics")
+        return result
+
+    kwargs["runner_fn"] = endpoint
+    with pytest.raises(RuntimeError, match="receipt"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert len(calls) == 1
+    assert not list(kwargs["run_root"].glob("distributed_submission_evidence/*.json"))
+
+
+def _execute_fake_distributed_child(monkeypatch, kwargs, inputs, *, result=None, fail=False):
+    """Execute generated orchestrator with fake SDK endpoints and the real JSON reader."""
+    import asyncio
+    import importlib
+    from types import ModuleType
+
+    module = dag_distributed_submitter
+    context_module = importlib.import_module(
+        "agilab.global_pipeline.global_pipeline_app_dispatch_smoke"
+    )
+    real_read = context_module._read_queue_context
+    events = []
+    captured = {}
+
+    def read_context(reference):
+        receipt = real_read(reference)
+        events.append(("context_read", receipt))
+        return receipt
+
+    class Request:
+        def __init__(self, **values):
+            self.__dict__.update(values)
+
+    class FakeAGI:
+        @staticmethod
+        async def install(*args, **options):
+            events.append(("fake_install", None))
+
+        @staticmethod
+        async def run(*args, request, **options):
+            events.append(("fake_run", request))
+            captured["request"] = request
+            if fail:
+                raise RuntimeError("fake SDK failure")
+            return result
+
+        @staticmethod
+        def load_worker(*args, **options):
+            pytest.fail("No real worker loading is permitted in transport tests")
+
+    fake_sdk = ModuleType("agi_cluster.agi_distributor")
+    fake_sdk.AGI = FakeAGI
+    fake_sdk.RunRequest = Request
+    fake_sdk.StageRequest = Request
+    monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", fake_sdk)
+    fake_env = ModuleType("agi_env")
+    fake_env.AgiEnv = lambda **options: SimpleNamespace(**options)
+    monkeypatch.setitem(sys.modules, "agi_env", fake_env)
+    monkeypatch.setattr(context_module, "_read_queue_context", read_context)
+    monkeypatch.setattr(
+        module.subprocess, "run",
+        lambda *args, **options: pytest.fail("No subprocess/science launch is permitted"),
+    )
+    payload = module.request_payload_from_execution_contract(kwargs["execution_contract"])
+    payload.update(input_artifacts=inputs, idempotency_token=kwargs["idempotency_token"])
+    script = module._stage_run_script(
+        config=kwargs["config"], apps_path=kwargs["repo_root"] / "apps",
+        app_name=kwargs["unit"]["app"], request_payload=payload,
+    )
+    namespace = {"__name__": "agilab_fake_child"}
+    exec(compile(script, "fake-distributed-orchestrator.py", "exec"), namespace)
+    return lambda: asyncio.run(namespace["main"]()), events, captured
+
+
+def test_generated_child_reads_actual_queue_context_before_sdk_and_preserves_authorship(
+    tmp_path, monkeypatch, capsys,
+):
+    kwargs, _, row, metrics = _upstream_stage_case(tmp_path, monkeypatch)
+    inputs = dag_distributed_submitter.validate_distributed_stage_inputs(
+        kwargs["unit"], kwargs["input_artifacts"],
+    )
+    run_child, events, captured = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result={"status": "ok", "packets_generated": 3},
+    )
+    run_child()
+    assert [event[0] for event in events] == ["context_read", "fake_install", "fake_run"]
+    assert events[0][1]["summary_metrics"] == metrics
+    assert events[0][1]["sha256"] == row["sha256"]
+    request = captured["request"]
+    assert request.params == kwargs["execution_contract"]["params"]
+    assert request.data_in == "uav_relay_queue/scenarios"
+    assert request.data_out == "uav_relay_queue/results"
+    assert request.reset_target is False
+    result = json.loads(capsys.readouterr().out)["result"]
+    assert result["consumed_artifacts"][0]["summary_metrics"] == metrics
+    assert result["consumed_artifacts"][0]["read_scope"] == "child_orchestrator"
+
+
+@pytest.mark.parametrize("result,raises", [(None, False), ({"status": "error"}, False), (None, True)])
+def test_generated_child_failed_run_emits_no_success_consumption_receipt(
+    tmp_path, monkeypatch, capsys, result, raises,
+):
+    kwargs, _, _, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    inputs = dag_distributed_submitter.validate_distributed_stage_inputs(
+        kwargs["unit"], kwargs["input_artifacts"],
+    )
+    run_child, events, _ = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result=result, fail=raises,
+    )
+    with pytest.raises(RuntimeError if raises else SystemExit):
+        run_child()
+    stdout = capsys.readouterr().out
+    assert "consumed_artifacts" not in stdout
+    assert [event[0] for event in events] == ["context_read", "fake_install", "fake_run"]
+
+
+def test_generated_child_rechecks_identity_before_any_sdk_call(tmp_path, monkeypatch):
+    kwargs, _, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    inputs = dag_distributed_submitter.validate_distributed_stage_inputs(
+        kwargs["unit"], kwargs["input_artifacts"],
+    )
+    run_child, events, _ = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result={"status": "ok"},
+    )
+    Path(row["path"]).write_text('{"packets_generated": 8, "packets_delivered": 2}')
+    with pytest.raises(ValueError, match="completed producer bytes"):
+        run_child()
+    assert not events
+
+
+def test_generated_child_preserves_non_json_dataset_reference(tmp_path, monkeypatch, capsys):
+    import hashlib
+
+    kwargs, _, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    Path(row["path"]).write_bytes(b"\x00\xffnon-json-dataset")
+    row.update(
+        id="input_dataset", kind="dataset", producer="dataset_source",
+        size_bytes=Path(row["path"]).stat().st_size,
+        sha256=hashlib.sha256(Path(row["path"]).read_bytes()).hexdigest(),
+    )
+    kwargs["unit"]["artifact_dependencies"] = [
+        {"from": "dataset_source", "artifact": "input_dataset"}
+    ]
+    inputs = dag_distributed_submitter.validate_distributed_stage_inputs(
+        kwargs["unit"], kwargs["input_artifacts"],
+    )
+    run_child, events, captured = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result={"status": "ok"},
+    )
+    run_child()
+    assert [event[0] for event in events] == ["fake_install", "fake_run"]
+    receipt = json.loads(capsys.readouterr().out)["result"]["consumed_artifacts"][0]
+    assert receipt["role"] == "declared_input_reference"
+    assert "summary_metrics" not in receipt
+    assert receipt["path"] == row["path"]
+    assert captured["request"].data_in == "uav_relay_queue/scenarios"
+
+
+def test_configured_submitter_forwards_original_input_bindings(tmp_path, monkeypatch):
+    kwargs, calls, _, metrics = _upstream_stage_case(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        dag_distributed_submitter, "dag_distributed_stage_config_from_settings",
+        lambda *args, **options: kwargs["config"],
+    )
+    submit = dag_distributed_submitter.build_multi_app_dag_distributed_stage_submitter(
+        env=SimpleNamespace(), runner_fn=kwargs.pop("runner_fn"),
+    )
+    kwargs.pop("config")
+    result = submit(**kwargs)
+    assert calls[0]["request_payload"]["input_artifacts"][0]["artifact"] == "queue_metrics"
+    assert result["consumed_artifacts"][0]["summary_metrics"] == metrics
+
+
+def test_distributed_input_receipts_preserve_only_no_input_legacy_cache_compatibility(
+    tmp_path, monkeypatch,
+):
+    module = dag_distributed_submitter
+    module.require_distributed_input_receipts({"legacy": True}, [], app_name="anything")
+    kwargs, _, _, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    inputs = module.validate_distributed_stage_inputs(kwargs["unit"], kwargs["input_artifacts"])
+    with pytest.raises(ValueError, match="missing original upstream inputs"):
+        module.require_distributed_input_receipts(
+            {"legacy": True}, inputs, app_name=kwargs["unit"]["app"],
+        )
+    with pytest.raises(ValueError, match="different or missing original upstream inputs"):
+        module.require_distributed_input_receipts(
+            {"input_artifact_fingerprint": module._input_artifact_fingerprint(inputs)},
+            [], app_name=kwargs["unit"]["app"],
+        )
+
+
+@pytest.mark.parametrize("metadata", [
+    {"identity_kind": "directory", "entry_count": True},
+    {"identity_kind": "directory", "entry_count": 1},
+    {"identity_kind": "unsupported"},
+    {"entry_count": 1},
+])
+def test_distributed_directory_metadata_fails_before_target_read(tmp_path, monkeypatch, metadata):
+    kwargs, calls, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    row.update(metadata)
+    original_open = Path.open
+
+    def no_target_read(path, *args, **options):
+        if path == Path(row["path"]):
+            pytest.fail("Malformed directory identity must fail before target reads")
+        return original_open(path, *args, **options)
+
+    monkeypatch.setattr(Path, "open", no_target_read)
+    with pytest.raises(ValueError, match="identity"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert not calls
+
+
+def test_stage_subprocess_preserves_verified_child_consumption_receipt(
+    tmp_path, monkeypatch,
+):
+    module = dag_distributed_submitter
+    kwargs, _, _, metrics = _upstream_stage_case(tmp_path, monkeypatch)
+    inputs = module.validate_distributed_stage_inputs(kwargs["unit"], kwargs["input_artifacts"])
+    receipt = {
+        **inputs[0], "summary_metrics": metrics, "role": "upstream_context",
+        "read_scope": "child_orchestrator", "numerically_conditioned": False,
+    }
+
+    def fake_run(command, **options):
+        options["stdout"].write(json.dumps({"result": {
+            "status": "ok", "consumed_artifacts": [receipt],
+        }}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    payload = module.request_payload_from_execution_contract(kwargs["execution_contract"])
+    payload["input_artifacts"] = inputs
+    call = dict(
+        config=kwargs["config"], repo_root=tmp_path, run_root=kwargs["run_root"],
+        apps_path=tmp_path / "apps", app_name=kwargs["unit"]["app"],
+        request_payload=payload, timestamp=kwargs["timestamp"],
+        idempotency_token=kwargs["idempotency_token"],
+    )
+    result = module.run_agilab_stage_subprocess(**call)
+    assert result["consumed_artifacts"] == [receipt]
+    assert module.run_agilab_stage_subprocess(**call) == result
+
+
+def _worker_summary_collection_case(tmp_path):
+    module = dag_distributed_submitter
+    repo_root = tmp_path / "repo"
+    _write_app(repo_root, "src/agilab/apps/builtin", "uav_queue_project")
+    run_root = tmp_path / "run"
+    share = tmp_path / "worker-share"
+    output_root = share / "uav_queue/results"
+    config = module.DagDistributedStageConfig(
+        scheduler="127.0.0.1:18786", workers={"127.0.0.1": 1},
+        workers_data_path=str(share), mode=4,
+    )
+    artifact = {
+        "artifact": "queue_metrics", "kind": "summary_metrics",
+        "path": "queue_analysis/uav_queue_summary_metrics.json",
+    }
+    metrics = {
+        "artifact_stem": "scenario_shortest_path_seed2026",
+        "sim_time_s": 30.0, "source_rate_pps": 14.0,
+        "sampling_interval_s": 0.5, "queue_weight": 2.5,
+        "random_seed": 2026, "routing_policy": "shortest_path",
+        "packets_generated": 420, "packets_delivered": 400, "packets_dropped": 20,
+    }
+    source = output_root / metrics["artifact_stem"] / (
+        metrics["artifact_stem"] + "_summary_metrics.json"
+    )
+    kwargs = dict(
+        config=config, repo_root=repo_root, lab_dir=tmp_path / "lab",
+        run_root=run_root, unit={
+            "id": "queue_baseline", "app": "uav_queue_project",
+            "produces": [artifact],
+        },
+        artifact=artifact,
+        execution_contract={"data_out": "uav_queue/results", "params": metrics},
+        timestamp="2026-10-15T10:00:00Z", idempotency_token="worker-output:queue",
+    )
+    return module, kwargs, source, metrics
+
+
+def test_worker_summary_collection_preserves_real_runtime_string_output_bytes(
+    tmp_path, monkeypatch,
+):
+    import hashlib
+
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    raw = (json.dumps(metrics, indent=2) + "\n").encode()
+
+    def fake_subprocess(command, **run_kwargs):
+        source.parent.mkdir(parents=True)
+        source.write_bytes(raw)
+        run_kwargs["stdout"].write(json.dumps({"result": "distributed Python 1.2s"}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+    result = module.submit_distributed_stage(
+        **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+    )
+    alias = kwargs["run_root"] / kwargs["artifact"]["path"]
+    assert alias.read_bytes() == raw
+    assert result["summary_metrics_path"] == str(alias)
+    assert all(result["summary_metrics"][key] == value for key, value in metrics.items())
+    receipt = result["worker_output_collection"][0]
+    assert receipt["artifact"] == "queue_metrics"
+    assert receipt["source_path"] == str(source)
+    assert receipt["path"] == str(alias)
+    assert receipt["source_identity"] == {
+        "size_bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    assert receipt["copied_sha256"] == hashlib.sha256(raw).hexdigest()
+    evidence = json.loads(Path(result["submission_evidence_path"]).read_text())
+    assert evidence["worker_output_collection"] == [receipt]
+    assert result["produced_artifacts"][0]["sha256"] == receipt["copied_sha256"]
+
+
+@pytest.mark.parametrize("pollution", [
+    "stale", "ambiguous", "source_symlink", "directory_symlink",
+    "outside_data_out", "receipt", "invalid_json", "nonfinite", "operational_only",
+    "failed_run", "null_run", "escape_alias", "linked_alias_parent",
+    "reported_missing_path",
+])
+def test_worker_summary_collection_rejects_unqualified_outputs(
+    tmp_path, monkeypatch, pollution,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    raw = json.dumps(metrics).encode()
+    source.parent.mkdir(parents=True)
+    if pollution == "stale":
+        source.write_bytes(raw)
+    alias = kwargs["run_root"] / kwargs["artifact"]["path"]
+    if pollution == "escape_alias":
+        kwargs["artifact"]["path"] = "../escaped_summary_metrics.json"
+    if pollution == "linked_alias_parent":
+        outside = tmp_path / "outside-alias"
+        outside.mkdir()
+        kwargs["run_root"].mkdir()
+        alias.parent.symlink_to(outside, target_is_directory=True)
+
+    def fake_subprocess(command, **run_kwargs):
+        if pollution not in {"stale", "outside_data_out", "directory_symlink"}:
+            if pollution == "source_symlink":
+                target = tmp_path / "outside_summary_metrics.json"
+                target.write_bytes(raw)
+                source.symlink_to(target)
+            elif pollution == "receipt":
+                source.write_text(json.dumps({
+                    "schema": "agilab.distributed_dag_stage_submission.v1",
+                    "summary_metrics": metrics,
+                }))
+            elif pollution == "invalid_json":
+                source.write_text("{")
+            elif pollution == "nonfinite":
+                source.write_text('{"sim_time_s": NaN}')
+            elif pollution == "operational_only":
+                source.write_text('{"stage_completed": 1, "distributed_submissions": 1}')
+            else:
+                source.write_bytes(raw)
+        if pollution == "ambiguous":
+            (source.parent / "other_summary_metrics.json").write_bytes(raw)
+        if pollution == "directory_symlink":
+            target = tmp_path / "outside-worker"
+            target.mkdir()
+            (target / "outside_summary_metrics.json").write_bytes(raw)
+            (source.parent.parent / "linked").symlink_to(target, target_is_directory=True)
+        if pollution == "outside_data_out":
+            (source.parents[2] / "unrelated_summary_metrics.json").write_bytes(raw)
+        stage_result = (
+            {"status": "error", "message": "failed worker"}
+            if pollution == "failed_run" else
+            None if pollution == "null_run" else
+            {"summary_metrics_path": "missing_summary_metrics.json"}
+            if pollution == "reported_missing_path" else
+            "distributed Python 1.2s"
+        )
+        run_kwargs["stdout"].write(json.dumps({"result": stage_result}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+    with pytest.raises((RuntimeError, ValueError)):
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert not alias.is_file()
+    assert not (tmp_path / "escaped_summary_metrics.json").exists()
+
+
+def test_worker_summary_collection_replaces_stale_alias_only_from_fresh_source(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    alias = kwargs["run_root"] / kwargs["artifact"]["path"]
+    alias.parent.mkdir(parents=True)
+    alias.write_text('{"sim_time_s": 1}')
+    raw = json.dumps(metrics).encode()
+
+    def fake_subprocess(command, **run_kwargs):
+        source.parent.mkdir(parents=True)
+        source.write_bytes(raw)
+        run_kwargs["stdout"].write(json.dumps({"result": "distributed Python 1.2s"}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+    result = module.submit_distributed_stage(
+        **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+    )
+    assert alias.read_bytes() == raw
+    assert result["summary_metrics"]["sim_time_s"] == 30.0
+
+
+def _write_worker_runtime_summary(module, monkeypatch, source, metrics):
+    def fake_subprocess(command, **run_kwargs):
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text(json.dumps(metrics))
+        run_kwargs["stdout"].write(json.dumps({"result": "distributed Python 1.2s"}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+
+
+def test_worker_summary_collection_uses_effective_cluster_share_with_workflow_subdir(
+    tmp_path, monkeypatch,
+):
+    from dataclasses import replace
+
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    share = source.parents[3]
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share))
+    kwargs["config"] = replace(kwargs["config"], workers_data_path=str(share / "workflows"))
+    _write_worker_runtime_summary(module, monkeypatch, source, metrics)
+    result = module.submit_distributed_stage(
+        **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+    )
+    assert result["worker_output_collection"][0]["source_path"] == str(source)
+    assert result["summary_metrics"]["packets_generated"] == 420
+
+
+def test_worker_summary_collection_rejects_oversize_before_file_identity(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    def fake_subprocess(command, **run_kwargs):
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b"x" * (1024 * 1024 + 1))
+        run_kwargs["stdout"].write(json.dumps({"result": "distributed Python 1.2s"}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+    original_identity = module.artifact_file_identity
+    def guarded_identity(path):
+        assert path != source, "Oversized source must be rejected before hashing."
+        return original_identity(path)
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+    monkeypatch.setattr(module, "artifact_file_identity", guarded_identity)
+    with pytest.raises(RuntimeError, match="bounded collection size"):
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+
+
+def test_worker_summary_collection_rejects_source_parent_replaced_during_read(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    _write_worker_runtime_summary(module, monkeypatch, source, metrics)
+    original_open = Path.open
+    replaced = []
+    def replaced_parent(path, *args, **open_kwargs):
+        stream = original_open(path, *args, **open_kwargs)
+        if path == source and args and args[0] == "rb" and not replaced:
+            moved = source.parent.with_name("moved-scenario")
+            source.parent.rename(moved)
+            source.parent.symlink_to(moved, target_is_directory=True)
+            replaced.append(True)
+        return stream
+    monkeypatch.setattr(Path, "open", replaced_parent)
+    with pytest.raises(RuntimeError, match="symlink or junction") as caught:
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert isinstance(caught.value.__cause__, ValueError)
+    assert not (kwargs["run_root"] / kwargs["artifact"]["path"]).exists()
+
+
+def test_worker_summary_collection_propagates_inventory_permission_failure(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    _write_worker_runtime_summary(module, monkeypatch, source, metrics)
+    output_root = source.parent.parent
+    original_walk = module.os.walk
+    def denied_walk(top, *args, **walk_kwargs):
+        if Path(top) == output_root and source.exists():
+            callback = walk_kwargs.get("onerror")
+            if callback:
+                callback(PermissionError("unreadable newly produced output subtree"))
+            return
+        yield from original_walk(top, *args, **walk_kwargs)
+    monkeypatch.setattr(module.os, "walk", denied_walk)
+    with pytest.raises(RuntimeError, match="unreadable newly produced") as caught:
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert isinstance(caught.value.__cause__, PermissionError)
+
+
+def test_worker_summary_collection_missing_output_names_searched_data_roots(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    def fake_subprocess(command, **run_kwargs):
+        run_kwargs["stdout"].write(json.dumps({"result": "distributed Python 1.2s"}) + "\n")
+        return subprocess.CompletedProcess(command, 0)
+    monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
+    with pytest.raises(RuntimeError) as caught:
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert "missing" in str(caught.value)
+    assert "searched data_out roots" in str(caught.value)
+    assert str(source.parent.parent) in str(caught.value)
+
+
+def test_worker_summary_collection_ignores_unrelated_cluster_share_pollution(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    unrelated = tmp_path / "unrelated-cluster-share"
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", str(unrelated))
+    foreign = unrelated / "uav_queue/results/scenario/unrelated_summary_metrics.json"
+    _write_worker_runtime_summary(module, monkeypatch, foreign, metrics)
+    with pytest.raises(RuntimeError, match="missing"):
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert not (kwargs["run_root"] / kwargs["artifact"]["path"]).exists()
+
+
+def test_worker_summary_collection_rejects_different_open_file_descriptor(
+    tmp_path, monkeypatch,
+):
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    _write_worker_runtime_summary(module, monkeypatch, source, metrics)
+    foreign = tmp_path / "foreign_same_bytes_summary_metrics.json"
+    foreign.write_text(json.dumps(metrics))
+    original_open = Path.open
+    def redirected_open(path, *args, **open_kwargs):
+        if path == source and args and args[0] == "rb":
+            return original_open(foreign, *args, **open_kwargs)
+        return original_open(path, *args, **open_kwargs)
+    monkeypatch.setattr(Path, "open", redirected_open)
+    with pytest.raises(RuntimeError, match="different file generation"):
+        module.submit_distributed_stage(
+            **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert not (kwargs["run_root"] / kwargs["artifact"]["path"]).exists()

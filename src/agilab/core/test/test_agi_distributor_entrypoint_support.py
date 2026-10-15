@@ -1212,9 +1212,19 @@ async def test_resolve_scheduler_cmd_prefix_ignores_expected_detect_error(monkey
     assert updates == []
 
 
+@pytest.mark.parametrize(
+    ("host", "dashboard"),
+    [
+        ("127.0.0.1", "127.0.0.1:0"),
+        ("127.0.0.2", "127.0.0.2:0"),
+        ("localhost", "localhost:0"),
+        ("::1", "[::1]:0"),
+        ("192.0.2.10", ":0"),
+    ],
+)
 @pytest.mark.asyncio
 async def test_launch_scheduler_process_local_logs_background_result(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, host, dashboard
 ):
     app_path = tmp_path / "app"
     app_path.mkdir()
@@ -1233,7 +1243,7 @@ async def test_launch_scheduler_process_local_logs_background_result(
         is_local=lambda _ip: True,
     )
     AGI.env.wenv_abs.mkdir(parents=True, exist_ok=True)
-    AGI._scheduler_ip = "127.0.0.1"
+    AGI._scheduler_ip = host
     AGI._scheduler_port = 8786
     monkeypatch.setattr(AGI, "_dask_env_prefix", staticmethod(lambda: ""))
     monkeypatch.setattr(
@@ -1265,6 +1275,11 @@ async def test_launch_scheduler_process_local_logs_background_result(
     assert "started" in calls["info"]
     pid_index = calls["bg"][0].index("--pid-file") + 1
     assert calls["bg"][0][pid_index] == str(AGI.env.wenv_abs / "dask_scheduler.pid")
+
+    command = calls["bg"][0]
+    assert command[command.index("--host") + 1] == host
+    assert command[command.index("--port") + 1] == "8786"
+    assert command[command.index("--dashboard-address") + 1] == dashboard
 
 
 @pytest.mark.asyncio

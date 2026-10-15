@@ -570,7 +570,7 @@ async def _launch_scheduler_process(
             "--host",
             str(agi_cls._scheduler_ip),
             "--dashboard-address",
-            ":0",
+            scheduler_io_support.loopback_dashboard_address(agi_cls._scheduler_ip) or ":0",
             "--pid-file",
             str(wenv_abs / "dask_scheduler.pid"),
         ]

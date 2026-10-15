@@ -555,6 +555,10 @@ def _configure_share_runtime(env, *, envars, env_path: Path) -> None:
     env.AGI_LOCAL_SHARE = share_runtime_config.local_share
     env.AGI_CLUSTER_SHARE = share_runtime_config.cluster_share
     env.agi_share_path = share_runtime_config.agi_share_path
+    workflow_root = clean_envar_value(os.environ, "AGILAB_WORKFLOW_DATA_ROOT")
+    if workflow_root:
+        env.AGILAB_WORKFLOW_DATA_ROOT = workflow_root
+        envars["AGILAB_WORKFLOW_DATA_ROOT"] = workflow_root
     env._share_root_cache = None
 
     share_root_abs = env.share_root_path()

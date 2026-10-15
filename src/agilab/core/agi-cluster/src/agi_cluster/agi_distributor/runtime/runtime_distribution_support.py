@@ -15,7 +15,7 @@ from zipfile import BadZipFile, ZipFile
 import psutil
 
 from agi_cluster.agi_distributor import background_jobs_support, deployment_remote_support
-from agi_cluster.agi_distributor.runtime import manager_mlflow_support
+from agi_cluster.agi_distributor.runtime import manager_mlflow_support, scheduler_io_support
 from agi_cluster.agi_distributor.runtime.worker_endpoint_support import worker_host
 from agi_env.process_support import project_virtualenv_script_path
 
@@ -108,6 +108,10 @@ def _local_dask_worker_command(
     os_name: str = os.name,
 ) -> list[str]:
     port_args = ["--worker-port", worker_port] if worker_port else []
+    host = scheduler_io_support.loopback_scheduler_host(scheduler)
+    host_args = ["--host", host] if host else []
+    dashboard = scheduler_io_support.loopback_dashboard_address(scheduler)
+    dashboard_args = ["--dashboard-address", dashboard] if dashboard else []
     dask_exe = project_virtualenv_script_path(wenv_abs, "dask", os_name=os_name)
     if dask_exe.exists():
         return [
@@ -116,6 +120,8 @@ def _local_dask_worker_command(
             f"tcp://{scheduler}",
             "--no-nanny",
             *port_args,
+            *host_args,
+            *dashboard_args,
             "--pid-file",
             str(wenv_abs / pid_file),
         ]
@@ -130,6 +136,8 @@ def _local_dask_worker_command(
         f"tcp://{scheduler}",
         "--no-nanny",
         *port_args,
+        *host_args,
+        *dashboard_args,
         "--pid-file",
         str(wenv_abs / pid_file),
     ]
@@ -572,6 +580,9 @@ async def start(
                         worker_port=worker_port,
                     )
                     process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
+                    workflow_root = getattr(env, "AGILAB_WORKFLOW_DATA_ROOT", None)
+                    if workflow_root:
+                        process_env["AGILAB_WORKFLOW_DATA_ROOT"] = str(workflow_root)
                     agi_cls._exec_bg(local_cmd, str(wenv_abs), env=process_env)
                 else:
                     wenv_rel = env.wenv_rel

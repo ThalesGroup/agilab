@@ -263,7 +263,17 @@ def test_runtime_distribution_edge_helpers_cover_fallback_branches(tmp_path):
     assert calls == [(["python", "-m", "demo"], str(tmp_path), {"PATH": "/tmp/bin"})]
 
 
-def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tmp_path):
+@pytest.mark.parametrize(
+    ("scheduler", "host", "dashboard"),
+    [
+        ("127.0.0.1:8786", "127.0.0.1", "127.0.0.1:0"),
+        ("127.0.0.2:8786", "127.0.0.2", "127.0.0.2:0"),
+        ("localhost:8786", "localhost", "localhost:0"),
+        ("[::1]:8786", "::1", "[::1]:0"),
+        ("192.0.2.10:8786", None, None),
+    ],
+)
+def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tmp_path, scheduler, host, dashboard):
     wenv_abs = tmp_path / "wenv"
     dask_exe = wenv_abs / ".venv" / ("Scripts/dask.exe" if os.name == "nt" else "bin/dask")
     dask_exe.parent.mkdir(parents=True, exist_ok=True)
@@ -272,12 +282,19 @@ def test_local_dask_worker_command_uses_direct_venv_executable_when_available(tm
     command = runtime_distribution_support._local_dask_worker_command(
         "uv",
         wenv_abs,
-        "127.0.0.1:8786",
+        scheduler,
         "worker.pid",
     )
 
-    assert command[:3] == [str(dask_exe), "worker", "tcp://127.0.0.1:8786"]
+    assert command[:3] == [str(dask_exe), "worker", f"tcp://{scheduler}"]
     assert "--no-sync" not in command
+
+    if host is None:
+        assert "--host" not in command
+        assert "--dashboard-address" not in command
+    else:
+        assert command[command.index("--host") + 1] == host
+        assert command[command.index("--dashboard-address") + 1] == dashboard
 
 
 def test_local_dask_worker_command_can_target_windows_layout(tmp_path):
@@ -298,17 +315,34 @@ def test_local_dask_worker_command_can_target_windows_layout(tmp_path):
     assert "--no-sync" not in command
 
 
-def test_local_dask_worker_command_pins_worker_port_range(tmp_path):
+@pytest.mark.parametrize(
+    ("scheduler", "host", "dashboard"),
+    [
+        ("127.0.0.1:8786", "127.0.0.1", "127.0.0.1:0"),
+        ("127.0.0.2:8786", "127.0.0.2", "127.0.0.2:0"),
+        ("localhost:8786", "localhost", "localhost:0"),
+        ("[::1]:8786", "::1", "[::1]:0"),
+        ("192.0.2.10:8786", None, None),
+    ],
+)
+def test_local_dask_worker_command_pins_worker_port_range(tmp_path, scheduler, host, dashboard):
     command = runtime_distribution_support._local_dask_worker_command(
         "uv",
         tmp_path / "wenv",
-        "127.0.0.1:8786",
+        scheduler,
         "worker.pid",
         worker_port="9000:9100",
     )
 
     port_idx = command.index("--worker-port")
     assert command[port_idx + 1] == "9000:9100"
+
+    if host is None:
+        assert "--host" not in command
+        assert "--dashboard-address" not in command
+    else:
+        assert command[command.index("--host") + 1] == host
+        assert command[command.index("--dashboard-address") + 1] == dashboard
 
 
 def test_remote_dask_worker_command_pins_worker_port_range():
@@ -2855,3 +2889,69 @@ async def test_distribute_preserves_planned_endpoint_and_initialized_worker_id(
         assert sorted(
             item for batches in executed.values() for batch in batches for item in batch
         ) == [f"job-{index}" for index in range(job_count)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("workflow_value", ["configured", None, ""])
+async def test_start_transports_local_worker_workflow_root_without_global_or_remote_changes(
+    tmp_path, monkeypatch, workflow_value,
+):
+    scope_key = "AGILAB_WORKFLOW_DATA_ROOT"
+    requested_root = str(tmp_path / "cluster share" / "workflows" / "current")
+    stale_ambient = str(tmp_path / "stale-ambient-workflow")
+    if workflow_value == "configured":
+        monkeypatch.setenv(scope_key, stale_ambient)
+    else:
+        monkeypatch.delenv(scope_key, raising=False)
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("DOTENV_SENTINEL=unchanged\n", encoding="utf-8")
+    dotenv_before = dotenv.read_bytes()
+    envars = {
+        "127.0.0.1_CMD_PREFIX": "LOCAL_SENTINEL=preserved ",
+        "10.0.0.2_CMD_PREFIX": "REMOTE_SENTINEL=preserved ",
+    }
+    env = SimpleNamespace(
+        is_local=lambda ip: ip == "127.0.0.1", envars=dict(envars), uv="uv",
+        wenv_abs=tmp_path / "worker-env", wenv_rel=Path("worker-env"),
+    )
+    if workflow_value is not None:
+        env.AGILAB_WORKFLOW_DATA_ROOT = requested_root if workflow_value else ""
+    captured_local = []
+    captured_remote = []
+
+    async def ready_scheduler(_scheduler):
+        return True
+
+    async def no_work(*_args, **_kwargs):
+        return None
+
+    agi = SimpleNamespace(
+        env=env, _workers={"127.0.0.1": 1, "10.0.0.2": 1},
+        _scheduler="127.0.0.1:18786", _worker_init_error=False,
+        _TIMEOUT=1, _mode_auto=True, _mode=4, DASK_MODE=4, _dask_log_level="",
+        _start_scheduler=ready_scheduler, _sync=no_work,
+        _exec_bg=lambda command, cwd, **kwargs: captured_local.append((command, cwd, kwargs)),
+        exec_ssh_async=lambda ip, command: captured_remote.append((ip, command)),
+    )
+    monkeypatch.setattr(runtime_distribution_support, "ensure_remote_cluster_shares", no_work)
+
+    assert await runtime_distribution_support.start(
+        agi, "127.0.0.1:18786", set_env_var_fn=lambda *_a, **_k: None,
+        create_task_fn=lambda _captured: None,
+    )
+
+    assert len(captured_local) == len(captured_remote) == 1
+    process_env = captured_local[0][2]["env"]
+    assert process_env["LOCAL_SENTINEL"] == "preserved"
+    if workflow_value:
+        assert process_env[scope_key] == requested_root
+        assert os.environ[scope_key] == stale_ambient
+    else:
+        assert scope_key not in process_env
+        assert scope_key not in os.environ
+    remote_ip, remote_command = captured_remote[0]
+    assert remote_ip == "10.0.0.2"
+    assert scope_key not in remote_command and requested_root not in remote_command
+    assert "REMOTE_SENTINEL=preserved" in remote_command
+    assert env.envars == envars
+    assert dotenv.read_bytes() == dotenv_before
