@@ -26,6 +26,27 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+- Resume notebook builds from verified checkpoints and retry verification from
+  the local interface without repeating completed generation.
+- Preserve notebook state when importing into a project or workflow, with a
+  preview and explicit import confirmation.
+- Show project archive import/export phases and retain import confirmation
+  after the interface refreshes.
+- Isolate local runtime resources through `AGILAB_RESOURCES_DIR`, retaining the
+  selected directory across local child processes and application switches.
+- Report Python execution failures as failed workflows, refresh run logs and
+  read-only output, and preserve editable code drafts between renders.
+- Retain every worker partition in directed acyclic graph (DAG) execution,
+  preserve authored scientific parameters and upstream context, and select
+  application workers through the runtime's dynamic loader.
+- Verify input scenario snapshots and output artifact identities before
+  reusing cached DAG results; reject changed artifacts and unsafe output paths.
+- Preserve network-map row alignment when telemetry indexes repeat, declare
+  Plotly for the four chart pages that require it, and retain native main
+  content within its layout column.
+- Preserve saved zero-valued queue weights and random seeds in the queue
+  and relay-queue application forms.
+
 ## [2026.10.13] - 2026-10-13
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13
