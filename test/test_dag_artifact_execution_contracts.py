@@ -4,6 +4,7 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -1065,3 +1066,639 @@ def test_old_or_failed_submission_receipt_cannot_attest_a_new_custom_attempt(
             artifact=adapters._primary_contract_artifact({}, unit),
             timestamp="now",
         )
+
+
+@pytest.mark.parametrize(
+    "backend,shape",
+    [
+        (backend, shape)
+        for backend in (
+            "local_callback",
+            "distributed_callback",
+            "distributed_submitter",
+        )
+        for shape in ("file", "directory", "workspace")
+    ]
+    + [("local_command", "file")],
+)
+@pytest.mark.parametrize("change", ["modified", "unbound"])
+def test_executor_token_cache_rejects_changed_artifact_bytes(
+    tmp_path, backend, shape, change
+):
+    token = "bound-scientific-output"
+    unit = _data_unit()
+    if shape != "file":
+        unit["produces"][0]["path"] = "data" if shape == "directory" else "."
+    output = unit["produces"][0]
+    run_root = (
+        tmp_path / "run"
+        if backend == "distributed_submitter"
+        else adapters._real_run_root(tmp_path, unit["id"])
+    )
+    data = run_root / "data/scientific_dataset.csv"
+    unit["execution_attempt"] = {"idempotency_token": token}
+    calls = []
+
+    def writer(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        data.parent.mkdir(parents=True, exist_ok=True)
+        data.write_bytes(b"value,1\n")
+        return {}
+
+    if backend == "local_command":
+        unit["execution_contract"]["command"] = [
+            sys.executable,
+            "-c",
+            "from pathlib import Path; Path('data').mkdir(exist_ok=True); "
+            "Path('data/scientific_dataset.csv').write_bytes(b'value,1\\n'); "
+            "Path('command-calls').write_text('once')",
+        ]
+    context = _context(
+        tmp_path,
+        stage_run_fns={unit["id"]: writer},
+        stage_submit_fn=writer,
+    )
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def execute():
+        if backend == "distributed_submitter":
+            return _distributed_run(
+                tmp_path, runner=writer, artifact=output, token=token
+            )
+        executor = (
+            adapters._distributed_stage_result
+            if backend == "distributed_callback"
+            else adapters._contract_stage_result
+        )
+        effective_context = (
+            _context(tmp_path) if backend == "local_command" else context
+        )
+        return executor(
+            effective_context, unit=unit, artifact=artifact, timestamp="now"
+        )
+
+    first = execute()
+    assert execute() == first
+    if change == "modified":
+        data.write_bytes(b"value,2\n")
+    else:
+        scope = (
+            "distributed-submitter" if backend == "distributed_submitter" else "adapter"
+        )
+        for ledger_path in (run_root / ".agilab-idempotency").glob("*.json"):
+            ledger = json.loads(ledger_path.read_text())
+            if ledger["scope"] == scope:
+                for record in ledger["result"]["produced_artifacts"]:
+                    for key in ("sha256", "size_bytes", "identity_kind", "entry_count"):
+                        record.pop(key, None)
+                ledger_path.write_text(json.dumps(ledger))
+    with pytest.raises(ValueError, match="produced artifact"):
+        execute()
+    if backend == "local_command":
+        assert (run_root / "command-calls").read_text() == "once"
+    else:
+        assert calls == [token]
+
+
+@pytest.mark.parametrize(
+    "change",
+    ["rename", "empty_directory", "symlink_file", "symlink_directory", "symlink_root"],
+)
+def test_cached_dataset_directory_tracks_members_and_rejects_symlinks(
+    tmp_path, monkeypatch, change
+):
+    unit = _data_unit()
+    unit["produces"][0]["path"] = "dataset"
+    unit["execution_attempt"] = {"idempotency_token": "directory-members"}
+    run_root = adapters._real_run_root(tmp_path, unit["id"])
+    dataset = run_root / "dataset"
+    calls = []
+
+    def writer(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        dataset.mkdir(parents=True)
+        (dataset / "rows.csv").write_bytes(b"value,1\n")
+        return {}
+
+    context = _context(tmp_path, stage_run_fns={unit["id"]: writer})
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def execute():
+        return adapters._contract_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now"
+        )
+
+    execute()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "private.csv").write_bytes(b"never read this")
+    original_open = Path.open
+
+    def guarded_open(path, *args, **kwargs):
+        assert not path.resolve().is_relative_to(outside), (
+            "Must not read a symlink target"
+        )
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    if change == "rename":
+        (dataset / "rows.csv").rename(dataset / "renamed.csv")
+    elif change == "empty_directory":
+        (dataset / "empty").mkdir()
+    elif change == "symlink_root":
+        dataset.rename(run_root / "original-dataset")
+        dataset.symlink_to(outside, target_is_directory=True)
+    else:
+        target = outside / "private.csv" if change == "symlink_file" else outside
+        (dataset / "linked").symlink_to(
+            target, target_is_directory=change == "symlink_directory"
+        )
+
+    with pytest.raises(ValueError, match="produced artifact"):
+        execute()
+    assert calls == ["directory-members"]
+
+
+def test_directory_artifact_identity_is_ordered_and_ignores_only_runtime_metadata(
+    tmp_path,
+):
+    from agilab.dag.dag_artifact_contracts import artifact_identity
+
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    for root, names in ((first, ("z", "a")), (second, ("a", "z"))):
+        root.mkdir()
+        for name in names:
+            (root / name).write_bytes(name.encode())
+        (root / "empty").mkdir()
+    assert artifact_identity(first, run_root=first) == artifact_identity(
+        second, run_root=second
+    )
+    original = artifact_identity(first, run_root=first)
+    for name in (".agilab-idempotency", "distributed_submission_evidence"):
+        metadata = first / name
+        metadata.mkdir()
+        (metadata / "receipt.json").write_text("{}")
+    assert artifact_identity(first, run_root=first) == original
+    # A same-named directory below the dataset is user output and stays in the digest.
+    nested = first / "data/distributed_submission_evidence"
+    nested.mkdir(parents=True)
+    (nested / "scientific.csv").write_text("real data")
+    assert artifact_identity(first, run_root=first) != original
+
+
+def test_nested_completed_submitter_cannot_rebind_changed_outputs_as_fresh(tmp_path):
+    unit = _data_unit()
+    token = "nested-submitter"
+    unit["execution_attempt"] = {"idempotency_token": token}
+    run_root = adapters._real_run_root(tmp_path, unit["id"])
+    path = run_root / unit["produces"][0]["path"]
+    calls = []
+    config = submitter.DagDistributedStageConfig(
+        "local-test", {"local": 1}, str(tmp_path / "share"), 4
+    )
+
+    def writer(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"value,1\n")
+        return {}
+
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def submit(**kwargs):
+        return submitter.submit_distributed_stage(
+            config=config,
+            runner_fn=writer,
+            repo_root=Path.cwd(),
+            lab_dir=tmp_path,
+            run_root=run_root,
+            unit=unit,
+            artifact=artifact,
+            execution_contract=unit["execution_contract"],
+            timestamp="now",
+            idempotency_token=token,
+        )
+
+    submit()
+    path.write_bytes(b"value,2\n")
+    with pytest.raises(RuntimeError, match="produced artifact"):
+        adapters._distributed_stage_result(
+            _context(tmp_path, stage_submit_fn=submit),
+            unit=unit,
+            artifact=artifact,
+            timestamp="now",
+        )
+    assert calls == [token]
+
+
+def test_nested_cached_transport_cannot_validate_modified_scientific_output(
+    tmp_path, monkeypatch
+):
+    import subprocess
+
+    token = "nested-transport"
+    path = tmp_path / "run/data/dataset.csv"
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"value,1\n")
+        kwargs["stdout"].write(
+            json.dumps(
+                {
+                    "result": {
+                        "produced_artifacts": [
+                            {
+                                "artifact": "dataset",
+                                "kind": "dataset",
+                                "path": str(path),
+                            }
+                        ]
+                    }
+                }
+            )
+            + "\n"
+        )
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(submitter.subprocess, "run", fake_run)
+    config = submitter.DagDistributedStageConfig(
+        "local-test", {"local": 1}, str(tmp_path / "share"), 4
+    )
+    submitter.run_agilab_stage_subprocess(
+        config=config,
+        repo_root=tmp_path,
+        run_root=tmp_path / "run",
+        apps_path=tmp_path / "apps",
+        app_name="uav_queue_project",
+        request_payload={"data_out": None},
+        timestamp="now",
+        idempotency_token=token,
+    )
+    path.write_bytes(b"value,2\n")
+    # Transport-cache completion is not a fresh scientific execution.
+    with pytest.raises(RuntimeError, match="freshly produce.*dataset"):
+        _distributed_run(
+            tmp_path, runner=submitter.run_agilab_stage_subprocess, token=token
+        )
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(
+    "corruption", ["empty", "missing_record", "wrong_kind", "wrong_primary_alias"]
+)
+def test_submitter_cache_requires_every_original_output_record(tmp_path, corruption):
+    paths = [
+        tmp_path / "run/data/dataset.csv",
+        tmp_path / "run/data/second.csv",
+    ]
+    outputs = [
+        {"artifact": "dataset", "kind": "dataset", "path": "data/dataset.csv"},
+        {"artifact": "second", "kind": "dataset", "path": "data/second.csv"},
+    ]
+    calls = []
+    writer = _writing_runner({path: b"value,1\n" for path in paths})
+
+    def runner(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        return writer(**kwargs)
+
+    def execute():
+        return _distributed_run(
+            tmp_path,
+            runner=runner,
+            artifact=outputs[0],
+            produces=outputs,
+            token="complete-records",
+        )
+
+    execute()
+    (ledger_path,) = (tmp_path / "run/.agilab-idempotency").glob("*.json")
+    ledger = json.loads(ledger_path.read_text())
+    result = ledger["result"]
+    if corruption == "empty":
+        result["produced_artifacts"] = []
+    elif corruption == "missing_record":
+        result["produced_artifacts"].pop()
+    elif corruption == "wrong_kind":
+        result["produced_artifacts"][0]["kind"] = "summary_metrics"
+    else:
+        result["contract_artifact_path"] = str(paths[1])
+    ledger_path.write_text(json.dumps(ledger))
+    with pytest.raises(ValueError, match="Cached produced artifact"):
+        execute()
+    assert calls == ["complete-records"]
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_normalized_output_id_preserves_original_byte_identity(tmp_path, changed):
+    from agilab.dag.dag_artifact_contracts import artifact_identity
+
+    unit = _data_unit()
+    path = tmp_path / "data/scientific_dataset.csv"
+    path.parent.mkdir()
+    path.write_bytes(b"value,1\n")
+    original = artifact_identity(path, run_root=tmp_path)
+    result = {
+        "produced_artifacts": [
+            {
+                "artifact": " scientific_dataset ",
+                "kind": "dataset",
+                "path": str(path),
+                **original,
+            }
+        ]
+    }
+    if changed:
+        path.write_bytes(b"value,2\n")
+
+    def validate():
+        return adapters._validated_contract_stage_result(
+            unit,
+            adapters._primary_contract_artifact({}, unit),
+            run_root=tmp_path,
+            result=result,
+            bind_output_identity=True,
+        )
+
+    if changed:
+        with pytest.raises(ValueError, match="completed producer bytes"):
+            validate()
+    else:
+        (record,) = validate()["produced_artifacts"]
+        assert record["artifact"] == "scientific_dataset"
+        assert {key: record[key] for key in original} == original
+
+
+@pytest.mark.parametrize("linked", ["file", "parent"])
+def test_cached_regular_artifact_rejects_symlink_before_receipt_read(
+    tmp_path, monkeypatch, linked
+):
+    unit = _data_unit()
+    unit["execution_attempt"] = {"idempotency_token": "regular-file-symlink"}
+    run_root = adapters._real_run_root(tmp_path, unit["id"])
+    path = run_root / "data/scientific_dataset.csv"
+    calls = []
+    writer = _writing_runner({path: b"value,1\n"})
+
+    def runner(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        return writer(**kwargs)
+
+    context = _context(tmp_path, stage_run_fns={unit["id"]: runner})
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def execute():
+        return adapters._contract_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now"
+        )
+
+    execute()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / path.name).write_bytes(path.read_bytes())
+    if linked == "file":
+        path.unlink()
+        path.symlink_to(outside / path.name)
+    else:
+        path.parent.rename(run_root / "original-data")
+        path.parent.symlink_to(outside, target_is_directory=True)
+    original_open = Path.open
+
+    def guarded_open(candidate, *args, **kwargs):
+        assert not candidate.resolve().is_relative_to(outside), (
+            "Must not read an external symlink target"
+        )
+        return original_open(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    with pytest.raises(ValueError, match="produced artifact.*symlink"):
+        execute()
+    assert calls == ["regular-file-symlink"]
+
+
+def test_directory_identity_runtime_exclusions_use_canonical_run_root(tmp_path):
+    from agilab.dag.dag_artifact_contracts import artifact_identity
+
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(canonical, target_is_directory=True)
+    actual_root = canonical / "run"
+    actual_root.mkdir()
+    (actual_root / "scientific.csv").write_bytes(b"value,1\n")
+    before = artifact_identity(actual_root, run_root=alias / "run")
+    for name in (".agilab-idempotency", "distributed_submission_evidence"):
+        metadata = actual_root / name
+        metadata.mkdir()
+        (metadata / "receipt.json").write_text("{}")
+    assert artifact_identity(actual_root, run_root=alias / "run") == before
+
+
+def test_workspace_directory_cache_preserves_runtime_parent_alias(tmp_path):
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    alias = tmp_path / "alias"
+    alias.symlink_to(canonical, target_is_directory=True)
+    path = alias / "run/scientific.csv"
+    calls = []
+    writer = _writing_runner({path: b"value,1\n"})
+
+    def runner(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        return writer(**kwargs)
+
+    def execute():
+        return _distributed_run(
+            alias,
+            runner=runner,
+            artifact={"artifact": "dataset", "kind": "dataset", "path": "."},
+            token="aliased-runtime",
+        )
+
+    first = execute()
+    assert execute() == first
+    assert calls == ["aliased-runtime"]
+
+
+@pytest.mark.parametrize("linked", ["root", "child"])
+@pytest.mark.parametrize(
+    "native",
+    [
+        pytest.param(False, id="simulated"),
+        pytest.param(
+            True,
+            id="native-windows",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32", reason="native Windows directory junction required"
+            ),
+        ),
+    ],
+)
+def test_cached_dataset_rejects_junction_before_target_reads(
+    tmp_path, monkeypatch, linked, native
+):
+    unit = _data_unit()
+    unit["produces"][0]["path"] = "dataset"
+    unit["execution_attempt"] = {"idempotency_token": "directory-junction"}
+    run_root = adapters._real_run_root(tmp_path, unit["id"])
+    dataset = run_root / "dataset"
+    calls = []
+
+    def writer(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        (dataset / "child").mkdir(parents=True)
+        (dataset / "child/rows.csv").write_bytes(b"value,1\n")
+        return {}
+
+    context = _context(tmp_path, stage_run_fns={unit["id"]: writer})
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def execute():
+        return adapters._contract_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now"
+        )
+
+    first = execute()
+    assert execute() == first
+    junction = dataset if linked == "root" else dataset / "child"
+    outside = tmp_path / "outside"
+    destination = outside / "child" if linked == "root" else outside
+    destination.mkdir(parents=True)
+    (destination / "rows.csv").write_bytes(b"value,1\n")
+    if native:
+        junction.rename(run_root / "original-output")
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert junction.is_junction()
+        assert not junction.is_symlink()
+    else:
+        # Model Windows' separate junction flag on a normal directory: os.walk
+        # still descends unless the artifact contract explicitly rejects it.
+        original_is_junction = Path.is_junction
+        monkeypatch.setattr(
+            Path,
+            "is_junction",
+            lambda path: path.absolute() == junction.absolute()
+            or original_is_junction(path),
+        )
+        assert not junction.is_symlink()
+
+    original_open = Path.open
+    original_receipt_probe = adapters.is_contract_receipt_artifact
+    reads = []
+
+    def guarded_open(path, *args, **kwargs):
+        target = path.resolve() if native else path.absolute()
+        forbidden = outside if native else junction.absolute()
+        if target.is_relative_to(forbidden):
+            reads.append(path)
+            raise AssertionError("Must not read a junction target")
+        return original_open(path, *args, **kwargs)
+
+    def guarded_receipt_probe(path):
+        assert not path.is_junction(), "Must reject a junction before receipt probing"
+        return original_receipt_probe(path)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    monkeypatch.setattr(adapters, "is_contract_receipt_artifact", guarded_receipt_probe)
+    try:
+        with pytest.raises(ValueError, match="produced artifact.*junction"):
+            execute()
+        assert reads == []
+        assert calls == ["directory-junction"]
+    finally:
+        if native:
+            junction.rmdir()
+
+
+@pytest.mark.parametrize("linked", ["declared", "child"])
+def test_snapshot_does_not_traverse_junctions(tmp_path, monkeypatch, linked):
+    from agilab.dag.dag_artifact_contracts import ArtifactOutputSnapshot
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    junction = workspace / "junction" if linked == "child" else tmp_path / "junction"
+    junction.mkdir()
+    (junction / "rows.csv").write_bytes(b"value,1\n")
+    original_is_junction = Path.is_junction
+    monkeypatch.setattr(
+        Path,
+        "is_junction",
+        lambda path: path.absolute() == junction.absolute()
+        or original_is_junction(path),
+    )
+    original_stat = Path.stat
+
+    def guarded_stat(path, *args, **kwargs):
+        if kwargs.get("follow_symlinks", True):
+            assert not path.absolute().is_relative_to(junction.absolute()), (
+                "Must not inspect junction target metadata"
+            )
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", guarded_stat)
+    if linked == "child":
+        snapshot = ArtifactOutputSnapshot(workspaces=[workspace])
+        with pytest.raises(RuntimeError, match="Declare its output path"):
+            snapshot.require_fresh(junction / "rows.csv", artifact_id="linked-data")
+        current = workspace / "current.csv"
+        current.write_bytes(b"fresh")
+        snapshot.require_fresh(current, artifact_id="current-data")
+    else:
+        with pytest.raises(ValueError, match="junction"):
+            ArtifactOutputSnapshot(
+                workspaces=[workspace],
+                declared_paths=[junction],
+            )
+
+
+@pytest.mark.parametrize("linked", ["symlink", "junction"])
+def test_snapshot_preserves_explicit_workspace_anchor_alias(
+    tmp_path, monkeypatch, linked
+):
+    from agilab.dag.dag_artifact_contracts import artifact_identity
+
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    (canonical / "old.csv").write_bytes(b"value,1\n")
+    anchor = tmp_path / "anchor"
+    anchor.symlink_to(canonical, target_is_directory=True)
+    if linked == "junction":
+        original_is_junction = Path.is_junction
+        original_is_symlink = Path.is_symlink
+        monkeypatch.setattr(
+            Path,
+            "is_junction",
+            lambda path: path.absolute() == anchor.absolute()
+            or original_is_junction(path),
+        )
+        monkeypatch.setattr(
+            Path,
+            "is_symlink",
+            lambda path: path.absolute() != anchor.absolute()
+            and original_is_symlink(path),
+        )
+    # Real callback construction declares "." through the chosen raw anchor.
+    unit = _data_unit()
+    unit["produces"][0]["path"] = "."
+    snapshot = adapters._callback_output_snapshot(unit, run_root=anchor)
+    original = artifact_identity(canonical, run_root=anchor)
+    with pytest.raises(RuntimeError, match="freshly produce"):
+        snapshot.require_fresh(anchor, artifact_id="workspace")
+    (canonical / "current.csv").write_bytes(b"value,2\n")
+    snapshot.require_fresh(anchor, artifact_id="workspace")
+    assert artifact_identity(canonical, run_root=anchor) != original
+    replacement = canonical / "replacement"
+    replacement.mkdir()
+    (replacement / "rows.csv").write_bytes(b"value,3\n")
+    anchor.unlink()
+    anchor.symlink_to(replacement, target_is_directory=True)
+    with pytest.raises(ValueError, match="workspace anchor changed location"):
+        snapshot.require_fresh(anchor, artifact_id="workspace")

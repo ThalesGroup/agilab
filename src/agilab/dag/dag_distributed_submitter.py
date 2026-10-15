@@ -15,6 +15,7 @@ from typing import Any, Callable, Mapping, TextIO
 
 from .dag_artifact_contracts import (
     ArtifactOutputSnapshot,
+    bind_artifact_identities,
     artifact_result_path_key as _artifact_result_path_key,
     is_contract_receipt_artifact,
     reported_artifact_paths,
@@ -182,7 +183,7 @@ def submit_distributed_stage(
     token = str(idempotency_token).strip()
     if not token:
         raise RuntimeError(f"Distributed DAG stage `{unit_id}` requires an idempotency token.")
-    return execute_idempotently(
+    result = execute_idempotently(
         run_root=run_root,
         unit_id=unit_id,
         idempotency_token=token,
@@ -200,6 +201,51 @@ def submit_distributed_stage(
             idempotency_token=token,
         ),
     )
+    if "produced_artifacts" not in result:
+        raise ValueError(
+            "Cached produced artifacts have no original byte identities. Run a fresh explicit attempt."
+        )
+    paths = reported_artifact_paths(result)
+    outputs = unit.get("produces")
+    declared_outputs = outputs if isinstance(outputs, list) else [artifact]
+    expected_ids = {
+        str(output.get("artifact", "") or output.get("id", "")).strip()
+        for output in declared_outputs
+        if isinstance(output, Mapping)
+    } - {""}
+    if not paths or set(paths) != expected_ids:
+        raise ValueError(
+            "Cached produced artifacts differ from the declared output contract."
+        )
+    records = {
+        str(output.get("artifact", "") or output.get("id", "")).strip(): output
+        for output in result["produced_artifacts"]
+    }
+    primary_id = str(artifact.get("artifact", "") or artifact.get("id", "")).strip()
+    for output in declared_outputs:
+        if not isinstance(output, Mapping):
+            continue
+        artifact_id = str(output.get("artifact", "") or output.get("id", "")).strip()
+        if not artifact_id:
+            continue
+        kind = str(output.get("kind", "")).strip()
+        if records[artifact_id].get("kind") != kind:
+            raise ValueError(
+                f"Cached produced artifact `{artifact_id}` has a different declared kind."
+            )
+        if artifact_id == primary_id:
+            alias = Path(str(result.get(_artifact_result_path_key(kind), "")))
+            alias = alias if alias.is_absolute() else run_root / alias
+            path = Path(paths[artifact_id])
+            path = path if path.is_absolute() else run_root / path
+            if alias.resolve() != path.resolve():
+                raise ValueError(
+                    f"Cached produced artifact `{artifact_id}` has a different primary path."
+                )
+    bind_artifact_identities(
+        result["produced_artifacts"], run_root=run_root, bind_new=False
+    )
+    return result
 
 
 def _submit_distributed_stage_once(
@@ -313,7 +359,7 @@ def _submit_distributed_stage_once(
     result.update(runner_result)
     result["summary_metrics"] = default_metrics
     result["submission_evidence_path"] = str(evidence_path)
-    verified_outputs: list[dict[str, str]] = []
+    verified_outputs: list[dict[str, Any]] = []
     primary_id = str(artifact.get("artifact", "") or artifact.get("id", "")).strip()
     validation_passed = False
     try:
@@ -340,9 +386,10 @@ def _submit_distributed_stage_once(
                     primary_declared_path=str(artifact.get("path", "")),
                 )
                 freshness.require_fresh(output_path, artifact_id=artifact_id)
-            verified_outputs.append(
-                {"artifact": artifact_id, "kind": kind, "path": str(output_path)}
-            )
+            record = {"artifact": artifact_id, "kind": kind, "path": str(output_path)}
+            if kind != "contract_artifact":
+                bind_artifact_identities([record], run_root=run_root, bind_new=True)
+            verified_outputs.append(record)
             if artifact_id == primary_id:
                 result[_artifact_result_path_key(kind)] = str(output_path)
         validation_passed = bool(verified_outputs)
@@ -358,6 +405,8 @@ def _submit_distributed_stage_once(
         raise RuntimeError(
             f"Distributed DAG stage `{unit_id}` has no declared output artifact."
         )
+    # The receipt now exists, so contract-artifact identities can bind its final bytes.
+    bind_artifact_identities(verified_outputs, run_root=run_root, bind_new=True)
     result["produced_artifacts"] = verified_outputs
     result["receipt_only"] = all(
         output["kind"] == "contract_artifact" for output in verified_outputs

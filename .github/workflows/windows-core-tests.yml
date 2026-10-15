@@ -9,6 +9,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - "src/agilab/core/**"
+      - "src/agilab/dag/dag_artifact_contracts.py"
       - "test/**"
   pull_request:
     branches: ["**"]
@@ -18,6 +19,7 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - "src/agilab/core/**"
+      - "src/agilab/dag/dag_artifact_contracts.py"
       - "test/**"
   workflow_dispatch:
   schedule:
@@ -71,6 +73,7 @@ jobs:
             python -m pytest -q -o addopts='' --import-mode=importlib `
             --junitxml test-results/windows-core-tests.xml `
             src/agilab/core/test src/agilab/core/agi-env/test src/agilab/core/agi-cluster/test `
+            test/test_dag_artifact_execution_contracts.py::test_cached_dataset_rejects_junction_before_target_reads `
             2>&1 | Tee-Object -FilePath test-results/windows-core-tests.txt
           $exitCode = $LASTEXITCODE
           if ($exitCode -ne 0) {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import importlib
 import importlib.util
 import json
@@ -1615,11 +1616,16 @@ def test_global_runner_panel_real_run_executes_controlled_queue_stage(monkeypatc
     assert queue["dispatch_status"] == "completed"
     assert queue["execution_mode"] == "real_app_entry"
     assert queue["real_execution"]["summary_metrics"]["packets_delivered"] == 7
+    summary_path = calls[0] / "queue" / "summary.json"
+    summary_bytes = summary_path.read_bytes()
     assert queue["produces"] == [
         {
             "artifact": "queue_metrics",
             "kind": "summary_metrics",
-            "path": str(calls[0] / "queue" / "summary.json"),
+            "path": str(summary_path),
+            "resolved_path": str(summary_path.resolve()),
+            "sha256": hashlib.sha256(summary_bytes).hexdigest(),
+            "size_bytes": len(summary_bytes),
         }
     ]
     assert relay["dispatch_status"] == "runnable"

@@ -477,6 +477,19 @@ def test_maintenance_workflows_do_not_run_twice_for_pr_branch_pushes() -> None:
 
 def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     text = WINDOWS_CORE_TESTS_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(text)
+    triggers = workflow.get("on", workflow.get(True))
+    for event in ("push", "pull_request"):
+        assert "src/agilab/dag/dag_artifact_contracts.py" in triggers[event]["paths"]
+    test_step = next(
+        step
+        for step in workflow["jobs"]["windows-core-tests"]["steps"]
+        if step.get("name") == "Run Windows core test tracker command"
+    )
+    assert (
+        "test/test_dag_artifact_execution_contracts.py::test_cached_dataset_rejects_junction_before_target_reads"
+        in {line.strip().removesuffix("`").rstrip() for line in test_step["run"].splitlines()}
+    )
 
     assert "name: windows-core-tests" in text
     assert "runs-on: windows-latest" in text

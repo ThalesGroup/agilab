@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from copy import deepcopy
+import hashlib
 import importlib.util
 import json
 import os
@@ -1209,13 +1210,20 @@ def test_dag_run_engine_executes_app_owned_flight_template_contract_stage(tmp_pa
     assert flight["execution_contract"]["data_out"] == "flight_telemetry/dataframe"
     assert flight["execution_mode"] == "contract_adapter"
     assert flight["contract_execution"]["summary_metrics"]["stage_completed"] == 1
-    assert flight["produces"] == [
+    assert [
+        {key: output[key] for key in ("artifact", "kind", "path")}
+        for output in flight["produces"]
+    ] == [
         {
             "artifact": "flight_reduce_summary",
             "kind": "reduce_summary",
             "path": str(calls[0] / "flight/reduce.json"),
         }
     ]
+    for output in flight["produces"]:
+        persisted = Path(output["path"]).read_bytes()
+        assert output["size_bytes"] == len(persisted)
+        assert output["sha256"] == hashlib.sha256(persisted).hexdigest()
 
 
 def test_dag_run_engine_runs_ready_contract_stages_as_parallel_batch(tmp_path):
