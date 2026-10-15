@@ -248,7 +248,9 @@ Use this runbook whenever you:
   `src` directory first on `PYTHONPATH` and verify the imported AGILAB module's
   resolved `__file__` and source hash before running tests. Adding `src/agilab`
   alone does not override an editable package installed from another checkout.
-  Keep a borrowed environment read-only with `uv run --no-sync`. Serialize
+  Keep a borrowed environment read-only with `uv run --no-sync`. Pass that
+  flag to the driver command instead of exporting `UV_NO_SYNC` when nested
+  tools must synchronize their own temporary app environments. Serialize
   environment synchronization and dependent tests; do not run environment-changing
   `./dev` or `uv sync` commands concurrently against the same environment. Use an
   owned worktree environment when synchronization is needed.
