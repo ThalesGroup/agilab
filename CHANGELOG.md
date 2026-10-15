@@ -44,6 +44,8 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 - Preserve network-map row alignment when telemetry indexes repeat, declare
   Plotly for the four chart pages that require it, and retain native main
   content within its layout column.
+- Preserve saved zero-valued queue weights and random seeds in the queue
+  and relay-queue application forms.
 
 ## [2026.10.13] - 2026-10-13
 

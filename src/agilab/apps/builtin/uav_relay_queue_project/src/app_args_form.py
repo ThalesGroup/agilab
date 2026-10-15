@@ -74,8 +74,8 @@ defaults = {
     "sim_time_s": float(current_payload.get("sim_time_s", 30.0) or 30.0),
     "sampling_interval_s": float(current_payload.get("sampling_interval_s", 0.5) or 0.5),
     "source_rate_pps": float(current_payload.get("source_rate_pps", 14.0) or 14.0),
-    "queue_weight": float(current_payload.get("queue_weight", 2.5) or 2.5),
-    "random_seed": int(current_payload.get("random_seed", 2026) or 2026),
+    "queue_weight": float(current_payload["queue_weight"]),
+    "random_seed": int(current_payload["random_seed"]),
     "reset_target": bool(current_payload.get("reset_target", False)),
 }
 # Reseed widget state when the persisted [args] payload changed outside this form

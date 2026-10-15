@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-15T12:21:07Z",
+  "generated_at_utc": "2026-10-15T12:41:20Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -680,7 +680,7 @@
       "name": "agi-app-uav-queue",
       "role": "app-project",
       "status": "Release artifact",
-      "version": "2026.10.10.1",
+      "version": "2026.10.15",
       "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts",
       "project": "src/agilab/lib/agi-app-uav-queue",
       "pyproject": "src/agilab/lib/agi-app-uav-queue/pyproject.toml",
@@ -691,7 +691,7 @@
       "name": "agi-app-uav-relay-queue",
       "role": "app-project",
       "status": "PyPI app package",
-      "version": "2026.10.10.1",
+      "version": "2026.10.15",
       "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts",
       "project": "src/agilab/lib/agi-app-uav-relay-queue",
       "pyproject": "src/agilab/lib/agi-app-uav-relay-queue/pyproject.toml",
@@ -826,7 +826,7 @@
       "package": "agi-app-uav-queue",
       "status": "Release artifact",
       "source": "src/agilab/lib/agi-app-uav-queue",
-      "version": "2026.10.10.1",
+      "version": "2026.10.15",
       "description": "AGILAB UAV queue simulation demo with scenario evidence and network-map artifacts"
     },
     {
@@ -834,7 +834,7 @@
       "package": "agi-app-uav-relay-queue",
       "status": "PyPI app package",
       "source": "src/agilab/lib/agi-app-uav-relay-queue",
-      "version": "2026.10.10.1",
+      "version": "2026.10.15",
       "description": "AGILAB UAV relay queue simulation demo with routing, delay, and resilience artifacts"
     },
     {
