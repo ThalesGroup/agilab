@@ -82,7 +82,7 @@ for key, default in (
     ("horizon_days", int(current_payload.get("horizon_days", 7) or 7)),
     ("validation_days", int(current_payload.get("validation_days", 9) or 9)),
     ("n_estimators", int(current_payload.get("n_estimators", 100) or 100)),
-    ("random_state", int(current_payload.get("random_state", 42) or 42)),
+    ("random_state", int(current_payload["random_state"])),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
     if _reseed or _k(key) not in st.session_state:

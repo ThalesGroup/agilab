@@ -25,6 +25,7 @@ class NativeZeroFormCase:
     change_label: str = "Number of files"
     initial_change_value: int = 1
     changed_value: int = 2
+    seed_overrides: dict[str, str | int | float | bool] | None = None
 
 
 def native_chromium_executable() -> str:
@@ -100,27 +101,41 @@ def assert_native_zero_form_roundtrip(
     share.mkdir()
     settings = root / "app_settings.toml"
     seed = (app_source / "app_settings.toml").read_text(encoding="utf-8")
+    source_sections = tomllib.loads(seed)
     assert case.zero_values and all(value == 0 for value in case.zero_values.values())
     assert case.zero_values.keys() <= case.numeric_controls.keys()
-    for key, value in case.zero_values.items():
-        seed, replacements = re.subn(rf"(?m)^{key}\s*=.*$", f"{key} = {value}", seed)
-        assert replacements == 1, f"Expected one {key} field in the public app seed"
+    assert not case.zero_values.keys() & (case.seed_overrides or {}).keys()
+    for key, value in {**(case.seed_overrides or {}), **case.zero_values}.items():
+        setting = f"{key} = {json.dumps(value)}"
+        seed, replacements = re.subn(rf"(?m)^{key}\s*=.*$", lambda _: setting, seed)
+        assert replacements <= 1, f"Expected at most one {key} field in the app seed"
+        if not replacements:
+            seed, sections = re.subn(
+                r"(?m)^\[args\][ \t]*$", lambda _: f"[args]\n{setting}", seed
+            )
+            assert sections == 1, "Expected one [args] section in the public app seed"
     settings.write_text(seed, encoding="utf-8")
     initial_bytes, initial_mtime = settings.read_bytes(), settings.stat().st_mtime_ns
     controls = {**case.numeric_controls, case.change_key: case.change_label}
-    seeded_args = tomllib.loads(seed)["args"]
+    seeded_sections = tomllib.loads(settings.read_text(encoding="utf-8"))
+    assert {key: value for key, value in seeded_sections.items() if key != "args"} == {
+        key: value for key, value in source_sections.items() if key != "args"
+    }, "Fixture seeding must preserve every section outside [args]"
+    seeded_args = seeded_sections["args"]
     expected = {key: seeded_args[key] for key in controls}
     assert expected[case.change_key] == case.initial_change_value
     view = root / "agilab_native_zero_parameter_robot_view.py"
     _write_form_view(view, app_source, settings, share)
     evidence = root / "agilab-native-zero-parameter-browser-evidence"
     evidence.mkdir()
-    sources = (
+    sources = [
         app_source / "app_args_form.py",
-        app_source / case.app_name.removesuffix("_project") / "app_args.py",
         Path(__file__).resolve(),
         test_source.resolve(),
-    )
+    ]
+    model_facade = app_source / case.app_name.removesuffix("_project") / "app_args.py"
+    if model_facade.is_file():
+        sources.append(model_facade)
     source_hashes = {
         str(path.relative_to(repo)): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sources
@@ -198,12 +213,11 @@ def assert_native_zero_form_roundtrip(
                     assert model_record == executed_model
                 executed_model.update(model_record)
                 source_hashes[model_key] = model_record["sha256"]
-                values = {
-                    key: type(expected[key])(
-                        page.get_by_label(label, exact=True).input_value()
-                    )
-                    for key, label in controls.items()
-                }
+                values = {}
+                for key, label in controls.items():
+                    control = page.get_by_label(label, exact=True)
+                    playwright.expect(control).to_be_visible()
+                    values[key] = type(expected[key])(control.input_value())
                 persisted = tomllib.loads(settings.read_text(encoding="utf-8"))["args"]
                 observations.append(
                     {
@@ -215,7 +229,9 @@ def assert_native_zero_form_roundtrip(
                         ).hexdigest(),
                     }
                 )
-                page.screenshot(path=str(evidence / f"{stem}-{stage}.png"))
+                page.screenshot(
+                    path=str(evidence / f"{stem}-{stage}.png"), full_page=True
+                )
                 assert values == expected
                 assert all(persisted[key] == value for key, value in values.items())
                 assert not page.locator(".py-exception, .py-error").count()

@@ -197,11 +197,11 @@ _seed("files", str(current_payload.get("files", "*.json") or "*.json"))
 _seed("nfile", int(current_payload.get("nfile", 1) or 1))
 _seed(
     "minimum_evidence_confidence",
-    float(current_payload.get("minimum_evidence_confidence", 0.65) or 0.65),
+    float(current_payload["minimum_evidence_confidence"]),
 )
 _seed(
     "minimum_regression_coverage",
-    float(current_payload.get("minimum_regression_coverage", 0.6) or 0.6),
+    float(current_payload["minimum_regression_coverage"]),
 )
 _seed("reset_target", bool(current_payload.get("reset_target", False)))
 _seed("case_source", str(current_payload.get("case_source", "bundled") or "bundled"))
@@ -221,7 +221,7 @@ _seed(
 )
 _seed("ai_topic", str(current_payload.get("ai_topic", "") or ""))
 _seed("ai_case_count", int(current_payload.get("ai_case_count", 2) or 2))
-_seed("ai_temperature", float(current_payload.get("ai_temperature", 0.2) or 0.2))
+_seed("ai_temperature", float(current_payload["ai_temperature"]))
 _seed("ai_timeout_s", float(current_payload.get("ai_timeout_s", 120.0) or 120.0))
 
 c1, c2, c3, c4 = st.columns([2, 2, 1.2, 1.1])

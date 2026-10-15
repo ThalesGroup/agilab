@@ -70,7 +70,7 @@ for key, default in (
     ("n_groups", int(current_payload.get("n_groups", 32) or 32)),
     ("compute_passes", int(current_payload.get("compute_passes", 32) or 32)),
     ("output_format", str(current_payload.get("output_format", "csv") or "csv")),
-    ("seed", int(current_payload.get("seed", 42) or 42)),
+    ("seed", int(current_payload["seed"])),
     ("reset_target", bool(current_payload.get("reset_target", False))),
 ):
     if _reseed or _k(key) not in st.session_state:

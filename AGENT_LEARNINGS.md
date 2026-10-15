@@ -7,8 +7,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 - Add a rule only after a user, reviewer, or failed validation corrects an agent behavior that is not already covered by the repo runbooks.
 - Write one concrete rule that changes behavior; avoid generic warnings such as "be careful".
 - Tighten an existing rule instead of adding a duplicate.
-- Promote durable workflow rules into `AGENTS.md`, `AGENT_CONVENTIONS.md`,
-  skills, or tests when they become more than a correction note.
+- Promote durable workflow rules into `AGENTS.md`, `AGENT_CONVENTIONS.md`, skills, or tests when they become more than a correction note.
 - Prune entries when code, tooling or a clearer upstream contract fixes the issue.
 
 ## Maintenance contract
@@ -20,6 +19,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## Current rules
 
+- For a numeric-zero form bug, inventory truthiness fallbacks with AST, including fractional and negative constants; a seed-name or integer-only regex is incomplete. Compare model, widget and runtime contracts, distinguish positive-only fields and normalized sentinels, then cover every confirmed zero-preservation case through cold render, automatic saving and reload.
 - Before calling an SDK patch approval-ready, check changed calls against real helper signatures and include a regression using the real pure helper; mock process/network effects at their boundaries. Keep in-memory proposal results separate from validation of applied source.
 - Before reusing a completed sub-agent, start its new task with `followup_task` and verify its live status is running before waiting. `send_message` queues a message without starting a completed agent. Recheck status after an interruption, and keep prior results distinct from the new task.
 - For edits to similar JavaScript collectors, target the named constant and caller (`_above_fold_probe` uses `ABOVE_FOLD_COLLECTOR_JS`). Run a browser DOM canary with visible targets and hidden-content exclusions; mocked payloads do not validate selector edits.
