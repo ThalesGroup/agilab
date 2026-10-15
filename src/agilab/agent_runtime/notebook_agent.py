@@ -1003,7 +1003,7 @@ def main(argv=None) -> int:
         "--resume",
         type=Path,
         metavar="RUN_DIRECTORY",
-        help="Recover verification and workflow import after a completed provider build",
+        help="Recover a completed provider build; with --ui, open the saved run for review",
     )
     parser.add_argument(
         "--input-file",
@@ -1015,7 +1015,7 @@ def main(argv=None) -> int:
     parser.add_argument("--tokki", default="tokki")
     parser.add_argument("--timeout", type=int, default=1200)
     parser.add_argument(
-        "--ui", action="store_true", help="Open the one-button local demo"
+        "--ui", action="store_true", help="Open the local notebook builder"
     )
     parser.add_argument("--port", type=int, default=8517)
     args = parser.parse_args(argv)
@@ -1023,19 +1023,19 @@ def main(argv=None) -> int:
         parser.error("--timeout must be between 60 and 3600 seconds")
     if args.resume is not None:
         if (
-            args.ui
-            or args.check
+            args.check
             or args.notebook is not None
             or args.notebook_url is not None
             or args.input_file
             or args.request is not None
         ):
             parser.error(
-                "--resume uses the saved run; omit --ui, --check, source, request and input options"
+                "--resume uses the saved run; omit --check, source, request and input options"
             )
-        report = recover_build(args.resume)
-        print(json.dumps(report, indent=2))
-        return 0 if report["status"] == "passed" else 1
+        if not args.ui:
+            report = recover_build(args.resume)
+            print(json.dumps(report, indent=2))
+            return 0 if report["status"] == "passed" else 1
     if (args.check or args.input_file) and args.ui:
         parser.error("--check and --input-file are CLI actions; omit --ui")
     if (
@@ -1101,6 +1101,8 @@ def main(argv=None) -> int:
             command.extend(["--notebook", str(args.notebook.expanduser().resolve())])
         if args.notebook_url is not None:
             command.extend(["--notebook-url", args.notebook_url])
+        if args.resume is not None:
+            command.extend(["--resume", str(args.resume.expanduser().absolute())])
         return subprocess.call(command)
     root = create_run(args.output)
     print(f"Live run: {root}", flush=True)

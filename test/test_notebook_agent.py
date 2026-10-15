@@ -94,6 +94,27 @@ def test_ui_launcher_uses_packaged_file_and_preserves_settings(tmp_path, monkeyp
     assert command[command.index("--output") + 1] == str(tmp_path)
 
 
+def test_resume_ui_opens_existing_run_without_starting_work(tmp_path, monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        demo.subprocess, "call", lambda argv: captured.append(argv) or 0
+    )
+    monkeypatch.setattr(demo, "create_run", lambda *_: pytest.fail("new run created"))
+    monkeypatch.setattr(demo, "build", lambda *_, **__: pytest.fail("build started"))
+    monkeypatch.setattr(
+        demo, "recover_build", lambda *_: pytest.fail("recovery started")
+    )
+    monkeypatch.setattr(demo.shutil, "which", lambda *_: pytest.fail("provider lookup"))
+    root = tmp_path / "saved-notebook-run"
+    assert demo.main(["--resume", str(root), "--ui", "--port", "8543"]) == 0
+    command = captured[0]
+    assert command[:3] == [demo.sys.executable, "-m", "agi_web.react_python_host"]
+    assert command[command.index("--resume") + 1] == str(root)
+    assert command[command.index("--port") + 1] == "8543"
+    assert "--notebook" not in command and "--notebook-url" not in command
+    assert "--request" not in command
+
+
 def test_verifier_rejects_non_learning_models(tmp_path, monkeypatch):
     from agilab.agent_runtime.notebook_verifier import verify
 
