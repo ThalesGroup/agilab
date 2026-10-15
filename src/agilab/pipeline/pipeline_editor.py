@@ -468,6 +468,55 @@ def _notebook_import_preview_with_runtime_roles(
     return selected_preview
 
 
+def prepare_notebook_import_preview(
+    preview: Dict[str, Any],
+    *,
+    runtime_roles: Mapping[str, Any] | None = None,
+    selected_stage_ids: Iterable[str] | None = None,
+    preserve_notebook_state: bool | None = None,
+) -> Dict[str, Any]:
+    """Prepare the chosen execution plan after role review and cell selection."""
+    reviewed = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
+    selected = _selected_notebook_import_preview(reviewed, selected_stage_ids)
+    preserve = (
+        bool(preview.get("preserve_notebook_state", False))
+        if preserve_notebook_state is None
+        else preserve_notebook_state
+    )
+    if preserve:
+        detail = _notebook_import_runtime_role_review_detail(selected)
+        if detail:
+            raise ValueError(
+                "Review Manager or Worker ownership for each selected cell before "
+                f"preserving notebook state. {detail}"
+            )
+    prepared = dict(selected)
+    prepared["preserve_notebook_state"] = preserve
+    try:
+        prepared["toml_content"] = build_lab_stages_preview(
+            selected.get("notebook_import", {}),
+            module_name=str(selected.get("module", "") or "lab_stages"),
+            preserve_notebook_state=preserve,
+        )
+    except (SyntaxError, OverflowError) as exc:
+        raise ValueError(
+            "The selected cells cannot form a standalone Python execution stage. "
+            "Include prerequisite cells or correct their Python source before importing. "
+            f"{exc}"
+        ) from exc
+    return prepared
+
+
+def notebook_import_preserve_state_key(
+    index_page: str, source_signature: str, target_path: str | Path
+) -> str:
+    scope = "\0".join(
+        (str(Path(target_path).expanduser().absolute()), str(source_signature))
+    )
+    signature = hashlib.sha256(scope.encode("utf-8")).hexdigest()[:16]
+    return f"{index_page}__notebook_preserve_state_{signature}"
+
+
 def _notebook_import_runtime_role_summary(preview: Dict[str, Any]) -> str:
     parts: list[str] = []
     for index, stage in enumerate(_notebook_import_stages(preview), start=1):
@@ -628,6 +677,57 @@ def _notebook_import_is_same_origin(preview: Mapping[str, Any]) -> bool:
     }
 
 
+def _notebook_stage_source_cells(entry: Mapping[str, Any]) -> set[tuple[str, Any]]:
+    source_cells = entry.get("NB_SOURCE_CELLS")
+    cells = (
+        source_cells
+        if isinstance(source_cells, list)
+        else [{"id": entry.get("NB_CELL_ID"), "index": entry.get("NB_CELL_INDEX")}]
+    )
+    identities: set[tuple[str, Any]] = set()
+    for cell in cells:
+        if not isinstance(cell, Mapping):
+            continue
+        cell_id = str(cell.get("id", "") or "").strip()
+        if cell_id:
+            identities.add(("id", cell_id))
+        index = cell.get("index")
+        if isinstance(index, int) and not isinstance(index, bool) and index > 0:
+            identities.add(("index", index))
+    return identities
+
+
+def _validate_shared_notebook_import_overlap(
+    current_entries: list[Any], imported_entry: Any, module_key: str
+) -> None:
+    if not isinstance(imported_entry, Mapping):
+        return
+    source = str(imported_entry.get("NB_SOURCE_NOTEBOOK", "") or "")
+    if not source:
+        return
+    imported_cells = _notebook_stage_source_cells(imported_entry)
+    for current in current_entries:
+        if (
+            not isinstance(current, Mapping)
+            or current.get("NB_SOURCE_NOTEBOOK") != source
+        ):
+            continue
+        shared = any(
+            stage.get("NB_EXECUTION_STRATEGY") == "shared_namespace"
+            or isinstance(stage.get("NB_SOURCE_CELLS"), list)
+            for stage in (current, imported_entry)
+        )
+        if shared and imported_cells.intersection(
+            _notebook_stage_source_cells(current)
+        ):
+            raise ValueError(
+                f"Notebook source cells from {source!r} already exist in module {module_key!r}. "
+                "Appending a shared notebook stage would duplicate their execution. "
+                "Remove the prior notebook stages or explicitly replace the reviewed "
+                "import target before importing again."
+            )
+
+
 def _merge_notebook_import_stage_entries(
     current_entries: list[Any],
     imported_entries: list[Any],
@@ -649,6 +749,10 @@ def _merge_notebook_import_stage_entries(
             existing_by_id[stage_id] = index
     used_source_positions: set[tuple[str, int]] = set()
     for imported_entry in imported_entries:
+        if not allow_upsert:
+            _validate_shared_notebook_import_overlap(
+                current_entries, imported_entry, module_key
+            )
         imported_copy = copy.deepcopy(imported_entry)
         imported_id = _notebook_stage_identity(imported_copy)
         if imported_id and imported_id in existing_by_id:
@@ -886,8 +990,6 @@ def _notebook_import_write_preview_text(
     max_diff_lines: int = 80,
 ) -> str:
     """Return a compact, read-only preview of files changed by notebook import."""
-    preflight = preview.get("preflight", {})
-    summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
     contract = preview.get("contract", {})
     artifact_contract = (
         contract.get("artifact_contract", {}) if isinstance(contract, dict) else {}
@@ -926,9 +1028,16 @@ def _notebook_import_write_preview_text(
     input_paths = artifact_contract.get("inputs", []) if isinstance(artifact_contract, dict) else []
     output_paths = artifact_contract.get("outputs", []) if isinstance(artifact_contract, dict) else []
     unknown_paths = artifact_contract.get("unknown", []) if isinstance(artifact_contract, dict) else []
+    execution_stages = preview.get("toml_content", {}).get(
+        str(preview.get("module", "")), []
+    )
+    execution_count = len(execution_stages) if isinstance(execution_stages, list) else 0
+    identity_label = (
+        "Source cell IDs" if preview.get("preserve_notebook_state") else "Stage IDs"
+    )
     lines = [
-        f"Stages to write: {int(summary.get('pipeline_stage_count', preview.get('cell_count', 0)) or 0)}",
-        f"Stage IDs: {_notebook_import_string_list(stage_ids)}",
+        f"Stages to write: {execution_count}",
+        f"{identity_label}: {_notebook_import_string_list(stage_ids)}",
         f"Runtime roles: {_notebook_import_runtime_role_summary(preview)}",
         f"Inputs: {_notebook_import_string_list(input_paths)}",
         f"Outputs: {_notebook_import_string_list(output_paths)}",
@@ -2067,6 +2176,7 @@ def confirm_notebook_import_preview(
     view_manifest_dir: Path | None = None,
     selected_stage_ids: Iterable[str] | None = None,
     runtime_roles: Mapping[str, Any] | None = None,
+    preserve_notebook_state: bool | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -2074,8 +2184,19 @@ def confirm_notebook_import_preview(
     if not isinstance(preview, dict):
         _emit_streamlit_message("error", "No notebook import preview is available.")
         return 0
-    preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
-    preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
+    try:
+        preview_with_roles = _notebook_import_preview_with_runtime_roles(
+            preview, runtime_roles
+        )
+        preview_to_write = prepare_notebook_import_preview(
+            preview,
+            runtime_roles=runtime_roles,
+            selected_stage_ids=selected_stage_ids,
+            preserve_notebook_state=preserve_notebook_state,
+        )
+    except (TypeError, ValueError) as exc:
+        _emit_streamlit_message("error", f"Notebook execution plan is blocked: {exc}")
+        return 0
     if not _notebook_import_preview_is_safe(preview):
         detail = _notebook_import_blocking_detail(preview.get("preflight", {}))
         _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
@@ -2156,7 +2277,7 @@ def render_notebook_import_preview(
     if callable(caption):
         caption(
             "Notebook preview: "
-            f"{int(summary.get('pipeline_stage_count', 0) or 0)} stage(s), "
+            f"{int(summary.get('pipeline_stage_count', 0) or 0)} source stage(s), "
             f"{int(summary.get('input_count', 0) or 0)} input(s), "
             f"{int(summary.get('output_count', 0) or 0)} output(s), "
             f"{int(risk_counts.get('warning', 0) or 0)} warning(s)."
@@ -2171,6 +2292,8 @@ def render_notebook_import_preview(
     selected_stage_ids: list[str] | None = None
     preview_to_write: Dict[str, Any] | None = None
     role_detail = ""
+    plan_detail = ""
+    preserve_notebook_state = False
     if _notebook_import_preview_is_safe(preview):
         runtime_roles = _render_notebook_import_runtime_role_controls(
             target,
@@ -2204,21 +2327,69 @@ def render_notebook_import_preview(
                     selected_stage_ids = [str(selected_option["id"])]
                     if callable(caption):
                         caption(_notebook_import_stage_detail(selected_option["stage"]))
-        preview_with_roles = _notebook_import_preview_with_runtime_roles(preview, runtime_roles)
-        preview_to_write = _selected_notebook_import_preview(preview_with_roles, selected_stage_ids)
-        _render_notebook_import_write_preview(target, preview_to_write, stages_file)
-        role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+        checkbox = getattr(target, "checkbox", None)
+        if callable(checkbox):
+            preserve_notebook_state = bool(
+                checkbox(
+                    "Preserve notebook state",
+                    value=False,
+                    key=notebook_import_preserve_state_key(
+                        index_page,
+                        str(preview.get("source_signature", "")),
+                        stages_file,
+                    ),
+                    help=(
+                        "Run the selected notebook cells in order as one stage with shared "
+                        "Python variables. All selected cells need the same reviewed runtime "
+                        "and environment. Importing does not execute the notebook."
+                    ),
+                )
+            )
+        preview["preserve_notebook_state"] = preserve_notebook_state
+        st.session_state[_notebook_import_preview_key(index_page)] = preview
+        try:
+            preview_to_write = prepare_notebook_import_preview(
+                preview,
+                runtime_roles=runtime_roles,
+                selected_stage_ids=selected_stage_ids,
+                preserve_notebook_state=preserve_notebook_state,
+            )
+            _notebook_import_content_for_write(preview_to_write, stages_file)
+        except (OSError, TypeError, ValueError) as exc:
+            plan_detail = str(exc)
+            error = getattr(target, "error", None)
+            if callable(error):
+                error(f"Notebook execution plan is blocked: {plan_detail}")
+        if preview_to_write is not None:
+            _render_notebook_import_write_preview(target, preview_to_write, stages_file)
+            role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
+            if preserve_notebook_state and callable(caption):
+                caption(
+                    "The execution preview preserves shared Python state. Original "
+                    "source cells remain available; edit the source notebook and reimport "
+                    "to change a combined stage. Explicit exported workflows keep their graph."
+                )
         if role_detail:
             warning = getattr(target, "warning", None)
             if callable(warning):
                 warning(f"Runtime review required: {role_detail}")
-    import_label = "Promote selected cell" if selected_stage_ids else "Import all runnable cells"
-    import_ready = _notebook_import_preview_is_safe(preview) and preview_to_write is not None and not role_detail
-    if _notebook_import_preview_is_safe(preview) and button(
-        import_label,
-        key=f"{index_page}__confirm_notebook_import",
-        disabled=not import_ready,
-    ) and import_ready:
+    import_ready = (
+        _notebook_import_preview_is_safe(preview)
+        and preview_to_write is not None
+        and not role_detail
+        and not plan_detail
+    )
+    confirmed = False
+    if _notebook_import_preview_is_safe(preview):
+        button_options = {
+            "key": f"{index_page}__confirm_notebook_import",
+            "disabled": not import_ready,
+        }
+        if selected_stage_ids:
+            confirmed = button("Promote selected cell", **button_options)
+        else:
+            confirmed = button("Import all runnable cells", **button_options)
+    if confirmed and import_ready:
         confirm_notebook_import_preview(
             module_dir,
             stages_file,
@@ -2226,6 +2397,7 @@ def render_notebook_import_preview(
             view_manifest_dir=view_manifest_dir,
             selected_stage_ids=selected_stage_ids,
             runtime_roles=runtime_roles,
+            preserve_notebook_state=preserve_notebook_state,
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)

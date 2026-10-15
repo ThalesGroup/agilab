@@ -96,6 +96,32 @@ def test_ui_robot_action_contract_load_module_rejects_missing_spec(monkeypatch) 
         module._load_module("missing", Path("missing.py"))
 
 
+def test_explicit_action_disposition_is_checked_without_a_risky_label_token(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module()
+    _patch_fake_runtime(monkeypatch, module)
+    monkeypatch.setattr(
+        module,
+        "EXPLICIT_ACTION_DISPOSITIONS",
+        {
+            "Promote selected cell": (
+                "trial-only",
+                "Writes reviewed cells without running them.",
+                ("test/test_pipeline_editor.py",),
+            )
+        },
+    )
+    _write_page(tmp_path, 'button("Promote selected cell")')
+
+    payload = module.evaluate_contract((tmp_path,))
+
+    assert payload["success"] is True
+    assert payload["summary"]["unused_disposition_count"] == 0
+    assert len(payload["actions"]) == 1
+    assert payload["actions"][0]["focused_tests"] == ["test/test_pipeline_editor.py"]
+
+
 def test_action_inventory_excludes_split_package_test_fixtures(tmp_path: Path) -> None:
     module = _load_module()
     source = tmp_path / "src/agilab/lib/agi-web"

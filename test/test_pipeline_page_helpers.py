@@ -551,7 +551,7 @@ def test_notebook_import_preview_stays_in_main_workspace_and_preserves_drafts(tm
     assert notebook_buttons[f"{index_page}__confirm_notebook_import"].label == "Import all runnable cells"
     assert notebook_buttons[f"{index_page}__confirm_notebook_import"].disabled is False
     assert f"{index_page}__cancel_notebook_import" in notebook_buttons
-    assert any(str(caption.value).startswith("Notebook preview: 1 stage(s)")
+    assert any(str(caption.value).startswith("Notebook preview: 1 source stage(s)")
                for caption in notebook.get("caption"))
     assert not any(button.key in {
         f"{index_page}__confirm_notebook_import", f"{index_page}__cancel_notebook_import",
