@@ -309,6 +309,11 @@ _write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_p
 _prepare_notebook_import_preview = (
     _pipeline_editor_module.prepare_notebook_import_preview
 )
+_prepare_notebook_setup_preview = _pipeline_editor_module.prepare_notebook_setup_preview
+_render_notebook_setup_review = _pipeline_editor_module.render_notebook_setup_review
+_notebook_setup_review_signature = (
+    _pipeline_editor_module.notebook_setup_review_signature
+)
 _notebook_import_preserve_state_key = (
     _pipeline_editor_module.notebook_import_preserve_state_key
 )
@@ -4038,6 +4043,9 @@ def _render_project_notebook_runtime_role_review(
     project_name: str,
     *,
     preserve_notebook_state: bool = False,
+    setup_cell_ids=None,
+    setup_review_signature: str | None = None,
+    target_path: Path | None = None,
 ) -> tuple[dict, str]:
     preview, error = _project_notebook_preview_from_upload(
         uploaded_notebook, project_name
@@ -4046,6 +4054,26 @@ def _render_project_notebook_runtime_role_review(
         if error:
             target.caption(f"Notebook runtime review unavailable: {error}")
         return {}, ""
+
+    setup_cell_ids = tuple(setup_cell_ids or ())
+    try:
+        if (
+            setup_review_signature is not None
+            and setup_review_signature
+            != _notebook_setup_review_signature(
+                preview, setup_cell_ids=setup_cell_ids, target_path=target_path
+            )
+        ):
+            raise ValueError(
+                "Notebook setup choices, source or destination changed; review the notebook again."
+            )
+        preview = _prepare_notebook_setup_preview(
+            preview, setup_cell_ids=setup_cell_ids, target_path=target_path
+        )
+    except (TypeError, ValueError) as exc:
+        detail = f"Notebook setup review is blocked: {exc}"
+        target.caption(detail)
+        return {}, detail
 
     reuse_report = preview.get("reuse_suggestions", {})
     reuse_matches = (
@@ -4066,7 +4094,11 @@ def _render_project_notebook_runtime_role_review(
 
     preflight = preview.get("preflight", {})
     if not isinstance(preflight, dict) or not preflight.get("safe_to_import"):
-        return {}, ""
+        detail = (
+            f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}"
+        )
+        target.caption(detail)
+        return {}, detail
 
     stages = _project_notebook_import_stages(preview)
     if not stages:
@@ -4082,7 +4114,9 @@ def _render_project_notebook_runtime_role_review(
 
     labels = list(NOTEBOOK_RUNTIME_ROLE_BY_LABEL)
     source_signature = re.sub(
-        r"[^A-Za-z0-9_]+", "_", str(preview.get("source_signature", "") or "")
+        r"[^A-Za-z0-9_]+",
+        "_",
+        str(setup_review_signature or preview.get("source_signature", "") or ""),
     ).strip("_")
     selected_roles: dict[str, str] = {}
     for index, stage in enumerate(stages, start=1):
@@ -4220,6 +4254,8 @@ def _create_project_from_notebook_action(
     clone_env_strategy: str,
     runtime_roles: dict | None = None,
     preserve_notebook_state: bool = False,
+    setup_cell_ids=None,
+    setup_review_signature: str | None = None,
 ) -> ActionResult:
     raw = raw_project_name.strip()
     if not raw:
@@ -4265,6 +4301,23 @@ def _create_project_from_notebook_action(
     )
     try:
         preview = _build_project_notebook_import_preview(preview_upload, dest_root)
+        preview["source_signature"] = _uploaded_notebook_signature(
+            uploaded_notebook, notebook_bytes
+        )
+        setup_cell_ids = tuple(setup_cell_ids or ())
+        if (
+            setup_review_signature is not None
+            and setup_review_signature
+            != _notebook_setup_review_signature(
+                preview, setup_cell_ids=setup_cell_ids, target_path=dest_root
+            )
+        ):
+            raise ValueError(
+                "Notebook setup choices, source or destination changed; review the notebook again."
+            )
+        preview = _prepare_notebook_setup_preview(
+            preview, setup_cell_ids=setup_cell_ids, target_path=dest_root
+        )
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
         return ActionResult.error(
             "Notebook import preview failed.",
@@ -4776,14 +4829,40 @@ def handle_project_creation():
     notebook_runtime_roles: dict[str, str] = {}
     notebook_role_detail = ""
     notebook_preserve_state = False
+    notebook_setup_cell_ids: list[str] = []
+    notebook_setup_review_signature: str | None = None
+    notebook_setup_detail = ""
     notebook_source_missing = (
         create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is None
     )
     if create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is not None:
+        notebook_target_path = env.apps_path / (
+            normalize_project_name(raw) or "notebook_import_project"
+        )
+        setup_preview, setup_preview_error = _project_notebook_preview_from_upload(
+            active_notebook_source, raw
+        )
+        if setup_preview is not None:
+            setup_preview, notebook_setup_cell_ids, notebook_setup_detail = (
+                _render_notebook_setup_review(
+                    st.sidebar, setup_preview, "PROJECT", notebook_target_path
+                )
+            )
+            notebook_setup_review_signature = setup_preview.get(
+                "setup_review_signature"
+            )
+        elif setup_preview_error:
+            notebook_setup_detail = (
+                f"Notebook setup review unavailable: {setup_preview_error}"
+            )
+            st.sidebar.caption(notebook_setup_detail)
         try:
-            source_signature = _uploaded_notebook_signature(
-                active_notebook_source,
-                _read_uploaded_notebook_bytes(active_notebook_source),
+            source_signature = (
+                notebook_setup_review_signature
+                or _uploaded_notebook_signature(
+                    active_notebook_source,
+                    _read_uploaded_notebook_bytes(active_notebook_source),
+                )
             )
         except (OSError, TypeError, ValueError):
             source_signature = ""
@@ -4794,8 +4873,7 @@ def handle_project_creation():
                 key=_notebook_import_preserve_state_key(
                     "PROJECT",
                     source_signature,
-                    env.apps_path
-                    / (normalize_project_name(raw) or "notebook_import_project"),
+                    notebook_target_path,
                 ),
                 help=(
                     "Run ordinary notebook cells in order as one stage with shared Python "
@@ -4809,6 +4887,9 @@ def handle_project_creation():
                 active_notebook_source,
                 raw,
                 preserve_notebook_state=notebook_preserve_state,
+                setup_cell_ids=notebook_setup_cell_ids,
+                setup_review_signature=notebook_setup_review_signature,
+                target_path=notebook_target_path,
             )
         )
     elif notebook_source_missing:
@@ -4840,7 +4921,11 @@ def handle_project_creation():
         type="primary",
         width="stretch",
         disabled=create_mode == CREATE_MODE_NOTEBOOK
-        and (notebook_source_missing or bool(notebook_role_detail)),
+        and (
+            notebook_source_missing
+            or bool(notebook_role_detail)
+            or bool(notebook_setup_detail)
+        ),
     )
     if create_clicked:
         if enforce_reuse_rationale and not reuse_rationale.strip():
@@ -4909,6 +4994,8 @@ def handle_project_creation():
                     clone_env_strategy=clone_env_strategy,
                     runtime_roles=notebook_runtime_roles,
                     preserve_notebook_state=notebook_preserve_state,
+                    setup_cell_ids=notebook_setup_cell_ids,
+                    setup_review_signature=notebook_setup_review_signature,
                 ),
                 on_success=_activate_notebook_project,
             )

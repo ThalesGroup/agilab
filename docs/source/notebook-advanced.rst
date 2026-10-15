@@ -46,8 +46,9 @@ Import, recovery and reviewed source edits
 ------------------------------------------
 
 In **PROJECT**, choose **From notebook** when creating a project; in
-**WORKFLOW**, open **Notebook** and upload the notebook. Review the runtime
-roles, then select **Preserve notebook state** to compile the selected runnable
+**WORKFLOW**, open **Notebook** and upload the notebook. If setup cells block
+import, review their explicit conversion first as described below. Review the
+runtime roles, then select **Preserve notebook state** to compile the selected runnable
 cells into one stage. Variables, aliases, mutations and function globals remain
 in the same Python namespace when that stage runs, in original cell order.
 The option is off by default, keeping the existing cell-by-cell editing mode
@@ -77,6 +78,41 @@ the original cell sources and their hashes in ``lab_stages.toml``.
    This deterministic local fixture demonstrates import controls, without a live
    provider call. Import itself does not run the notebook.
 
+Review setup cells
+~~~~~~~~~~~~~~~~~~
+
+For simple notebook setup, open **Notebook setup review** and choose the exact
+**Setup cells to convert**. Nothing is selected by default. Review the source
+diff and **Declared requirements** before confirming import or project creation.
+
+Selected simple ``%pip`` or ``!pip install`` requirements become declarations;
+``%matplotlib inline`` becomes an explicit non-interactive batch backend.
+AGILAB reruns import preflight and runtime review on the converted source.
+Unsupported installer options, URLs, requirement files, arbitrary shell commands
+and other magics still require manual conversion. Unconverted blocking cells
+continue to block import. Conversion does not install packages, run code or
+establish that an execution environment is ready; prepare the required packages
+and inputs before execution.
+
+**Download notebook before setup conversion** recovers the preserved notebook
+document, including its cells, metadata, outputs and attachments. This preserves
+JSON content, not the upload's original whitespace or byte formatting. Successive
+conversions retain the first preserved document; for an already-converted upload
+it may predate that upload. Ordinary source export returns the reviewed notebook.
+The existing import contract stores both the reviewed document and the
+hash-verified earlier document, without replacing the source upload.
+
+.. figure:: _static/native-ui/agilab_notebook_import_setup_review_20261015.png
+   :alt: Notebook setup review with selected cells, declared requirements and source changes
+   :width: 100%
+
+   Explicit setup selection and source review in the native notebook import.
+   This deterministic local fixture demonstrates conversion controls without a
+   provider call, package installation or notebook execution.
+
+Source recovery
+~~~~~~~~~~~~~~~
+
 The WORKFLOW notebook upload path preserves a complete, hash-verified source
 document in ``notebook_import_contract.json``. The original source remains
 recoverable without executing it. Cell IDs, ordering, raw and empty cells,
@@ -97,7 +133,7 @@ multiple original cells cannot always be split safely back into those cells.
 
 An unsupported kernel, arbitrary shell command or foreign-language magic is
 diagnosed before a Python import is presented as executable. The original
-notebook remains recoverable. Supported setup conversions require an explicit
+notebook remains recoverable. The equivalent command-line setup route requires an explicit
 ``--convert-setup-cell CELL_ID`` selection, repeated for each selected cell:
 
 - Simple ``%pip`` or ``!pip install`` plain-index requirements become declared
