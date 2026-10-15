@@ -512,3 +512,44 @@ def test_analyze_paths_builds_test_index_once(monkeypatch) -> None:
     assert "test/test_pipeline_ai.py" in report.guessed_tests
     assert "test/test_pipeline_openai.py" in report.guessed_tests
     assert "test/test_orchestrate_execute.py" in report.guessed_tests
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "src/agilab/dag/dag_distributed_submitter.py",
+        "src/agilab_mcp/task_adapter.py",
+        "docs/source/new-evidence.rst",
+        "src/agilab/lib/agi-web/pyproject.toml",
+        "README.md",
+        ".claude/skills/agilab-testing/SKILL.md",
+    ],
+)
+def test_schema_and_package_inputs_require_capability_manifest_refresh(path) -> None:
+    module = _load_module()
+    report = module.analyze_paths([path], use_cache=False)
+    check = next(
+        action
+        for action in report.required_validations
+        if action.key == "capability-manifest-check"
+    )
+    refresh = next(
+        action
+        for action in report.artifact_actions
+        if action.key == "capability-manifest-refresh"
+    )
+    assert check.commands[0].endswith("tools/agilab_capabilities_manifest.py --check")
+    assert refresh.commands[0].endswith("tools/agilab_capabilities_manifest.py --apply")
+    assert "tools/agilab_capabilities_manifest.py" in module.IMPACT_STATIC_INPUTS
+
+
+
+def test_non_schema_assets_do_not_require_capability_manifest_refresh() -> None:
+    module = _load_module()
+    report = module.analyze_paths(
+        ["docs/source/_static/existing-preview.png"], use_cache=False
+    )
+    assert all(
+        action.key != "capability-manifest-check"
+        for action in report.required_validations
+    )
