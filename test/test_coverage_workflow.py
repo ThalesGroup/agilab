@@ -15,7 +15,8 @@ CODECOV_CONFIG_PATH = Path("codecov.yml")
 AGI_ENV_COVERAGE_CONFIG = Path(".coveragerc.agi-env")
 AGI_CORE_COVERAGE_CONFIG = Path(".coveragerc.agi-core")
 SHARD_PLAN_PATH = Path("tools/coverage_shard_plan.py")
-CODECOV_UPLOADER_KEY_FINGERPRINT = "27034E7FDB850E0BBC2C62FF806BB28AED779869"
+# Pinned identity of Codecov's public OpenPGP signing certificate.
+CODECOV_UPLOADER_SIGNING_FINGERPRINT = "27034E7FDB850E0BBC2C62FF806BB28AED779869"
 
 
 def _workflow_text() -> str:
@@ -583,7 +584,7 @@ def test_codecov_uploads_import_verification_key_before_blocking_upload() -> Non
         assert "set -euo pipefail" in import_block
         assert "https://uploader.codecov.io/verification.gpg" in import_block
         assert "gpg --batch --import" in import_block
-        assert f"gpg --batch --list-keys {CODECOV_UPLOADER_KEY_FINGERPRINT}" in import_block
+        assert f"gpg --batch --list-keys {CODECOV_UPLOADER_SIGNING_FINGERPRINT}" in import_block
 
 
 def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
@@ -591,7 +592,8 @@ def test_codecov_config_enforces_project_and_patch_coverage_floor() -> None:
 
     config = yaml.safe_load(CODECOV_CONFIG_PATH.read_text(encoding="utf-8"))
     status = config["coverage"]["status"]
-    assert status["project"]["default"] == {"target": "95%", "threshold": "1%"}
+    # A tolerance below the target would allow a green status below the minimum.
+    assert status["project"]["default"] == {"target": "95%", "threshold": "0%"}
     assert status["patch"]["default"] == {"target": "75%", "threshold": "5%"}
     for flag in ("agi-env", "agi-node", "agi-cluster", "agi-core", "agi-gui", "agi-web"):
         check = status["project"][flag]

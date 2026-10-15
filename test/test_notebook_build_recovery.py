@@ -9,6 +9,7 @@ import marshal
 from pathlib import Path
 import struct
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -357,3 +358,381 @@ def test_resume_cli_uses_existing_run_without_create_or_tokki(monkeypatch, capsy
     assert agent.main(["--resume", "/local/notebook-run"]) == 0
     assert called == [Path("/local/notebook-run")]
     assert json.loads(capsys.readouterr().out)["status"] == "passed"
+
+
+@pytest.fixture
+def stopped_recovery(builder, monkeypatch):
+    """Retain real provider evidence while stopping before generated code runs."""
+    root, original, deliveries = builder
+
+    def stop_before_execution(*args, progress, **kwargs):
+        progress("verify", "Acceptance stopped before executing generated code")
+        raise RuntimeError("acceptance environment unavailable")
+
+    monkeypatch.setattr(agent, "_verify_and_import", stop_before_execution)
+    report = agent.build(root, notebook=original)
+    assert report["status"] == "failed" and report["failed_phase"] == "verify"
+    assert report["recovery"]["eligible"]
+    assert len(deliveries) == 1
+    original_bytes = original.read_bytes()
+    monkeypatch.setattr(
+        agent, "run_agent_command", lambda *_: pytest.fail("provider restarted")
+    )
+    monkeypatch.setattr(
+        agent, "fetch_source", lambda *a, **k: pytest.fail("source refetched")
+    )
+    monkeypatch.setattr(
+        agent,
+        "_verify_and_import",
+        lambda *a, **k: pytest.fail("refused recovery executed generated code"),
+    )
+    return root, original, original_bytes, report, stop_before_execution
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ("not_object", "not bound to this project"),
+        ("other_project", "not bound to this project"),
+        ("unsealed_success", "no verified completion binding"),
+        ("running", "completed failure"),
+        ("provider_failure", "completed failure"),
+        ("boolean_duration", "duration is invalid"),
+        ("string_duration", "duration is invalid"),
+        ("nonfinite_duration", "duration is invalid"),
+        ("duration_before_checkpoint", "duration is invalid"),
+        ("missing_attempt_history", "recovery evidence is missing"),
+    ],
+)
+def test_recovery_rejects_unbound_outcome_without_replacing_it(
+    stopped_recovery, change, message
+):
+    root, original, original_bytes, previous, _ = stopped_recovery
+    if change == "not_object":
+        previous = []
+    elif change == "other_project":
+        previous["project"] = str(root / "another_project")
+    elif change == "unsealed_success":
+        previous["status"] = "passed"
+    elif change == "running":
+        previous["status"] = "running"
+    elif change == "provider_failure":
+        previous["failed_phase"] = "build"
+    elif change == "boolean_duration":
+        previous["seconds"] = True
+    elif change == "string_duration":
+        previous["seconds"] = "1"
+    elif change == "nonfinite_duration":
+        previous["seconds"] = float("inf")
+    elif change == "duration_before_checkpoint":
+        previous["seconds"] = -1
+    elif change == "missing_attempt_history":
+        previous["recovery"]["attempt"] = "notebook_recovery_attempts/missing"
+    outcome = root / "result.json"
+    outcome.write_text(json.dumps(previous))
+    previous_bytes = outcome.read_bytes()
+    receipt_bytes = (root / "completion_receipt.json").read_bytes()
+
+    refused = agent.recover_build(root)
+
+    assert refused["failed_phase"] == "recovery_preflight"
+    assert message in refused["error"]
+    assert not refused["recovery"]["eligible"]
+    assert outcome.read_bytes() == previous_bytes
+    assert (root / "completion_receipt.json").read_bytes() == receipt_bytes
+    assert original.read_bytes() == original_bytes
+    assert not (root / "notebook_recovery_attempts").exists()
+
+
+@pytest.mark.parametrize(
+    "unsafe_path", ["receipt_link", "receipt_directory", "attempts_link"]
+)
+def test_recovery_refuses_nonregular_evidence_without_following_it(
+    stopped_recovery, tmp_path, unsafe_path
+):
+    root, original, original_bytes, _, _ = stopped_recovery
+    previous_bytes = (root / "result.json").read_bytes()
+    outside = tmp_path / "unrelated-evidence"
+    outside.mkdir()
+    sentinel = outside / "must-stay-unchanged.txt"
+    sentinel.write_text("unrelated user evidence")
+    if unsafe_path.startswith("receipt"):
+        receipt = root / "completion_receipt.json"
+        receipt.unlink()
+        if unsafe_path == "receipt_link":
+            receipt.symlink_to(sentinel)
+        else:
+            receipt.mkdir()
+        message = "completion receipt is not a regular file"
+    else:
+        (root / "notebook_recovery_attempts").symlink_to(
+            outside, target_is_directory=True
+        )
+        message = "directory escapes the run"
+
+    refused = agent.recover_build(root)
+
+    assert refused["failed_phase"] == "recovery_preflight"
+    assert message in refused["error"]
+    assert (root / "result.json").read_bytes() == previous_bytes
+    assert sentinel.read_text() == "unrelated user evidence"
+    assert list(outside.iterdir()) == [sentinel]
+    assert original.read_bytes() == original_bytes
+
+
+@pytest.fixture
+def completed_failed_recovery(stopped_recovery, monkeypatch):
+    root, original, original_bytes, _, stop_before_execution = stopped_recovery
+    with monkeypatch.context() as patch:
+        patch.setattr(agent, "_verify_and_import", stop_before_execution)
+        report = agent.recover_build(root)
+    assert report["status"] == "failed" and report["failed_phase"] == "verify"
+    assert report["recovery"]["eligible"]
+    attempt = root / report["recovery"]["attempt"]
+    assert (attempt / "notebook_recovery_result.json").is_file()
+    return root, original, original_bytes, attempt
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        ("unsafe_name", "unsafe attempt directory"),
+        ("unexpected_file", "unsafe attempt directory"),
+        ("linked_attempt", "unsafe attempt directory"),
+        ("missing_claim", "attempt is incomplete"),
+        ("linked_terminal", "attempt is incomplete"),
+        ("claim_schema", "terminal evidence is inconsistent"),
+        ("claim_attempt", "terminal evidence is inconsistent"),
+        ("checkpoint_digest", "terminal evidence is inconsistent"),
+        ("previous_digest", "terminal evidence is inconsistent"),
+        ("terminal_schema", "terminal evidence is inconsistent"),
+        ("terminal_status", "terminal evidence is inconsistent"),
+        ("terminal_recovery_type", "terminal evidence is inconsistent"),
+        ("attempt_binding", "timing or attempt binding is invalid"),
+        ("claim_binding", "timing or attempt binding is invalid"),
+        ("boolean_prior", "timing or attempt binding is invalid"),
+        ("negative_prior", "timing or attempt binding is invalid"),
+        ("nonfinite_prior", "timing or attempt binding is invalid"),
+        ("boolean_active", "timing or attempt binding is invalid"),
+        ("negative_active", "timing or attempt binding is invalid"),
+        ("nonfinite_active", "timing or attempt binding is invalid"),
+        ("previous_seconds", "timing or attempt binding is invalid"),
+        ("total_seconds", "timing or attempt binding is invalid"),
+    ],
+)
+def test_recovery_refuses_corrupt_attempt_history_before_retrying(
+    completed_failed_recovery, change, message
+):
+    root, original, original_bytes, attempt = completed_failed_recovery
+    previous_bytes = (root / "result.json").read_bytes()
+    receipt_bytes = (root / "completion_receipt.json").read_bytes()
+    claim_path = attempt / "notebook_recovery_attempt.json"
+    terminal_path = attempt / "notebook_recovery_result.json"
+    claim = json.loads(claim_path.read_text())
+    terminal = json.loads(terminal_path.read_text())
+    if change == "unsafe_name":
+        attempt.rename(attempt.with_name(".unsafe-attempt"))
+    elif change == "unexpected_file":
+        (attempt.parent / "unexpected-file").write_text("not an attempt directory")
+    elif change == "linked_attempt":
+        (attempt.parent / "linked-attempt").symlink_to(
+            attempt, target_is_directory=True
+        )
+    elif change == "missing_claim":
+        claim_path.unlink()
+    elif change == "linked_terminal":
+        terminal_path.unlink()
+        terminal_path.symlink_to(root / "result.json")
+    else:
+        if change == "claim_schema":
+            claim["schema"] = "unrecognized"
+        elif change == "claim_attempt":
+            claim["attempt"] = "another-attempt"
+        elif change == "checkpoint_digest":
+            claim["checkpoint_sha256"] = "0" * 64
+        elif change == "previous_digest":
+            claim["previous_result_sha256"] = "0" * 64
+        elif change == "terminal_schema":
+            terminal["recovery_schema"] = "unrecognized"
+        elif change == "terminal_status":
+            terminal["status"] = "running"
+        elif change == "terminal_recovery_type":
+            terminal["recovery"] = []
+        elif change == "attempt_binding":
+            terminal["recovery"]["attempt"] = "another-attempt"
+        elif change == "claim_binding":
+            terminal["recovery"]["claim_sha256"] = "0" * 64
+        elif change in {"boolean_prior", "negative_prior", "nonfinite_prior"}:
+            claim["previous_active_seconds"] = {
+                "boolean_prior": True,
+                "negative_prior": -1,
+                "nonfinite_prior": float("nan"),
+            }[change]
+        elif change in {"boolean_active", "negative_active", "nonfinite_active"}:
+            terminal["recovery"]["active_seconds"] = {
+                "boolean_active": True,
+                "negative_active": -1,
+                "nonfinite_active": float("inf"),
+            }[change]
+        elif change == "previous_seconds":
+            terminal["recovery"]["previous_active_seconds"] += 1
+        elif change == "total_seconds":
+            terminal["seconds"] += 1
+        claim_path.write_text(json.dumps(claim))
+        if change != "claim_binding" and isinstance(terminal["recovery"], dict):
+            terminal["recovery"]["claim_sha256"] = agent.digest(claim_path)
+        terminal_path.write_text(json.dumps(terminal))
+
+    refused = agent.recover_build(root)
+
+    assert refused["failed_phase"] == "recovery_preflight"
+    assert message in refused["error"]
+    assert not refused["recovery"]["eligible"]
+    assert (root / "result.json").read_bytes() == previous_bytes
+    assert (root / "completion_receipt.json").read_bytes() == receipt_bytes
+    assert original.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize("with_attempt", [False, True])
+def test_failed_completion_binding_preserves_success_but_disables_recovery(
+    stopped_recovery, monkeypatch, with_attempt
+):
+    root, original, original_bytes, report, _ = stopped_recovery
+    checkpoint = agent.load_checkpoint(root)
+    project = Path(report["project"])
+    for relative in (
+        "lab_stages.toml",
+        "notebook_import.json",
+        "results.json",
+        "metrics.json",
+    ):
+        (project / relative).write_text("verified fixture evidence")
+    for relative in ("verification.log", "workflow_verification.log"):
+        (root / relative).write_text("verification completed")
+    attempt = root / "publish-attempt" if with_attempt else None
+    if attempt is not None:
+        attempt.mkdir()
+        (attempt / "notebook_recovery_attempt.json").write_text("attempt evidence")
+    report.update(
+        status="passed",
+        recovery={"eligible": True},
+        verification_logs={
+            "app": "verification.log",
+            "workflow": "workflow_verification.log",
+        },
+    )
+    sealed = []
+
+    def unavailable_completion_binding(run, files):
+        sealed.append((run, files))
+        raise OSError("completion inventory unavailable")
+
+    monkeypatch.setattr(agent, "seal_completion", unavailable_completion_binding)
+
+    agent._publish_result(root, report, checkpoint, attempt)
+
+    assert report["status"] == "passed"
+    assert not report["recovery"]["eligible"]
+    assert "completion inventory unavailable" in report["recovery"]["reason"]
+    assert json.loads((root / "result.json").read_text()) == report
+    assert sealed[0][0] == root
+    assert {
+        "notebook_app_project/results.json",
+        "notebook_app_project/metrics.json",
+    }.issubset(sealed[0][1])
+    if attempt is not None:
+        assert (
+            json.loads((attempt / "notebook_recovery_result.json").read_text())
+            == report
+        )
+        assert "publish-attempt/notebook_recovery_attempt.json" in sealed[0][1]
+    assert original.read_bytes() == original_bytes
+
+
+@pytest.mark.parametrize(
+    ("fault", "message"),
+    [
+        ("app_status", "Verifier did not report a pass"),
+        ("empty_workflow", "no runnable workflow stages"),
+        ("workflow_exit", "Imported workflow verification failed"),
+        ("workflow_status", "not bound to the persisted stages"),
+        ("workflow_schema", "not bound to the persisted stages"),
+        ("workflow_result", "not bound to the persisted stages"),
+        ("workflow_stages", "not bound to the persisted stages"),
+    ],
+)
+def test_acceptance_rejects_unbound_verifier_outcomes_before_ready(
+    tmp_path, monkeypatch, fault, message
+):
+    root = tmp_path / "acceptance-run"
+    project = root / "notebook_app_project"
+    project.mkdir(parents=True)
+    original = project / "original-source.ipynb"
+    original.write_text("original notebook must stay unchanged")
+    (root / "verify_app").write_text("application verifier")
+    (root / "verify_workflow.py").write_text("workflow verifier")
+    solution = {
+        "nbformat": 4,
+        "cells": [{"cell_type": "code", "source": "answer = 42\n"}],
+    }
+    if fault == "empty_workflow":
+        solution["cells"] = []
+    (project / "solution.ipynb").write_text(json.dumps(solution))
+    protected = {
+        path.relative_to(root).as_posix(): agent.digest(path)
+        for path in (original, root / "verify_app", root / "verify_workflow.py")
+    }
+    phases = []
+    calls = []
+    result_digest = hashlib.sha256(b"notebook result").hexdigest()
+
+    def verify(command, selected_project):
+        calls.append(command)
+        assert selected_project == project
+        if len(calls) == 1:
+            payload = {
+                "status": "failed" if fault == "app_status" else "passed",
+                "result_file": "results.json",
+                "result_sha256": result_digest,
+            }
+            return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
+        assert len(calls) == 2
+        payload = {
+            "status": "passed",
+            "schema": "agilab.notebook_workflow_verification.v1",
+            "result_sha256": result_digest,
+            "stages_sha256": agent.digest(project / "lab_stages.toml"),
+        }
+        if fault == "workflow_status":
+            payload["status"] = "failed"
+        elif fault == "workflow_schema":
+            payload["schema"] = "unrecognized"
+        elif fault == "workflow_result":
+            payload["result_sha256"] = "0" * 64
+        elif fault == "workflow_stages":
+            payload["stages_sha256"] = "0" * 64
+        return SimpleNamespace(
+            returncode=1 if fault == "workflow_exit" else 0,
+            stdout=json.dumps(payload),
+            stderr="workflow process failed" if fault == "workflow_exit" else "",
+        )
+
+    monkeypatch.setattr(agent, "_run_verifier", verify)
+    with pytest.raises(RuntimeError, match=message):
+        agent._verify_and_import(
+            root,
+            project,
+            provenance={"source_kind": "local"},
+            prerequisites=None,
+            scope=agent.GENERIC_SCOPE,
+            protected=protected,
+            progress=lambda phase, _: phases.append(phase),
+        )
+    assert "ready" not in phases
+    assert not (root / "result.json").exists()
+    assert original.read_text() == "original notebook must stay unchanged"
+    assert all(
+        agent.digest(root / relative) == expected
+        for relative, expected in protected.items()
+    )
+    assert len(calls) == (1 if fault in {"app_status", "empty_workflow"} else 2)

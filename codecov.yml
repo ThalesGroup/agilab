@@ -10,7 +10,8 @@ coverage:
     project:
       default:
         target: 95%
-        threshold: 1%
+        # The repository-wide minimum is 95%, including partially covered lines.
+        threshold: 0%
       agi-env:
         target: 95%
         threshold: 0%
