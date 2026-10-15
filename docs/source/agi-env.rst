@@ -2,8 +2,8 @@ agi-env API
 ===========
 
 ``agi_env`` provides the shared headless environment and path-resolution layer
-used by both AGILab and the core runtime packages. native React UI/page dependencies
-live in the separate ``agi-gui`` package under ``src/agilab/lib/agi-gui``.
+used by both AGILab and the core runtime packages. Native React UI/page dependencies
+live in the separate ``agi-web`` package under ``src/agilab/lib/agi-web``.
 
 Usage Example
 -------------
@@ -19,6 +19,35 @@ Instanciation
    ``AgiEnv`` behaves as a singleton. Repeated instantiation updates the same
    environment instance. Call ``AgiEnv.reset()`` before configuring a new
    environment, or ``AgiEnv.current()`` to retrieve the active one.
+
+Isolated resources for a run or notebook
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``AGILAB_RESOURCES_DIR`` to a dedicated absolute directory before creating
+``AgiEnv``. For example, select the context in the first notebook cell, before
+importing the environment helpers:
+
+.. code-block:: python
+
+   import os
+
+   os.environ["AGILAB_RESOURCES_DIR"] = "/absolute/path/qualification-resources"
+
+The selected directory contains the environment's ``.env`` configuration and
+resource files. Source-mode resource initialization applies to this directory.
+The selector is resolved before configuration is loaded, and local child
+processes inherit the selected context. Changing the process selector does not
+redirect an already constructed environment's child processes.
+
+Use a separate process for concurrent contexts. Configure run data through the
+existing ``AGILAB_WORKFLOW_DATA_ROOT`` contract below, and provision worker
+environments through the normal deployment settings. A resources directory
+must also be valid on the host that uses it.
+
+When the selector is unset, the existing default resource location and
+configuration behavior apply. Provide a fully expanded path: an empty value,
+a relative path and a literal ``~`` are invalid and fail before resource
+initialization. See :doc:`environment` for the configuration reference.
 
 Share directory resolution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

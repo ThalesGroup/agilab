@@ -679,6 +679,13 @@ Use this runbook whenever you:
   source of truth. Helpers like `set_env_var`, `read_agilab_path`, `_build_env`, and
   `log_info` are pre-init safe; avoid relying on class attributes before instantiating
   `AgiEnv()`.
+- **Isolated resources**: Set `AGILAB_RESOURCES_DIR` to a fully expanded absolute
+  directory before environment initialization to isolate resource files and their
+  `.env`. It is selected before dotenv loading and frozen for local child
+  processes. Use a separate process for concurrent contexts; use the existing
+  workflow-data and worker-deployment settings for data and worker environments.
+  Do not propagate a manager's local resources path into remote worker settings.
+  With the selector unset, preserve the historical default behavior.
 - **App constructor kwargs**: App constructors ignore unknown kwargs when building
   their Pydantic `Args` models. Keep runtime verbosity and logging decisions in
   `AgiEnv(verbose=…)` or logging configs, not app `Args`.

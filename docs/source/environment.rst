@@ -16,6 +16,14 @@ rather than shown as one of the workflow pages.
    * - Variable
      - Default
      - Purpose
+   * - ``AGILAB_RESOURCES_DIR``
+     - unset (existing per-user resource location)
+     - Selects a dedicated absolute directory for ``agi-env`` resource files
+       and its ``.env`` configuration. Read from the process environment
+       before any ``.env`` is loaded. Set it before constructing the
+       environment; local child processes inherit that context. Use
+       ``AGILAB_WORKFLOW_DATA_ROOT`` for run data and the normal deployment
+       settings for worker environments. See :doc:`agi-env`.
    * - ``APPS_PATH``
      - ``$AGILAB_CHECKOUT/src/agilab/apps`` in source checkouts
      - Root directory containing app projects; used when selecting the active app.

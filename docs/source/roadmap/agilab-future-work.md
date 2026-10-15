@@ -1168,7 +1168,10 @@ Current shipped baseline:
   `queue_baseline` and `relay_followup` through the real checked-in
   `uav_queue_project` and `uav_relay_queue_project` manager/worker entries,
   writes the actual `queue_metrics`, `relay_metrics`, and reducer artifacts,
-  and persists them in dispatch-state JSON
+  and persists them in dispatch-state JSON. Each execution consumes a captured
+  scenario copy and records the hash of those bytes. A source that differs or
+  is missing when validated fails the run; cached results require a valid matching scenario hash,
+  including when an older receipt is replayed.
 - `tools/global_pipeline_operator_state_report.py --compact` reads that
   persisted full-DAG dispatch state and exposes completed unit state,
   queue-to-relay handoffs, available artifacts, and retry/partial-rerun action
