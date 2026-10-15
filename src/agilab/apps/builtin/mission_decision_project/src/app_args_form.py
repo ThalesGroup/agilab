@@ -74,11 +74,11 @@ defaults = {
     "objective": str(current_payload.get("objective", "balanced_mission") or "balanced_mission"),
     "adaptation_mode": str(current_payload.get("adaptation_mode", "auto_replan") or "auto_replan"),
     "failure_kind": str(current_payload.get("failure_kind", "bandwidth_drop") or "bandwidth_drop"),
-    "latency_weight": float(current_payload.get("latency_weight", 0.65) or 0.65),
-    "cost_weight": float(current_payload.get("cost_weight", 0.12) or 0.12),
-    "reliability_weight": float(current_payload.get("reliability_weight", 0.16) or 0.16),
-    "risk_weight": float(current_payload.get("risk_weight", 0.07) or 0.07),
-    "random_seed": int(current_payload.get("random_seed", 2026) or 2026),
+    "latency_weight": float(current_payload["latency_weight"]),
+    "cost_weight": float(current_payload["cost_weight"]),
+    "reliability_weight": float(current_payload["reliability_weight"]),
+    "risk_weight": float(current_payload["risk_weight"]),
+    "random_seed": int(current_payload["random_seed"]),
     "reset_target": bool(current_payload.get("reset_target", False)),
 }
 # Reseed widget state when the persisted [args] payload changed outside this form
