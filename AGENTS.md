@@ -181,6 +181,9 @@ Use this runbook whenever you:
   Do not update tests to expect newly introduced clutter unless the user
   explicitly approves that clutter as product behavior. Add a negative
   regression assertion for removed text when practical.
+  For repeated wording, bind each edit and regression to the intended render
+  function and control. Verify that rendered control before freezing screenshots;
+  a similar notification or a string found elsewhere does not prove target identity.
 - **Cross-page action semantics**: When adding or renaming visible UI actions,
   compare the label meaning across PROJECT, ORCHESTRATE, WORKFLOW, ANALYSIS,
   SETTINGS, sidebars, and robot click labels before closing the task. Do not

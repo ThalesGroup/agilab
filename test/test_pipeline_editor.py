@@ -143,8 +143,694 @@ class _State(dict):
         self[name] = value
 
 
+def _stateful_notebook_upload():
+    from test.test_notebook_execution_plan import stateful_notebook
+
+    notebook = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {},
+        "cells": [
+            {"cell_type": "code", "source": stage["source_lines"], "metadata": {}}
+            for stage in stateful_notebook()["pipeline_stages"]
+        ],
+    }
+    payload = json.dumps(notebook).encode("utf-8")
+    return SimpleNamespace(
+        name="stateful_notebook.ipynb",
+        type="application/x-ipynb+json",
+        read=lambda: payload,
+    )
+
+
+def _stateful_notebook_review(monkeypatch, module_dir):
+    messages = []
+    fake_st = SimpleNamespace(
+        session_state=_State({"idx": [0, "", "", "", "", "", 0]}),
+        **{
+            name: lambda message, *args, _name=name, **kwargs: messages.append(
+                (_name, message)
+            )
+            for name in ("error", "info", "warning", "success")
+        },
+    )
+    monkeypatch.setattr(pipeline_editor, "st", fake_st)
+    monkeypatch.setattr(pipeline_editor, "_bump_history_revision", lambda: None)
+    preview = pipeline_editor.build_notebook_import_preview(
+        _stateful_notebook_upload(), module_dir, module_name="demo"
+    )
+    assert preview is not None
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+    return preview, fake_st, messages
+
+
+def _run_stateful_import_export(module_dir, *, module="demo"):
+    import subprocess
+    from agilab.notebooks.notebook_export_support import (
+        NotebookExportContext,
+        build_notebook_document,
+    )
+
+    stages_path = module_dir / "lab_stages.toml"
+    stages_hash = hashlib.sha256(stages_path.read_bytes()).hexdigest()
+    notebook = build_notebook_document(
+        tomllib.loads(stages_path.read_text()),
+        stages_path,
+        export_context=NotebookExportContext(
+            project_name=module,
+            module_path=module,
+            artifact_dir=str(module_dir),
+        ),
+    )
+    notebook_path = module_dir / "stateful-import-executable-export.ipynb"
+    notebook_path.write_text(json.dumps(notebook))
+    script = """
+import hashlib, json, pathlib, sys
+import nbformat
+from nbclient import NotebookClient
+from jupyter_client import KernelManager
+root = pathlib.Path.cwd()
+kernel = KernelManager(kernel_name="python3")
+kernel.kernel_spec.argv = [sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"]
+notebook = nbformat.read("stateful-import-executable-export.ipynb", as_version=4)
+NotebookClient(notebook, km=kernel, timeout=45, resources={"metadata": {"path": str(root)}}).execute(cleanup_kc=True)
+assert hashlib.sha256((root / "lab_stages.toml").read_bytes()).hexdigest() == sys.argv[1]
+result = json.loads((root / "results.json").read_text())
+assert result == {"results": {"total": 40}}, result
+print(json.dumps({"status": "passed", "result": result, "stages_sha256": sys.argv[1]}))
+"""
+
+    return subprocess.run(
+        [sys.executable, "-c", script, stages_hash],
+        cwd=module_dir,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+@pytest.mark.parametrize("preserve", [False, True])
+def test_notebook_review_confirms_state_preservation_only_when_selected(
+    monkeypatch, tmp_path, preserve
+):
+    import copy
+    from agilab.notebooks.notebook_export_support import (
+        NotebookExportContext,
+        build_notebook_document,
+    )
+
+    project = tmp_path / "stateful_project"
+    preview, fake_st, messages = _stateful_notebook_review(monkeypatch, project)
+    original_import = copy.deepcopy(preview["notebook_import"])
+    assert not (project / "lab_stages.toml").exists()
+    assert not (project / "results.json").exists()
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        project,
+        project / "lab_stages.toml",
+        "idx",
+        runtime_roles={f"cell-{index}": "manager" for index in range(1, 4)},
+        preserve_notebook_state=preserve,
+    )
+
+    assert count == 3
+    assert not any(kind == "error" for kind, _ in messages), messages
+    assert fake_st.session_state.page_broken is True
+    stored = tomllib.loads((project / "lab_stages.toml").read_text())
+    assert len(stored["demo"]) == (1 if preserve else 3)
+    assert preview["notebook_import"] == original_import
+    assert not (project / "results.json").exists(), (
+        "Import must not execute notebook code"
+    )
+    completed = _run_stateful_import_export(project)
+    if not preserve:
+        assert completed.returncode == 1
+        assert "NameError" in completed.stdout + completed.stderr
+        assert "alias" in completed.stdout + completed.stderr
+        return
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert json.loads(completed.stdout.strip().splitlines()[-1])["status"] == "passed"
+    stage = stored["demo"][0]
+    assert stage["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+    assert [cell["index"] for cell in stage["NB_SOURCE_CELLS"]] == [1, 2, 3]
+    exported = build_notebook_document(
+        stored,
+        project / "lab_stages.toml",
+        export_context=NotebookExportContext(
+            project_name="stateful_project",
+            module_path="demo",
+            artifact_dir=str(project),
+        ),
+    )
+    restored_import = pipeline_editor.build_notebook_pipeline_import(
+        notebook=exported, source_notebook="export.ipynb"
+    )
+    restored = pipeline_editor.build_lab_stages_preview(
+        restored_import, module_name="demo"
+    )["demo"][0]
+    for key in ("C", "NB_SOURCE_CELLS", "NB_SOURCE_SHA256", "NB_COMPILED_SHA256"):
+        assert restored[key] == stage[key]
+
+
+def test_stateful_review_compiles_after_selection_and_retains_inherited_choice(
+    monkeypatch, tmp_path
+):
+    preview, _, _ = _stateful_notebook_review(monkeypatch, tmp_path / "demo_project")
+    preview["preserve_notebook_state"] = True
+    selected = pipeline_editor.prepare_notebook_import_preview(
+        preview, runtime_roles={"cell-1": "manager"}, selected_stage_ids=["cell-1"]
+    )
+    stage = selected["toml_content"]["demo"][0]
+    assert stage["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+    assert [cell["index"] for cell in stage["NB_SOURCE_CELLS"]] == [1]
+    assert "alias.append(5)" not in stage["C"]
+    projection = pipeline_editor.prepare_notebook_import_preview(
+        preview,
+        runtime_roles={"cell-1": "manager"},
+        selected_stage_ids=["cell-1"],
+        preserve_notebook_state=False,
+    )
+    assert "NB_EXECUTION_STRATEGY" not in projection["toml_content"]["demo"][0]
+    assert len(preview["notebook_import"]["pipeline_stages"]) == 3
+
+
+@pytest.mark.parametrize(
+    "incompatibility", ["missing_role", "mixed_roles", "mixed_environments"]
+)
+def test_stateful_review_refuses_incompatible_cells_before_persistence(
+    monkeypatch, tmp_path, incompatibility
+):
+    project = tmp_path / "demo_project"
+    project.mkdir()
+    stage_path = project / "lab_stages.toml"
+    stage_path.write_text(
+        '[[demo]]\nD = "Existing workflow"\nC = "print(1)"\nR = "runpy"\n'
+    )
+    before = stage_path.read_bytes()
+    preview, fake_st, messages = _stateful_notebook_review(monkeypatch, project)
+    roles = {f"cell-{index}": "manager" for index in range(1, 4)}
+    if incompatibility == "missing_role":
+        roles.pop("cell-3")
+    elif incompatibility == "mixed_roles":
+        roles["cell-3"] = "worker"
+    else:
+        roles = {f"cell-{index}": "worker" for index in range(1, 4)}
+        preview["notebook_import"]["pipeline_stages"][1]["env"] = "another-environment"
+
+    count = pipeline_editor.confirm_notebook_import_preview(
+        project, stage_path, "idx", runtime_roles=roles, preserve_notebook_state=True
+    )
+
+    assert count == 0
+    assert stage_path.read_bytes() == before
+    assert not (project / "notebook_import_contract.json").exists()
+    assert not fake_st.session_state.get("page_broken", False)
+    assert fake_st.session_state["idx__notebook_import_preview"] is preview
+    assert any(kind == "error" for kind, _ in messages), messages
+    assert not any(kind == "success" for kind, _ in messages)
+
+
+def test_stateful_review_preserves_supervisor_graph_with_mixed_roles(
+    monkeypatch, tmp_path
+):
+    preview, _, _ = _stateful_notebook_review(monkeypatch, tmp_path / "demo_project")
+    preview["notebook_import"]["source"]["import_mode"] = "agilab_supervisor_metadata"
+    for index, stage in enumerate(preview["notebook_import"]["pipeline_stages"]):
+        stage["stage_id_explicit"] = True
+        stage["depends_on"] = [f"cell-{index}"] if index else []
+    roles = {"cell-1": "manager", "cell-2": "worker", "cell-3": "manager"}
+    ordinary = pipeline_editor.prepare_notebook_import_preview(
+        preview, runtime_roles=roles, preserve_notebook_state=False
+    )
+    preserved = pipeline_editor.prepare_notebook_import_preview(
+        preview, runtime_roles=roles, preserve_notebook_state=True
+    )
+    assert preserved["toml_content"] == ordinary["toml_content"]
+    assert len(preserved["toml_content"]["demo"]) == 3
+
+
+@pytest.mark.parametrize(
+    ("previous_preserve", "next_preserve", "edit_source"),
+    [
+        (False, True, False),
+        (True, False, False),
+        (True, True, False),
+        (True, True, True),
+    ],
+)
+def test_notebook_review_refuses_overlapping_execution_plans_without_partial_writes(
+    monkeypatch, tmp_path, previous_preserve, next_preserve, edit_source
+):
+    project = tmp_path / "demo_project"
+    _, _, messages = _stateful_notebook_review(monkeypatch, project)
+    roles = {f"cell-{index}": "manager" for index in range(1, 4)}
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            project / "lab_stages.toml",
+            "idx",
+            runtime_roles=roles,
+            preserve_notebook_state=previous_preserve,
+        )
+        == 3
+    )
+    before = {
+        path.name: path.read_bytes() for path in project.iterdir() if path.is_file()
+    }
+    upload = _stateful_notebook_upload()
+    if edit_source:
+        notebook = json.loads(upload.read())
+        notebook["cells"][2]["source"] = ["scale = 8\n"]
+        payload = json.dumps(notebook).encode()
+        upload = SimpleNamespace(
+            name=upload.name, type=upload.type, read=lambda: payload
+        )
+    preview = pipeline_editor.build_notebook_import_preview(
+        upload, project, module_name="demo"
+    )
+    pipeline_editor.st.session_state["idx__notebook_import_preview"] = preview
+    messages.clear()
+
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            project / "lab_stages.toml",
+            "idx",
+            runtime_roles=roles,
+            preserve_notebook_state=next_preserve,
+        )
+        == 0
+    )
+
+    assert {
+        path.name: path.read_bytes() for path in project.iterdir() if path.is_file()
+    } == before
+    assert any(
+        kind == "error" and ("replace" in text.lower() or "remove" in text.lower())
+        for kind, text in messages
+    ), messages
+    assert not any(kind == "success" for kind, _ in messages)
+
+
+def test_shared_notebook_import_can_merge_an_unrelated_notebook(monkeypatch, tmp_path):
+    project = tmp_path / "demo_project"
+    _stateful_notebook_review(monkeypatch, project)
+    roles = {f"cell-{index}": "manager" for index in range(1, 4)}
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            project / "lab_stages.toml",
+            "idx",
+            runtime_roles=roles,
+            preserve_notebook_state=True,
+        )
+        == 3
+    )
+    upload = _stateful_notebook_upload()
+    upload.name = "another_notebook.ipynb"
+    preview = pipeline_editor.build_notebook_import_preview(
+        upload, project, module_name="demo"
+    )
+    pipeline_editor.st.session_state["idx__notebook_import_preview"] = preview
+
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            project / "lab_stages.toml",
+            "idx",
+            runtime_roles=roles,
+            preserve_notebook_state=True,
+        )
+        == 3
+    )
+    stages = tomllib.loads((project / "lab_stages.toml").read_text())["demo"]
+    assert len(stages) == 2
+    assert {stage["NB_SOURCE_NOTEBOOK"] for stage in stages} == {
+        "stateful_notebook.ipynb",
+        "another_notebook.ipynb",
+    }
+
+
+def test_shared_notebook_supervisor_export_can_update_the_same_project(
+    monkeypatch, tmp_path
+):
+    from agilab.notebooks.notebook_export_support import (
+        NotebookExportContext,
+        build_notebook_document,
+    )
+
+    project = tmp_path / "demo_project"
+    _stateful_notebook_review(monkeypatch, project)
+    stages_file = project / "lab_stages.toml"
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            stages_file,
+            "idx",
+            runtime_roles={f"cell-{index}": "manager" for index in range(1, 4)},
+            preserve_notebook_state=True,
+        )
+        == 3
+    )
+    original = tomllib.loads(stages_file.read_text())
+    exported = build_notebook_document(
+        original,
+        stages_file,
+        export_context=NotebookExportContext(
+            project_name="demo_project", module_path="demo", artifact_dir=str(project)
+        ),
+    )
+    payload = json.dumps(exported).encode()
+    preview = pipeline_editor.build_notebook_import_preview(
+        SimpleNamespace(name="supervisor_export.ipynb", read=lambda: payload),
+        project,
+        module_name="demo",
+        target_project_name="demo_project",
+    )
+    assert (
+        preview["notebook_import"]["source"]["import_mode"]
+        == "agilab_supervisor_metadata"
+    )
+    pipeline_editor.st.session_state["idx__notebook_import_preview"] = preview
+
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            stages_file,
+            "idx",
+            preserve_notebook_state=True,
+        )
+        == 1
+    )
+
+    restored = tomllib.loads(stages_file.read_text())["demo"]
+    assert len(restored) == 1
+    for key in ("C", "NB_SOURCE_CELLS", "NB_SOURCE_SHA256", "NB_COMPILED_SHA256"):
+        assert restored[0][key] == original["demo"][0][key]
+
+
+def test_stateful_review_reports_selected_cell_syntax_error_without_writing(
+    monkeypatch, tmp_path
+):
+    project = tmp_path / "demo_project"
+    _, fake_st, messages = _stateful_notebook_review(monkeypatch, project)
+    payload = json.dumps(
+        {
+            "nbformat": 4,
+            "metadata": {},
+            "cells": [
+                {
+                    "cell_type": "code",
+                    "source": "from __future__ import barry_as_FLUFL\n",
+                },
+                {"cell_type": "code", "source": "print(1 <> 2)\n"},
+            ],
+        }
+    ).encode()
+    preview = pipeline_editor.build_notebook_import_preview(
+        SimpleNamespace(name="future_flags.ipynb", read=lambda: payload),
+        project,
+        module_name="demo",
+    )
+    assert preview is not None and preview["preflight"]["safe_to_import"]
+    fake_st.session_state["idx__notebook_import_preview"] = preview
+
+    assert (
+        pipeline_editor.confirm_notebook_import_preview(
+            project,
+            project / "lab_stages.toml",
+            "idx",
+            runtime_roles={"cell-2": "manager"},
+            selected_stage_ids=["cell-2"],
+            preserve_notebook_state=True,
+        )
+        == 0
+    )
+
+    assert not project.exists()
+    assert not fake_st.session_state.get("page_broken", False)
+    assert any(kind == "error" for kind, _ in messages)
+
+
+def _stateful_notebook_review_page(tmp_path, project):
+    """Seed an ordinary upload, then render the real WORKFLOW review controls."""
+    page = tmp_path / "agilab-stateful-notebook-import-review-fixture.py"
+    page.write_text(
+        f"""from pathlib import Path
+import json
+from types import SimpleNamespace
+from agi_web import python_ui as st
+from agilab.pipeline import pipeline_editor as editor
+from test.test_pipeline_editor import _run_stateful_import_export
+project = Path({str(project)!r})
+stages = project / "lab_stages.toml"
+outcome = project / "stateful-import-fresh-kernel-result.json"
+st.title("Import a stateful notebook")
+st.caption("Deterministic local fixture; no model or provider.")
+st.session_state.setdefault("idx", [0, "", "", "", "", "", 0])
+if "idx__notebook_import_preview" not in st.session_state and not stages.exists():
+    payload = {_stateful_notebook_upload().read()!r}
+    uploaded = SimpleNamespace(name="stateful_notebook.ipynb", type="application/x-ipynb+json", read=lambda: payload)
+    st.session_state["idx__notebook_import_preview"] = editor.build_notebook_import_preview(uploaded, project, module_name="demo")
+editor.render_notebook_import_preview(project, stages, "idx", container=st)
+if stages.exists():
+    st.success("Notebook import saved.")
+    if not outcome.exists():
+        st.caption("Notebook has not been run.")
+    if st.button("Run imported workflow", key="fixture_explicit_run"):
+        completed = _run_stateful_import_export(project)
+        if completed.returncode:
+            st.error(completed.stdout + completed.stderr)
+        else:
+            outcome.write_text(completed.stdout.strip().splitlines()[-1])
+    if outcome.exists():
+        st.success("Fresh-kernel result: total = 40")
+""",
+        encoding="utf-8",
+    )
+    return page
+
+
+def test_notebook_state_checkbox_uses_real_review_and_does_not_execute_on_import(
+    tmp_path,
+):
+    from agi_web.testing import AppTest
+
+    project = tmp_path / "stateful_project"
+    page = _stateful_notebook_review_page(tmp_path, project)
+    app = AppTest.from_file(str(page), default_timeout=30).run()
+    assert not app.exception
+    preserve = next(
+        element
+        for element in app.checkbox
+        if element.label == "Preserve notebook state"
+    )
+    assert preserve.value is False
+    for index in range(1, 4):
+        next(
+            element
+            for element in app.selectbox
+            if element.label == f"Cell {index} runtime"
+        ).select("Manager (local runpy)").run()
+    next(
+        element
+        for element in app.checkbox
+        if element.label == "Preserve notebook state"
+    ).check().run()
+    assert not app.exception
+    assert any(
+        element.value.startswith("Notebook preview: 3 source stage(s),")
+        for element in app.caption
+    )
+    assert any("Stages to write: 1" in element.value for element in app.code)
+    assert not project.exists()
+
+    next(
+        element
+        for element in app.button
+        if element.label == "Import all runnable cells"
+    ).click().run()
+
+    assert not app.exception
+    stages = tomllib.loads((project / "lab_stages.toml").read_text())["demo"]
+    assert len(stages) == 1 and stages[0]["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+    assert not (project / "results.json").exists()
+    assert not (project / "stateful-import-fresh-kernel-result.json").exists()
+    assert any(element.value == "Notebook has not been run." for element in app.caption)
+
+
+@pytest.mark.ui_robot
+@pytest.mark.skipif(
+    os.environ.get("AGILAB_RUN_NOTEBOOK_STATE_UI_ROBOT") != "1",
+    reason="set AGILAB_RUN_NOTEBOOK_STATE_UI_ROBOT=1 for the real Chromium import journey",
+)
+def test_browser_reviews_stateful_import_then_runs_export_in_fresh_kernel(
+    monkeypatch, tmp_path
+):
+    import tempfile
+    from threading import Thread
+    from agi_web.react_python_host import ReactPythonServer
+    from playwright.sync_api import expect, sync_playwright
+    from test.conftest import REAL_HOME
+    from tools.agilab_widget_robot import _attach_browser_issue_capture
+
+    if not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        for cache in (
+            REAL_HOME / "Library/Caches/ms-playwright",
+            REAL_HOME / ".cache/ms-playwright",
+            REAL_HOME / "AppData/Local/ms-playwright",
+        ):
+            if cache.is_dir():
+                monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache))
+                break
+    evidence = Path(
+        os.environ.get(
+            "AGILAB_NOTEBOOK_STATE_UI_EVIDENCE",
+            str(tmp_path / "stateful-notebook-import-browser-evidence"),
+        )
+    )
+    evidence.mkdir(parents=True, exist_ok=True)
+    progress = evidence / "agilab-stateful-notebook-import-browser-progress.ndjson"
+    report = {
+        "schema": "agilab.stateful_notebook_import_browser.v1",
+        "status": "failed",
+        "fixture": "Public three-cell alias, mutation and late-global notebook; seeded upload preview",
+        "path_normalization": "None; fixture project uses an owned public /tmp directory",
+        "browser_issues": [],
+        "checks": [],
+    }
+    source_root = Path(__file__).resolve().parents[1]
+    report["source_sha256"] = {
+        relative: hashlib.sha256((source_root / relative).read_bytes()).hexdigest()
+        for relative in (
+            "src/agilab/pipeline/pipeline_editor.py",
+            "src/agilab/pages/PROJECT_EDITOR.py",
+        )
+    }
+    with tempfile.TemporaryDirectory(
+        prefix="agilab-stateful-notebook-ui-", dir="/tmp"
+    ) as fixture:
+        project = Path(fixture) / "stateful_notebook_project"
+        page_path = _stateful_notebook_review_page(tmp_path, project)
+        server = ReactPythonServer(("127.0.0.1", 0), page_path)
+        host = Thread(target=server.serve_forever, daemon=True)
+        host.start()
+        try:
+            with sync_playwright() as playwright:
+                browser = playwright.chromium.launch()
+                try:
+                    page = browser.new_page(viewport={"width": 1440, "height": 1100})
+                    issues = _attach_browser_issue_capture(page)
+                    report["browser_issues"] = issues
+                    page.goto(
+                        f"http://127.0.0.1:{server.server_port}",
+                        wait_until="networkidle",
+                    )
+                    preserve = page.get_by_role(
+                        "checkbox", name="Preserve notebook state", exact=True
+                    )
+                    expect(preserve).not_to_be_checked()
+                    page.get_by_text("Runtime role per cell", exact=True).click()
+                    for index in range(1, 4):
+                        page.get_by_role(
+                            "combobox", name=f"Cell {index} runtime", exact=True
+                        ).select_option(label="Manager (local runpy)")
+                    preserve.check()
+                    expect(
+                        page.get_by_text(
+                            "Notebook preview: 3 source stage(s),", exact=False
+                        )
+                    ).to_be_visible()
+                    page.get_by_text("What will be written", exact=True).click()
+                    expect(
+                        page.get_by_text("Stages to write: 1", exact=False)
+                    ).to_be_visible()
+                    assert not project.exists()
+                    page.screenshot(
+                        path=str(
+                            evidence / "agilab-notebook-import-preserve-state-ready.png"
+                        ),
+                        full_page=True,
+                    )
+                    progress.write_text(
+                        json.dumps({"event": "reviewed_without_execution"}) + "\n"
+                    )
+                    page.get_by_role(
+                        "button", name="Import all runnable cells", exact=True
+                    ).click()
+                    expect(
+                        page.get_by_text("Notebook import saved.", exact=True)
+                    ).to_be_visible()
+                    expect(
+                        page.get_by_text("Notebook has not been run.", exact=True)
+                    ).to_be_visible()
+                    stage_bytes = (project / "lab_stages.toml").read_bytes()
+                    stages = tomllib.loads(stage_bytes.decode())["demo"]
+                    assert (
+                        len(stages) == 1
+                        and stages[0]["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+                    )
+                    assert not (project / "results.json").exists()
+                    assert not (
+                        project / "stateful-import-fresh-kernel-result.json"
+                    ).exists()
+                    page.get_by_role(
+                        "button", name="Run imported workflow", exact=True
+                    ).click()
+                    expect(
+                        page.get_by_text("Fresh-kernel result: total = 40", exact=True)
+                    ).to_be_visible(timeout=90000)
+                    result = json.loads(
+                        (
+                            project / "stateful-import-fresh-kernel-result.json"
+                        ).read_text()
+                    )
+                    assert result["status"] == "passed" and result["result"] == {
+                        "results": {"total": 40}
+                    }
+                    assert (project / "lab_stages.toml").read_bytes() == stage_bytes
+                    page.screenshot(
+                        path=str(
+                            evidence
+                            / "agilab-notebook-import-preserve-state-passed.png"
+                        ),
+                        full_page=True,
+                    )
+                    assert not issues, issues
+                    report.update(
+                        status="passed",
+                        result=result,
+                        checks=[
+                            "default_unchecked",
+                            "explicit_per_cell_ownership",
+                            "one_shared_stage_reviewed",
+                            "preview_and_import_do_not_execute",
+                            "explicit_export_run_in_fresh_kernel",
+                            "persisted_stages_unchanged",
+                            "browser_development_log_clean",
+                        ],
+                    )
+                    with progress.open("a") as log:
+                        log.write(
+                            json.dumps({"event": "explicit_fresh_kernel_run_passed"})
+                            + "\n"
+                        )
+                finally:
+                    browser.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            host.join(timeout=10)
+            report["owned_host_stopped"] = not host.is_alive()
+            (
+                evidence / "agilab-stateful-notebook-import-browser-validation.json"
+            ).write_text(json.dumps(report, indent=2, sort_keys=True))
+
+
 def test_save_stage_roundtrip_writes_toml_and_notebook(monkeypatch, tmp_path):
-    fake_env = SimpleNamespace(home_abs=tmp_path, AGILAB_EXPORT_ABS=tmp_path, envars={"OPENAI_MODEL": "gpt-x"})
+    fake_env = SimpleNamespace(
+        home_abs=tmp_path, AGILAB_EXPORT_ABS=tmp_path, envars={"OPENAI_MODEL": "gpt-x"}
+    )
     fake_st = SimpleNamespace(
         session_state={"_experiment_last_save_skipped": False, "env": fake_env},
         error=lambda *args, **kwargs: None,

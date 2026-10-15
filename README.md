@@ -101,9 +101,17 @@ generated notebook. Seed randomness and make external inputs stable; a mismatch
 fails the build. `result.json` records this check and the exact stage-file hash.
 This proves local result agreement, not scientific correctness, equivalence to
 the upstream notebook, or distributed execution. Existing supervisor notebook
-exports retain their explicit stage graph. The WORKFLOW cell-editing importer
-remains a separate review path; programmatic import can request state preservation
-with `build_lab_stages_preview(..., preserve_notebook_state=True)`.
+exports retain their explicit stage graph.
+
+For direct import in **PROJECT → From notebook** or **WORKFLOW → Notebook**,
+select **Preserve notebook state** to keep the reviewed cells in one stage.
+This preserves variables, mutations, and cell order when that stage is run.
+The option is off by default; the existing cell-by-cell editing mode remains
+available. Selected cells must use one reviewed runtime and environment.
+Importing does not execute code or install dependencies. See the
+[notebook import guide](https://thalesgroup.github.io/agilab/notebook-advanced.html#import-recovery-and-reviewed-source-edits)
+for source recovery and limitations. Programmatic import can use
+`build_lab_stages_preview(..., preserve_notebook_state=True)`.
 
 Recover a completed build that failed during verification or workflow import:
 

@@ -1323,6 +1323,108 @@ def test_create_project_from_notebook_blocks_unreviewed_runtime_roles(tmp_path: 
     assert not (tmp_path / "needs_role_project").exists()
 
 
+@pytest.mark.parametrize("preserve", [False, True])
+def test_create_project_from_stateful_notebook_uses_reviewed_execution_plan(
+    tmp_path, preserve
+):
+    import hashlib
+    from test.test_pipeline_editor import (
+        _run_stateful_import_export,
+        _stateful_notebook_upload,
+    )
+
+    module = _load_project_module()
+    clone_calls = []
+    uploaded = _stateful_notebook_upload()
+    original = uploaded.read()
+
+    def clone(source, target):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    result = module._create_project_from_notebook_action(
+        SimpleNamespace(apps_path=tmp_path, clone_project=clone),
+        template_source="pandas_app_template",
+        raw_project_name="Stateful Notebook",
+        uploaded_notebook=uploaded,
+        clone_env_strategy="detach_venv",
+        runtime_roles={f"cell-{index}": "manager" for index in range(1, 4)},
+        preserve_notebook_state=preserve,
+    )
+
+    assert result.status == "success", result
+    assert len(clone_calls) == 1
+    project = tmp_path / "stateful_notebook_project"
+    source = project / "notebooks/source/stateful_notebook.ipynb"
+    assert source.read_bytes() == original
+    assert (
+        hashlib.sha256(source.read_bytes()).hexdigest()
+        == hashlib.sha256(original).hexdigest()
+    )
+    assert result.data["notebook_import_cell_count"] == 3
+    stored = tomllib.loads((project / "lab_stages.toml").read_text())
+    stages = stored["stateful_notebook_project"]
+    assert len(stages) == (1 if preserve else 3)
+    assert not (project / "results.json").exists(), (
+        "Project creation must not execute uploaded code"
+    )
+    if preserve:
+        assert stages[0]["NB_EXECUTION_STRATEGY"] == "shared_namespace"
+        assert [cell["index"] for cell in stages[0]["NB_SOURCE_CELLS"]] == [1, 2, 3]
+        verified = _run_stateful_import_export(
+            project, module="stateful_notebook_project"
+        )
+        assert verified.returncode == 0, verified.stdout + verified.stderr
+
+
+@pytest.mark.parametrize(
+    "incompatibility", ["missing_role", "mixed_roles", "mixed_environments"]
+)
+def test_create_stateful_notebook_project_refuses_incompatible_review_before_clone(
+    monkeypatch, tmp_path, incompatibility
+):
+    from test.test_pipeline_editor import _stateful_notebook_upload
+
+    module = _load_project_module()
+    clone_calls = []
+    roles = {f"cell-{index}": "manager" for index in range(1, 4)}
+    if incompatibility == "missing_role":
+        roles.pop("cell-3")
+    elif incompatibility == "mixed_roles":
+        roles["cell-3"] = "worker"
+    else:
+        roles = {f"cell-{index}": "worker" for index in range(1, 4)}
+        build_preview = module._build_project_notebook_import_preview
+
+        def with_mixed_environments(*args, **kwargs):
+            preview = build_preview(*args, **kwargs)
+            preview["notebook_import"]["pipeline_stages"][1]["env"] = (
+                "another-environment"
+            )
+            return preview
+
+        monkeypatch.setattr(
+            module, "_build_project_notebook_import_preview", with_mixed_environments
+        )
+
+    result = module._create_project_from_notebook_action(
+        SimpleNamespace(
+            apps_path=tmp_path,
+            clone_project=lambda *args: clone_calls.append(args),
+        ),
+        template_source="pandas_app_template",
+        raw_project_name="Refused Stateful Notebook",
+        uploaded_notebook=_stateful_notebook_upload(),
+        clone_env_strategy="detach_venv",
+        runtime_roles=roles,
+        preserve_notebook_state=True,
+    )
+
+    assert result.status == "error", result
+    assert clone_calls == []
+    assert not (tmp_path / "refused_stateful_notebook_project").exists()
+
+
 def test_create_project_from_notebook_removes_clone_when_import_write_fails(
     monkeypatch, tmp_path: Path
 ):

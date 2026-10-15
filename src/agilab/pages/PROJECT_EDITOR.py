@@ -306,6 +306,12 @@ _pipeline_editor_module = import_agilab_module(
     fallback_name="agilab_pipeline_editor_project_fallback",
 )
 _write_notebook_import_preview = _pipeline_editor_module.write_notebook_import_preview
+_prepare_notebook_import_preview = (
+    _pipeline_editor_module.prepare_notebook_import_preview
+)
+_notebook_import_preserve_state_key = (
+    _pipeline_editor_module.notebook_import_preserve_state_key
+)
 _write_untrusted_content_manifest = (
     _untrusted_content_boundary_module.write_untrusted_content_manifest
 )
@@ -3957,34 +3963,23 @@ def _project_notebook_runtime_role_review_detail(preview: dict) -> str:
 
 
 def _project_notebook_import_preview_with_runtime_roles(
-    preview: dict, runtime_roles: dict | None
+    preview: dict,
+    runtime_roles: dict | None,
+    *,
+    preserve_notebook_state: bool | None = None,
 ) -> dict:
     role_map = runtime_roles or {}
-    if not role_map:
+    if (
+        not role_map
+        and not preserve_notebook_state
+        and not preview.get("preserve_notebook_state")
+    ):
         return preview
-    notebook_import = preview.get("notebook_import", {})
-    if not isinstance(notebook_import, dict):
-        return preview
-
-    module = str(preview.get("module", "") or "notebook_import_project")
-    updated_import = _apply_notebook_runtime_roles(notebook_import, role_map)
-    preflight = _build_notebook_import_preflight(updated_import)
-    updated = dict(preview)
-    updated.update(
-        {
-            "notebook_import": updated_import,
-            "preflight": preflight,
-            "toml_content": _build_lab_stages_preview(
-                updated_import, module_name=module
-            ),
-            "contract": _build_notebook_import_contract(
-                updated_import,
-                preflight=preflight,
-                module_name=module,
-            ),
-        }
+    return _prepare_notebook_import_preview(
+        preview,
+        runtime_roles=role_map,
+        preserve_notebook_state=preserve_notebook_state,
     )
-    return updated
 
 
 def _project_notebook_preview_from_upload(
@@ -4019,7 +4014,11 @@ def _project_notebook_preview_from_upload(
 
 
 def _render_project_notebook_runtime_role_review(
-    target, uploaded_notebook, project_name: str
+    target,
+    uploaded_notebook,
+    project_name: str,
+    *,
+    preserve_notebook_state: bool = False,
 ) -> tuple[dict, str]:
     preview, error = _project_notebook_preview_from_upload(
         uploaded_notebook, project_name
@@ -4092,12 +4091,25 @@ def _render_project_notebook_runtime_role_review(
         if role:
             selected_roles[stage_id] = role
 
-    reviewed_preview = _project_notebook_import_preview_with_runtime_roles(
-        preview, selected_roles
-    )
+    try:
+        reviewed_preview = _project_notebook_import_preview_with_runtime_roles(
+            preview,
+            selected_roles,
+            preserve_notebook_state=preserve_notebook_state,
+        )
+    except (TypeError, ValueError) as exc:
+        detail = f"Notebook execution plan is blocked: {exc}"
+        expander.warning(detail)
+        return selected_roles, detail
     detail = _project_notebook_runtime_role_review_detail(reviewed_preview)
     if detail:
         expander.warning(f"Runtime review required: {detail}")
+    elif preserve_notebook_state:
+        expander.caption(
+            "The project will preserve shared Python state in the execution plan. "
+            "Original source cells remain available; edit the source notebook and "
+            "reimport to change a combined stage. Explicit exported workflows keep their graph."
+        )
     return selected_roles, detail
 
 
@@ -4188,6 +4200,7 @@ def _create_project_from_notebook_action(
     uploaded_notebook,
     clone_env_strategy: str,
     runtime_roles: dict | None = None,
+    preserve_notebook_state: bool = False,
 ) -> ActionResult:
     raw = raw_project_name.strip()
     if not raw:
@@ -4249,9 +4262,22 @@ def _create_project_from_notebook_action(
             next_action="Fix the notebook import errors, then retry project creation.",
             data={"new_name": new_name, "dest_root": dest_root, "preflight": preflight},
         )
-    preview = _project_notebook_import_preview_with_runtime_roles(
-        preview, runtime_roles
-    )
+    try:
+        preview = _project_notebook_import_preview_with_runtime_roles(
+            preview,
+            runtime_roles,
+            preserve_notebook_state=preserve_notebook_state,
+        )
+    except (TypeError, ValueError) as exc:
+        return ActionResult.error(
+            "Notebook execution plan is blocked.",
+            detail=str(exc),
+            next_action=(
+                "Review cell ownership, runtime and environment. Preserve shared state "
+                "only within one runtime, or use explicit artifact boundaries."
+            ),
+            data={"new_name": new_name, "dest_root": dest_root},
+        )
     role_detail = _project_notebook_runtime_role_review_detail(preview)
     if role_detail:
         return ActionResult.error(
@@ -4730,15 +4756,40 @@ def handle_project_creation():
 
     notebook_runtime_roles: dict[str, str] = {}
     notebook_role_detail = ""
+    notebook_preserve_state = False
     notebook_source_missing = (
         create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is None
     )
     if create_mode == CREATE_MODE_NOTEBOOK and active_notebook_source is not None:
+        try:
+            source_signature = _uploaded_notebook_signature(
+                active_notebook_source,
+                _read_uploaded_notebook_bytes(active_notebook_source),
+            )
+        except (OSError, TypeError, ValueError):
+            source_signature = ""
+        if source_signature:
+            notebook_preserve_state = st.sidebar.checkbox(
+                "Preserve notebook state",
+                value=False,
+                key=_notebook_import_preserve_state_key(
+                    "PROJECT",
+                    source_signature,
+                    env.apps_path
+                    / (normalize_project_name(raw) or "notebook_import_project"),
+                ),
+                help=(
+                    "Run ordinary notebook cells in order as one stage with shared Python "
+                    "variables. Cells need one reviewed runtime and environment; importing "
+                    "does not execute them. Explicit exported workflows keep their graph."
+                ),
+            )
         notebook_runtime_roles, notebook_role_detail = (
             _render_project_notebook_runtime_role_review(
                 st.sidebar,
                 active_notebook_source,
                 raw,
+                preserve_notebook_state=notebook_preserve_state,
             )
         )
     elif notebook_source_missing:
@@ -4838,6 +4889,7 @@ def handle_project_creation():
                     uploaded_notebook=_active_notebook_import_source(st.session_state),
                     clone_env_strategy=clone_env_strategy,
                     runtime_roles=notebook_runtime_roles,
+                    preserve_notebook_state=notebook_preserve_state,
                 ),
                 on_success=_activate_notebook_project,
             )

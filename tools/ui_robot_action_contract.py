@@ -65,7 +65,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Run analysis": (
         "trial-only",
         "submits a notebook analysis and starts CPU computation; focused app tests exercise submission, result refresh, and prerequisite errors without making generic robots download models",
-        ("test/test_forecast_showcase.py", "test/test_notebook_agent_sources.py", "test/test_text_showcase.py"),
+        (
+            "test/test_forecast_showcase.py",
+            "test/test_notebook_agent_sources.py",
+            "test/test_text_showcase.py",
+        ),
     ),
     "Save current scenario": (
         "trial-only",
@@ -85,7 +89,10 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Run scaling check": (
         "trial-only",
         "starts the RTX MILP app's serial and parallel CPU solves; receipt tests bind the source and dedicated browser checks exercise real workers",
-        ("test/test_rtx_showcase_variants.py", "src/agilab/demos/resources/milp_energy_demo_rtx/tests.py"),
+        (
+            "test/test_rtx_showcase_variants.py",
+            "src/agilab/demos/resources/milp_energy_demo_rtx/tests.py",
+        ),
     ),
     "Clear comparisons": (
         "trial-only",
@@ -95,7 +102,12 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     "Run benchmark": (
         "trial-only",
         "starts bounded local CPU benchmarks; focused tests cover explicit submission and runner errors, while bundled tests and dedicated browser checks exercise real workers",
-        ("test/test_free_threading_showcase.py", "test/test_milp_energy_showcase.py", "src/agilab/demos/resources/free_threading_demo/tests.py", "src/agilab/demos/resources/milp_energy_demo/tests.py"),
+        (
+            "test/test_free_threading_showcase.py",
+            "test/test_milp_energy_showcase.py",
+            "src/agilab/demos/resources/free_threading_demo/tests.py",
+            "src/agilab/demos/resources/milp_energy_demo/tests.py",
+        ),
     ),
     "Run model and app checks": (
         "trial-only",
@@ -129,8 +141,18 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     ),
     "Create": (
         "trial-only",
-        "creates project or analysis objects; PROJECT/ANALYSIS robots probe the control without mutating state",
-        ("test/test_project_sidebar_support.py",),
+        "creates project or analysis objects; notebook creation honors the reviewed Preserve notebook state choice without executing code; generic robots only probe the control",
+        ("test/test_project_sidebar_support.py", "test/test_project_clone_policy.py"),
+    ),
+    "Import all runnable cells": (
+        "trial-only",
+        "writes reviewed notebook cells as separate stages or one shared-state stage according to Preserve notebook state; focused tests and an opt-in browser fixture exercise persistence without autorun",
+        ("test/test_pipeline_editor.py",),
+    ),
+    "Promote selected cell": (
+        "trial-only",
+        "persists only the selected notebook cell using the reviewed runtime and Preserve notebook state choice; does not restore omitted cells or execute code",
+        ("test/test_pipeline_editor.py",),
     ),
     "Delete": (
         "trial-only",
@@ -510,13 +532,18 @@ def evaluate_contract(source_roots: Sequence[Path] = DEFAULT_SOURCE_ROOTS) -> di
     widget_robot = _load_module("agilab_widget_robot_action_contract", WIDGET_ROBOT_PATH)
     matrix = _load_module("agilab_widget_robot_matrix_action_contract", MATRIX_PATH)
     occurrences = scan_action_occurrences(source_roots, widget_robot=widget_robot)
-    high_risk = [occurrence for occurrence in occurrences if _is_high_risk_action(widget_robot, occurrence)]
+    explicit = _explicit_dispositions(widget_robot)
+    high_risk = [
+        occurrence
+        for occurrence in occurrences
+        if _is_high_risk_action(widget_robot, occurrence)
+        or occurrence.normalized_label in explicit
+    ]
     by_label: dict[str, list[ActionOccurrence]] = {}
     for occurrence in high_risk:
         by_label.setdefault(occurrence.normalized_label, []).append(occurrence)
 
     selected_actions = _selected_action_scenarios(widget_robot, matrix)
-    explicit = _explicit_dispositions(widget_robot)
     issues: list[ActionIssue] = []
     dispositions: list[ActionDisposition] = []
     for normalized_label, label_occurrences in sorted(by_label.items()):
