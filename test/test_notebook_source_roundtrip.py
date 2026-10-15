@@ -59,6 +59,70 @@ def test_source_roundtrip_recovers_every_cell_and_metadata_without_execution(tmp
     assert not marker.exists()
 
 
+def test_successive_setup_conversion_preserves_full_first_original_document():
+    from test.test_pipeline_editor import _setup_notebook_upload
+
+    original = json.loads(_setup_notebook_upload().read())
+    imported = build_notebook_pipeline_import(
+        notebook=original, source_notebook="setup.ipynb"
+    )
+    first = build_notebook_setup_conversion(imported, cell_ids=["install"])
+    first_import = build_notebook_pipeline_import(
+        notebook=first, source_notebook="setup.ipynb"
+    )
+    second = build_notebook_setup_conversion(first_import, cell_ids=["plot"])
+    declaration = second["metadata"]["agilab"]["setup_conversion"]
+    assert declaration["original_notebook_document"] == imported["notebook_document"]
+    assert declaration["original_notebook_document"]["notebook"] == original
+    assert declaration["selected_cell_ids"] == ["install", "plot"]
+    assert declaration["requirements"] == ["numpy==2.2.6"]
+    assert second["cells"][0] == original["cells"][0]
+    assert second["cells"][3] == original["cells"][3]
+    reviewed_import = build_notebook_pipeline_import(
+        notebook=second, source_notebook="setup.ipynb"
+    )
+    assert (
+        reviewed_import["source"]["document_sha256"]
+        == reviewed_import["notebook_document"]["sha256"]
+    )
+    assert (
+        reviewed_import["source"]["document_sha256"]
+        != imported["source"]["document_sha256"]
+    )
+    assert (
+        build_notebook_source_export(build_notebook_import_contract(reviewed_import))
+        == second
+    )
+
+
+@pytest.mark.parametrize("corruption", ["schema", "hash", "document", "type", "null"])
+def test_setup_conversion_refuses_corrupted_first_original_document(corruption):
+    from test.test_pipeline_editor import _setup_notebook_upload
+
+    original = json.loads(_setup_notebook_upload().read())
+    imported = build_notebook_pipeline_import(
+        notebook=original, source_notebook="setup.ipynb"
+    )
+    converted = build_notebook_setup_conversion(imported, cell_ids=["install"])
+    declaration = converted["metadata"]["agilab"]["setup_conversion"]
+    record = declaration["original_notebook_document"]
+    if corruption == "schema":
+        record["schema"] = "unknown"
+    elif corruption == "hash":
+        record["sha256"] = "0" * 64
+    elif corruption == "document":
+        record["notebook"]["cells"][0]["source"] = "tampered"
+    elif corruption == "type":
+        declaration["original_notebook_document"] = []
+    else:
+        declaration["original_notebook_document"] = None
+    reimported = build_notebook_pipeline_import(
+        notebook=converted, source_notebook="setup.ipynb"
+    )
+    with pytest.raises(ValueError, match="original|Original|fingerprint"):
+        build_notebook_setup_conversion(reimported, cell_ids=["plot"])
+
+
 def test_original_cell_identity_and_order_survive_pipeline_projection() -> None:
     imported = build_notebook_pipeline_import(notebook=_notebook(), source_notebook="editable.ipynb")
     stages = build_lab_stages_preview(imported, module_name="demo")["demo"]
@@ -244,14 +308,21 @@ def test_successive_setup_conversions_retain_requirements_cells_and_provenance()
     declaration = second["metadata"]["agilab"]["setup_conversion"]
     assert declaration["requirements"] == ["numpy", "pandas"]
     assert declaration["original_setup_cells"] == [notebook["cells"][1], notebook["cells"][4]]
+    original_document = first_provenance.pop("original_notebook_document")
+    first_provenance["original_notebook_document_sha256"] = original_document["sha256"]
     assert declaration["upstream_conversion"] == first_provenance
+    assert declaration["original_notebook_document"] == original_document
     third_import = build_notebook_pipeline_import(notebook=second, source_notebook="second-conversion.ipynb")
     third = build_notebook_setup_conversion(third_import, cell_ids=["plot"])
     final_declaration = third["metadata"]["agilab"]["setup_conversion"]
     assert final_declaration["requirements"] == ["numpy", "pandas"]
     assert final_declaration["selected_cell_ids"] == ["plot", "result", "setup"]
     assert final_declaration["original_setup_cells"] == [notebook["cells"][1], notebook["cells"][4], notebook["cells"][-1]]
-    assert final_declaration["upstream_conversion"] == declaration
+    expected_upstream = copy.deepcopy(declaration)
+    expected_upstream.pop("original_notebook_document")
+    expected_upstream["original_notebook_document_sha256"] = original_document["sha256"]
+    assert final_declaration["upstream_conversion"] == expected_upstream
+    assert final_declaration["original_notebook_document"] == original_document
     reimported = build_notebook_pipeline_import(notebook=third, source_notebook="all-converted.ipynb")
     assert build_notebook_import_contract(reimported)["environment"]["requirements"] == ["numpy", "pandas"]
     assert build_notebook_import_preflight(reimported)["safe_to_import"] is True

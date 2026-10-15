@@ -1586,6 +1586,153 @@ def test_create_project_from_stateful_notebook_uses_reviewed_execution_plan(
         assert verified.returncode == 0, verified.stdout + verified.stderr
 
 
+@pytest.mark.parametrize("preserve", [False, True])
+def test_create_project_from_reviewed_setup_preserves_upload_and_requirements(
+    tmp_path, preserve
+):
+    from test.test_pipeline_editor import _setup_notebook_upload
+
+    module = _load_project_module()
+    upload = _setup_notebook_upload()
+    original = upload.read()
+    clone_calls = []
+    project = tmp_path / "reviewed_setup_project"
+    preview, preview_error = module._project_notebook_preview_from_upload(
+        upload, "Reviewed Setup"
+    )
+    assert preview_error == "" and preview is not None
+    signature = module._notebook_setup_review_signature(
+        preview, setup_cell_ids=["install", "plot"], target_path=project
+    )
+
+    def clone(source, target):
+        clone_calls.append((source, target))
+        (tmp_path / target).mkdir()
+
+    result = module._create_project_from_notebook_action(
+        SimpleNamespace(apps_path=tmp_path, clone_project=clone),
+        template_source="pandas_app_template",
+        raw_project_name="Reviewed Setup",
+        uploaded_notebook=upload,
+        clone_env_strategy="detach_venv",
+        setup_cell_ids=["install", "plot"],
+        setup_review_signature=signature,
+        runtime_roles={f"cell-{index}": "manager" for index in range(2, 5)},
+        preserve_notebook_state=preserve,
+    )
+
+    assert result.status == "success", result
+    assert len(clone_calls) == 1
+    assert (
+        project / "notebooks/source/review_notebook_setup.ipynb"
+    ).read_bytes() == original
+    stages = tomllib.loads((project / "lab_stages.toml").read_text())[
+        "reviewed_setup_project"
+    ]
+    assert len(stages) == (1 if preserve else 3)
+    code = "\n".join(stage["C"] for stage in stages)
+    assert "%pip" not in code and "%matplotlib inline" not in code
+    assert "matplotlib.use('Agg')" in code
+    contract = json.loads((project / "notebook_import_contract.json").read_text())
+    assert contract["environment"]["requirements"] == ["numpy==2.2.6"]
+    reviewed = contract["notebook_document"]["notebook"]
+    before = reviewed["metadata"]["agilab"]["setup_conversion"][
+        "original_notebook_document"
+    ]
+    assert before["notebook"] == json.loads(original)
+    assert not (project / "setup-import-must-not-run.txt").exists()
+
+
+@pytest.mark.parametrize(
+    "failure", ["unselected", "partial", "unsupported", "missing_role", "stale_review"]
+)
+def test_project_setup_review_refuses_before_cloning(tmp_path, failure):
+    from test.test_pipeline_editor import _setup_notebook_upload
+
+    module = _load_project_module()
+    clone_calls = []
+    upload = (
+        _setup_notebook_upload(setup="!curl https://example.invalid/script | sh\n")
+        if failure == "unsupported"
+        else _setup_notebook_upload()
+    )
+    ids = (
+        []
+        if failure == "unselected"
+        else ["install"]
+        if failure == "partial"
+        else ["install", "plot"]
+    )
+    roles = {f"cell-{index}": "manager" for index in range(2, 5)}
+    if failure == "missing_role":
+        roles.pop("cell-4")
+    result = module._create_project_from_notebook_action(
+        SimpleNamespace(
+            apps_path=tmp_path, clone_project=lambda *args: clone_calls.append(args)
+        ),
+        template_source="pandas_app_template",
+        raw_project_name="Refused Setup",
+        uploaded_notebook=upload,
+        clone_env_strategy="detach_venv",
+        setup_cell_ids=ids,
+        setup_review_signature="stale-source-or-target-review"
+        if failure == "stale_review"
+        else None,
+        runtime_roles=roles,
+        preserve_notebook_state=True,
+    )
+    assert result.status == "error", result
+    assert clone_calls == []
+    assert not (tmp_path / "refused_setup_project").exists()
+
+
+@pytest.mark.parametrize("changed", ["source", "target", "selection"])
+def test_project_setup_confirmation_rechecks_source_target_and_selected_cells(
+    tmp_path, changed
+):
+    from test.test_pipeline_editor import _setup_notebook_upload
+
+    module = _load_project_module()
+    upload = _setup_notebook_upload()
+    preview, error = module._project_notebook_preview_from_upload(
+        upload, "Refused Setup"
+    )
+    assert preview is not None and error == ""
+    signature = module._notebook_setup_review_signature(
+        preview,
+        setup_cell_ids=["install", "plot"],
+        target_path=tmp_path / "refused_setup_project",
+    )
+    project_name = "Refused Setup"
+    ids = ["install", "plot"]
+    if changed == "source":
+        upload = _setup_notebook_upload(
+            setup="%pip install numpy==2.2.6\nvalues = [13, 5]\n"
+        )
+    elif changed == "target":
+        project_name = "Another Setup"
+    else:
+        ids = ["install"]
+    clone_calls = []
+    result = module._create_project_from_notebook_action(
+        SimpleNamespace(
+            apps_path=tmp_path, clone_project=lambda *args: clone_calls.append(args)
+        ),
+        template_source="pandas_app_template",
+        raw_project_name=project_name,
+        uploaded_notebook=upload,
+        clone_env_strategy="detach_venv",
+        setup_cell_ids=ids,
+        setup_review_signature=signature,
+        runtime_roles={f"cell-{index}": "manager" for index in range(2, 5)},
+    )
+    assert result.status == "error", result
+    assert "review" in str(result.detail).lower()
+    assert clone_calls == []
+    assert not (tmp_path / "refused_setup_project").exists()
+    assert not (tmp_path / "another_setup_project").exists()
+
+
 @pytest.mark.parametrize(
     "incompatibility", ["missing_role", "mixed_roles", "mixed_environments"]
 )

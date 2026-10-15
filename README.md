@@ -108,6 +108,10 @@ select **Preserve notebook state** to keep the reviewed cells in one stage.
 This preserves variables, mutations, and cell order when that stage is run.
 The option is off by default; the existing cell-by-cell editing mode remains
 available. Selected cells must use one reviewed runtime and environment.
+For supported notebook setup, explicitly select cells to convert, then review
+the source diff and declared requirements before importing. Simple pip setup
+becomes dependency declarations; inline plotting becomes an explicit batch
+backend. Other shell commands and magics still need manual conversion.
 Importing does not execute code or install dependencies. See the
 [notebook import guide](https://thalesgroup.github.io/agilab/notebook-advanced.html#import-recovery-and-reviewed-source-edits)
 for source recovery and limitations. Programmatic import can use

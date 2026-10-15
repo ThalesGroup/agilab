@@ -141,17 +141,17 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
     ),
     "Create": (
         "trial-only",
-        "creates project or analysis objects; notebook creation honors the reviewed Preserve notebook state choice without executing code; generic robots only probe the control",
+        "creates project or analysis objects; notebook creation honors selected setup conversion and Preserve notebook state without executing code or installing dependencies; generic robots only probe the control",
         ("test/test_project_sidebar_support.py", "test/test_project_clone_policy.py"),
     ),
     "Import all runnable cells": (
         "trial-only",
-        "writes reviewed notebook cells as separate stages or one shared-state stage according to Preserve notebook state; focused tests and an opt-in browser fixture exercise persistence without autorun",
+        "writes reviewed notebook cells after explicit setup conversion as separate stages or one shared-state stage according to Preserve notebook state; focused tests and an opt-in browser fixture cover selection, persistence and no execution or installation",
         ("test/test_pipeline_editor.py",),
     ),
     "Promote selected cell": (
         "trial-only",
-        "persists only the selected notebook cell using the reviewed runtime and Preserve notebook state choice; does not restore omitted cells or execute code",
+        "persists only the selected notebook cell using explicit setup conversion, reviewed runtime and Preserve notebook state choices; does not restore omitted cells, execute code or install dependencies",
         ("test/test_pipeline_editor.py",),
     ),
     "Delete": (
