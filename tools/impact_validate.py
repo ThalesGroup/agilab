@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Iterable, Sequence
 from urllib.parse import quote
 
+try:
+    import agilab_capabilities_manifest as capability_manifest
+except ModuleNotFoundError:
+    from tools import agilab_capabilities_manifest as capability_manifest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 IMPACT_CACHE_SCHEMA = "agilab-impact-validate-cache-v1"
@@ -86,6 +91,7 @@ INDIRECT_TOOL_TESTS = {
 IMPACT_STATIC_INPUTS = (
     "tools/impact_validate.py",
     "tools/maintenance_memory.py",
+    "tools/agilab_capabilities_manifest.py",
 )
 NON_GUI_ROOT_TESTS = {
     "test/conftest.py",
@@ -923,6 +929,45 @@ def _analyze_paths_uncached(paths: list[str], test_index: TestIndex) -> ImpactRe
     actions: list[Action] = []
     artifacts: list[Action] = []
     push_gates: list[Action] = []
+
+    schema_roots = tuple(
+        root.relative_to(capability_manifest.REPO_ROOT).as_posix() + "/"
+        for root in capability_manifest.SCHEMA_SCAN_ROOTS
+    )
+    schema_files = {
+        path.relative_to(capability_manifest.REPO_ROOT).as_posix()
+        for path in capability_manifest.SCHEMA_SCAN_FILES
+    }
+    if any(
+        path == "agilab-capabilities.json"
+        or Path(path).name == "pyproject.toml"
+        or _matches_prefix(path, SKILL_PREFIXES)
+        or path in schema_files
+        or (
+            _matches_prefix(path, schema_roots)
+            and Path(path).suffix in capability_manifest.SCHEMA_SCAN_SUFFIXES
+        )
+        for path in paths
+    ):
+        actions.append(
+            Action(
+                key="capability-manifest-check",
+                summary="Check the generated package, skill, and evidence-schema capability inventory.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/agilab_capabilities_manifest.py --check"
+                ],
+            )
+        )
+        artifacts.append(
+            Action(
+                key="capability-manifest-refresh",
+                summary="If the capability inventory is stale, regenerate it from the current public checkout and include the resulting diff.",
+                commands=[
+                    "uv --preview-features extra-build-dependencies run python tools/agilab_capabilities_manifest.py --apply",
+                    "uv --preview-features extra-build-dependencies run python tools/agilab_capabilities_manifest.py --check",
+                ],
+            )
+        )
 
     if any(_is_shared_core(path) for path in paths):
         push_gates.append(

@@ -828,15 +828,9 @@ def _distributed_output_roots(
     if normalized_share:
         requested_root = _absolute_workers_data_share_root(None, normalized_share)
         roots.append(requested_root)
-        # SDK workers can reconstruct their environment independently of the
-        # manager's workflow root and use the configured physical cluster share.
-        # Admit only that explicit ancestor of the requested workflow, then
-        # snapshot/search the authored data_out under it, never the whole share.
-        cluster_share = str(os.environ.get("AGI_CLUSTER_SHARE", "") or "").strip()
-        if cluster_share:
-            physical_root = _absolute_workers_data_share_root(None, cluster_share)
-            if requested_root != physical_root and requested_root.is_relative_to(physical_root):
-                roots.append(physical_root)
+        # Workers inherit AGILAB_WORKFLOW_DATA_ROOT. Searching its physical
+        # ancestor could accept another workflow's fresh output with the same
+        # authored data_out, so a misplaced worker output must fail closed.
     data_out = str(request_payload.get("data_out", "") or "").strip()
     data_root = Path(data_out).expanduser() if data_out else None
     output_roots = list(roots)
@@ -908,7 +902,9 @@ def _run_agilab_stage_subprocess_once(
 ) -> Mapping[str, Any]:
     token = str(idempotency_token).strip()
     if not token:
-        raise RuntimeError(f"Distributed DAG stage `{app_name}` requires an idempotency token.")
+        raise RuntimeError(
+            f"Distributed DAG stage `{app_name}` requires an idempotency token."
+        )
     inputs = _verified_distributed_inputs(request_payload.get("input_artifacts", []))
     stage_request = dict(request_payload)
     recorded_token = str(stage_request.get("idempotency_token", "")).strip()
@@ -918,6 +914,12 @@ def _run_agilab_stage_subprocess_once(
         )
     stage_request["idempotency_token"] = token
     run_root.mkdir(parents=True, exist_ok=True)
+    result_path = (
+        run_root / "distributed_submission_evidence" / "child-stage-result.json"
+    )
+    _require_unlinked_collection_path(result_path, run_root)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.unlink(missing_ok=True)
     script_path = run_root / "run_distributed_stage.py"
     script_path.write_text(
         _stage_run_script(
@@ -925,6 +927,7 @@ def _run_agilab_stage_subprocess_once(
             apps_path=apps_path,
             app_name=app_name,
             request_payload=stage_request,
+            result_path=result_path,
         ),
         encoding="utf-8",
     )
@@ -933,10 +936,13 @@ def _run_agilab_stage_subprocess_once(
     stderr_path = run_root / "distributed_stage.stderr.log"
     # Do not use capture_output here: AGI stages may launch background Dask
     # processes which inherit pipe file descriptors and prevent EOF.
-    with stdout_path.open("w", encoding="utf-8") as stdout_handle, stderr_path.open(
-        "w",
-        encoding="utf-8",
-    ) as stderr_handle:
+    with (
+        stdout_path.open("w", encoding="utf-8") as stdout_handle,
+        stderr_path.open(
+            "w",
+            encoding="utf-8",
+        ) as stderr_handle,
+    ):
         log_offsets = {str(stdout_path): 0, str(stderr_path): 0}
         stop_log_tee = threading.Event()
         log_tee_thread = threading.Thread(
@@ -977,9 +983,23 @@ def _run_agilab_stage_subprocess_once(
         "idempotency_token": token,
     }
     if completed.returncode:
-        detail = stderr_tail.strip() or stdout_tail.strip() or f"exit {completed.returncode}"
-        raise RuntimeError(f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=3800)}")
-    failure_detail = _stage_result_failure(stdout_tail)
+        detail = (
+            stderr_tail.strip() or stdout_tail.strip() or f"exit {completed.returncode}"
+        )
+        raise RuntimeError(
+            f"Distributed DAG stage `{app_name}` failed: {_tail(detail, max_chars=3800)}"
+        )
+    has_result_file = result_path.exists() or result_path.is_symlink()
+    stage_result = (
+        _read_stage_result(result_path, run_root=run_root, token=token)
+        if has_result_file
+        else _stage_result_payload(stdout_tail)
+    )
+    failure_detail = (
+        _stage_result_value_failure(stage_result)
+        if has_result_file
+        else _stage_result_failure(stdout_tail)
+    )
     if failure_detail:
         # Defense in depth: AGI.run can swallow ProcessError/ConnectionError
         # and the script may still print a null/error result; never record
@@ -989,7 +1009,6 @@ def _run_agilab_stage_subprocess_once(
         )
     if inputs:
         payload["input_artifact_fingerprint"] = _input_artifact_fingerprint(inputs)
-    stage_result = _stage_result_payload(stdout_tail)
     if isinstance(stage_result, Mapping):
         reported_artifact_paths(stage_result)
         for key in (
@@ -1004,6 +1023,64 @@ def _run_agilab_stage_subprocess_once(
                 payload[key] = stage_result[key]
     require_distributed_input_receipts(payload, inputs, app_name=app_name)
     return payload
+
+
+def _read_stage_result(
+    path: Path,
+    *,
+    run_root: Path,
+    token: str,
+    max_bytes: int = 16 * 1024 * 1024,
+) -> Any:
+    """Read the child protocol independently of the bounded diagnostic log tail."""
+    _require_unlinked_collection_path(path, run_root)
+    before = path.stat()
+    if not S_ISREG(before.st_mode) or before.st_size > max_bytes:
+        raise ValueError("Distributed stage result is not a bounded regular JSON file.")
+    generation = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_ctime_ns,
+    )
+    with path.open("rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (
+            opened.st_dev,
+            opened.st_ino,
+            opened.st_size,
+            opened.st_mtime_ns,
+            opened.st_ctime_ns,
+        ) != generation:
+            raise ValueError("Distributed stage result changed before it was read.")
+        raw = stream.read(max_bytes + 1)
+        after = os.fstat(stream.fileno())
+    _require_unlinked_collection_path(path, run_root)
+    current = path.stat()
+    if len(raw) != before.st_size or any(
+        (
+            observed.st_dev,
+            observed.st_ino,
+            observed.st_size,
+            observed.st_mtime_ns,
+            observed.st_ctime_ns,
+        )
+        != generation
+        for observed in (after, current)
+    ):
+        raise ValueError("Distributed stage result changed while it was read.")
+    payload = json.loads(raw)
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("schema") != "agilab.distributed_stage_result.v1"
+        or payload.get("idempotency_token") != token
+        or "result" not in payload
+    ):
+        raise ValueError(
+            "Distributed stage result is not bound to this execution attempt."
+        )
+    return payload["result"]
 
 
 def _stage_result_payload(stdout_tail: str) -> Any:
@@ -1063,12 +1140,15 @@ def _stage_result_failure(stdout_tail: str) -> str | None:
             continue
         if not isinstance(parsed, Mapping) or "result" not in parsed:
             continue
-        result = parsed.get("result")
-        if result is None:
-            return "AGI.run returned no result (worker launch or environment failure)"
-        if isinstance(result, Mapping) and result.get("status") == "error":
-            return str(result.get("message") or "AGI.run reported an error result")
-        return None
+        return _stage_result_value_failure(parsed.get("result"))
+    return None
+
+
+def _stage_result_value_failure(result: Any) -> str | None:
+    if result is None:
+        return "AGI.run returned no result (worker launch or environment failure)"
+    if isinstance(result, Mapping) and result.get("status") == "error":
+        return str(result.get("message") or "AGI.run reported an error result")
     return None
 
 
@@ -1127,18 +1207,21 @@ def _stage_run_script(
     apps_path: Path,
     app_name: str,
     request_payload: Mapping[str, Any],
+    result_path: Path | None = None,
 ) -> str:
     request_json = json.dumps(dict(request_payload), sort_keys=True)
     workers_json = json.dumps(config.workers, sort_keys=True)
-    return f'''\
+    return f"""\
 import asyncio
 import json
 import os
 import sys
+from pathlib import Path
 
 from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
 from agi_env import AgiEnv
 from agilab.dag.dag_distributed_submitter import _verified_distributed_inputs
+from agilab.dag.dag_idempotency import write_json_atomic
 from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import _read_queue_context
 
 
@@ -1146,7 +1229,20 @@ APPS_PATH = {str(apps_path)!r}
 APP = {app_name!r}
 REQUEST_PAYLOAD = json.loads({request_json!r})
 WORKERS = json.loads({workers_json!r})
+RESULT_PATH = {str(result_path) if result_path is not None else None!r}
 os.environ["AGILAB_IDEMPOTENCY_TOKEN"] = str(REQUEST_PAYLOAD["idempotency_token"])
+
+
+def emit_result(result):
+    if RESULT_PATH is None:
+        print(json.dumps({{"result": result}}, default=str))
+        return
+    write_json_atomic(Path(RESULT_PATH), {{
+        "schema": "agilab.distributed_stage_result.v1",
+        "idempotency_token": str(REQUEST_PAYLOAD["idempotency_token"]),
+        "result": result,
+    }})
+    print(json.dumps({{"stage_result_path": RESULT_PATH}}))
 
 
 async def main():
@@ -1194,17 +1290,17 @@ async def main():
     result = await AGI.run(app_env, request=request)
     # No success consumption receipt is emitted for a failed AGI.run.
     if result is None or (isinstance(result, dict) and result.get("status") == "error"):
-        print(json.dumps({{"result": result}}, default=str))
+        emit_result(result)
         sys.exit(1)
     if inputs:
         result = dict(result) if isinstance(result, dict) else {{"value": result}}
         result["consumed_artifacts"] = consumed_artifacts
-    print(json.dumps({{"result": result}}, default=str))
+    emit_result(result)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
-'''
+"""
 
 
 def _distributed_evidence_path(run_root: Path, artifact: Mapping[str, Any]) -> Path:

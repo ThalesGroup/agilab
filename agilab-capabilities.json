@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-15T12:46:43Z",
+  "generated_at_utc": "2026-10-15T18:50:04Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 315,
+    "evidence_schema_count": 316,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1603,6 +1603,12 @@
       "schema": "agilab.distributed_dag_stage_submission.v1",
       "sources": [
         "src/agilab/dag/dag_artifact_contracts.py",
+        "src/agilab/dag/dag_distributed_submitter.py"
+      ]
+    },
+    {
+      "schema": "agilab.distributed_stage_result.v1",
+      "sources": [
         "src/agilab/dag/dag_distributed_submitter.py"
       ]
     },

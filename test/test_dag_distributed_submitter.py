@@ -701,6 +701,34 @@ def test_stage_subprocess_runner_streams_worker_logs_before_completion(monkeypat
     assert result["stdout_tail"].endswith('{"result": "ok"}\n')
 
 
+def test_generated_stage_script_writes_complete_protocol_without_dumping_receipts(tmp_path, capsys):
+    import ast
+
+    module = dag_distributed_submitter
+    path = tmp_path / "distributed_submission_evidence" / "child-stage-result.json"
+    token = "generated-protocol-attempt"
+    source = module._stage_run_script(
+        config=module.DagDistributedStageConfig(
+            scheduler="127.0.0.1:18786", workers={"127.0.0.1": 1},
+            workers_data_path=str(tmp_path / "share"), mode=4,
+        ),
+        apps_path=tmp_path / "apps", app_name="scientific_project",
+        request_payload={"idempotency_token": token}, result_path=path,
+    )
+    writer = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == "emit_result")
+    namespace = {
+        "RESULT_PATH": str(path), "REQUEST_PAYLOAD": {"idempotency_token": token},
+        "write_json_atomic": module.write_json_atomic, "Path": Path, "json": json,
+    }
+    exec(compile(ast.Module(body=[writer], type_ignores=[]), "stage-script", "exec"), namespace)
+    result = {"consumed_artifacts": [{"measured_value": "x" * 1000}] * 60}
+    namespace["emit_result"](result)
+    assert module._read_stage_result(path, run_root=tmp_path, token=token) == result
+    printed = capsys.readouterr().out
+    assert len(printed) < 500
+    assert json.loads(printed) == {"stage_result_path": str(path)}
+
+
 @pytest.mark.parametrize(
     ("stdout_payload", "expected_detail"),
     (
@@ -1425,18 +1453,23 @@ def _write_worker_runtime_summary(module, monkeypatch, source, metrics):
     monkeypatch.setattr(module.subprocess, "run", fake_subprocess)
 
 
-def test_worker_summary_collection_uses_effective_cluster_share_with_workflow_subdir(
-    tmp_path, monkeypatch,
+def test_worker_summary_collection_keeps_requested_workflow_subdir(
+    tmp_path,
+    monkeypatch,
 ):
     from dataclasses import replace
 
     module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
     share = source.parents[3]
     monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share))
-    kwargs["config"] = replace(kwargs["config"], workers_data_path=str(share / "workflows"))
+    kwargs["config"] = replace(
+        kwargs["config"], workers_data_path=str(share / "workflows")
+    )
+    source = share / "workflows" / source.relative_to(share)
     _write_worker_runtime_summary(module, monkeypatch, source, metrics)
     result = module.submit_distributed_stage(
-        **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        **kwargs,
+        runner_fn=module.run_agilab_stage_subprocess,
     )
     assert result["worker_output_collection"][0]["source_path"] == str(source)
     assert result["summary_metrics"]["packets_generated"] == 420
@@ -1557,5 +1590,143 @@ def test_worker_summary_collection_rejects_different_open_file_descriptor(
     with pytest.raises(RuntimeError, match="different file generation"):
         module.submit_distributed_stage(
             **kwargs, runner_fn=module.run_agilab_stage_subprocess,
+        )
+    assert not (kwargs["run_root"] / kwargs["artifact"]["path"]).exists()
+
+
+@pytest.mark.parametrize(
+    "problem", ["wrong-token", "oversized", "symlink", "null-result"]
+)
+def test_stage_subprocess_rejects_invalid_structured_child_result(
+    tmp_path, monkeypatch, problem
+):
+    module = dag_distributed_submitter
+    run_root = tmp_path / "stage"
+
+    def fake_run(command, **options):
+        path = run_root / "distributed_submission_evidence" / "child-stage-result.json"
+        data = {
+            "schema": "agilab.distributed_stage_result.v1",
+            "idempotency_token": "attempt",
+            "result": {"status": "ok"},
+        }
+        if problem == "wrong-token":
+            data["idempotency_token"] = "other-attempt"
+        if problem == "null-result":
+            data["result"] = None
+        module.write_json_atomic(path, data)
+        if problem == "oversized":
+            path.write_bytes(b" " * (16 * 1024 * 1024 + 1))
+        if problem == "symlink":
+            destination = tmp_path / "foreign-result.json"
+            path.rename(destination)
+            path.symlink_to(destination)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    with pytest.raises(
+        (ValueError, RuntimeError),
+        match="execution attempt|bounded regular|symlink or junction|no result",
+    ):
+        module._run_agilab_stage_subprocess_once(
+            config=module.DagDistributedStageConfig(
+                scheduler="127.0.0.1:18786",
+                workers={"127.0.0.1": 1},
+                workers_data_path=str(tmp_path / "share"),
+                mode=4,
+            ),
+            repo_root=tmp_path,
+            run_root=run_root,
+            apps_path=tmp_path / "apps",
+            app_name="scientific_project",
+            request_payload={},
+            timestamp="2026-10-15T18:00:00Z",
+            idempotency_token="attempt",
+        )
+
+
+
+
+def test_stage_subprocess_reads_large_input_receipts_outside_diagnostic_log_tail(
+    tmp_path,
+    monkeypatch,
+):
+    module = dag_distributed_submitter
+    producer_root = tmp_path / "producer"
+    producer_root.mkdir()
+    inputs = []
+    for index in range(60):
+        source = producer_root / f"scientific-output-{index}.json"
+        source.write_text(json.dumps({"measured_value": index}))
+        inputs.append(
+            {
+                "artifact": f"scientific-output-{index}",
+                "producer": "producer",
+                "kind": "summary_metrics",
+                "path": str(source),
+            }
+        )
+    module.bind_artifact_identities(inputs, run_root=producer_root, bind_new=True)
+    receipts = [
+        {**item, "role": "declared_input_reference", "numerically_conditioned": False}
+        for item in inputs
+    ]
+    run_root = tmp_path / "stage"
+    token = "large-receipt-attempt"
+    complete = {"status": "ok", "consumed_artifacts": receipts}
+    assert len(json.dumps({"result": complete})) > 20000
+
+    def fake_run(command, **options):
+        module.write_json_atomic(
+            run_root / "distributed_submission_evidence" / "child-stage-result.json",
+            {
+                "schema": "agilab.distributed_stage_result.v1",
+                "idempotency_token": token,
+                "result": complete,
+            },
+        )
+        options["stdout"].write("worker progress\n" * 3000)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    result = module._run_agilab_stage_subprocess_once(
+        config=module.DagDistributedStageConfig(
+            scheduler="127.0.0.1:18786",
+            workers={"127.0.0.1": 1},
+            workers_data_path=str(tmp_path / "share"),
+            mode=4,
+        ),
+        repo_root=tmp_path,
+        run_root=run_root,
+        apps_path=tmp_path / "apps",
+        app_name="scientific_project",
+        request_payload={"input_artifacts": inputs},
+        timestamp="2026-10-15T18:00:00Z",
+        idempotency_token=token,
+    )
+    assert result["consumed_artifacts"] == receipts
+    assert len(result["stdout_tail"]) == 20000
+
+
+
+
+def test_worker_summary_collection_rejects_foreign_workflow_under_physical_share(
+    tmp_path,
+    monkeypatch,
+):
+    from dataclasses import replace
+
+    module, kwargs, source, metrics = _worker_summary_collection_case(tmp_path)
+    share = source.parents[3]
+    monkeypatch.setenv("AGI_CLUSTER_SHARE", str(share))
+    kwargs["config"] = replace(
+        kwargs["config"], workers_data_path=str(share / "workflow-a")
+    )
+    foreign = source.parent / "workflow-b_summary_metrics.json"
+    _write_worker_runtime_summary(module, monkeypatch, foreign, {"foreign_loss": 123.0})
+    with pytest.raises(RuntimeError, match="missing"):
+        module.submit_distributed_stage(
+            **kwargs,
+            runner_fn=module.run_agilab_stage_subprocess,
         )
     assert not (kwargs["run_root"] / kwargs["artifact"]["path"]).exists()
