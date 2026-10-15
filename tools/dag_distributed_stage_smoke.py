@@ -107,11 +107,65 @@ def build_smoke_report(
     if execute and cluster_ready and config is not None:
         execution_report = _execute_ready_stage_waves(engine, state, config=config)
         report.update(execution_report)
-        report["status"] = "pass" if not execution_report["failed_unit_ids"] else "fail"
+        complete, incomplete_unit_ids = _execution_completion(
+            state, execution_report.get("final_state")
+        )
+        report["incomplete_unit_ids"] = incomplete_unit_ids
+        report["status"] = (
+            "pass" if complete and not execution_report["failed_unit_ids"] else "fail"
+        )
+        if not complete:
+            report["message"] += (
+                " Distributed DAG stage execution incomplete; every planned stage must be completed."
+                + (
+                    f" Incomplete stages: {', '.join(incomplete_unit_ids)}."
+                    if incomplete_unit_ids
+                    else ""
+                )
+            )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return report
+
+
+def _execution_completion(
+    state: Mapping[str, Any],
+    final_state: Any,
+) -> tuple[bool, list[str]]:
+    """Require the actual nonempty planned stage set, independently of summary counts."""
+    planned = state.get("units", [])
+    if (
+        not isinstance(planned, list)
+        or not planned
+        or any(not isinstance(unit, Mapping) for unit in planned)
+    ):
+        return False, []
+    expected_ids = [unit.get("id") for unit in planned]
+    if any(not isinstance(unit_id, str) or not unit_id for unit_id in expected_ids):
+        return False, []
+    final = final_state.get("units", []) if isinstance(final_state, Mapping) else []
+    if not isinstance(final, list):
+        final = []
+    completed_ids = {
+        unit.get("id")
+        for unit in final
+        if isinstance(unit, Mapping)
+        and isinstance(unit.get("id"), str)
+        and unit.get("dispatch_status") == "completed"
+    }
+    incomplete = [unit_id for unit_id in expected_ids if unit_id not in completed_ids]
+    complete = (
+        state.get("ok") is True
+        and isinstance(final_state, Mapping)
+        and final_state.get("ok") is True
+        and len(expected_ids) == len(set(expected_ids)) == len(final)
+        and completed_ids == set(expected_ids)
+        and not incomplete
+    )
+    return complete, incomplete
 
 
 def _execute_ready_stage_waves(
@@ -144,13 +198,11 @@ def _execute_ready_stage_waves(
         )
         messages.append(result.message)
         current_state = dict(result.state)
-        execution_engine.write_state(current_state)
         executed_unit_ids.extend(result.executed_unit_ids)
         failed_unit_ids.extend(result.failed_unit_ids)
         if result.failed_unit_ids or not result.executed_unit_ids:
             break
-        summary = current_state.get("summary", {})
-        if isinstance(summary, Mapping) and summary.get("completed_count") == summary.get("unit_count"):
+        if _execution_completion(state, current_state)[0]:
             break
 
     return {
