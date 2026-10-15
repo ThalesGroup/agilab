@@ -1,4 +1,4 @@
-"""Reusable action execution primitives for Streamlit workflow pages."""
+"""Reusable action execution primitives for native Python workflow pages."""
 
 from __future__ import annotations
 
@@ -90,15 +90,33 @@ def render_action_result(streamlit: Any, result: ActionResult) -> None:
 def run_streamlit_action(
     streamlit: Any,
     spec: ActionSpec,
-    action: Callable[[], ActionResult],
+    action: Callable[[], ActionResult] | None = None,
     *,
     on_success: Callable[[ActionResult], Any] | None = None,
+    action_with_progress: Callable[[Callable[[str], None]], ActionResult] | None = None,
 ) -> ActionResult:
-    """Run a Streamlit page action with consistent progress and result handling."""
+    """Run an action, optionally reporting real phases through a status block.
 
+    Existing zero-argument actions retain their spinner. A phased action receives
+    a synchronous reporter; its history remains available after completion.
+    """
+
+    if (action is None) == (action_with_progress is None):
+        raise ValueError("Provide exactly one action or action_with_progress callable.")
+
+    progress = None
     try:
-        with streamlit.spinner(spec.start_message):
-            result = action()
+        if action_with_progress is not None:
+            with streamlit.status(spec.start_message, expanded=True) as progress:
+                def report(phase: str) -> None:
+                    progress.update(label=phase)
+                    progress.write(phase)
+
+                result = action_with_progress(report)
+        else:
+            assert action is not None
+            with streamlit.spinner(spec.start_message):
+                result = action()
     except Exception as exc:
         diagnostic = classify_runtime_failure(str(exc), phase=spec.name)
         result = ActionResult.error(
@@ -108,6 +126,12 @@ def run_streamlit_action(
             data={"failure_category": diagnostic.category} if diagnostic else {},
         )
 
+    if progress is not None:
+        progress.update(
+            label=spec.name,
+            state="error" if result.status == "error" else "complete",
+            expanded=result.status == "error",
+        )
     render_action_result(streamlit, result)
     if result.status == "success" and on_success is not None:
         on_success(result)
