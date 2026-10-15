@@ -23,9 +23,13 @@ _NON_OUTPUT_DIRECTORIES = frozenset(
 )
 
 
+def _is_linked_artifact_path(path: Path) -> bool:
+    return path.is_symlink() or path.is_junction()
+
+
 def artifact_file_identity(path: Path) -> dict[str, Any]:
     """Capture the bytes bound to one produced file, without loading it at once."""
-    if path.is_symlink() or not path.is_file():
+    if _is_linked_artifact_path(path) or not path.is_file():
         raise ValueError(f"Produced artifact must be a regular file: {path}")
     digest = hashlib.sha256()
     size_bytes = 0
@@ -38,8 +42,8 @@ def artifact_file_identity(path: Path) -> dict[str, Any]:
 
 def artifact_identity(path: Path, *, run_root: Path) -> dict[str, Any]:
     """Hash one declared artifact; never traverse linked or runtime metadata trees."""
-    if path.is_symlink():
-        raise ValueError(f"Produced artifact contains a symlink: {path}")
+    if _is_linked_artifact_path(path):
+        raise ValueError(f"Produced artifact contains a symlink or junction: {path}")
     path = path.resolve()
     if path.is_file():
         return artifact_file_identity(path)
@@ -69,9 +73,9 @@ def artifact_identity(path: Path, *, run_root: Path) -> dict[str, Any]:
             and (current_path / name).absolute() not in metadata
         )
         for name in directories:
-            if (current_path / name).is_symlink():
+            if _is_linked_artifact_path(current_path / name):
                 raise ValueError(
-                    f"Produced artifact contains a symlink: {current_path / name}"
+                    f"Produced artifact contains a symlink or junction: {current_path / name}"
                 )
         entries = [
             {
@@ -112,9 +116,9 @@ def require_artifact_location(
     bind_new: bool = False,
 ) -> str:
     """Check the frozen target before any receipt probe or artifact-content read."""
-    if path.is_symlink():
+    if _is_linked_artifact_path(path):
         raise ValueError(
-            f"Cached produced artifact `{artifact_id}` contains a symlink: {path}"
+            f"Cached produced artifact `{artifact_id}` contains a symlink or junction: {path}"
         )
     try:
         resolved = str(path.resolve())
@@ -211,11 +215,13 @@ class ArtifactOutputSnapshot:
     def __init__(
         self, *, workspaces: Iterable[Path], declared_paths: Iterable[Path] = ()
     ) -> None:
-        self._workspaces = tuple(
-            Path(path).expanduser().resolve() for path in workspaces
+        workspace_paths = tuple(Path(path).expanduser() for path in workspaces)
+        self._workspace_anchors = tuple(
+            (path.absolute(), path.resolve()) for path in workspace_paths
         )
+        self._workspaces = tuple(target for _, target in self._workspace_anchors)
         self._declared_paths = {
-            Path(path).expanduser().resolve() for path in declared_paths
+            self._canonical_output_path(path) for path in declared_paths
         }
         self._before: dict[Path, tuple[int, ...]] = {}
         self._excluded: set[Path] = set()
@@ -223,6 +229,27 @@ class ArtifactOutputSnapshot:
             observed, excluded = self._collect(path)
             self._before.update(observed)
             self._excluded.update(excluded)
+
+    def _canonical_output_path(self, path: Path) -> Path:
+        path = Path(path).expanduser()
+        anchor = next(
+            (
+                target
+                for original, target in self._workspace_anchors
+                if path.absolute() == original
+            ),
+            None,
+        )
+        if _is_linked_artifact_path(path) and anchor is None:
+            raise ValueError(
+                f"Artifact freshness output contains a symlink or junction: {path}"
+            )
+        resolved = path.resolve()
+        if anchor is not None and resolved != anchor:
+            raise ValueError(
+                f"Artifact freshness workspace anchor changed location: {path}"
+            )
+        return resolved
 
     @staticmethod
     def _identity(path: Path) -> tuple[int, ...] | None:
@@ -244,6 +271,8 @@ class ArtifactOutputSnapshot:
 
     @classmethod
     def _collect(cls, path: Path) -> tuple[dict[Path, tuple[int, ...]], set[Path]]:
+        if _is_linked_artifact_path(path):
+            return {}, {path.absolute()}
         identity = cls._identity(path)
         if identity is None:
             return {}, set()
@@ -261,7 +290,7 @@ class ArtifactOutputSnapshot:
             current_path = Path(current)
             for name in list(directories):
                 child = current_path / name
-                if name in _NON_OUTPUT_DIRECTORIES or child.is_symlink():
+                if name in _NON_OUTPUT_DIRECTORIES or _is_linked_artifact_path(child):
                     directories.remove(name)
                     excluded.add(child.absolute())
                 else:
@@ -270,7 +299,7 @@ class ArtifactOutputSnapshot:
                         observed[child.resolve()] = child_identity
             for name in files:
                 child = current_path / name
-                if child.is_symlink():
+                if _is_linked_artifact_path(child):
                     continue
                 child_identity = cls._identity(child)
                 if child_identity is not None:
@@ -278,7 +307,7 @@ class ArtifactOutputSnapshot:
         return observed, excluded
 
     def require_fresh(self, path: Path, *, artifact_id: str) -> None:
-        resolved = path.expanduser().resolve()
+        resolved = self._canonical_output_path(path)
         declared = resolved in self._declared_paths
         covered = declared or any(
             resolved.is_relative_to(root) for root in self._workspaces

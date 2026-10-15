@@ -4,6 +4,7 @@ from copy import deepcopy
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -1520,3 +1521,184 @@ def test_workspace_directory_cache_preserves_runtime_parent_alias(tmp_path):
     first = execute()
     assert execute() == first
     assert calls == ["aliased-runtime"]
+
+
+@pytest.mark.parametrize("linked", ["root", "child"])
+@pytest.mark.parametrize(
+    "native",
+    [
+        pytest.param(False, id="simulated"),
+        pytest.param(
+            True,
+            id="native-windows",
+            marks=pytest.mark.skipif(
+                sys.platform != "win32", reason="native Windows directory junction required"
+            ),
+        ),
+    ],
+)
+def test_cached_dataset_rejects_junction_before_target_reads(
+    tmp_path, monkeypatch, linked, native
+):
+    unit = _data_unit()
+    unit["produces"][0]["path"] = "dataset"
+    unit["execution_attempt"] = {"idempotency_token": "directory-junction"}
+    run_root = adapters._real_run_root(tmp_path, unit["id"])
+    dataset = run_root / "dataset"
+    calls = []
+
+    def writer(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        (dataset / "child").mkdir(parents=True)
+        (dataset / "child/rows.csv").write_bytes(b"value,1\n")
+        return {}
+
+    context = _context(tmp_path, stage_run_fns={unit["id"]: writer})
+    artifact = adapters._primary_contract_artifact({}, unit)
+
+    def execute():
+        return adapters._contract_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now"
+        )
+
+    first = execute()
+    assert execute() == first
+    junction = dataset if linked == "root" else dataset / "child"
+    outside = tmp_path / "outside"
+    destination = outside / "child" if linked == "root" else outside
+    destination.mkdir(parents=True)
+    (destination / "rows.csv").write_bytes(b"value,1\n")
+    if native:
+        junction.rename(run_root / "original-output")
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(junction), str(outside)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert junction.is_junction()
+        assert not junction.is_symlink()
+    else:
+        # Model Windows' separate junction flag on a normal directory: os.walk
+        # still descends unless the artifact contract explicitly rejects it.
+        original_is_junction = Path.is_junction
+        monkeypatch.setattr(
+            Path,
+            "is_junction",
+            lambda path: path.absolute() == junction.absolute()
+            or original_is_junction(path),
+        )
+        assert not junction.is_symlink()
+
+    original_open = Path.open
+    original_receipt_probe = adapters.is_contract_receipt_artifact
+    reads = []
+
+    def guarded_open(path, *args, **kwargs):
+        target = path.resolve() if native else path.absolute()
+        forbidden = outside if native else junction.absolute()
+        if target.is_relative_to(forbidden):
+            reads.append(path)
+            raise AssertionError("Must not read a junction target")
+        return original_open(path, *args, **kwargs)
+
+    def guarded_receipt_probe(path):
+        assert not path.is_junction(), "Must reject a junction before receipt probing"
+        return original_receipt_probe(path)
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    monkeypatch.setattr(adapters, "is_contract_receipt_artifact", guarded_receipt_probe)
+    try:
+        with pytest.raises(ValueError, match="produced artifact.*junction"):
+            execute()
+        assert reads == []
+        assert calls == ["directory-junction"]
+    finally:
+        if native:
+            junction.rmdir()
+
+
+@pytest.mark.parametrize("linked", ["declared", "child"])
+def test_snapshot_does_not_traverse_junctions(tmp_path, monkeypatch, linked):
+    from agilab.dag.dag_artifact_contracts import ArtifactOutputSnapshot
+
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    junction = workspace / "junction" if linked == "child" else tmp_path / "junction"
+    junction.mkdir()
+    (junction / "rows.csv").write_bytes(b"value,1\n")
+    original_is_junction = Path.is_junction
+    monkeypatch.setattr(
+        Path,
+        "is_junction",
+        lambda path: path.absolute() == junction.absolute()
+        or original_is_junction(path),
+    )
+    original_stat = Path.stat
+
+    def guarded_stat(path, *args, **kwargs):
+        if kwargs.get("follow_symlinks", True):
+            assert not path.absolute().is_relative_to(junction.absolute()), (
+                "Must not inspect junction target metadata"
+            )
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", guarded_stat)
+    if linked == "child":
+        snapshot = ArtifactOutputSnapshot(workspaces=[workspace])
+        with pytest.raises(RuntimeError, match="Declare its output path"):
+            snapshot.require_fresh(junction / "rows.csv", artifact_id="linked-data")
+        current = workspace / "current.csv"
+        current.write_bytes(b"fresh")
+        snapshot.require_fresh(current, artifact_id="current-data")
+    else:
+        with pytest.raises(ValueError, match="junction"):
+            ArtifactOutputSnapshot(
+                workspaces=[workspace],
+                declared_paths=[junction],
+            )
+
+
+@pytest.mark.parametrize("linked", ["symlink", "junction"])
+def test_snapshot_preserves_explicit_workspace_anchor_alias(
+    tmp_path, monkeypatch, linked
+):
+    from agilab.dag.dag_artifact_contracts import artifact_identity
+
+    canonical = tmp_path / "canonical"
+    canonical.mkdir()
+    (canonical / "old.csv").write_bytes(b"value,1\n")
+    anchor = tmp_path / "anchor"
+    anchor.symlink_to(canonical, target_is_directory=True)
+    if linked == "junction":
+        original_is_junction = Path.is_junction
+        original_is_symlink = Path.is_symlink
+        monkeypatch.setattr(
+            Path,
+            "is_junction",
+            lambda path: path.absolute() == anchor.absolute()
+            or original_is_junction(path),
+        )
+        monkeypatch.setattr(
+            Path,
+            "is_symlink",
+            lambda path: path.absolute() != anchor.absolute()
+            and original_is_symlink(path),
+        )
+    # Real callback construction declares "." through the chosen raw anchor.
+    unit = _data_unit()
+    unit["produces"][0]["path"] = "."
+    snapshot = adapters._callback_output_snapshot(unit, run_root=anchor)
+    original = artifact_identity(canonical, run_root=anchor)
+    with pytest.raises(RuntimeError, match="freshly produce"):
+        snapshot.require_fresh(anchor, artifact_id="workspace")
+    (canonical / "current.csv").write_bytes(b"value,2\n")
+    snapshot.require_fresh(anchor, artifact_id="workspace")
+    assert artifact_identity(canonical, run_root=anchor) != original
+    replacement = canonical / "replacement"
+    replacement.mkdir()
+    (replacement / "rows.csv").write_bytes(b"value,3\n")
+    anchor.unlink()
+    anchor.symlink_to(replacement, target_is_directory=True)
+    with pytest.raises(ValueError, match="workspace anchor changed location"):
+        snapshot.require_fresh(anchor, artifact_id="workspace")
