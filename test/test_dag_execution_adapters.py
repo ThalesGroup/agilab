@@ -1597,3 +1597,111 @@ def test_uav_outer_token_cache_rejects_output_pollution_without_worker(
     assert calls == ["uav_queue_worker"]
     assert list(outside.iterdir()) == [sentinel]
     assert sentinel.read_text(encoding="utf-8") == "preserve"
+
+
+@pytest.mark.parametrize(
+    "artifact_key", ["summary_metrics_path", "reduce_artifact_path"]
+)
+@pytest.mark.parametrize("change", ["modified", "unbound"])
+def test_uav_outer_cached_final_relay_rejects_changed_output_bytes(
+    tmp_path: Path, artifact_key: str, change: str
+) -> None:
+    from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import (
+        _read_queue_context,
+    )
+
+    calls = []
+    queue_path = tmp_path / "queue_metrics.json"
+    queue_path.write_text(
+        '{"packets_generated": 8, "packets_delivered": 7}', encoding="utf-8"
+    )
+    queue_result = {"summary_metrics_path": str(queue_path)}
+    state = {
+        "units": [
+            {
+                "id": "queue_baseline",
+                "app": "uav_queue_project",
+                "dispatch_status": "completed",
+                "produces": [],
+                "real_execution": queue_result,
+            },
+            {
+                "id": "relay_followup",
+                "app": "uav_relay_queue_project",
+                "dispatch_status": "runnable",
+                "produces": [],
+                "depends_on": ["queue_baseline"],
+                "artifact_dependencies": [],
+            },
+        ],
+        "artifacts": [
+            {
+                "artifact": "queue_metrics",
+                "kind": "summary_metrics",
+                "status": "available",
+                "producer": "queue_baseline",
+                "path": str(queue_path),
+            }
+        ],
+    }
+
+    def relay_run(*, run_root, queue_result, **kwargs):
+        calls.append(queue_result)
+        run_root.mkdir(parents=True, exist_ok=True)
+        summary = run_root / "summary.json"
+        reduce = run_root / "reduce.json"
+        summary.write_text(
+            '{"packets_generated": 2, "packets_delivered": 2}', encoding="utf-8"
+        )
+        reduce.write_text("{}", encoding="utf-8")
+        return {
+            "summary_metrics_path": str(summary),
+            "reduce_artifact_path": str(reduce),
+            "summary_metrics": {"packets_generated": 2, "packets_delivered": 2},
+            "execution_inputs_sha256": "bound",
+            "consumed_artifacts": [_read_queue_context(queue_result)],
+        }
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(),
+        lab_dir=tmp_path / "lab",
+        run_relay_fn=relay_run,
+        execution_attempt_id="same-final-relay-attempt",
+        persist_execution_claim_fn=lambda _: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled", state, context
+    )
+    assert first.ok
+    result = next(
+        unit for unit in first.state["units"] if unit["id"] == "relay_followup"
+    )["real_execution"]
+    untouched = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled", state, context
+    )
+    assert untouched.ok
+    output = Path(result[artifact_key])
+    if change == "modified":
+        original = output.read_bytes()
+        changed = original.replace(b"2", b"3", 1) if b"2" in original else b"[]"
+        assert len(changed) == len(original)
+        output.write_bytes(changed)
+    else:
+        run_root = dag_execution_adapters._real_run_root(
+            context.lab_dir, "relay_followup"
+        )
+        (ledger_path,) = (run_root / ".agilab-idempotency").glob("*.json")
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        for record in ledger["result"]["produced_artifacts"]:
+            if record["path"] == str(output):
+                record.pop("sha256")
+                record.pop("size_bytes")
+        ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+    second = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled", state, context
+    )
+
+    assert not second.ok
+    assert "produced artifact" in second.message
+    assert len(calls) == 1

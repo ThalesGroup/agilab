@@ -78,6 +78,38 @@ distributed INSTALL and EXECUTE. Those routes retain their own runtime and
 validation requirements. See :doc:`agilab-native-react-ui-notebook-export` for
 the shared React and Python views.
 
+Recover a notebook-to-app build
+-------------------------------
+
+If the local notebook builder completed generation but failed during verification
+or workflow import, reopen the saved run:
+
+.. code-block:: bash
+
+   agilab-notebook-demo --resume /path/to/the/failed-notebook-run --ui
+
+Opening the run only displays its evidence. Choose **Retry verification** when
+recovery is available. This reruns generated Python locally and reuses the same
+run folder and generated files without another provider call. The UI shows
+progress and reports refusals even when the previous failure report is preserved.
+Without ``--ui``, the same command immediately attempts command-line recovery.
+
+Recovery requires an unchanged verified checkpoint, source, supplied inputs,
+generated files, checkers and runtime identity. Concurrent attempts, incomplete
+provider evidence and interrupted retries without terminal evidence are refused.
+An AGILAB upgrade can invalidate recovery for an older run; reopening its report
+does not migrate its checkpoint.
+Fix the reported prerequisite rather than editing protected build files. Runs
+without a verified checkpoint require a new build.
+
+.. figure:: _static/native-ui/agilab_notebook_builder_retry_verification_20261015.png
+   :alt: Local notebook builder showing Retry verification for an existing failed run
+   :width: 100%
+
+   The local builder offers verification recovery for the same generated run.
+   This fixture demonstrates the recovery controls; it is not a live provider build.
+   The visible temporary run path is normalized for documentation.
+
 Source-checkout launchers
 -------------------------
 

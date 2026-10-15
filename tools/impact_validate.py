@@ -68,7 +68,16 @@ TEST_GUESS_ROOTS = (
 )
 # Evidence consumers load the docs helper dynamically; filename matching alone
 # does not select their public documentation boundary regressions.
+# The global runner consumes artifact records from all three DAG producers.
 INDIRECT_TOOL_TESTS = {
+    "src/agilab/dag/dag_artifact_contracts.py": (
+        "test/test_dag_artifact_execution_contracts.py",
+        "test/test_pipeline_lab.py",
+    ),
+    "src/agilab/dag/dag_execution_adapters.py": ("test/test_pipeline_lab.py",),
+    "src/agilab/global_pipeline/global_pipeline_app_dispatch_smoke.py": (
+        "test/test_pipeline_lab.py",
+    ),
     "tools/sync_docs_source.py": (
         "test/test_kpi_evidence_bundle.py",
         "test/test_production_readiness_report.py",

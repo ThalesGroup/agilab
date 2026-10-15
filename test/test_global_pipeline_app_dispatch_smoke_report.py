@@ -1148,3 +1148,80 @@ def test_authored_uav_rejects_polluted_output_trees_before_worker(
     assert calls == []
     assert list(outside.iterdir()) == [sentinel]
     assert sentinel.read_text(encoding="utf-8") == "preserve"
+
+
+@pytest.mark.parametrize("stage", ["queue", "relay"])
+@pytest.mark.parametrize(
+    "artifact_key", ["summary_metrics_path", "reduce_artifact_path"]
+)
+@pytest.mark.parametrize("change", ["modified", "missing", "unbound", "legacy"])
+def test_queue_family_cached_execution_rejects_changed_output_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    stage: str,
+    artifact_key: str,
+    change: str,
+) -> None:
+    from agi_node.agi_dispatcher import base_worker_runtime_support as runtime_support
+
+    module = _load_core_module()
+    loader = runtime_support.load_worker
+    selections = []
+
+    def select_worker(*args, **kwargs):
+        selections.append(args[0].target_worker)
+        return loader(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_support, "load_worker", select_worker)
+    kwargs = {
+        "repo_root": Path.cwd(),
+        "run_root": tmp_path / "run",
+        "execution_contract": {"params": {"sim_time_s": 2.0}},
+        "idempotency_token": f"cached-output:{stage}",
+    }
+    runner = module.run_queue_baseline_app
+    if stage == "relay":
+        upstream = tmp_path / "queue_metrics.json"
+        upstream.write_text(
+            '{"packets_generated": 8, "packets_delivered": 7}', encoding="utf-8"
+        )
+        kwargs["queue_result"] = {"summary_metrics_path": str(upstream)}
+        runner = module.run_relay_followup_app
+
+    result = runner(**kwargs)
+    assert runner(**kwargs) == result
+    artifact = kwargs["run_root"] / result[artifact_key]
+    if change == "modified":
+        original = artifact.read_bytes()
+        offset = next(
+            index for index, value in enumerate(original) if 48 <= value <= 57
+        )
+        changed = (
+            original[:offset]
+            + bytes([48 + (original[offset] - 48 + 1) % 10])
+            + original[offset + 1 :]
+        )
+        assert len(changed) == len(original)
+        artifact.write_bytes(changed)
+    elif change == "missing":
+        artifact.unlink()
+    else:
+        import json
+
+        (ledger_path,) = (kwargs["run_root"] / ".agilab-idempotency").glob("*.json")
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
+        if change == "legacy":
+            ledger["result"].pop("app_entry")
+            ledger["result"].pop("produced_artifacts")
+        else:
+            for output in ledger["result"]["produced_artifacts"]:
+                if output["path"] == result[artifact_key]:
+                    output.pop("sha256")
+                    output.pop("size_bytes")
+        ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="produced artifact"):
+        runner(**kwargs)
+
+    expected = "uav_queue_worker" if stage == "queue" else "uav_relay_queue_worker"
+    assert selections == [expected]

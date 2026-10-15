@@ -216,10 +216,11 @@ def test_agent_notebook_and_demo_tests_are_in_coverage_plan(tmp_path, with_timin
         _write_junit(junit, [("test.test_agent_experiment", "experiment", 1.0)])
     plan = module.build_plan([str(junit)])
     scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
-    # The recovery fixture exercises notebook_agent without a matching source stem.
+    # Recovery fixtures exercise product modules without matching source stems.
     expected = {
         "test/test_notebook_build_checkpoint.py",
         "test/test_notebook_build_recovery.py",
+        "test/test_notebook_demo_ui_recovery.py",
     }
     for folder in ("agent_runtime", "demos", "notebooks"):
         for source in (module.REPO_ROOT / "src/agilab" / folder).glob("*.py"):

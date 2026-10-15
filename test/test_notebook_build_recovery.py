@@ -330,7 +330,6 @@ def test_competing_build_or_recovery_cannot_replace_existing_outcome(
 @pytest.mark.parametrize(
     "options",
     [
-        ["--ui"],
         ["--check"],
         ["--notebook", "source.ipynb"],
         ["--notebook-url", "https://example.invalid"],
@@ -338,12 +337,13 @@ def test_competing_build_or_recovery_cannot_replace_existing_outcome(
         ["--input-file", "data.csv=input.csv"],
     ],
 )
-def test_cli_rejects_changes_to_saved_recovery_context(options, monkeypatch):
+@pytest.mark.parametrize("ui", [False, True])
+def test_cli_rejects_changes_to_saved_recovery_context(options, ui, monkeypatch):
     monkeypatch.setattr(
         agent, "recover_build", lambda _: pytest.fail("invalid recovery started")
     )
     with pytest.raises(SystemExit) as error:
-        agent.main(["--resume", "run", *options])
+        agent.main(["--resume", "run", *(["--ui"] if ui else []), *options])
     assert error.value.code == 2
 
 

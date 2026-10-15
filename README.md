@@ -111,6 +111,18 @@ Recover a completed build that failed during verification or workflow import:
 agilab-notebook-demo --resume /path/to/the/failed-notebook-run
 ```
 
+To reopen the same run in the local builder, add `--ui`:
+
+```bash
+agilab-notebook-demo --resume /path/to/the/failed-notebook-run --ui
+```
+
+Opening a saved run does not start recovery. For an eligible failed build, choose
+**Retry verification** to rerun the local checks with the existing generated
+files. This action keeps the run folder and does not call the provider again.
+The UI shows progress while recovery runs and displays any checkpoint or
+environment refusal without replacing the previous build evidence.
+
 New builds save `notebook_build_checkpoint.json` after the provider has finished
 successfully and its native command evidence is verified. The build report names
 the failed phase and reports whether recovery is available. Recovery reruns the
@@ -120,6 +132,8 @@ call. The source, supplied inputs, generated code and data, checkers, Python
 environment identity, and AGILAB controller/compiler must still match. Each
 verification process uses a fresh bytecode-cache directory so stale project
 caches cannot replace the recorded Python source.
+An AGILAB upgrade can invalidate recovery for an older run; reopening its report
+does not migrate its checkpoint.
 
 Each retry preserves the previous result and completion receipt under
 `notebook_recovery_attempts/`, alongside its own claim, logs and result. Reported
