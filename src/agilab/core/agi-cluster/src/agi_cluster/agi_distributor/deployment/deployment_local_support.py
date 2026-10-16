@@ -12,6 +12,7 @@ from importlib.metadata import (
     distribution as pkg_distribution,
     version as pkg_version,
 )
+from collections.abc import MutableMapping
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable, cast
@@ -664,13 +665,13 @@ def _write_manager_sync_overlay(
     project_name = project.get("name")
 
     tool = doc.get("tool")
-    if tool is None or not isinstance(tool, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
+    if tool is None or not isinstance(tool, MutableMapping):
         tool = tomlkit.table()
     uv = tool.get("uv")
-    if uv is None or not isinstance(uv, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
+    if uv is None or not isinstance(uv, MutableMapping):
         uv = tomlkit.table()
     sources = uv.get("sources")
-    if sources is None or not isinstance(sources, tomlkit.items.Table):  # ty: ignore[possibly-missing-submodule]
+    if sources is None or not isinstance(sources, MutableMapping):
         sources = tomlkit.table()
 
     if isinstance(project_name, str):
