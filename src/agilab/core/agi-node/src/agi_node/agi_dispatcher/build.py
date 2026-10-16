@@ -555,11 +555,10 @@ def _build_remove_decorators_command(
     *,
     type_preprocess: bool = False,
 ) -> list[str]:
+    # Keep the dependency context selected by the parent build invocation.
+    # A nested uv run would resolve the authored app project again.
     cmd = [
-        "uv",
-        "-q",
-        "run",
-        "python",
+        sys.executable,
         "-m",
         "agi_node.agi_dispatcher.pre_install",
         "remove_decorators",

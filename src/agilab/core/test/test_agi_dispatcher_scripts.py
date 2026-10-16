@@ -2433,10 +2433,7 @@ def test_build_remove_decorators_command_keeps_worker_path_as_argv():
 
     assert "remove_decorators" in command
     assert command == [
-        "uv",
-        "-q",
-        "run",
-        "python",
+        sys.executable,
         "-m",
         "agi_node.agi_dispatcher.pre_install",
         "remove_decorators",
@@ -2451,7 +2448,7 @@ def test_build_remove_decorators_command_stringifies_pathlike_worker_path(tmp_pa
 
     command = build_mod._build_remove_decorators_command(worker_path)
 
-    assert command[8] == str(worker_path)
+    assert command[command.index("--worker_path") + 1] == str(worker_path)
     assert all(isinstance(arg, str) for arg in command)
 
 
@@ -2478,16 +2475,20 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
         out_dir=out_dir,
         links_created=links_created,
         cleanup_links_fn=lambda links: cleanup_calls.append(list(links)),
-        subprocess_run_fn=lambda cmd, check=False: subprocess_calls.append((cmd, check)),
+        subprocess_run_fn=lambda cmd, check=False: subprocess_calls.append(
+            (cmd, check)
+        ),
         log=SimpleNamespace(info=lambda message: log_lines.append(message)),
     )
 
     assert (out_dir / "src" / "demo_worker" / "__init__.py").exists()
     assert any("mkdir" in line for line in log_lines)
     assert subprocess_calls
-    assert subprocess_calls[0][0][6] == "remove_decorators"
-    assert subprocess_calls[0][0][8] == "workers/demo_worker.py"
-    assert subprocess_calls[0][1] is True
+    command, checked = subprocess_calls[0]
+    assert command[0] == sys.executable
+    assert command[command.index("-m") + 1] == "agi_node.agi_dispatcher.pre_install"
+    assert command[command.index("--worker_path") + 1] == "workers/demo_worker.py"
+    assert checked is True
     assert cleanup_calls == [links_created]
 
 
@@ -4428,7 +4429,8 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
     assert Path(DummyAgiEnv.init_args["active_app"]) == app_dir
     extracted = out_dir / "src" / "demo_worker" / "__init__.py"
     assert extracted.exists()
-    assert subprocess_calls and subprocess_calls[0][0][6] == "remove_decorators"
+    assert subprocess_calls and subprocess_calls[0][0][0] == sys.executable
+    assert "remove_decorators" in subprocess_calls[0][0]
     assert subprocess_calls[0][1] is True
     assert cleanup_calls and cleanup_calls[0] == links_created
 
@@ -4571,3 +4573,47 @@ def test_build_main_bdist_egg_propagates_unexpected_relative_to_bug(tmp_path, mo
                 str(external_out),
             ]
         )
+
+
+@pytest.mark.parametrize("type_preprocess", [False, True])
+def test_postprocess_pre_install_keeps_current_environment_with_unresolvable_project(
+    tmp_path, monkeypatch, type_preprocess
+):
+    project = tmp_path / "authored project"
+    project.mkdir()
+    manifest = project / "pyproject.toml"
+    manifest.write_text(
+        '[project]\nname = "build-context-must-stay-active"\nversion = "1.0"\n'
+        'requires-python = ">=3.13"\n'
+        'dependencies = ["agilab-test-must-never-resolve-this-project==0"]\n',
+        encoding="utf-8",
+    )
+    original_manifest = manifest.read_bytes()
+    worker_path = project / "worker with space'$.py"
+    worker_path.write_text("def compute(value: int) -> int:\n    return value + 1\n")
+    output = project / "worker-output"
+    (output / "dist").mkdir(parents=True)
+    monkeypatch.chdir(project)
+    for key in ("UV_NO_SYNC", "UV_PROJECT_ENVIRONMENT", "VIRTUAL_ENV"):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("UV_OFFLINE", "1")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "empty-offline-cache"))
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.setattr(
+        build_mod, "_resolve_cython_type_preprocess_option", lambda: type_preprocess
+    )
+
+    build_mod._postprocess_bdist_egg_output(
+        env=SimpleNamespace(worker_path=worker_path, home_abs=str(project)),
+        out_dir=output,
+        links_created=[],
+        log=SimpleNamespace(info=lambda message: None),
+    )
+
+    generated = worker_path.with_suffix(".pyx").read_text(encoding="utf-8")
+    assert "def compute" in generated
+    assert "# agilab-pyx: src-sha256=" in generated
+    assert f"type-preprocess={int(type_preprocess)}" in generated
+    assert manifest.read_bytes() == original_manifest
+    assert not (project / ".venv").exists()
