@@ -34,6 +34,37 @@ Each run exports queue time series, packet events, relay routing summary, node
 positions, `pipeline/topology.gml`, `pipeline/allocations_steps.csv`, trajectory
 CSVs, and reducer summaries.
 
+## Exact packet handoff from the queue
+
+The authored queue-to-relay DAG sets `use_upstream_delivery_trace=true`.
+Exact trace mode requires `nfile=1`, so one upstream cohort feeds one relay
+scenario. Independent relay runs retain multi-scenario support.
+AGILAB binds `upstream_queue_metrics` to the original producer artifact, including
+its path, size and SHA-256 digest. The relay worker reads and verifies those bytes
+itself. Missing, changed, malformed or oversized inputs fail closed.
+Every participating worker must be able to read the original producer artifact
+path; distributed use requires shared storage with that same path visibility.
+
+The worker schedules each delivered source packet at its original, unrounded
+timestamp in simulation seconds, retaining its upstream identity. It does not
+draw new source-arrival times. Empty traces generate zero source packets.
+Late deliveries extend the relay's source-arrival horizon; the normal relay
+drain interval follows the last arrival. Background generation retains its
+configured horizon.
+
+The relay summary reports `source_arrival_mode=upstream_delivery_trace` and an
+`upstream_queue_receipt` containing the verified input digest and the actual
+scheduled packet identities and timestamps. A child-orchestrator read alone
+does not establish worker consumption.
+
+For an independent reference, run the relay without the handoff flag or context.
+This preserves its original Poisson source, parameterized in packets per second.
+Keep the scenario, routing policy, service capacities, background-rate parameters
+and random seed explicit when comparing runs. A shared seed does not ensure
+identical background realizations because source scheduling changes random-number
+consumption. Packet counts and configured source rates are not measured receiver
+throughput; the trace includes the upstream drain interval.
+
 ## Change One Thing
 
 After the default run works, adjust one relay capacity or routing policy. Delay,

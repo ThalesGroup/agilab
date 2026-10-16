@@ -1277,6 +1277,204 @@ def test_stage_subprocess_preserves_verified_child_consumption_receipt(
     assert module.run_agilab_stage_subprocess(**call) == result
 
 
+def _exact_packet_stage_case(tmp_path, monkeypatch):
+    import hashlib
+
+    module = dag_distributed_submitter
+    kwargs, calls, row, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    trace = {
+        "schema": "agilab.uav_delivered_packet_trace.v1",
+        "source_emission_horizon_s": 3.0, "simulation_horizon_s": 5.0,
+        "packets": [{"packet_id": 4, "delivered_s": 0.123456789012345},
+                    {"packet_id": 9, "delivered_s": 3.25}],
+    }
+    source = Path(row["path"])
+    source.write_text(json.dumps({"sim_time_s": 3.0, "packets_generated": 10, "packets_delivered": 2,
+                                  "delivery_trace": trace}))
+    row.update(producer_run_root=str(source.parent), size_bytes=source.stat().st_size,
+               sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+    kwargs["execution_contract"]["params"]["use_upstream_delivery_trace"] = True
+    inputs = module.validate_distributed_stage_inputs(kwargs["unit"], [row])
+    receipt = {
+        "schema": "agilab.uav_packet_handoff_receipt.v1",
+        **{key: inputs[0][key] for key in (
+            "artifact", "producer", "path", "producer_run_root", "size_bytes", "sha256",
+        )},
+        "read_scope": "worker", "numerically_conditioned": True, "worker_pid": 12345,
+        "source_packet_count": 2, "source_emission_horizon_s": 3.0,
+        "simulation_horizon_s": 5.0,
+        "scheduled_packets": [{"upstream_packet_id": item["packet_id"],
+                               "created_s": item["delivered_s"]} for item in trace["packets"]],
+    }
+    summary = {"packets_generated": 2, "packets_delivered": 1,
+               "source_arrival_mode": "upstream_delivery_trace",
+               "upstream_queue_receipt": receipt}
+    legacy_runner = kwargs["runner_fn"]
+
+    def endpoint(**arguments):
+        result = legacy_runner(**arguments)
+        result["consumed_artifacts"][0]["role"] = "upstream_packet_trace_pending"
+        Path(result["summary_metrics_path"]).write_text(json.dumps(summary))
+        return result
+
+    kwargs["runner_fn"] = endpoint
+    return kwargs, calls, inputs, summary
+
+
+def test_exact_packet_child_binds_original_artifact_without_claiming_worker_read(
+    tmp_path, monkeypatch, capsys,
+):
+    kwargs, _, inputs, _ = _exact_packet_stage_case(tmp_path, monkeypatch)
+    run_child, _, captured = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result="actual SDK status string",
+    )
+    run_child()
+    assert captured["request"].params["upstream_queue_metrics"] == inputs[0]
+    assert captured["request"].params["use_upstream_delivery_trace"] is True
+    receipt = json.loads(capsys.readouterr().out)["result"]["consumed_artifacts"][0]
+    assert receipt["role"] == "upstream_packet_trace_pending"
+    assert receipt["read_scope"] == "child_orchestrator"
+    assert receipt["numerically_conditioned"] is False
+
+
+def test_exact_packet_child_rejects_authored_conflicting_binding_before_sdk(tmp_path, monkeypatch):
+    kwargs, _, inputs, _ = _exact_packet_stage_case(tmp_path, monkeypatch)
+    kwargs["execution_contract"]["params"]["upstream_queue_metrics"] = {"sha256": "0" * 64}
+    run_child, events, _ = _execute_fake_distributed_child(
+        monkeypatch, kwargs, inputs, result="status",
+    )
+    with pytest.raises(ValueError, match="conflicting.*binding"):
+        run_child()
+    assert not events
+
+
+@pytest.mark.parametrize("defect", ["missing", "scope", "hash", "time", "count", "generated"])
+def test_exact_packet_stage_rejects_unproved_worker_scientific_receipt(
+    tmp_path, monkeypatch, defect,
+):
+    kwargs, calls, _, summary = _exact_packet_stage_case(tmp_path, monkeypatch)
+    receipt = summary["upstream_queue_receipt"]
+    if defect == "missing":
+        summary.pop("upstream_queue_receipt")
+    elif defect == "scope":
+        receipt["read_scope"] = "child_orchestrator"
+    elif defect == "hash":
+        receipt["sha256"] = "0" * 64
+    elif defect == "time":
+        receipt["scheduled_packets"][0]["created_s"] += 1e-8
+    elif defect == "count":
+        receipt["source_packet_count"] = 1
+    else:
+        summary["packets_generated"] = 3
+    with pytest.raises(RuntimeError, match="(worker|packet|receipt)"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert len(calls) == 1
+    assert not list(kwargs["run_root"].glob(".idempotency/distributed-submitter/**/*.json"))
+
+
+def test_exact_packet_stage_uses_real_summary_receipt_and_rechecks_cache(tmp_path, monkeypatch):
+    kwargs, calls, inputs, summary = _exact_packet_stage_case(tmp_path, monkeypatch)
+    result = dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    receipt = result["consumed_artifacts"][0]
+    assert receipt["read_scope"] == "worker"
+    assert receipt["numerically_conditioned"] is True
+    assert receipt["sha256"] == inputs[0]["sha256"]
+    assert receipt["scheduled_packets"] == summary["upstream_queue_receipt"]["scheduled_packets"]
+    assert dag_distributed_submitter.submit_distributed_stage(**kwargs) == result
+    assert len(calls) == 1
+
+
+def test_exact_packet_intent_rejects_a_completed_legacy_context_cache(tmp_path, monkeypatch):
+    kwargs, calls, _, _ = _upstream_stage_case(tmp_path, monkeypatch)
+    dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    kwargs["execution_contract"]["params"]["use_upstream_delivery_trace"] = True
+    with pytest.raises(ValueError, match="(worker|packet|receipt)"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+    assert len(calls) == 1
+
+
+def test_exact_packet_stage_rejects_forged_runner_metrics_without_real_summary_receipt(
+    tmp_path, monkeypatch,
+):
+    from copy import deepcopy
+
+    kwargs, _, _, summary = _exact_packet_stage_case(tmp_path, monkeypatch)
+    forged = deepcopy(summary)
+    summary.pop("upstream_queue_receipt")
+    runner = kwargs["runner_fn"]
+
+    def endpoint(**arguments):
+        result = runner(**arguments)
+        result["summary_metrics"] = forged
+        return result
+
+    kwargs["runner_fn"] = endpoint
+    with pytest.raises(RuntimeError, match="worker packet handoff receipt"):
+        dag_distributed_submitter.submit_distributed_stage(**kwargs)
+
+
+def test_exact_packet_json_rejects_actual_oversize_before_hash_or_read(tmp_path, monkeypatch):
+    module = dag_distributed_submitter
+    source = tmp_path / "replaced-summary.json"
+    source.write_text('{"valid": true}')
+    item = {"artifact": "queue_metrics", "path": str(source),
+            "resolved_path": str(source.resolve()), **module.artifact_file_identity(source)}
+    source.write_bytes(b"x" * (1024 * 1024 + 1))
+    assert source.stat().st_size > 1024 * 1024
+
+    def no_unbounded_hash(*args, **kwargs):
+        pytest.fail("Oversized replacement reached the generic whole-file identity hasher")
+
+    def no_target_open(*args, **kwargs):
+        pytest.fail("Oversized replacement was opened before the actual-size guard")
+
+    monkeypatch.setattr(module, "require_artifact_identity", no_unbounded_hash)
+    monkeypatch.setattr(Path, "open", no_target_open)
+    with pytest.raises(ValueError, match="bounded regular JSON"):
+        module._bounded_bound_json(item)
+
+
+@pytest.mark.parametrize("defect", ["zero_id", "packet_limit", "generated_type", "packet_fields", "horizon"])
+def test_exact_packet_parent_matches_worker_trace_validation(tmp_path, monkeypatch, defect):
+    import hashlib
+
+    module = dag_distributed_submitter
+    _, _, inputs, summary = _exact_packet_stage_case(tmp_path, monkeypatch)
+    original = inputs[0]
+    source = Path(original["path"])
+    upstream = json.loads(source.read_text())
+    packets = upstream["delivery_trace"]["packets"]
+    if defect == "zero_id":
+        packets[0]["packet_id"] = 0
+    elif defect == "packet_limit":
+        packets[:] = [{"packet_id": index + 1, "delivered_s": 0.0} for index in range(10_001)]
+        upstream.update(packets_generated=len(packets), packets_delivered=len(packets))
+    elif defect == "generated_type":
+        upstream["packets_generated"] = True
+    elif defect == "packet_fields":
+        packets[0]["unsupported"] = True
+    else:
+        upstream["sim_time_s"] = 99.0
+    source.write_text(json.dumps(upstream))
+    original.update(size_bytes=source.stat().st_size,
+                    sha256=hashlib.sha256(source.read_bytes()).hexdigest())
+    receipt = summary["upstream_queue_receipt"]
+    receipt.update({key: original[key] for key in (
+        "artifact", "producer", "path", "producer_run_root", "size_bytes", "sha256",
+    )})
+    receipt.update(source_packet_count=len(packets), scheduled_packets=[
+        {"upstream_packet_id": item["packet_id"], "created_s": item["delivered_s"]}
+        for item in packets
+    ])
+    summary["packets_generated"] = len(packets)
+    output = tmp_path / "real-worker-summary.json"
+    output.write_text(json.dumps(summary))
+    record = {"artifact": "relay_metrics", "kind": "summary_metrics", "path": str(output),
+              "resolved_path": str(output.resolve()), **module.artifact_file_identity(output)}
+    with pytest.raises(ValueError, match="(packet|horizon|count)"):
+        module._validated_worker_packet_summary({"produced_artifacts": [record]}, inputs)
+
+
 def _worker_summary_collection_case(tmp_path):
     module = dag_distributed_submitter
     repo_root = tmp_path / "repo"

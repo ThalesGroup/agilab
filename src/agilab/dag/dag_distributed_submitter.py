@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -272,14 +273,147 @@ def _input_artifact_fingerprint(inputs: list[dict[str, Any]]) -> str:
     ).hexdigest()
 
 
+def _queue_trace_requested(app_name: str, params: Mapping[str, Any] | None) -> bool:
+    if app_name != "uav_relay_queue_project":
+        return False
+    value = (params or {}).get("use_upstream_delivery_trace", False)
+    if not isinstance(value, bool):
+        raise ValueError("The upstream packet trace opt-in must be a boolean.")
+    return value
+
+
+def _bind_distributed_worker_params(
+    app_name: str, params: Mapping[str, Any], inputs: list[dict[str, Any]],
+) -> dict[str, Any]:
+    bound = dict(params)
+    if not _queue_trace_requested(app_name, bound):
+        return bound
+    matches = [item for item in inputs if item["artifact"] == "queue_metrics"
+               and item["producer"] == "queue_baseline"]
+    if len(matches) != 1 or not matches[0].get("producer_run_root"):
+        raise ValueError("Exact upstream packet trace requires its original queue producer binding.")
+    original = matches[0]
+    if bound.get("upstream_queue_metrics") not in (None, original):
+        raise ValueError("Authored upstream queue metrics has a conflicting producer binding.")
+    bound["upstream_queue_metrics"] = dict(original)
+    return bound
+
+
+def _bounded_bound_json(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Read bounded JSON bytes while retaining their frozen path and byte identity."""
+    path = Path(str(item["path"]))
+    require_artifact_location(path, artifact_id=str(item["artifact"]), expected=item)
+    size = item.get("size_bytes")
+    generation = path.stat()
+    if (isinstance(size, bool) or not isinstance(size, int) or not 0 < size <= 1024 * 1024
+            or not S_ISREG(generation.st_mode) or generation.st_size != size):
+        raise ValueError("Scientific packet receipt requires bounded regular JSON artifact bytes.")
+    sha256 = item.get("sha256")
+    if not isinstance(sha256, str) or re.fullmatch(r"[0-9a-f]{64}", sha256) is None:
+        raise ValueError("Scientific packet artifact has no valid original byte identity.")
+
+    def identity(stat: os.stat_result) -> tuple[int, ...]:
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    with os.fdopen(os.open(path, flags), "rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if not S_ISREG(opened.st_mode) or identity(opened) != identity(generation):
+            raise ValueError("Scientific packet artifact opened a different file generation.")
+        raw = stream.read(1024 * 1024 + 1)
+        if identity(os.fstat(stream.fileno())) != identity(generation):
+            raise ValueError("Scientific packet artifact changed while its bytes were read.")
+    require_artifact_location(path, artifact_id=str(item["artifact"]), expected=item)
+    if (identity(path.stat()) != identity(generation) or len(raw) != size
+            or hashlib.sha256(raw).hexdigest() != sha256):
+        raise ValueError("Scientific packet artifact changed while its bytes were read.")
+    value = json.loads(raw)
+    if not isinstance(value, dict) or not value:
+        raise ValueError("Scientific packet artifact must contain a nonempty JSON object.")
+    json.dumps(value, allow_nan=False)
+    return value
+
+
+def _validated_worker_packet_summary(
+    result: Mapping[str, Any], inputs: list[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    originals = [item for item in inputs if item["artifact"] == "queue_metrics"
+                 and item["producer"] == "queue_baseline"]
+    outputs = result.get("produced_artifacts", [])
+    summaries = [item for item in outputs if isinstance(item, Mapping)
+                 and item.get("kind") == "summary_metrics"] if isinstance(outputs, list) else []
+    if len(originals) != 1 or len(summaries) != 1:
+        raise ValueError("Exact packet handoff requires original queue input and actual worker summary bytes.")
+    original = originals[0]
+    upstream = _bounded_bound_json(original)
+    trace = upstream.get("delivery_trace")
+    if not isinstance(trace, Mapping) or trace.get("schema") != "agilab.uav_delivered_packet_trace.v1":
+        raise ValueError("Original queue summary has no exact delivered packet trace.")
+    packets = trace.get("packets")
+    if not isinstance(packets, list) or len(packets) > 10_000:
+        raise ValueError("Original delivered packet trace has no bounded packet sequence.")
+    horizons = [trace.get(key) for key in ("source_emission_horizon_s", "simulation_horizon_s")]
+    if (any(isinstance(value, bool) or not isinstance(value, (int, float))
+            or not math.isfinite(value) or value <= 0 for value in horizons)
+            or horizons[1] < horizons[0]
+            or upstream.get("sim_time_s") != horizons[0]
+            or type(upstream.get("packets_generated")) is not int
+            or upstream["packets_generated"] < len(packets)
+            or type(upstream.get("packets_delivered")) is not int
+            or upstream["packets_delivered"] != len(packets)):
+        raise ValueError("Original delivered packet trace has invalid scientific horizons or counts.")
+    expected_packets = []
+    seen = set()
+    for packet in packets:
+        if not isinstance(packet, Mapping) or set(packet) != {"packet_id", "delivered_s"}:
+            raise ValueError("Original delivered packet trace has an invalid packet.")
+        packet_id, delivered = packet.get("packet_id"), packet.get("delivered_s")
+        if (isinstance(packet_id, bool) or not isinstance(packet_id, int) or packet_id < 1
+                or packet_id in seen or isinstance(delivered, bool)
+                or not isinstance(delivered, (int, float)) or not math.isfinite(delivered)
+                or delivered < 0 or delivered > horizons[1]
+                or (expected_packets and delivered < expected_packets[-1]["created_s"])):
+            raise ValueError("Original delivered packet trace has an invalid packet identity or time.")
+        seen.add(packet_id)
+        expected_packets.append({"upstream_packet_id": packet_id, "created_s": delivered})
+    metrics = _bounded_bound_json(summaries[0])
+    receipt = metrics.get("upstream_queue_receipt")
+    identity = ("artifact", "producer", "path", "producer_run_root", "size_bytes", "sha256")
+    if (not isinstance(receipt, Mapping)
+            or receipt.get("schema") != "agilab.uav_packet_handoff_receipt.v1"
+            or any(receipt.get(key) != original.get(key) for key in identity)
+            or receipt.get("read_scope") != "worker"
+            or receipt.get("numerically_conditioned") is not True
+            or isinstance(receipt.get("worker_pid"), bool)
+            or not isinstance(receipt.get("worker_pid"), int) or receipt["worker_pid"] <= 0
+            or type(receipt.get("source_packet_count")) is not int
+            or receipt["source_packet_count"] != len(packets)
+            or receipt.get("scheduled_packets") != expected_packets
+            or any(not isinstance(item, Mapping)
+                   or type(item.get("upstream_packet_id")) is not int
+                   or isinstance(item.get("created_s"), bool)
+                   for item in receipt.get("scheduled_packets", []))
+            or any(receipt.get(key) != trace.get(key) for key in
+                   ("source_emission_horizon_s", "simulation_horizon_s"))
+            or metrics.get("source_arrival_mode") != "upstream_delivery_trace"
+            or type(metrics.get("packets_generated")) is not int
+            or metrics["packets_generated"] != len(packets)):
+        raise ValueError("Actual worker packet handoff receipt does not prove exact upstream scientific consumption.")
+    return metrics, dict(receipt)
+
+
 def require_distributed_input_receipts(
     result: Mapping[str, Any], inputs: list[dict[str, Any]], *, app_name: str,
+    params: Mapping[str, Any] | None = None, allow_pending_worker_receipt: bool = False,
 ) -> None:
     """Keep completed caches bound to the original inputs and child read receipts."""
     fingerprint = _input_artifact_fingerprint(inputs)
     if inputs or "input_artifact_fingerprint" in result:
         if result.get("input_artifact_fingerprint") != fingerprint:
             raise ValueError("Cached distributed stage has different or missing original upstream inputs.")
+    exact_packets = _queue_trace_requested(app_name, params)
+    if not inputs and exact_packets:
+        raise ValueError("Exact upstream packet trace has no original queue producer binding.")
     if not inputs:
         return
     receipts = result.get("consumed_artifacts")
@@ -292,6 +426,17 @@ def require_distributed_input_receipts(
             raise ValueError("Distributed upstream receipt differs from its original producer binding.")
         queue_context = app_name == "uav_relay_queue_project" and item["artifact"] == "queue_metrics"
         if queue_context:
+            if exact_packets:
+                if allow_pending_worker_receipt:
+                    if (receipt.get("role") != "upstream_packet_trace_pending"
+                            or receipt.get("read_scope") != "child_orchestrator"
+                            or receipt.get("numerically_conditioned") is not False):
+                        raise ValueError("Distributed stage has no pending worker packet trace transport receipt.")
+                elif (receipt.get("role") != "upstream_packet_trace"
+                      or receipt.get("read_scope") != "worker"
+                      or receipt.get("numerically_conditioned") is not True):
+                    raise ValueError("Distributed stage has no actual worker packet consumption receipt.")
+                continue
             if (
                 receipt.get("role") != "upstream_context"
                 or receipt.get("read_scope") != "child_orchestrator"
@@ -302,6 +447,13 @@ def require_distributed_input_receipts(
                 raise ValueError("Distributed stage has no actual queue context consumption receipt.")
         elif receipt.get("role") != "declared_input_reference":
             raise ValueError("Distributed stage has no verified declared input reference receipt.")
+    if exact_packets and not allow_pending_worker_receipt:
+        metrics, worker_receipt = _validated_worker_packet_summary(result, inputs)
+        if (any(result.get("summary_metrics", {}).get(key) != value for key, value in metrics.items())
+                or any(receipt.get(key) != value for receipt in receipts
+                       if receipt.get("artifact") == "queue_metrics"
+                       for key, value in worker_receipt.items())):
+            raise ValueError("Distributed worker packet receipt differs from actual scientific summary bytes.")
 
 
 def submit_distributed_stage(
@@ -342,7 +494,10 @@ def submit_distributed_stage(
             input_artifacts=inputs,
         ),
     )
-    require_distributed_input_receipts(result, inputs, app_name=str(unit.get("app", "")))
+    require_distributed_input_receipts(
+        result, inputs, app_name=str(unit.get("app", "")),
+        params=request_payload_from_execution_contract(execution_contract)["params"],
+    )
     if "produced_artifacts" not in result:
         raise ValueError(
             "Cached produced artifacts have no original byte identities. Run a fresh explicit attempt."
@@ -415,6 +570,9 @@ def _submit_distributed_stage_once(
     inputs = validate_distributed_stage_inputs(unit, input_artifacts)
     apps_path = resolve_stage_apps_path(repo_root, app_name)
     request_payload = request_payload_from_execution_contract(execution_contract)
+    request_payload["params"] = _bind_distributed_worker_params(
+        app_name, request_payload["params"], inputs,
+    )
     request_payload["idempotency_token"] = token
     if inputs:
         request_payload["input_artifacts"] = inputs
@@ -459,7 +617,10 @@ def _submit_distributed_stage_once(
     if inputs:
         # The endpoint must return what its child orchestrator actually consumed.
         runner_result["input_artifact_fingerprint"] = _input_artifact_fingerprint(inputs)
-        require_distributed_input_receipts(runner_result, inputs, app_name=app_name)
+        require_distributed_input_receipts(
+            runner_result, inputs, app_name=app_name, params=request_payload["params"],
+            allow_pending_worker_receipt=_queue_trace_requested(app_name, request_payload["params"]),
+        )
     evidence_path = _distributed_evidence_path(run_root, artifact)
     evidence_payload = {
         "schema": "agilab.distributed_dag_stage_submission.v1",
@@ -565,6 +726,20 @@ def _submit_distributed_stage_once(
             verified_outputs.append(record)
             if artifact_id == primary_id:
                 result[_artifact_result_path_key(kind)] = str(output_path)
+        result["produced_artifacts"] = verified_outputs
+        if _queue_trace_requested(app_name, request_payload["params"]):
+            metrics, receipt = _validated_worker_packet_summary(result, inputs)
+            default_metrics.update(metrics)
+            result["consumed_artifacts"] = [
+                {**item, **receipt, "role": "upstream_packet_trace"}
+                if item["artifact"] == "queue_metrics" else consumed
+                for item, consumed in zip(inputs, result["consumed_artifacts"])
+            ]
+            require_distributed_input_receipts(
+                result, inputs, app_name=app_name, params=request_payload["params"],
+            )
+            evidence_payload["consumed_artifacts"] = result["consumed_artifacts"]
+            evidence_payload["summary_metrics"] = metrics
         validation_passed = bool(verified_outputs)
     finally:
         # Persist submission evidence only after observing output generations.
@@ -884,7 +1059,10 @@ def run_agilab_stage_subprocess(
             **kwargs,
         ),
     )
-    require_distributed_input_receipts(result, inputs, app_name=app_name)
+    require_distributed_input_receipts(
+        result, inputs, app_name=app_name, params=request_payload.get("params"),
+        allow_pending_worker_receipt=_queue_trace_requested(app_name, request_payload.get("params")),
+    )
     return result
 
 
@@ -1021,7 +1199,10 @@ def _run_agilab_stage_subprocess_once(
         ):
             if key in stage_result:
                 payload[key] = stage_result[key]
-    require_distributed_input_receipts(payload, inputs, app_name=app_name)
+    require_distributed_input_receipts(
+        payload, inputs, app_name=app_name, params=request_payload.get("params"),
+        allow_pending_worker_receipt=_queue_trace_requested(app_name, request_payload.get("params")),
+    )
     return payload
 
 
@@ -1220,7 +1401,7 @@ from pathlib import Path
 
 from agi_cluster.agi_distributor import AGI, RunRequest, StageRequest
 from agi_env import AgiEnv
-from agilab.dag.dag_distributed_submitter import _verified_distributed_inputs
+from agilab.dag.dag_distributed_submitter import _bind_distributed_worker_params, _verified_distributed_inputs
 from agilab.dag.dag_idempotency import write_json_atomic
 from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import _read_queue_context
 
@@ -1247,6 +1428,7 @@ def emit_result(result):
 
 async def main():
     inputs = _verified_distributed_inputs(REQUEST_PAYLOAD.get("input_artifacts", []))
+    params = _bind_distributed_worker_params(APP, REQUEST_PAYLOAD.get("params") or {{}}, inputs)
     consumed_artifacts = []
     for item in inputs:
         receipt = dict(item)
@@ -1258,6 +1440,8 @@ async def main():
                 "summary_metrics_sha256": item["sha256"],
             }}))
             receipt["read_scope"] = "child_orchestrator"
+            if params.get("use_upstream_delivery_trace") is True:
+                receipt["role"] = "upstream_packet_trace_pending"
         consumed_artifacts.append(receipt)
 
     app_env = AgiEnv(apps_path=APPS_PATH, app=APP, verbose={int(config.verbose)!r})
@@ -1274,7 +1458,7 @@ async def main():
         for stage in REQUEST_PAYLOAD.get("stages", [])
     ]
     request = RunRequest(
-        params=REQUEST_PAYLOAD.get("params") or {{}},
+        params=params,
         stages=stages,
         data_in=REQUEST_PAYLOAD.get("data_in"),
         data_out=REQUEST_PAYLOAD.get("data_out"),

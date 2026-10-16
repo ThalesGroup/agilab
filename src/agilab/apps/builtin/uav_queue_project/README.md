@@ -34,6 +34,21 @@ required.
 The app writes queue time series, packet events, routing summaries, topology
 GML, allocation steps, trajectory summaries, and per-node trajectory CSV files.
 
+## Exact packet handoff to the relay
+
+The authored `dag_templates/uav_queue_to_relay.json` opts into
+`emit_delivery_trace=true`. Its summary contains a versioned `delivery_trace`
+with each delivered source packet's identity and original, unrounded
+`delivered_s` timestamp in simulation seconds. It includes deliveries made
+during the drain interval after the source stops. Background packets are
+excluded. An empty delivered trace is valid; oversized traces fail explicitly
+rather than being truncated.
+
+The relay worker verifies and reads the original summary artifact, then schedules
+these exact arrivals. This couples the two simulations; it does not replace them
+with an end-to-end radio model. See the relay app's packet-handoff contract for
+input verification and the independent reference scenario.
+
 ## Change One Thing
 
 After the default run works, change only `routing_policy` from `shortest_path`
