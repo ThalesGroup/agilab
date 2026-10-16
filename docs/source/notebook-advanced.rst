@@ -61,9 +61,9 @@ boundaries before splitting the work. A selected cell still needs its inputs;
 the option does not restore omitted cells or a previous Jupyter kernel.
 AGILAB supervisor exports keep their authored workflow graph in either mode.
 For an ordinary notebook, reimporting cells already present in a shared stage
-requires explicitly removing their earlier notebook stages first. Overlapping imports involving a shared stage are
-blocked so the workflow cannot silently retain both copies; unrelated stages
-remain intact.
+uses an explicit reviewed update, as described below. Adding overlapping cells
+as another shared stage remains blocked so the workflow cannot silently retain
+both copies; unrelated stages remain intact.
 
 Import only prepares the workflow: it does not execute notebook code, install
 packages or prove result correctness. Supply the required files and dependencies
@@ -77,6 +77,42 @@ the original cell sources and their hashes in ``lab_stages.toml``.
    State preservation selected in the native notebook import review.
    This deterministic local fixture demonstrates import controls, without a live
    provider call. Import itself does not run the notebook.
+
+Update an imported notebook
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+After editing an ordinary source notebook, upload it again in **WORKFLOW**.
+Select **Preserve notebook state**, then choose **Update existing notebook
+stage** under **Notebook import action**. Review the added, changed and removed
+source cells and the proposed stage before pressing **Update notebook stage**.
+**Add notebook stages** remains the separate action for a new import.
+**Cancel import** leaves the project files unchanged.
+
+This update route applies to an ordinary notebook already imported as one shared
+stage. Keep its stable, unique Jupyter code cell IDs. Missing or ambiguous source
+identity and inconsistent runtime choices block replacement and require review.
+
+The reviewed update replaces the matching notebook-backed stage. It retains
+unrelated stages, including handwritten project stages, and repeating an update
+does not append another copy of the notebook stage. Changes to the target after
+review, or conflicting edits to the imported stage, block the update and require
+a fresh review. AGILAB does not merge conflicting source edits automatically.
+An authored AGILAB supervisor workflow retains its separate graph contract.
+
+After a successful update, **Download previous notebook import** saves a recovery
+bundle containing the exact earlier import files, their hashes and any recorded
+absences. Keep that bundle before making further changes. It is a recovery
+download; applying it is a separate manual operation. Updating an import does
+not execute notebook cells, install packages or verify new results. Use the
+normal workflow run and evidence verification after reviewing the source.
+
+.. figure:: _static/native-ui/agilab_notebook_import_reviewed_update_20261016.png
+   :alt: Native notebook import review with Update existing notebook stage selected and source cell changes visible
+   :width: 100%
+
+   Reviewing changes before replacing an existing notebook-backed stage.
+   This deterministic local fixture uses the native import controls and a real
+   upload, without a provider call or notebook execution.
 
 Review setup cells
 ~~~~~~~~~~~~~~~~~~

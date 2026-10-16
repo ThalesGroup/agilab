@@ -3473,7 +3473,10 @@ def test_notebook_export_and_import_cleanup_edge_helpers(monkeypatch, tmp_path, 
     missing = tmp_path / "missing.py"
     backups = pipeline_editor._backup_notebook_import_targets([existing, missing])
     existing.write_text("new", encoding="utf-8")
-    pipeline_editor._restore_notebook_import_targets(backups)
+    missing.write_bytes(b"created")
+    pipeline_editor._restore_notebook_import_targets(
+        backups, {existing: b"new", missing: b"created"}
+    )
     assert existing.read_text(encoding="utf-8") == "old"
     assert not missing.exists()
 
@@ -3493,7 +3496,9 @@ def test_notebook_export_and_import_cleanup_edge_helpers(monkeypatch, tmp_path, 
     assert not temp_file.exists()
     assert "Unable to remove notebook import temporary file" in caplog.text
 
-    pipeline_editor._restore_notebook_import_targets({stubborn: None})
+    pipeline_editor._restore_notebook_import_targets(
+        {stubborn: None}, {stubborn: b"temp"}
+    )
     assert "Unable to restore notebook import target" in caplog.text
 
     atomic_target = tmp_path / "atomic.txt"
@@ -6767,3 +6772,207 @@ def test_exported_sdk_workflow_explains_worker_deployment_and_preserves_authored
     script = namespace["_build_shorthand_agi_script"](stages[0], stages[0]["code"])
     assert "await AGI.run(app_env, request=request)" in script
     assert "AGI.install(" not in script
+
+
+@pytest.fixture
+def reviewed_update_writer_case(monkeypatch, tmp_path):
+    project = tmp_path / "concurrent_reviewed_update"
+    _stateful_notebook_review(monkeypatch, project)
+    document = json.loads(_stateful_notebook_upload().read())
+    for index, cell in enumerate(document["cells"], 1):
+        cell["id"] = f"cell-{index}"
+
+    def prepare(document):
+        payload = json.dumps(document).encode("utf-8")
+        preview = pipeline_editor.build_notebook_import_preview(
+            SimpleNamespace(
+                name="stateful_notebook.ipynb",
+                type="application/x-ipynb+json",
+                read=lambda: payload,
+            ),
+            project,
+            stages_file=project / "lab_stages.toml",
+            module_name="demo",
+        )
+        return pipeline_editor.prepare_notebook_import_preview(
+            preview,
+            runtime_roles={
+                stage["id"]: "manager"
+                for stage in preview["notebook_import"]["pipeline_stages"]
+            },
+            preserve_notebook_state=True,
+        )
+
+    stages_file = project / "lab_stages.toml"
+    assert (
+        pipeline_editor.write_notebook_import_preview(
+            prepare(document), project, stages_file
+        )
+        == 3
+    )
+    document["cells"][0]["source"].append("\n# reviewed source update\n")
+    reviewed = pipeline_editor.prepare_notebook_import_update_preview(
+        prepare(document), stages_file
+    )
+    targets = [
+        project / name
+        for name in (
+            "notebook_import_contract.json",
+            "notebook_import_pipeline_view.json",
+            "notebook_import_view_plan.json",
+            "lab_stages.toml",
+        )
+    ]
+    return SimpleNamespace(
+        project=project, stages_file=stages_file, reviewed=reviewed, targets=targets
+    )
+
+
+@pytest.mark.parametrize("fail_final_replace", [False, True])
+@pytest.mark.parametrize("concurrent_change", ["bytes", "symbolic_link"])
+def test_reviewed_update_preserves_a_target_changed_between_replacements(
+    reviewed_update_writer_case, monkeypatch, fail_final_replace, concurrent_change
+):
+    case = reviewed_update_writer_case
+    before = {path: path.read_bytes() for path in case.targets}
+    authored = b"retain the author's concurrent workflow edit\n"
+    external = case.project.parent / "author-workflow.toml"
+    external.write_bytes(authored)
+    original_replace = Path.replace
+    replacements = []
+
+    def replace_with_concurrent_edit(self, target):
+        target = Path(target)
+        if fail_final_replace and target == case.stages_file:
+            raise OSError("injected final replacement failure")
+        result = original_replace(self, target)
+        replacements.append(target)
+        if target.name == "notebook_import_contract.json":
+            if concurrent_change == "symbolic_link":
+                case.stages_file.unlink()
+                case.stages_file.symlink_to(external)
+            else:
+                case.stages_file.write_bytes(authored)
+        return result
+
+    monkeypatch.setattr(Path, "replace", replace_with_concurrent_edit)
+    failure = None
+    try:
+        pipeline_editor.write_notebook_import_preview(
+            case.reviewed, case.project, case.stages_file
+        )
+    except (OSError, ValueError) as exc:
+        failure = exc
+
+    assert case.stages_file.read_bytes() == authored
+    assert case.stages_file.is_symlink() == (concurrent_change == "symbolic_link")
+    assert external.read_bytes() == authored
+    assert isinstance(failure, ValueError)
+    assert "changed" in str(failure) or "symbolic link" in str(failure)
+    assert case.stages_file not in replacements
+    for path in case.targets[:-1]:
+        assert path.read_bytes() == before[path]
+    assert not list(case.project.glob(".*.tmp"))
+
+
+@pytest.mark.parametrize("concurrent_change", ["bytes", "symbolic_link", "deleted"])
+def test_failed_reviewed_update_preserves_a_changed_already_replaced_sidecar(
+    reviewed_update_writer_case, monkeypatch, concurrent_change
+):
+    case = reviewed_update_writer_case
+    before = {path: path.read_bytes() for path in case.targets}
+    contract = case.project / "notebook_import_contract.json"
+    external = case.project.parent / "author-notebook-contract.json"
+    authored = b"retain the author's concurrent sidecar edit\n"
+    external.write_bytes(authored)
+    original_replace = Path.replace
+
+    def replace_with_concurrent_edit(self, target):
+        target = Path(target)
+        if target == case.stages_file:
+            raise OSError("injected final replacement failure")
+        result = original_replace(self, target)
+        if target == contract:
+            if concurrent_change in {"symbolic_link", "deleted"}:
+                contract.unlink()
+                if concurrent_change == "symbolic_link":
+                    contract.symlink_to(external)
+            else:
+                contract.write_bytes(authored)
+        return result
+
+    monkeypatch.setattr(Path, "replace", replace_with_concurrent_edit)
+
+    with pytest.raises(OSError, match="injected final replacement failure"):
+        pipeline_editor.write_notebook_import_preview(
+            case.reviewed, case.project, case.stages_file
+        )
+
+    if concurrent_change == "deleted":
+        assert not contract.exists()
+    else:
+        assert contract.read_bytes() == authored
+        assert contract.is_symlink() == (concurrent_change == "symbolic_link")
+    assert external.read_bytes() == authored
+    for path in case.targets[1:]:
+        assert path.read_bytes() == before[path]
+    assert not list(case.project.glob(".*.tmp"))
+
+
+def test_failed_notebook_merge_rolls_back_through_an_existing_linked_directory(
+    monkeypatch, tmp_path
+):
+    actual = tmp_path / "actual-project"
+    actual.mkdir()
+    project = tmp_path / "linked-project"
+    project.symlink_to(actual, target_is_directory=True)
+    preview, _, _ = _stateful_notebook_review(monkeypatch, project)
+    prepared = pipeline_editor.prepare_notebook_import_preview(
+        preview,
+        runtime_roles={
+            stage["id"]: "manager"
+            for stage in preview["notebook_import"]["pipeline_stages"]
+        },
+        preserve_notebook_state=True,
+    )
+    stages_file = project / "lab_stages.toml"
+    assert (
+        pipeline_editor.write_notebook_import_preview(prepared, project, stages_file)
+        == 3
+    )
+    uploaded = _stateful_notebook_upload()
+    independent_preview = pipeline_editor.build_notebook_import_preview(
+        SimpleNamespace(
+            name="independent_notebook.ipynb",
+            type=uploaded.type,
+            read=uploaded.read,
+        ),
+        project,
+        module_name="demo",
+    )
+    prepared = pipeline_editor.prepare_notebook_import_preview(
+        independent_preview,
+        runtime_roles={
+            stage["id"]: "manager"
+            for stage in independent_preview["notebook_import"]["pipeline_stages"]
+        },
+        preserve_notebook_state=True,
+    )
+    pipeline_view = project / "notebook_import_pipeline_view.json"
+    pipeline_view.unlink()
+    before = {path.name: path.read_bytes() for path in actual.iterdir()}
+    original_replace = Path.replace
+
+    def fail_final_replace(self, target):
+        if Path(target) == stages_file:
+            raise OSError("injected linked-directory merge failure")
+        return original_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", fail_final_replace)
+
+    with pytest.raises(OSError, match="injected linked-directory merge failure"):
+        pipeline_editor.write_notebook_import_preview(prepared, project, stages_file)
+
+    assert project.is_symlink()
+    assert not pipeline_view.exists()
+    assert {path.name: path.read_bytes() for path in actual.iterdir()} == before

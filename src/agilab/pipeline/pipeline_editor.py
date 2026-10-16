@@ -125,9 +125,17 @@ write_notebook_import_contract = _notebook_pipeline_import_module.write_notebook
 write_notebook_import_pipeline_view = _notebook_pipeline_import_module.write_notebook_import_pipeline_view
 write_notebook_import_view_plan = _notebook_pipeline_import_module.write_notebook_import_view_plan
 
+_notebook_import_update_module = import_agilab_module(
+    "agilab.notebooks.notebook_import_update",
+    current_file=__file__,
+    fallback_path=Path(__file__).resolve().parents[1]
+    / "notebooks/notebook_import_update.py",
+    fallback_name="agilab.notebooks.notebook_import_update_fallback",
+)
+
 logger = logging.getLogger(__name__)
 NOTEBOOK_IMPORT_ALL_CELLS = "__all__"
-NOTEBOOK_IMPORT_WRITE_MODES = frozenset({"merge", "replace"})
+NOTEBOOK_IMPORT_WRITE_MODES = frozenset({"merge", "replace", "update"})
 NOTEBOOK_IMPORT_RUNTIME_ROLE_LABELS = {
     "": "Select runtime role",
     "manager": "Manager (local runpy)",
@@ -1141,6 +1149,18 @@ def _notebook_import_content_for_write(
     if not isinstance(toml_content, dict):
         raise TypeError("Notebook import preview TOML content must be a mapping.")
     imported = copy.deepcopy(toml_content)
+    if mode == "update":
+        plan, signature = _notebook_import_update_review(preview, stages_file)
+        if (
+            preview.get("update_review_signature") != signature
+            or preview.get("update_plan") != plan
+        ):
+            raise ValueError(
+                "Review the notebook update changes before confirming this update."
+            )
+        prepared = _prepare_lab_stages_for_write(plan["merged_content"])
+        _validate_notebook_import_dependencies(imported, prepared)
+        return prepared
     if mode == "replace" or not Path(stages_file).exists():
         prepared = _prepare_lab_stages_for_write(imported)
         _validate_notebook_import_dependencies(imported, prepared)
@@ -1189,6 +1209,73 @@ def _notebook_import_content_for_write(
             merged[key] = copy.deepcopy(imported_value)
     prepared = _prepare_lab_stages_for_write(merged)
     _validate_notebook_import_dependencies(imported, prepared)
+    return prepared
+
+
+def _notebook_import_update_review(
+    preview: Mapping[str, Any],
+    stages_file: Path,
+) -> tuple[dict[str, Any], str]:
+    if not preview.get("preserve_notebook_state"):
+        raise ValueError(
+            "Select Preserve notebook state to update a notebook-backed stage."
+        )
+    if not _notebook_import_preview_is_safe(dict(preview)):
+        raise ValueError("Notebook preflight must pass before reviewing an update.")
+    detail = _notebook_import_runtime_role_review_detail(dict(preview))
+    if detail:
+        raise ValueError(
+            f"Review the notebook runtime choices before updating. {detail}"
+        )
+    targets = _notebook_import_update_module.read_import_targets(stages_file)
+    signatures = _notebook_import_update_module.target_signatures(targets)
+    if preview.get("target_notebook_import_signatures") != signatures:
+        raise ValueError(
+            "Notebook import files changed after the preview was built; upload again and review a fresh update."
+        )
+    if (
+        targets["lab_stages.toml"] is None
+        or targets["notebook_import_contract.json"] is None
+    ):
+        raise ValueError(
+            "Notebook update needs the existing stage contract and preserved notebook import contract."
+        )
+    current = tomllib.loads(targets["lab_stages.toml"].decode("utf-8"))
+    previous_contract = json.loads(targets["notebook_import_contract.json"])
+    if not isinstance(previous_contract, dict):
+        raise ValueError("The previous notebook import contract must be a JSON object.")
+    plan = _notebook_import_update_module.plan_notebook_import_update(
+        current,
+        preview.get("toml_content", {}),
+        notebook_import=preview.get("notebook_import", {}),
+        previous_contract=previous_contract,
+        module_name=str(preview.get("module", "")),
+    )
+    signature = _notebook_import_update_module.sha256(
+        _notebook_import_update_module.canonical_json(
+            {
+                "plan": plan,
+                "targets": signatures,
+                "source_signature": preview.get("source_signature"),
+                "toml_content": preview.get("toml_content"),
+                "notebook_import": preview.get("notebook_import"),
+                "preflight": preview.get("preflight"),
+            }
+        )
+    )
+    return plan, signature
+
+
+def prepare_notebook_import_update_preview(
+    preview: Dict[str, Any],
+    stages_file: Path,
+) -> Dict[str, Any]:
+    """Review a full ordinary notebook refresh through the existing import path."""
+    prepared = copy.deepcopy(preview)
+    prepared["write_mode"] = "update"
+    plan, signature = _notebook_import_update_review(prepared, stages_file)
+    prepared["update_plan"] = plan
+    prepared["update_review_signature"] = signature
     return prepared
 
 
@@ -1252,9 +1339,21 @@ def _notebook_import_write_preview_text(
             f"... diff truncated, {len(diff_lines) - max_diff_lines} more line(s)"
         ]
 
-    input_paths = artifact_contract.get("inputs", []) if isinstance(artifact_contract, dict) else []
-    output_paths = artifact_contract.get("outputs", []) if isinstance(artifact_contract, dict) else []
-    unknown_paths = artifact_contract.get("unknown", []) if isinstance(artifact_contract, dict) else []
+    input_paths = (
+        artifact_contract.get("inputs", [])
+        if isinstance(artifact_contract, dict)
+        else []
+    )
+    output_paths = (
+        artifact_contract.get("outputs", [])
+        if isinstance(artifact_contract, dict)
+        else []
+    )
+    unknown_paths = (
+        artifact_contract.get("unknown", [])
+        if isinstance(artifact_contract, dict)
+        else []
+    )
     execution_stages = preview.get("toml_content", {}).get(
         str(preview.get("module", "")), []
     )
@@ -1277,6 +1376,17 @@ def _notebook_import_write_preview_text(
         "",
         "lab_stages.toml diff:",
     ]
+    if preview.get("write_mode") == "update":
+        changes = preview.get("update_plan", {}).get("cell_changes", {})
+        lines[:0] = [
+            "Update existing notebook stage; unrelated stages and authored fields are preserved.",
+            *[
+                f"{kind.title()} cells: {_notebook_import_string_list(changes.get(kind, []), limit=20)}"
+                for kind in ("added", "changed", "removed", "moved", "unchanged")
+            ],
+            "The previous import files remain available as a recovery download.",
+            "",
+        ]
     lines.extend(diff_lines or ["No lab_stages.toml diff."])
     return "\n".join(lines)
 
@@ -1308,9 +1418,25 @@ def _backup_notebook_import_targets(paths: Iterable[Path]) -> Dict[Path, bytes |
     return backups
 
 
-def _restore_notebook_import_targets(backups: Mapping[Path, bytes | None]) -> None:
-    for path, payload in backups.items():
+def _restore_notebook_import_targets(
+    backups: Mapping[Path, bytes | None],
+    replacements: Mapping[Path, bytes],
+    *,
+    allow_linked_directory: bool = False,
+) -> None:
+    for path, written_payload in reversed(tuple(replacements.items())):
+        payload = backups[path]
         try:
+            if (
+                path.is_symlink()
+                or (not allow_linked_directory and path.parent.is_symlink())
+                or path.read_bytes() != written_payload
+            ):
+                logger.warning(
+                    "Preserving notebook import target changed during failed import: %s",
+                    bound_log_value(path, LOG_PATH_LIMIT),
+                )
+                continue
             if payload is None:
                 path.unlink()
             else:
@@ -1379,7 +1505,9 @@ def build_notebook_import_preview(
         _emit_streamlit_message("error", f"Unable to parse notebook: {exc}")
         return None
     if not isinstance(notebook_content, dict):
-        _emit_streamlit_message("error", "Invalid notebook format: expected a JSON object.")
+        _emit_streamlit_message(
+            "error", "Invalid notebook format: expected a JSON object."
+        )
         return None
 
     module = str(module_name or "").strip() or _notebook_import_module_name(module_dir)
@@ -1401,23 +1529,38 @@ def build_notebook_import_preview(
         return None
     preview = {
         "source_name": source_name,
-        "source_signature": hashlib.sha256(file_content.encode("utf-8")).hexdigest()[:16],
+        "source_signature": hashlib.sha256(file_content.encode("utf-8")).hexdigest()[
+            :16
+        ],
         "module": module,
-        "cell_count": int(notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0),
+        "cell_count": int(
+            notebook_import.get("summary", {}).get("pipeline_stage_count", 0) or 0
+        ),
         "toml_content": toml_content,
         "notebook_import": notebook_import,
         "preflight": preflight,
         "contract": contract,
         "write_mode": "merge",
-        "target_project_name": str(
-            target_project_name or Path(module_dir).name or ""
-        ),
+        "target_project_name": str(target_project_name or Path(module_dir).name or ""),
     }
     if stages_file is not None:
         try:
             preview["target_stages_signature"] = _notebook_import_target_signature(
                 Path(stages_file)
             )
+            if Path(stages_file).name == "lab_stages.toml":
+                try:
+                    preview["target_notebook_import_signatures"] = (
+                        _notebook_import_update_module.target_signatures(
+                            _notebook_import_update_module.read_import_targets(
+                                Path(stages_file)
+                            )
+                        )
+                    )
+                except ValueError:
+                    # Keep ordinary import behavior; the update review reports
+                    # why a linked or unsupported target cannot be refreshed.
+                    pass
         except OSError as exc:
             _emit_streamlit_message(
                 "error", f"Unable to inspect the current stage contract: {exc}"
@@ -1437,6 +1580,11 @@ def write_notebook_import_preview(
     """Persist a previously built notebook import preview."""
     module_dir = Path(module_dir)
     stages_file = Path(stages_file)
+    update = str(write_mode or preview.get("write_mode", "merge")) == "update"
+    if update and module_dir.resolve() != stages_file.parent.resolve():
+        raise ValueError(
+            "Notebook update sidecars must share the stage contract directory."
+        )
     expected_signature = preview.get("target_stages_signature")
     if expected_signature is not None:
         current_signature = _notebook_import_target_signature(stages_file)
@@ -1458,13 +1606,19 @@ def write_notebook_import_preview(
     contract_path = module_dir / "notebook_import_contract.json"
     pipeline_view_path = module_dir / "notebook_import_pipeline_view.json"
     view_plan_path = module_dir / "notebook_import_view_plan.json"
-    view_manifest_path = discover_notebook_import_view_manifest(view_manifest_dir or module_dir)
+    view_manifest_path = discover_notebook_import_view_manifest(
+        view_manifest_dir or module_dir
+    )
     temp_stages_file = stages_file.with_name(f".{stages_file.name}.{os.getpid()}.tmp")
-    temp_contract_path = contract_path.with_name(f".{contract_path.name}.{os.getpid()}.tmp")
+    temp_contract_path = contract_path.with_name(
+        f".{contract_path.name}.{os.getpid()}.tmp"
+    )
     temp_pipeline_view_path = pipeline_view_path.with_name(
         f".{pipeline_view_path.name}.{os.getpid()}.tmp"
     )
-    temp_view_plan_path = view_plan_path.with_name(f".{view_plan_path.name}.{os.getpid()}.tmp")
+    temp_view_plan_path = view_plan_path.with_name(
+        f".{view_plan_path.name}.{os.getpid()}.tmp"
+    )
     temp_targets = [
         (temp_contract_path, contract_path),
         (temp_pipeline_view_path, pipeline_view_path),
@@ -1472,7 +1626,7 @@ def write_notebook_import_preview(
         (temp_stages_file, stages_file),
     ]
     backups: Dict[Path, bytes | None] | None = None
-    replaced_any = False
+    replacements: Dict[Path, bytes] = {}
     try:
         with open(temp_stages_file, "wb") as toml_file:
             tomli_w.dump(convert_paths_to_strings(toml_content), toml_file)
@@ -1495,18 +1649,54 @@ def write_notebook_import_preview(
             module_name=module,
             manifest_path=view_manifest_path,
         )
-        backups = _backup_notebook_import_targets(target for _temp, target in temp_targets)
+        backups = _backup_notebook_import_targets(
+            target for _temp, target in temp_targets
+        )
+        if update:
+            # Serialization and sidecar generation can take time. Revalidate
+            # the reviewed inputs immediately before retaining/replacing files.
+            _notebook_import_content_for_write(
+                preview, stages_file, write_mode="update"
+            )
+            if all(
+                temp.read_bytes() == backups[target] for temp, target in temp_targets
+            ):
+                return cell_count
+            recovery = _notebook_import_update_module.write_update_backup(
+                stages_file,
+                {path.name: payload for path, payload in backups.items()},
+                review_signature=str(preview["update_review_signature"]),
+            )
+            _notebook_import_content_for_write(
+                preview, stages_file, write_mode="update"
+            )
         for temp_path, target_path in temp_targets:
+            written_payload = temp_path.read_bytes()
+            if target_path.is_symlink() or (update and target_path.parent.is_symlink()):
+                raise ValueError(
+                    "Notebook import target became a symbolic link; review a fresh preview."
+                )
+            current = _backup_notebook_import_targets((target_path,))[target_path]
+            if current != backups[target_path]:
+                raise ValueError(
+                    "Notebook import target changed during import; review a fresh preview."
+                )
             temp_path.replace(target_path)
-            replaced_any = True
+            replacements[target_path] = written_payload
     except (OSError, TypeError, ValueError):
-        if backups is not None and replaced_any:
-            _restore_notebook_import_targets(backups)
+        if backups is not None and replacements:
+            _restore_notebook_import_targets(
+                backups, replacements, allow_linked_directory=not update
+            )
         raise
     finally:
         _cleanup_notebook_import_temp_files(temp for temp, _target in temp_targets)
 
-    _emit_notebook_preflight_result(preflight, contract_path, view_plan_path=view_plan_path)
+    _emit_notebook_preflight_result(
+        preflight, contract_path, view_plan_path=view_plan_path
+    )
+    if update:
+        preview["update_backup_path"] = str(recovery)
     return cell_count
 
 
@@ -2407,6 +2597,8 @@ def confirm_notebook_import_preview(
     preserve_notebook_state: bool | None = None,
     setup_cell_ids: Iterable[str] | None = None,
     setup_review_signature: str | None = None,
+    write_mode: str | None = None,
+    update_review_signature: str | None = None,
 ) -> int:
     """Persist the current notebook import preview and update editor state."""
     preview_key = _notebook_import_preview_key(index_page)
@@ -2438,6 +2630,21 @@ def confirm_notebook_import_preview(
             selected_stage_ids=selected_stage_ids,
             preserve_notebook_state=preserve_notebook_state,
         )
+        mode = str(write_mode or preview.get("write_mode", "merge"))
+        if mode == "update":
+            preview_to_write = prepare_notebook_import_update_preview(
+                preview_to_write, stages_file
+            )
+            if (
+                not update_review_signature
+                or update_review_signature
+                != preview_to_write["update_review_signature"]
+            ):
+                raise ValueError(
+                    "Notebook update choices or files changed; review the update changes again before confirming."
+                )
+        else:
+            preview_to_write["write_mode"] = mode
     except (TypeError, ValueError) as exc:
         _emit_streamlit_message("error", f"Notebook execution plan is blocked: {exc}")
         return 0
@@ -2446,16 +2653,24 @@ def confirm_notebook_import_preview(
         _emit_streamlit_message("error", f"Notebook import is blocked: {detail}")
         return 0
     if not _notebook_import_preview_is_safe(preview_with_roles):
-        detail = _notebook_import_blocking_detail(preview_with_roles.get("preflight", {}))
-        _emit_streamlit_message("error", f"Notebook runtime role review is blocked: {detail}")
+        detail = _notebook_import_blocking_detail(
+            preview_with_roles.get("preflight", {})
+        )
+        _emit_streamlit_message(
+            "error", f"Notebook runtime role review is blocked: {detail}"
+        )
         return 0
     if not _notebook_import_preview_is_safe(preview_to_write):
         detail = _notebook_import_blocking_detail(preview_to_write.get("preflight", {}))
-        _emit_streamlit_message("error", f"Notebook cell promotion is blocked: {detail}")
+        _emit_streamlit_message(
+            "error", f"Notebook cell promotion is blocked: {detail}"
+        )
         return 0
     role_detail = _notebook_import_runtime_role_review_detail(preview_to_write)
     if role_detail:
-        _emit_streamlit_message("error", f"Notebook runtime role review is incomplete: {role_detail}")
+        _emit_streamlit_message(
+            "error", f"Notebook runtime role review is incomplete: {role_detail}"
+        )
         return 0
     try:
         cell_count = write_notebook_import_preview(
@@ -2465,7 +2680,9 @@ def confirm_notebook_import_preview(
             view_manifest_dir=view_manifest_dir,
         )
     except (OSError, TypeError, ValueError) as exc:
-        _emit_streamlit_message("error", f"Failed to save notebook import preview: {exc}")
+        _emit_streamlit_message(
+            "error", f"Failed to save notebook import preview: {exc}"
+        )
         logger.error(
             "Error writing notebook import preview: %s",
             bound_log_value(exc, LOG_DETAIL_LIMIT),
@@ -2477,17 +2694,34 @@ def confirm_notebook_import_preview(
         for stage_id in (selected_stage_ids or [])
         if str(stage_id) and str(stage_id) != NOTEBOOK_IMPORT_ALL_CELLS
     ]
-    if selected_ids and cell_count > 0:
+    if mode == "update":
+        recovery_path = preview_to_write.get("update_backup_path")
+        if recovery_path:
+            recovery_path = Path(recovery_path)
+            st.session_state[f"{index_page}__notebook_import_previous"] = {
+                "filename": recovery_path.name,
+                "data": recovery_path.read_bytes(),
+            }
+        _emit_streamlit_message(
+            "success", f"Updated notebook stage from {cell_count} code cell(s)."
+        )
+    elif selected_ids and cell_count > 0:
         target = "an AGILAB stage" if cell_count == 1 else "AGILAB stages"
         _emit_streamlit_message(
             "success",
             f"Promoted {', '.join(selected_ids)} to {target}.",
         )
     elif cell_count > 0:
-        _emit_streamlit_message("success", f"Imported {cell_count} notebook code cell(s).")
+        _emit_streamlit_message(
+            "success", f"Imported {cell_count} notebook code cell(s)."
+        )
     else:
-        _emit_streamlit_message("warning", "Notebook imported, but no code cells were found.")
-    if index_page in st.session_state and isinstance(st.session_state[index_page], list):
+        _emit_streamlit_message(
+            "warning", "Notebook imported, but no code cells were found."
+        )
+    if index_page in st.session_state and isinstance(
+        st.session_state[index_page], list
+    ):
         st.session_state[index_page][-1] = cell_count
     st.session_state.page_broken = True
     cancel_notebook_import_preview(index_page)
@@ -2504,6 +2738,19 @@ def cancel_notebook_import_preview(index_page: str) -> None:
             st.session_state.pop(selection_key, None)
 
 
+def _render_notebook_import_recovery_download(target: Any, index_page: str) -> None:
+    previous = st.session_state.get(f"{index_page}__notebook_import_previous")
+    download = getattr(target, "download_button", None)
+    if isinstance(previous, dict) and callable(download):
+        download(
+            "Download previous notebook import",
+            data=previous["data"],
+            file_name=previous["filename"],
+            mime="application/json",
+            key=f"{index_page}__notebook_import_previous_download",
+        )
+
+
 def render_notebook_import_preview(
     module_dir: Path,
     stages_file: Path,
@@ -2514,17 +2761,20 @@ def render_notebook_import_preview(
     on_cancel: Callable[[], None] | None = None,
 ) -> None:
     """Render confirm/cancel controls for the current notebook import preview."""
+    target = container if container is not None else getattr(st, "sidebar", st)
     preview = st.session_state.get(_notebook_import_preview_key(index_page))
     if not isinstance(preview, dict):
+        _render_notebook_import_recovery_download(target, index_page)
         return
     original_preview = preview
-    target = container if container is not None else getattr(st, "sidebar", st)
     preview, setup_cell_ids, setup_detail = render_notebook_setup_review(
         target, original_preview, index_page, stages_file
     )
     preflight = preview.get("preflight", {})
     summary = preflight.get("summary", {}) if isinstance(preflight, dict) else {}
-    risk_counts = preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    risk_counts = (
+        preflight.get("risk_counts", {}) if isinstance(preflight, dict) else {}
+    )
     caption = getattr(target, "caption", None)
     if callable(caption):
         caption(
@@ -2537,7 +2787,9 @@ def render_notebook_import_preview(
     if not _notebook_import_preview_is_safe(preview):
         error = getattr(target, "error", None)
         if callable(error):
-            error(f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}")
+            error(
+                f"Notebook import blocked: {_notebook_import_blocking_detail(preflight)}"
+            )
     button = getattr(target, "button", None)
     if not callable(button):
         return
@@ -2548,6 +2800,7 @@ def render_notebook_import_preview(
     preserve_notebook_state = bool(
         original_preview.get("preserve_notebook_state", False)
     )
+    write_mode = "merge"
     if _notebook_import_preview_is_safe(preview):
         runtime_roles = _render_notebook_import_runtime_role_controls(
             target,
@@ -2556,6 +2809,17 @@ def render_notebook_import_preview(
         )
         stage_options = _notebook_import_stage_options(preview)
         selectbox = getattr(target, "selectbox", None)
+        if stages_file.exists() and callable(selectbox):
+            source = preview.get("notebook_import", {}).get("source", {})
+            if source.get("import_mode") != "agilab_supervisor_metadata":
+                action = selectbox(
+                    "Notebook import action",
+                    ["Add notebook stages", "Update existing notebook stage"],
+                    key=f"{index_page}__notebook_import_action_{preview.get('source_signature', '')}_{stages_file}",
+                    help="Update replaces the matching notebook-backed stage after reviewing cell changes; other stages remain intact.",
+                )
+                if action == "Update existing notebook stage":
+                    write_mode = "update"
         if stage_options and callable(selectbox):
             all_label = "All runnable cells"
             labels = [all_label, *[str(option["label"]) for option in stage_options]]
@@ -2613,6 +2877,10 @@ def render_notebook_import_preview(
                 selected_stage_ids=selected_stage_ids,
                 preserve_notebook_state=preserve_notebook_state,
             )
+            if write_mode == "update":
+                preview_to_write = prepare_notebook_import_update_preview(
+                    preview_to_write, stages_file
+                )
             _notebook_import_content_for_write(preview_to_write, stages_file)
         except (OSError, TypeError, ValueError) as exc:
             plan_detail = str(exc)
@@ -2628,6 +2896,17 @@ def render_notebook_import_preview(
                     "source cells remain available; edit the source notebook and reimport "
                     "to change a combined stage. Explicit exported workflows keep their graph."
                 )
+            if write_mode == "update" and not plan_detail:
+                changes = preview_to_write["update_plan"]["cell_changes"]
+                if callable(caption):
+                    caption(
+                        "Notebook update: "
+                        + ", ".join(
+                            f"{len(changes[kind])} {kind}"
+                            for kind in ("added", "changed", "removed", "moved")
+                        )
+                        + ". Review What will be written before confirming. No code runs during import."
+                    )
         if role_detail:
             warning = getattr(target, "warning", None)
             if callable(warning):
@@ -2645,7 +2924,9 @@ def render_notebook_import_preview(
             "key": f"{index_page}__confirm_notebook_import",
             "disabled": not import_ready,
         }
-        if selected_stage_ids:
+        if write_mode == "update":
+            confirmed = button("Update notebook stage", **button_options)
+        elif selected_stage_ids:
             confirmed = button("Promote selected cell", **button_options)
         else:
             confirmed = button("Import all runnable cells", **button_options)
@@ -2660,11 +2941,18 @@ def render_notebook_import_preview(
             preserve_notebook_state=preserve_notebook_state,
             setup_cell_ids=setup_cell_ids,
             setup_review_signature=preview.get("setup_review_signature"),
+            write_mode=write_mode,
+            update_review_signature=(
+                preview_to_write.get("update_review_signature")
+                if preview_to_write is not None
+                else None
+            ),
         )
     if button("Cancel import", key=f"{index_page}__cancel_notebook_import"):
         cancel_notebook_import_preview(index_page)
         if on_cancel is not None:
             on_cancel()
+    _render_notebook_import_recovery_download(target, index_page)
 
 
 def refresh_notebook_export(

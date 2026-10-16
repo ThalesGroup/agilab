@@ -149,6 +149,11 @@ EXPLICIT_ACTION_DISPOSITIONS: Mapping[str, tuple[str, str, tuple[str, ...]]] = {
         "writes reviewed notebook cells after explicit setup conversion as separate stages or one shared-state stage according to Preserve notebook state; focused tests and an opt-in browser fixture cover selection, persistence and no execution or installation",
         ("test/test_pipeline_editor.py",),
     ),
+    "Update notebook stage": (
+        "trial-only",
+        "replaces one explicitly reviewed notebook-backed stage while preserving unrelated project stages; focused tests and the opt-in notebook update browser robot cover source changes, conflict refusal and recovery without executing notebook code",
+        ("test/test_notebook_import_update.py", "test/test_pipeline_editor.py"),
+    ),
     "Promote selected cell": (
         "trial-only",
         "persists only the selected notebook cell using explicit setup conversion, reviewed runtime and Preserve notebook state choices; does not restore omitted cells, execute code or install dependencies",
