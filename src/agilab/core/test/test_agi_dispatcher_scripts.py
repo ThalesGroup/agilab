@@ -2433,12 +2433,8 @@ def test_build_remove_decorators_command_keeps_worker_path_as_argv():
 
     assert "remove_decorators" in command
     assert command == [
-        "uv",
-        "-q",
-        "run",
-        "python",
-        "-m",
-        "agi_node.agi_dispatcher.pre_install",
+        build_mod.sys.executable,
+        str(Path(build_mod.__file__).with_name("pre_install.py")),
         "remove_decorators",
         "--worker_path",
         "workers/demo worker'$.py",
@@ -2451,7 +2447,7 @@ def test_build_remove_decorators_command_stringifies_pathlike_worker_path(tmp_pa
 
     command = build_mod._build_remove_decorators_command(worker_path)
 
-    assert command[8] == str(worker_path)
+    assert command[command.index("--worker_path") + 1] == str(worker_path)
     assert all(isinstance(arg, str) for arg in command)
 
 
@@ -2485,8 +2481,9 @@ def test_postprocess_bdist_egg_output_unpacks_and_cleans_links(tmp_path):
     assert (out_dir / "src" / "demo_worker" / "__init__.py").exists()
     assert any("mkdir" in line for line in log_lines)
     assert subprocess_calls
-    assert subprocess_calls[0][0][6] == "remove_decorators"
-    assert subprocess_calls[0][0][8] == "workers/demo_worker.py"
+    command = subprocess_calls[0][0]
+    assert "remove_decorators" in command
+    assert command[command.index("--worker_path") + 1] == "workers/demo_worker.py"
     assert subprocess_calls[0][1] is True
     assert cleanup_calls == [links_created]
 
@@ -4428,7 +4425,7 @@ def test_build_main_bdist_egg_unpacks_and_cleans_links(tmp_path, monkeypatch):
     assert Path(DummyAgiEnv.init_args["active_app"]) == app_dir
     extracted = out_dir / "src" / "demo_worker" / "__init__.py"
     assert extracted.exists()
-    assert subprocess_calls and subprocess_calls[0][0][6] == "remove_decorators"
+    assert subprocess_calls and "remove_decorators" in subprocess_calls[0][0]
     assert subprocess_calls[0][1] is True
     assert cleanup_calls and cleanup_calls[0] == links_created
 
