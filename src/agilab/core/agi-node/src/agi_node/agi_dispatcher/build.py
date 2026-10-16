@@ -555,21 +555,12 @@ def _build_remove_decorators_command(
     *,
     type_preprocess: bool = False,
 ) -> list[str]:
-    cmd = [
-        "uv",
-        "-q",
-        "run",
-        "python",
-        "-m",
-        "agi_node.agi_dispatcher.pre_install",
-        "remove_decorators",
-        "--worker_path",
-        str(worker_path),
-    ]
-    if type_preprocess:
-        cmd.append("--type-preprocess")
-    cmd.append("--verbose")
-    return cmd
+    return _build_pre_install_command(
+        pre_install_script=Path(__file__).with_name("pre_install.py"),
+        worker_py=worker_path,
+        verbose=True,
+        type_preprocess=type_preprocess,
+    )
 
 
 def _postprocess_bdist_egg_output(
@@ -633,7 +624,7 @@ def _resolve_worker_python_path(env) -> Path:
 def _build_pre_install_command(
     *,
     pre_install_script: Path,
-    worker_py: Path,
+    worker_py: str | Path,
     verbose: int | bool,
     type_preprocess: bool = False,
 ) -> list[str]:

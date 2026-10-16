@@ -1,11 +1,59 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
+import pytest
 
 from agi_node.agi_dispatcher import build as build_mod
 import agi_node.agi_dispatcher.bootstrap_source_paths as bootstrap_mod
+
+
+@pytest.mark.parametrize("type_preprocess", [False, True])
+def test_pre_install_reuses_prepared_python_without_project_resolution(
+    tmp_path, type_preprocess
+):
+    """A nested build step must keep the already prepared build environment."""
+    worker = tmp_path / "worker source.py"
+    worker.write_text("def task():\n    return 42\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname="prepared-worker-build-probe"\nversion="0.0.0"\n'
+        'dependencies=["agilab-audit-absent-dependency==999999"]\n',
+        encoding="utf-8",
+    )
+    environment = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith(("TOKKI_", "UV_", "VIRTUAL_ENV", "PYTHONPATH"))
+    }
+    environment.update(
+        UV_OFFLINE="1",
+        UV_CACHE_DIR=str(tmp_path / "owned-uv-cache"),
+        UV_PYTHON_DOWNLOADS="never",
+    )
+
+    result = subprocess.run(
+        build_mod._build_remove_decorators_command(
+            worker, type_preprocess=type_preprocess
+        ),
+        cwd=tmp_path,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    generated = worker.with_suffix(".pyx").read_text(encoding="utf-8")
+    assert "return 42" in generated
+    assert build_mod.cython_pyx_stamp_matches(
+        generated,
+        worker.read_text(encoding="utf-8"),
+        type_preprocess=type_preprocess,
+    )
 
 
 def test_bootstrap_core_source_paths_prefers_repo_layout(tmp_path, monkeypatch):
