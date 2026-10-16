@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-16T10:19:30Z",
+  "generated_at_utc": "2026-10-16T13:25:24Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 316,
+    "evidence_schema_count": 319,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2342,6 +2342,24 @@
       "schema": "agilab.notebook_import_preflight.v1",
       "sources": [
         "src/agilab/notebooks/notebook_pipeline_import.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_update.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_import_update.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_update_backup.v1",
+      "sources": [
+        "src/agilab/notebooks/notebook_import_update.py"
+      ]
+    },
+    {
+      "schema": "agilab.notebook_import_update_robot.v1",
+      "sources": [
+        "tools/notebook_import_update_robot.py"
       ]
     },
     {
