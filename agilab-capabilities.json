@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-16T10:19:30Z",
+  "generated_at_utc": "2026-10-16T11:06:20Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 316,
+    "evidence_schema_count": 318,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -3039,6 +3039,21 @@
       "sources": [
         "tools/benchmarks/benchmark_tokki_agent_efficiency.py",
         "tools/benchmarks/tokki_agent_efficiency_tasks.json"
+      ]
+    },
+    {
+      "schema": "agilab.uav_delivered_packet_trace.v1",
+      "sources": [
+        "src/agilab/apps/builtin/uav_queue_project/src/uav_queue_worker/uav_queue_worker.py",
+        "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue_worker/scientific_handoff.py",
+        "src/agilab/dag/dag_distributed_submitter.py"
+      ]
+    },
+    {
+      "schema": "agilab.uav_packet_handoff_receipt.v1",
+      "sources": [
+        "src/agilab/apps/builtin/uav_relay_queue_project/src/uav_relay_queue_worker/scientific_handoff.py",
+        "src/agilab/dag/dag_distributed_submitter.py"
       ]
     },
     {

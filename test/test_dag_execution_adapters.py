@@ -418,10 +418,25 @@ def test_uav_engine_routes_requested_distributed_backend_without_local_callbacks
 ):
     from agilab.dag.dag_run_engine import DagRunEngine
 
-    dag_path = Path(
+    template = Path(
         "src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"
     )
-    authored = {node["id"]: node for node in json.loads(dag_path.read_text())["nodes"]}
+    payload = json.loads(template.read_text())
+    # This routing-only stub deliberately produces no scientific worker receipt.
+    payload["nodes"][0]["execution"]["params"]["emit_delivery_trace"] = False
+    payload["nodes"][1]["execution"]["params"]["use_upstream_delivery_trace"] = False
+    repo_root = tmp_path / "independent-routing-repo"
+    dag_path = repo_root / template
+    dag_path.parent.mkdir(parents=True)
+    dag_path.write_text(json.dumps(payload))
+    for project in ("uav_queue_project", "uav_relay_queue_project"):
+        original = Path.cwd() / "src/agilab/apps/builtin" / project
+        target = repo_root / "src/agilab/apps/builtin" / project
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "src").symlink_to(original / "src", target_is_directory=True)
+        for name in ("pyproject.toml", "pipeline_view.dot"):
+            (target / name).write_bytes((original / name).read_bytes())
+    authored = {node["id"]: node for node in payload["nodes"]}
     local_calls = []
     submissions = []
 
@@ -453,7 +468,7 @@ def test_uav_engine_routes_requested_distributed_backend_without_local_callbacks
         }
 
     engine = DagRunEngine(
-        repo_root=Path.cwd(),
+        repo_root=repo_root,
         lab_dir=tmp_path,
         dag_path=dag_path,
         run_queue_fn=local_tripwire,
@@ -1983,6 +1998,103 @@ def test_authored_uav_dag_executes_its_declared_scientific_settings(
         ):
             assert metrics[key] == expected["execution"]["params"][key]
     assert state["run_status"] == "completed"
+    queue = state["units"][0]["real_execution"]
+    relay = state["units"][1]["real_execution"]
+    packets = queue["summary_metrics"]["delivery_trace"]["packets"]
+    receipt = relay["summary_metrics"]["upstream_queue_receipt"]
+    assert receipt["scheduled_packets"] == [
+        {"upstream_packet_id": packet["packet_id"], "created_s": packet["delivered_s"]}
+        for packet in packets
+    ]
+    assert relay["consumed_artifacts"][0]["read_scope"] == "worker"
+    assert relay["consumed_artifacts"][0]["numerically_conditioned"] is True
+    assert relay["relay_numerically_conditioned_on_queue_metrics"] is True
+    assert relay["execution_contract"] == payload["nodes"][1]["execution"]
+    assert receipt["sha256"] == queue["produced_artifacts"][0]["sha256"]
+    assert receipt["source_packet_count"] == relay["summary_metrics"]["packets_generated"]
+
+
+@pytest.mark.parametrize("defect", ["missing_receipt", "missing_receipt_and_marker", "inline_metrics"])
+def test_authored_uav_dag_rejects_unproved_local_worker_summary(tmp_path, defect):
+    from agilab.dag.dag_artifact_contracts import artifact_file_identity
+    from agilab.dag.dag_run_engine import DagRunEngine
+    from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import run_relay_followup_app
+
+    def unproved_relay(**kwargs):
+        result = run_relay_followup_app(**kwargs)
+        if defect == "inline_metrics":
+            result["summary_metrics"] = {**result["summary_metrics"], "packets_generated": 999999}
+            return result
+        summary_path = Path(result["workspace"]) / result["summary_metrics_path"]
+        metrics = json.loads(summary_path.read_text())
+        metrics.pop("upstream_queue_receipt")
+        summary_path.write_text(json.dumps(metrics))
+        identity = artifact_file_identity(summary_path)
+        result["summary_metrics"] = metrics
+        result["summary_metrics_sha256"] = identity["sha256"]
+        for artifact in result["produced_artifacts"]:
+            if artifact["kind"] == "summary_metrics":
+                artifact.update(identity)
+        if defect == "missing_receipt_and_marker":
+            result.pop("app_entry")
+            result["relay_numerically_conditioned_on_queue_metrics"] = True
+        return result
+
+    engine = DagRunEngine(
+        repo_root=Path.cwd(), lab_dir=tmp_path,
+        dag_path=Path("src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"),
+        run_relay_fn=unproved_relay,
+    )
+    state, *_ = engine.load_or_create_state()
+    queue = engine.run_next_controlled_stage_transaction(state)
+    assert queue.ok
+    relay = engine.run_next_controlled_stage_transaction(queue.state)
+    assert not relay.ok
+    assert "worker" in relay.message
+
+
+def test_authored_uav_local_cache_rechecks_worker_summary_mirror(tmp_path):
+    from agilab.dag.dag_run_engine import DagRunEngine
+    from agilab.global_pipeline.global_pipeline_app_dispatch_smoke import run_relay_followup_app
+
+    lab_dir = tmp_path / "lab"
+    engine = DagRunEngine(
+        repo_root=Path.cwd(), lab_dir=lab_dir,
+        dag_path=Path("src/agilab/apps/builtin/uav_queue_project/dag_templates/uav_queue_to_relay.json"),
+    )
+    initial, *_ = engine.load_or_create_state()
+    queue = engine.run_next_controlled_stage_transaction(initial)
+    assert queue.ok
+    calls = []
+
+    def relay_run(**kwargs):
+        calls.append(kwargs["idempotency_token"])
+        return run_relay_followup_app(**kwargs)
+
+    context = dag_execution_adapters.DagExecutionContext(
+        repo_root=Path.cwd(), lab_dir=lab_dir, run_relay_fn=relay_run,
+        execution_attempt_id="exact-local-cache-attempt",
+        persist_execution_claim_fn=lambda _: dag_execution_adapters._DURABLE_CLAIM_RECEIPT,
+    )
+    first = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled", queue.state, context,
+    )
+    assert first.ok, first.message
+    run_root = dag_execution_adapters._real_run_root(lab_dir, "relay_followup")
+    ledgers = [
+        path for path in (run_root / ".agilab-idempotency").glob("*.json")
+        if json.loads(path.read_text()).get("unit_id") == "relay_followup"
+    ]
+    assert len(ledgers) == 1
+    cached = json.loads(ledgers[0].read_text())
+    cached["result"]["summary_metrics"]["packets_generated"] = 999999
+    ledgers[0].write_text(json.dumps(cached))
+    replayed = dag_execution_adapters._run_next_adapter_stage_uncommitted(
+        "uav_queue_to_relay_controlled", queue.state, context,
+    )
+    assert not replayed.ok
+    assert "worker summary metrics" in replayed.message
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize(
@@ -2155,7 +2267,7 @@ def test_authored_uav_dag_keeps_independent_node_overrides(tmp_path: Path) -> No
         unit = next(unit for unit in state["units"] if unit["id"] == expected["id"])
         metrics = unit["real_execution"]["summary_metrics"]
         assert {
-            key: metrics[key]
+            key: unit["real_execution"]["effective_args"][key]
             for key in expected["execution"]["params"]
             if key not in {"files", "nfile"}
         } == {
@@ -2163,6 +2275,11 @@ def test_authored_uav_dag_keeps_independent_node_overrides(tmp_path: Path) -> No
             for key, value in expected["execution"]["params"].items()
             if key not in {"files", "nfile"}
         }
+        for key in (
+            "routing_policy", "sim_time_s", "sampling_interval_s",
+            "source_rate_pps", "queue_weight", "random_seed",
+        ):
+            assert metrics[key] == expected["execution"]["params"][key]
     assert (
         state["units"][1]["real_execution"]["consumed_artifacts"][0]["summary_metrics"]
         == state["units"][0]["real_execution"]["summary_metrics"]

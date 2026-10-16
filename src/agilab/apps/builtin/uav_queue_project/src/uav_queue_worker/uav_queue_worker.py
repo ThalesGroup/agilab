@@ -266,6 +266,8 @@ class UavQueueWorker(PandasWorker):
         env = simpy.Environment()
         rng = random.Random(random_seed)
         packet_events: list[dict[str, object]] = []
+        emit_delivery_trace = bool(getattr(args, "emit_delivery_trace", False))
+        delivered_trace: list[dict[str, int | float]] = []
         queue_timeseries: list[dict[str, object]] = []
         node_positions: list[dict[str, object]] = []
 
@@ -344,6 +346,10 @@ class UavQueueWorker(PandasWorker):
                     service_time_s = 1.0 / max(chosen.config.service_rate_pps, 1e-6)
                     yield env.timeout(service_time_s + chosen_latency_ms / 1000.0)
                     delivered_s = float(env.now)
+                    if emit_delivery_trace and origin_kind == "source":
+                        if len(delivered_trace) >= 10_000:
+                            raise ValueError("Delivered packet trace exceeds the 10000 packet limit.")
+                        delivered_trace.append({"packet_id": packet_id, "delivered_s": delivered_s})
                     packet_events.append(
                         {
                             "packet_id": packet_id,
@@ -454,6 +460,12 @@ class UavQueueWorker(PandasWorker):
         env.run(until=sim_time_s + drain_time_s)
 
         packet_df = pd.DataFrame(packet_events)
+        if not packet_events:
+            packet_df = pd.DataFrame(columns=[
+                "packet_id", "scenario", "origin_kind", "routing_policy", "relay",
+                "status", "drop_reason", "created_s", "queue_wait_ms", "e2e_delay_ms",
+                "route_latency_ms", "queue_depth_before",
+            ])
         queue_df = pd.DataFrame(queue_timeseries)
         positions_df = pd.DataFrame(node_positions)
 
@@ -526,6 +538,15 @@ class UavQueueWorker(PandasWorker):
         summary_metrics["artifact_stem"] = (
             f"{_sanitize_slug(summary_metrics['scenario'])}_{routing_policy}_seed{random_seed}"
         )
+        if emit_delivery_trace:
+            summary_metrics["delivery_trace"] = {
+                "schema": "agilab.uav_delivered_packet_trace.v1",
+                "source_emission_horizon_s": sim_time_s,
+                "simulation_horizon_s": float(env.now),
+                "packets": sorted(delivered_trace, key=lambda row: (row["delivered_s"], row["packet_id"])),
+            }
+            if len(json.dumps(summary_metrics, indent=2, allow_nan=False).encode("utf-8")) > 1_048_576:
+                raise ValueError("Delivered packet trace exceeds the 1 MiB summary byte limit.")
 
         packet_df = packet_df.sort_values(["created_s", "packet_id"]).reset_index(drop=True)
         queue_df = queue_df.sort_values(["time_s", "relay"]).reset_index(drop=True)
