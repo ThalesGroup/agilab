@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-16T13:25:24Z",
+  "generated_at_utc": "2026-10-16T13:49:24Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2359,7 +2359,7 @@
     {
       "schema": "agilab.notebook_import_update_robot.v1",
       "sources": [
-        "tools/notebook_import_update_robot.py"
+        "tools/testing/notebook_import_update_robot.py"
       ]
     },
     {

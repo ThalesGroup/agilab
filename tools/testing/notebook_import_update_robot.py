@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Exercise notebook import, reviewed updates, cancellation and conflict refusal.
 
-Run with the intended worktree on PYTHONPATH and a prepared environment containing
+Run as `python -m tools.testing.notebook_import_update_robot` from the repo root.
+Use the intended worktree on PYTHONPATH and a prepared environment containing
 agi-web and Playwright. This robot owns only its server, browser and output tree.
 """
 
@@ -21,11 +22,11 @@ from urllib.request import urlopen
 
 from playwright.sync_api import expect, sync_playwright
 
-from agilab_web_robot import ReactPythonServer
+from tools.agilab_web_robot import ReactPythonServer
 from agilab.notebooks.notebook_import_update import verify_update_backup
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = REPO_ROOT / "tools/testing/agilab_notebook_import_update_fixture.py"
 STEM = "agilab-notebook-import-reviewed-update"
 MANUAL_STAGE_ID = "handwritten_report"
