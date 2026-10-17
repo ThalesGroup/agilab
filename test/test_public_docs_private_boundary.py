@@ -10,6 +10,33 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "AGENTS.md",
+        "agent-context-rules.json",
+        "tools/agent_context_router.py",
+        "docs/source/contributor-guide.rst",
+        "docs/source/faq.rst",
+        *(
+            f"{provider}/skills/{skill}/{document}"
+            for provider in (".claude", ".codex")
+            for skill, document in (
+                ("agilab-docs", "SKILL.md"),
+                ("agilab-intent-router", "SKILL.md"),
+                ("agilab-runbook", "SKILL.md"),
+                ("agilab-huggingface-spaces", "SKILL.md"),
+                ("svg-diagram-tuning", "SKILL.md"),
+                ("agilab-deep-audit", "references/ARCHITECTURE_FOUNDATIONS.md"),
+            )
+        ),
+    ],
+)
+def test_public_agent_guidance_does_not_route_docs_to_private_source(relative: str) -> None:
+    text = (ROOT / relative).read_text(encoding="utf-8")
+    assert "../thales_agilab/docs/source" not in text
+
+
 def _module(name: str):
     spec = importlib.util.spec_from_file_location(
         f"private_boundary_{name}", ROOT / "tools" / f"{name}.py"

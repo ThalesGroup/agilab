@@ -120,13 +120,13 @@ check:
   competitive positioning, local-only paths, and unsupported production-safety
   claims. When AGILAB needs MLflow, Kubeflow, Airflow, SageMaker, or an internal
   platform for production responsibilities, say so directly.
-- **Source/mirror parity**: contributors can edit public docs in their pull
-  request. Maintainers keep the canonical ``../thales_agilab/docs/source`` tree
-  and this repository's ``docs/source`` mirror aligned, verify the mirror stamp,
-  and build the page when layout or links matter. The public release-proof
-  manifest, generated release-proof page, and UI robot evidence are explicitly
-  public-owned and excluded from private-to-public sync. Never hand-edit
-  ``docs/html``.
+- **Public documentation ownership**: author public docs in ``docs/source`` in
+  the active public AGILAB checkout. The integrity stamp records those public
+  inputs; build the page when layout or links matter. Private documentation is
+  not a source or fallback for public docs, releases or developer tools and must
+  not be discovered, copied or synchronized into this flow. The release-proof
+  manifest, generated release-proof page and UI robot evidence remain
+  public-owned. Never hand-edit ``docs/html``.
 - **Screenshots and diagrams**: update source screenshots, SVG diagrams,
   captions, alt text, and references together. Inspect the rendered page so old
   UI labels or clipped diagram text cannot survive a source-only edit.
