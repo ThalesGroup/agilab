@@ -216,7 +216,12 @@ def run_history_summary(env: Any) -> tuple[str, str]:
         log_dir = Path.home() / "log" / "execute" / app_name
 
     try:
-        run_logs = sorted(path for path in log_dir.glob("run_*.log") if path.is_file())
+        run_logs = sorted(
+            path
+            for pattern in ("run_*.log", "run_*.log.gz")
+            for path in log_dir.glob(pattern)
+            if path.is_file()
+        )
     except OSError:
         return "0", "run log directory unavailable"
 

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import gzip
 import importlib.util
+import io
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,6 +15,21 @@ spec = importlib.util.spec_from_file_location("agilab_dev", MODULE_PATH)
 assert spec is not None and spec.loader is not None
 agilab_dev = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agilab_dev)
+
+
+class _FakeCapturedProcess:
+    def __init__(self, output: str, returncode: int = 0):
+        self.stdout = io.BytesIO(output.encode())
+        self.returncode = returncode
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.stdout.close()
+
+    def wait(self, timeout=None):
+        return self.returncode
 
 
 def test_impact_shortcut_defaults_to_staged():
@@ -547,11 +565,7 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
 ):
     calls = []
 
-    class Completed:
-        returncode = 0
-        stdout = "ok\n"
-
-    def fake_run(command, *, cwd, env, stdout, stderr, text, errors, check):
+    def fake_popen(command, *, cwd, env, stdout, stderr):
         calls.append(
             (
                 command,
@@ -563,11 +577,9 @@ def test_main_keeps_machine_readable_shortcut_stdout_clean(
         )
         assert stdout is agilab_dev.subprocess.PIPE
         assert stderr is agilab_dev.subprocess.STDOUT
-        assert text is True
-        assert errors == "replace"
-        return Completed()
+        return _FakeCapturedProcess("ok\n")
 
-    monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+    monkeypatch.setattr(agilab_dev.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
     monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
@@ -617,13 +629,13 @@ def test_main_compact_output_prints_signal_summary_and_writes_full_log(
             "short tail"
         )
 
-    def fake_run(command, *, cwd, env, stdout, stderr, text, errors, check):
+    def fake_popen(command, *, cwd, env, stdout, stderr):
         assert env["UV_PROJECT_ENVIRONMENT"] == str(
             agilab_dev.DEFAULT_DEV_UV_PROJECT_ENVIRONMENT
         )
-        return Completed()
+        return _FakeCapturedProcess(Completed.stdout, Completed.returncode)
 
-    monkeypatch.setattr(agilab_dev.subprocess, "run", fake_run)
+    monkeypatch.setattr(agilab_dev.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
     monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
 
@@ -635,10 +647,11 @@ def test_main_compact_output_prints_signal_summary_and_writes_full_log(
     assert "ERROR first failure" in captured.err
     assert "FAILED test_demo.py::test_demo" in captured.err
     assert "omitted" in captured.err
-    logs = list(tmp_path.glob("*.log"))
+    logs = list(tmp_path.glob("*.log.gz"))
     assert len(logs) == 1
-    assert "line that should stay only in the artifact" in logs[0].read_text(
-        encoding="utf-8"
+    assert (
+        "line that should stay only in the artifact"
+        in gzip.decompress(logs[0].read_bytes()).decode()
     )
 
 
@@ -1180,3 +1193,98 @@ def test_legacy_mnemonic_aliases_are_removed():
             assert str(exc) == f"unknown shortcut: {alias}"
         else:
             raise AssertionError(f"{alias} should not be accepted")
+
+
+@pytest.mark.parametrize("child_encoding", ["utf-8", "cp1252"])
+def test_compact_capture_publishes_gzip_before_exit_and_preserves_exit_code(
+    tmp_path, monkeypatch, capsys, child_encoding
+):
+    monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+    monkeypatch.setenv("PYTHONIOENCODING", child_encoding)
+    script = """
+import pathlib, sys, time, zlib
+sys.stdout.reconfigure(encoding="utf-8", newline=chr(10))
+sys.stderr.reconfigure(encoding="utf-8", newline=chr(10))
+root = pathlib.Path(sys.argv[1])
+sys.stdout.write('first live diagnostic\\n')
+sys.stdout.flush()
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline:
+    paths = list(root.glob('*.log.gz'))
+    if paths:
+        try:
+            data = zlib.decompressobj(31).decompress(paths[0].read_bytes())
+        except zlib.error:
+            data = b''
+        if b'first live diagnostic' in data:
+            break
+    time.sleep(0.01)
+else:
+    raise SystemExit('ERROR log was buffered until command exit')
+sys.stdout.write('réseau 日本語\\n' + 'x' * 2_000_000 + '\\n')
+sys.stderr.write('ERROR final diagnostic\\n')
+raise SystemExit(7)
+"""
+    code = agilab_dev._run_compact(
+        [sys.executable, "-c", script, str(tmp_path)], max_lines=5
+    )
+    assert code == 7
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "ERROR final diagnostic" in captured.err
+    assert "lines=4" in captured.err
+    assert len(captured.err) < 6000
+    paths = list(tmp_path.glob("*.log.gz"))
+    assert len(paths) == 1
+    assert not list(tmp_path.glob("*.log"))
+    payload = gzip.decompress(paths[0].read_bytes()).decode()
+    assert (
+        payload
+        == "first live diagnostic\nréseau 日本語\n"
+        + "x" * 2_000_000
+        + "\nERROR final diagnostic\n"
+    )
+
+
+def test_dev_capture_paths_are_unique_for_identical_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+    assert agilab_dev._compact_log_path(["python"]) != agilab_dev._compact_log_path(
+        ["python"]
+    )
+
+
+def test_capture_failure_terminates_and_reaps_only_its_child(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.setattr(agilab_dev, "DEV_LOG_DIR", tmp_path)
+    calls = []
+
+    class Process(_FakeCapturedProcess):
+        def poll(self):
+            return None
+
+        def terminate(self):
+            calls.append("terminate")
+
+        def wait(self, timeout=None):
+            calls.append(("wait", timeout))
+            return 0
+
+    class Archive:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            calls.append("archive closed")
+
+        def write(self, chunk):
+            raise OSError("disk write failed")
+
+    monkeypatch.setattr(
+        agilab_dev.subprocess, "Popen", lambda *args, **kwargs: Process("output")
+    )
+    monkeypatch.setattr(agilab_dev.gzip, "open", lambda *args, **kwargs: Archive())
+    with pytest.raises(OSError, match="disk write failed"):
+        agilab_dev._run_compact(["owned-child"], max_lines=5)
+    assert calls == ["terminate", ("wait", 5), "archive closed"]
+    assert "retained log=" in capsys.readouterr().err

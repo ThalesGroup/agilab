@@ -44,6 +44,7 @@ from agilab.page_bundle_registry import (  # noqa: E402
     resolve_page_bundles,
 )
 from agilab.environment.env_file_utils import load_env_file_map  # noqa: E402
+from agilab.environment.log_storage import tail_log_lines  # noqa: E402
 from agi_env.app_settings_support import read_app_settings  # noqa: E402
 from agi_env.app_provider_registry import aliased_app_runtime_target, app_name_aliases  # noqa: E402
 
@@ -2582,7 +2583,7 @@ def _tail_text_file(path: Path | None, *, lines: int = FAILURE_BUNDLE_TAIL_LINES
     if path is None or not path.is_file():
         return ""
     try:
-        content = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        content = tail_log_lines(path, max_lines=lines)
     except OSError:
         return ""
     return "\n".join(content[-lines:]) + ("\n" if content else "")
@@ -3297,7 +3298,16 @@ def _snapshot_workflow_run_logs(context: WorkflowArtifactContext) -> ArtifactFil
         if root.is_file():
             paths.append(root)
         elif root.is_dir():
-            paths.extend(sorted(root.rglob("*.log"), key=lambda path: str(path)))
+            paths.extend(
+                sorted(
+                    (
+                        path
+                        for pattern in ("*.log", "*.log.gz")
+                        for path in root.rglob(pattern)
+                    ),
+                    key=lambda path: str(path),
+                )
+            )
     return _snapshot_specific_files(paths)
 
 

@@ -168,6 +168,11 @@ def test_pipeline_run_controls_payloads_logs_and_log_file_setup(tmp_path, monkey
     assert error is None
     assert prepared is not None
     assert prepared.name.startswith("bad_prefix_")
+    assert prepared.name.endswith(".log.gz")
+    module._push_run_log("page", "compressed message")
+    from agilab.environment.log_storage import read_log_text
+
+    assert read_log_text(prepared) == "compressed message\n"
     assert fake_st.session_state["page__last_run_log_file"] == str(prepared)
 
     bad_env = SimpleNamespace(app="demo", runenv=object())
@@ -2091,3 +2096,20 @@ def test_owned_pipeline_lock_snapshot_waits_for_real_heartbeat_rewrite(
     assert handle["fd"] is None
     assert not writer.is_alive() and not reader.is_alive()
     assert module._read_pipeline_lock_payload(path) == {}
+
+
+@pytest.mark.parametrize("suffix", [".log", ".log.gz"])
+def test_compressed_logs_preserve_automation_manifest_stems(
+    tmp_path, monkeypatch, suffix
+):
+    module = _import_pipeline_run_controls()
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(module, "st", fake_st)
+    fake_st.session_state["page__run_log_file"] = str(
+        tmp_path / ("pipeline_attempt" + suffix)
+    )
+    run, latest = module._pipeline_manifest_paths(
+        SimpleNamespace(app="demo"), "page", "attempt"
+    )
+    assert run == tmp_path / "pipeline_attempt.pipeline_manifest.json"
+    assert latest == tmp_path / module.PIPELINE_AUTOMATION_MANIFEST_FILENAME

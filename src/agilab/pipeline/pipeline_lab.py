@@ -7,6 +7,8 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from agilab.environment.log_storage import read_log_text, tail_log_lines
 from typing import Any, Callable, Dict, List, Mapping, Optional
 
 import pandas as pd
@@ -2012,7 +2014,12 @@ def _workflow_run_log_dir(env: Any) -> Path | None:
 
 def _latest_run_log_file(run_log_dir: Path) -> Path | None:
     try:
-        candidates = [path for path in run_log_dir.expanduser().glob("run_*.log") if path.is_file()]
+        candidates = [
+            path
+            for pattern in ("run_*.log", "run_*.log.gz")
+            for path in run_log_dir.expanduser().glob(pattern)
+            if path.is_file()
+        ]
     except (OSError, RuntimeError, ValueError):
         return None
     if not candidates:
@@ -2033,7 +2040,14 @@ def _latest_pipeline_page_log_file(run_log_dir: Path | None) -> Path | None:
     candidates: list[Path] = []
     try:
         expanded = run_log_dir.expanduser()
-        for pattern in ("pipeline_*.log", "stage_*.log", "run_*.log"):
+        for pattern in (
+            "pipeline_*.log",
+            "stage_*.log",
+            "run_*.log",
+            "pipeline_*.log.gz",
+            "stage_*.log.gz",
+            "run_*.log.gz",
+        ):
             candidates.extend(path for path in expanded.glob(pattern) if path.is_file())
     except (OSError, RuntimeError, TypeError, ValueError):
         return None
@@ -2051,10 +2065,7 @@ def _latest_pipeline_page_log_file(run_log_dir: Path | None) -> Path | None:
 
 def _read_pipeline_page_log_tail(log_file: Path, *, max_lines: int = 200) -> list[str]:
     try:
-        lines = log_file.expanduser().read_text(
-            encoding="utf-8",
-            errors="replace",
-        ).splitlines()
+        lines = tail_log_lines(log_file.expanduser(), max_lines=max_lines)
     except (OSError, RuntimeError, TypeError, ValueError):
         return []
     return lines[-max_lines:]
@@ -2710,7 +2721,9 @@ def _pipeline_log_lines_from_session(index_page: str, session_state: Mapping[str
     log_file = str(session_state.get(f"{index_page}__last_run_log_file") or "").strip()
     if log_file:
         try:
-            file_lines = Path(log_file).expanduser().read_text(encoding="utf-8", errors="replace").splitlines()
+            file_lines = read_log_text(
+                Path(log_file).expanduser(), allow_incomplete=True
+            ).splitlines()
         except (OSError, TypeError, ValueError):
             file_lines = []
         lines.extend(file_lines)

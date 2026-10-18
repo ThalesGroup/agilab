@@ -1193,6 +1193,10 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
 
     async def _run_agi(cmd, log_callback=None, venv=None):
         log_callback("first line")
+        from agilab.environment.log_storage import tail_log_lines
+
+        active_path = Path(fake_st.session_state["last_run_log_path"])
+        assert tail_log_lines(active_path) == ["first line"]
         log_callback("\u001b[31msecond line\u001b[0m")
         return "", "stderr text"
 
@@ -1219,7 +1223,10 @@ async def test_render_execute_section_run_executes_and_records_logs(monkeypatch,
 
     log_path = Path(fake_st.session_state["last_run_log_path"])
     assert log_path.exists()
-    assert "first line" in log_path.read_text(encoding="utf-8")
+    from agilab.environment.log_storage import read_log_text
+
+    assert log_path.name.endswith(".log.gz")
+    assert "first line" in read_log_text(log_path)
     assert fake_st.session_state["run_log_cache"]
     assert fake_st.session_state["_benchmark_expand"] is True
     assert any(kind == "display_log" and "stderr text" in msg for kind, msg in fake_st.messages)

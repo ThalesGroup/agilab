@@ -646,14 +646,14 @@ def test_evidence_text_and_upload_fixture_helpers(tmp_path, monkeypatch) -> None
     log = tmp_path / "progress.ndjson"
     log.write_text("one\ntwo\nthree\n", encoding="utf-8")
     assert module._tail_text_file(log, lines=2) == "two\nthree\n"
-    original_read_text = Path.read_text
+    original_open = Path.open
 
-    def _raise_read_text(self, *args, **kwargs):
+    def _raise_open(self, *args, **kwargs):
         if self == log:
             raise OSError("read failed")
-        return original_read_text(self, *args, **kwargs)
+        return original_open(self, *args, **kwargs)
 
-    monkeypatch.setattr(Path, "read_text", _raise_read_text)
+    monkeypatch.setattr(Path, "open", _raise_open)
     assert module._tail_text_file(log) == ""
 
     base = tmp_path / "bundle"
@@ -7404,3 +7404,23 @@ def test_probe_widget_reports_checkbox_toggle(tmp_path) -> None:
     assert status == "interacted"
     assert "clicked and restored" in detail
     assert clicked
+
+
+def test_workflow_robot_discovers_and_tails_compressed_run_logs(tmp_path):
+    import gzip
+
+    module = _load_module()
+    context = module.WorkflowArtifactContext(
+        app_name="flight_telemetry_project",
+        active_app_query="flight_telemetry_project",
+        home_root=tmp_path,
+        export_root=tmp_path / "export",
+    )
+    root = module._workflow_run_log_roots(context)[0]
+    root.mkdir(parents=True)
+    path = root / "pipeline_robot.log.gz"
+    with gzip.open(path, "wt") as stream:
+        stream.write("first\nlatest\n")
+        stream.flush()
+        assert path in module._snapshot_workflow_run_logs(context).files
+        assert module._tail_text_file(path, lines=1) == "latest\n"

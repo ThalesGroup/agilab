@@ -16,6 +16,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
 from pathlib import Path
+from uuid import uuid4
+
+from agilab.environment.log_storage import append_log_text, open_log
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import pandas as pd
@@ -1245,7 +1248,10 @@ def _pipeline_manifest_paths(
     log_file_path = st.session_state.get(f"{index_page}__run_log_file")
     if log_file_path:
         latest_path = Path(log_file_path).expanduser().parent / PIPELINE_AUTOMATION_MANIFEST_FILENAME
-        run_path = Path(log_file_path).expanduser().with_suffix(".pipeline_manifest.json")
+        run_log_path = Path(log_file_path).expanduser()
+        if run_log_path.suffix == ".gz":
+            run_log_path = run_log_path.with_suffix("")
+        run_path = run_log_path.with_suffix(".pipeline_manifest.json")
         return run_path, latest_path
     app_name = str(getattr(env, "app", "") or getattr(env, "target", "") or "agilab")
     log_dir_candidate = getattr(env, "runenv", None) or (Path.home() / "log" / "execute" / app_name)
@@ -1543,13 +1549,16 @@ def _push_run_log(index_page: str, message: str, placeholder: Optional[Any] = No
             try:
                 path_obj = Path(log_file_path).expanduser()
                 path_obj.parent.mkdir(parents=True, exist_ok=True)
-                with path_obj.open("a", encoding="utf-8") as log_file:
-                    log_file.write(log_text + "\n")
+                append_log_text(path_obj, log_text + "\n")
             except (OSError, TypeError, ValueError) as exc:
                 logger.debug(
                     "Failed to append experiment log to %s: %s",
-                    _logging_utils.bound_log_value(log_file_path, _logging_utils.LOG_PATH_LIMIT),
-                    _logging_utils.bound_log_value(exc, _logging_utils.LOG_DETAIL_LIMIT),
+                    _logging_utils.bound_log_value(
+                        log_file_path, _logging_utils.LOG_PATH_LIMIT
+                    ),
+                    _logging_utils.bound_log_value(
+                        exc, _logging_utils.LOG_DETAIL_LIMIT
+                    ),
                 )
     if placeholder is not None:
         logs = st.session_state.get(f"{index_page}__run_logs", [])
@@ -1582,8 +1591,11 @@ def _prepare_run_log_file(
         log_dir_path = Path(log_dir_candidate).expanduser()
         log_dir_path.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        log_file_path = log_dir_path / f"{safe_prefix}_{timestamp}.log"
-        log_file_path.write_text("", encoding="utf-8")
+        log_file_path = (
+            log_dir_path / f"{safe_prefix}_{timestamp}_{uuid4().hex[:8]}.log.gz"
+        )
+        with open_log(log_file_path, "xt"):
+            pass
         st.session_state[log_file_key] = str(log_file_path)
         st.session_state[f"{index_page}__last_run_log_file"] = str(log_file_path)
         return log_file_path, None
