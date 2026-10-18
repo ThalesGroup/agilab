@@ -7644,3 +7644,38 @@ def test_workflow_graph_concurrent_state_conflict_reruns_before_rendering_stale_
     assert any(kind == "warning" and "changed in another session" in message for kind, message in fake_st.messages)
     assert ("rerun", "called") in fake_st.messages
     assert not any(kind == "error" for kind, _ in fake_st.messages)
+
+
+def test_compressed_pipeline_logs_keep_stage_history_beyond_visible_tail(tmp_path):
+    from agilab.environment.log_storage import open_log
+
+    path = tmp_path / "pipeline_saved.log.gz"
+    with open_log(path, "xt") as stream:
+        stream.write("Running stage 1\nStage 1: engine=runpy runtime=/runtime\n")
+        stream.write("progress\n" * 300)
+        stream.write("Running stage 2\n")
+        stream.flush()
+        assert pipeline_lab._latest_pipeline_page_log_file(tmp_path) == path
+        assert pipeline_lab._read_pipeline_page_log_tail(path, max_lines=2) == [
+            "progress",
+            "Running stage 2",
+        ]
+        state = {
+            "page__last_run_log_file": str(path),
+            "page__last_run_status": "running",
+        }
+        lines = pipeline_lab._pipeline_log_lines_from_session("page", state)
+        assert "Stage 1: engine=runpy runtime=/runtime" in lines
+        assert len(lines) == 303
+        evidence = pipeline_lab._pipeline_stages_execution_evidence(
+            index_page="page",
+            session_state=state,
+            stages_file=None,
+            stage_count=2,
+        )
+        assert evidence["completed"] == [0]
+        assert evidence["running"] == [1]
+    run = tmp_path / "run_saved.log.gz"
+    with open_log(run, "xt") as stream:
+        stream.write("run complete\n")
+    assert pipeline_lab._latest_run_log_file(tmp_path) == run

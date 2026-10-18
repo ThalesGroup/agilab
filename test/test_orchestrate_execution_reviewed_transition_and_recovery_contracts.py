@@ -11,6 +11,8 @@ import pytest
 from agi_web import python_ui
 from agi_web.testing import AppTest
 
+from agilab.environment.log_storage import read_log_text
+
 execute = importlib.import_module("agilab.orchestrate.orchestrate_execute")
 page_support = importlib.import_module("agilab.orchestrate.orchestrate_page_support")
 
@@ -121,7 +123,9 @@ def test_sdk_run_is_consumed_once_and_preserves_command_runtime_and_evidence(
 
     assert case.calls == [{"command": "await reviewed_main()", "runtime": case.project}]
     assert case.app.session_state["_last_execute_failed"] is False
-    assert Path(case.app.session_state["last_run_log_path"]).read_text() == "SDK step completed\n"
+    log_path = Path(case.app.session_state["last_run_log_path"])
+    assert log_path.name.endswith(".log.gz")
+    assert read_log_text(log_path) == "SDK step completed\n"
     plan = Path(case.app.session_state["last_run_plan_path"])
     report = Path(case.app.session_state["last_run_report_path"])
     assert "asyncio.run(main())" in plan.read_text()
@@ -219,7 +223,9 @@ def test_nonfatal_stderr_and_blank_log_events_keep_run_successful(tmp_path, monk
     _queue(case, "run")
     assert case.app.session_state["_last_execute_failed"] is False
     assert len(case.calls) == 1
-    assert Path(case.app.session_state["last_run_log_path"]).read_text() == "SDK step completed\n"
+    log_path = Path(case.app.session_state["last_run_log_path"])
+    assert log_path.name.endswith(".log.gz")
+    assert read_log_text(log_path) == "SDK step completed\n"
     assert "success" in Path(case.app.session_state["last_run_report_path"]).read_text().lower()
 
 

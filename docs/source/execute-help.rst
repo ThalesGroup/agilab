@@ -90,6 +90,12 @@ Main Content Area
   ``Select all`` support to decide which fields are persisted to
   ``${AGILAB_EXPORT_ABS}/<module>/export.csv``.
 
+
+Saved run logs use ``run_<timestamp>_<id>.log.gz`` in the project's execution
+log directory. Gzip compression runs while output arrives; the live log view
+continues to show text. Existing ``.log`` files remain readable. To inspect an
+archive outside AGILAB, use ``python -m gzip -d path/to/run_example.log.gz`` on a copy.
+
 Execution Mode Values
 ---------------------
 

@@ -3,18 +3,30 @@
 
 from __future__ import annotations
 
+import gzip
 import os
 import shlex
 import subprocess
 import sys
 import tempfile
+from collections import deque
 from collections.abc import Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from hashlib import sha256
 from pathlib import Path
+from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from agilab.environment.log_storage import (  # noqa: E402
+    LOG_CHUNK_BYTES,
+    LOG_COMPRESSION_LEVEL,
+    iter_log_lines,
+)
+
 UV_RUN = ("uv", "--preview-features", "extra-build-dependencies", "run")
 DEFAULT_DEV_UV_PROJECT_ENVIRONMENT = ROOT / ".venv-dev"
 DEV_UV_PROJECT_ENVIRONMENT_ENV = "AGILAB_DEV_UV_PROJECT_ENVIRONMENT"
@@ -271,70 +283,84 @@ def _dedupe_keep_order(lines: Sequence[str]) -> list[str]:
     return kept
 
 
-def _compact_log_path(command: Sequence[str], output: str) -> Path:
+def _compact_log_path(command: Sequence[str]) -> Path:
     DEV_LOG_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     family = Path(command[0]).name if command else "command"
-    digest = sha256(
-        ("\0".join(command) + "\n" + output).encode("utf-8", "replace")
-    ).hexdigest()[:12]
-    return DEV_LOG_DIR / f"{timestamp}-{family}-{digest}.log"
+    digest = sha256("\0".join(command).encode("utf-8", "replace")).hexdigest()[:12]
+    return (
+        DEV_LOG_DIR
+        / f"agilab-dev-{family}-{timestamp}-{digest}-{uuid4().hex[:8]}.log.gz"
+    )
 
 
-def _write_compact_log(command: Sequence[str], output: str) -> Path:
-    path = _compact_log_path(command, output)
-    path.write_text(output, encoding="utf-8", errors="replace")
-    return path
+class _CompactLogSummary:
+    """Retain bounded signal and tail samples, independently of archive size."""
+
+    def __init__(self, max_lines: int) -> None:
+        self.max_lines = max_lines
+        self.line_count = 0
+        self.signal_count = 0
+        self.signal_budget = max(1, max_lines * 3 // 4)
+        self.first_signal: tuple[int, str] | None = None
+        self.signals: deque[tuple[int, str]] = deque(maxlen=self.signal_budget)
+        self.tail: deque[str] = deque(maxlen=max_lines)
+
+    def add(self, line: str) -> None:
+        self.line_count += 1
+        self.tail.append(line)
+        if _is_signal_line(line):
+            signal = (self.line_count, line)
+            self.signal_count += 1
+            if self.first_signal is None:
+                self.first_signal = signal
+            self.signals.append(signal)
+
+    def render(self, returncode: int) -> tuple[list[str], int, int]:
+        sample = list(self.signals)
+        if self.signal_count > self.signal_budget > 1:
+            sample = [self.first_signal, *sample[-(self.signal_budget - 1) :]]
+        selected = [f"{number}: {line}" for number, line in sample]
+        tail_budget = max(
+            1, self.max_lines - min(self.signal_count, self.signal_budget)
+        )
+        if returncode != 0:
+            tail = [line for line in list(self.tail)[-tail_budget:] if line.strip()]
+            if tail:
+                if selected:
+                    selected.append("-- tail --")
+                selected.extend(tail)
+        selected = _dedupe_keep_order(selected)[: self.max_lines]
+        return selected, self.signal_count, max(self.line_count - len(selected), 0)
 
 
 def _summary_lines(
-    output: str, *, max_lines: int, returncode: int
+    output: str,
+    *,
+    max_lines: int,
+    returncode: int,
 ) -> tuple[list[str], int, int]:
-    lines = output.splitlines()
-    if not lines:
-        return [], 0, 0
-    signals = [
-        (index + 1, line) for index, line in enumerate(lines) if _is_signal_line(line)
-    ]
-    signal_budget = max(1, max_lines * 3 // 4)
-    tail_budget = max(1, max_lines - min(len(signals), signal_budget))
-
-    selected: list[str] = []
-    if len(signals) > signal_budget > 1:
-        signal_sample = [signals[0], *signals[-(signal_budget - 1) :]]
-    else:
-        signal_sample = signals[-signal_budget:]
-    for line_number, line in signal_sample:
-        selected.append(f"{line_number}: {line}")
-
-    if returncode != 0:
-        tail = [line for line in lines[-tail_budget:] if line.strip()]
-        if tail:
-            if selected:
-                selected.append("-- tail --")
-            selected.extend(tail)
-
-    selected = _dedupe_keep_order(selected)[:max_lines]
-    omitted = max(len(lines) - len(selected), 0)
-    return selected, len(signals), omitted
+    summary = _CompactLogSummary(max_lines)
+    for line in output.splitlines():
+        summary.add(line)
+    return summary.render(returncode)
 
 
 def _print_compact_result(
     command: Sequence[str],
     *,
     returncode: int,
-    output: str,
+    log_path: Path,
     max_lines: int,
 ) -> None:
-    log_path = _write_compact_log(command, output)
-    lines = output.splitlines()
-    selected, signal_count, omitted = _summary_lines(
-        output, max_lines=max_lines, returncode=returncode
-    )
+    summary = _CompactLogSummary(max_lines)
+    for line in iter_log_lines(log_path, max_line_chars=1024):
+        summary.add(line)
+    selected, signal_count, omitted = summary.render(returncode)
     rel_log = log_path.relative_to(ROOT) if log_path.is_relative_to(ROOT) else log_path
     status = "ok" if returncode == 0 else "failed"
     print(
-        f"./dev compact-output: {status} exit={returncode} lines={len(lines)} "
+        f"./dev compact-output: {status} exit={returncode} lines={summary.line_count} "
         f"signals={signal_count} omitted={omitted} log={rel_log}",
         file=sys.stderr,
         flush=True,
@@ -349,25 +375,54 @@ def _print_compact_result(
 
 
 def _run_compact(
-    command: Sequence[str], *, max_lines: int, env: dict[str, str] | None = None
+    command: Sequence[str],
+    *,
+    max_lines: int,
+    env: dict[str, str] | None = None,
 ) -> int:
-    completed = subprocess.run(
-        command,
-        cwd=ROOT,
-        env=env or _subprocess_env(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        errors="replace",
-        check=False,
-    )
+    log_path = _compact_log_path(command)
+    try:
+        with gzip.open(log_path, "xb", compresslevel=LOG_COMPRESSION_LEVEL) as archive:
+            with subprocess.Popen(
+                command,
+                cwd=ROOT,
+                env=env or _subprocess_env(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            ) as process:
+                try:
+                    assert process.stdout is not None
+                    while chunk := process.stdout.read1(LOG_CHUNK_BYTES):
+                        archive.write(chunk)
+                        # Publish a live prefix without resetting the compression dictionary.
+                        archive.flush()
+                    returncode = process.wait()
+                except BaseException:
+                    if process.poll() is None:
+                        try:
+                            process.terminate()
+                        except ProcessLookupError:
+                            pass
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
+                            process.wait()
+                    raise
+    except BaseException:
+        print(
+            f"./dev interrupted capture; retained log={log_path}",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
     _print_compact_result(
         command,
-        returncode=completed.returncode,
-        output=completed.stdout or "",
+        returncode=returncode,
+        log_path=log_path,
         max_lines=max_lines,
     )
-    return completed.returncode
+    return returncode
 
 
 def planned_commands(argv: Sequence[str]) -> list[list[str]]:

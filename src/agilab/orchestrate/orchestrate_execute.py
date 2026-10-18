@@ -10,6 +10,9 @@ import importlib.util
 from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
+
+from agilab.environment.log_storage import open_log
 from typing import Any, Callable, Optional
 
 import pandas as pd
@@ -606,9 +609,9 @@ async def render_execute_section(
         _reset_traceback_skip()
         log_dir = Path(env.runenv or (Path.home() / "log" / "execute" / env.app))
         log_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_id = f"run_{timestamp}"
-        log_file_path = log_dir / f"run_{timestamp}.log"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        run_id = f"run_{timestamp}_{uuid4().hex[:8]}"
+        log_file_path = log_dir / f"{run_id}.log.gz"
         evidence_paths = _run_markdown_evidence.build_run_evidence_paths(
             log_dir / f"{run_id}_evidence"
         )
@@ -669,7 +672,8 @@ async def render_execute_section(
         async def _run_and_stream():
             nonlocal log_file_path
             runtime_root = orchestrate_snippet_runtime_root(env, Path(project_path))
-            with log_file_path.open("w", encoding="utf-8") as log_file:
+            with open_log(log_file_path, "xt") as log_file:
+
                 def _fanout(message: str) -> None:
                     clean = strip_ansi(message or "").rstrip()
                     if clean:

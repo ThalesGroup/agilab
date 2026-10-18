@@ -431,3 +431,15 @@ def test_environment_health_remaining_helper_edges(tmp_path, monkeypatch):
             "latest run log unavailable",
         )
     assert environment_health._resolve_share_path(SimpleNamespace(), "relative") == Path("relative")
+
+
+def test_run_history_includes_plain_and_compressed_logs(tmp_path):
+    import gzip
+
+    (tmp_path / "run_legacy.log").write_text("old\n")
+    (tmp_path / "run_compressed.log.gz").write_bytes(gzip.compress(b"new\n"))
+    count, latest = environment_health.run_history_summary(
+        SimpleNamespace(runenv=tmp_path)
+    )
+    assert count == "2"
+    assert latest.startswith("latest ")

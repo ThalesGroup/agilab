@@ -627,3 +627,51 @@ def test_live_artifacts_live_fragment_uses_streamlit_run_every(monkeypatch, tmp_
 
     assert fake_streamlit.fragment_intervals == ["2s"]
     assert rendered == [(tmp_path, ("**/*.json",), 7), (tmp_path, ("**/*.log",), 3)]
+
+
+def test_live_artifacts_discovers_compressed_log_and_bounds_expanded_preview(tmp_path):
+    import gzip
+
+    module = _load_module()
+    path = tmp_path / "agilab-active-run.log.gz"
+    with gzip.open(path, "wt") as stream:
+        stream.write("x" * 200_000 + "\nlatest diagnostic\n")
+        stream.flush()
+        records, count = module._discover_artifact_scan(
+            tmp_path, module.DEFAULT_PATTERNS, limit=10
+        )
+        assert count == 1
+        assert records[0].kind == "text"
+        preview = module.read_artifact_preview(path, max_bytes=1024)
+        assert preview.kind == "text"
+        assert preview.truncated is True
+        assert len(preview.value) <= 1028
+        assert preview.value.endswith("\nlatest diagnostic\n")
+    data = bytearray(path.read_bytes())
+    data[-8] ^= 1
+    path.write_bytes(data)
+    assert module.read_artifact_preview(path).kind == "error"
+
+
+def test_standalone_page_reads_compressed_logs_without_umbrella_package(
+    tmp_path, monkeypatch
+):
+    import builtins
+    import gzip
+
+    real_import = builtins.__import__
+
+    def without_agilab(name, *args, **kwargs):
+        if name == "agilab" or name.startswith("agilab."):
+            raise ModuleNotFoundError(f"No module named {name!r}", name=name)
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_agilab)
+    module = _load_module()
+    path = tmp_path / "standalone-run.log.gz"
+    path.write_bytes(gzip.compress(b"standalone diagnostic\n") + bytes([0x1F]))
+    preview = module.read_artifact_preview(path)
+    assert preview.kind == "text"
+    assert preview.value == "standalone diagnostic\n"
+    path.write_bytes(gzip.compress(b"completed\n") + b"bad")
+    assert module.read_artifact_preview(path).kind == "error"

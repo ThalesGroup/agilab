@@ -13,6 +13,16 @@ controls and state.
 execution. Startup warnings stay visible, and Python errors mark their stage
 as failed.
 
+Saved workflow and stage logs use ``.log.gz``. Each appended message is finalized
+so the saved log can be inspected and included in run evidence immediately.
+Gzip framing can make very short messages larger; multiline stage output benefits
+more. Run history and Live Artifacts accept both compressed and older plain logs.
+Compression preserves the existing redaction and automation-manifest names.
+
+Developer commands invoked through ``./dev`` stream their complete output to
+``reports/dev-logs/agilab-dev-*.log.gz`` while retaining a bounded signal summary.
+The ``--raw-output`` option keeps the existing direct terminal stream.
+
 Page snapshot
 -------------
 

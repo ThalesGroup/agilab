@@ -6,9 +6,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
+import gzip
 import hashlib
 import heapq
 import json
+import zlib
 from pathlib import Path
 from stat import S_ISREG
 from typing import Any, Iterable
@@ -41,6 +43,7 @@ DEFAULT_PATTERNS = (
     "**/*.ndjson",
     "**/*.csv",
     "**/*.log",
+    "**/*.log.gz",
     "**/*.txt",
     "**/*.png",
     "**/*.jpg",
@@ -94,7 +97,7 @@ class ArtifactPreview:
 
 ensure_repo_on_path(__file__)
 
-from agi_env import AgiEnv
+from agi_env import AgiEnv  # noqa: E402 - source bootstrap above
 
 
 def parse_patterns(raw_value: str | Iterable[str] | None) -> tuple[str, ...]:
@@ -133,13 +136,43 @@ def format_bytes(size: int | float | None) -> str:
     return f"{value:.1f} TB"
 
 
+def _is_gzip_log(path: Path) -> bool:
+    return path.name.lower().endswith(".log.gz")
+
+
+def _read_gzip_tail(path: Path, *, max_bytes: int) -> tuple[str, bool]:
+    # This page is installable without the umbrella agilab package.
+    limit = max(1, int(max_bytes))
+    tail = bytearray()
+    total = 0
+    with gzip.open(path, "rb") as handle:
+        while True:
+            try:
+                chunk = handle.read1(64 * 1024)
+            except EOFError:
+                break
+            except gzip.BadGzipFile as exc:
+                # CPython reports a lone, valid magic-prefix byte as bad format.
+                # Match that entire diagnostic only; other corruption propagates.
+                if exc.args == (f"Not a gzipped file ({bytes([0x1F])!r})",):
+                    break
+                raise
+            if not chunk:
+                break
+            total += len(chunk)
+            tail.extend(chunk)
+            if len(tail) > limit:
+                del tail[:-limit]
+    return tail.decode("utf-8", errors="replace"), total > limit
+
+
 def _kind_for_path(path: Path) -> str:
     suffix = path.suffix.lower()
     if path.name in MANIFEST_NAMES:
         return "manifest"
     if suffix in JSON_SUFFIXES:
         return "json"
-    if suffix in TEXT_SUFFIXES:
+    if suffix in TEXT_SUFFIXES or _is_gzip_log(path):
         return "text"
     if suffix in IMAGE_SUFFIXES:
         return "image"
@@ -252,6 +285,16 @@ def read_artifact_preview(path: Path, *, max_bytes: int = PREVIEW_BYTES) -> Arti
         try:
             return ArtifactPreview(kind="json", value=json.loads(resolved.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            return ArtifactPreview(kind="error", value="", error=str(exc))
+    if _is_gzip_log(resolved):
+        try:
+            text, truncated = _read_gzip_tail(resolved, max_bytes=max_bytes)
+            return ArtifactPreview(
+                kind="text",
+                value=("... " if truncated else "") + text,
+                truncated=truncated,
+            )
+        except (OSError, zlib.error) as exc:
             return ArtifactPreview(kind="error", value="", error=str(exc))
     if suffix in TEXT_SUFFIXES or suffix == ".json":
         try:
