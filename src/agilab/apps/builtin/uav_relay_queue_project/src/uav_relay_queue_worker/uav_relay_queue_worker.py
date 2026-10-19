@@ -21,6 +21,7 @@ import simpy
 from agi_node.agi_dispatcher import BaseWorker, base_worker_path_support as path_support
 from agi_node.pandas_worker import PandasWorker
 from uav_relay_queue.reduction import write_reduce_artifact
+from uav_relay_queue.scientific_handoff import read_upstream_delivery_trace
 
 logger = logging.getLogger(__name__)
 _runtime: dict[str, object] = {}
@@ -226,6 +227,17 @@ class UavRelayQueueWorker(PandasWorker):
 
     def work_pool(self, file_path):
         args = self._current_args()
+        use_upstream = bool(getattr(args, "use_upstream_delivery_trace", False))
+        if use_upstream and getattr(args, "nfile", 1) != 1:
+            raise ValueError("Exact upstream delivery trace handoff supports a single scenario (nfile=1).")
+        upstream_binding = getattr(args, "upstream_queue_metrics", None)
+        if use_upstream != (upstream_binding is not None):
+            raise ValueError("Explicit upstream delivery trace mode requires its binding; an unused binding is rejected.")
+        if upstream_binding is not None and not isinstance(upstream_binding, dict):
+            raise ValueError("Upstream delivery trace requires an original producer binding mapping.")
+        arrivals, upstream_receipt = (
+            read_upstream_delivery_trace(upstream_binding) if use_upstream else (None, None)
+        )
         scenario = self._load_scenario(file_path)
         scenario_name = str(scenario.get("scenario") or Path(str(file_path)).stem)
         sim_time_s = float(getattr(args, "sim_time_s", scenario.get("sim_time_s", 30.0)))
@@ -364,6 +376,14 @@ class UavRelayQueueWorker(PandasWorker):
             env.process(_run())
 
         def source_process():
+            if arrivals is not None:
+                for packet in arrivals:
+                    yield env.timeout(max(0.0, packet["delivered_s"] - float(env.now)))
+                    submit_packet("source")
+                    upstream_receipt["scheduled_packets"].append({
+                        "upstream_packet_id": packet["packet_id"], "created_s": float(env.now),
+                    })
+                return
             while env.now < sim_time_s:
                 inter_arrival = rng.expovariate(source_rate_pps)
                 yield env.timeout(inter_arrival)
@@ -383,7 +403,8 @@ class UavRelayQueueWorker(PandasWorker):
                 submit_packet("background", relay=relay)
 
         def monitor():
-            while env.now <= sim_time_s + 1e-9:
+            monitoring_end_s = completion_s if arrivals is not None else sim_time_s
+            while env.now <= monitoring_end_s + 1e-9:
                 now_s = float(env.now)
                 node_positions.append(
                     {
@@ -451,9 +472,19 @@ class UavRelayQueueWorker(PandasWorker):
             ),
             default=5.0,
         )
-        env.run(until=sim_time_s + drain_time_s)
+        source_end_s = max(sim_time_s, arrivals[-1]["delivered_s"] if arrivals else 0.0)
+        completion_s = source_end_s + drain_time_s
+        if not math.isfinite(completion_s) or completion_s <= source_end_s:
+            raise ValueError("Upstream delivery trace horizon exceeds simulation time precision.")
+        env.run(until=completion_s)
 
         packet_df = pd.DataFrame(packet_events)
+        if not packet_events:
+            packet_df = pd.DataFrame(columns=[
+                "packet_id", "scenario", "origin_kind", "routing_policy", "relay",
+                "status", "drop_reason", "created_s", "queue_wait_ms", "e2e_delay_ms",
+                "route_latency_ms", "queue_depth_before",
+            ])
         queue_df = pd.DataFrame(queue_timeseries)
         positions_df = pd.DataFrame(node_positions)
 
@@ -526,6 +557,14 @@ class UavRelayQueueWorker(PandasWorker):
         summary_metrics["artifact_stem"] = (
             f"{_sanitize_slug(summary_metrics['scenario'])}_{routing_policy}_seed{random_seed}"
         )
+        if upstream_receipt is not None:
+            summary_metrics["source_arrival_mode"] = "upstream_delivery_trace"
+            summary_metrics["source_rate_pps_applied"] = False
+            summary_metrics["upstream_queue_receipt"] = upstream_receipt
+            summary_metrics["source_arrival_horizon_s"] = source_end_s
+            summary_metrics["simulation_horizon_s"] = float(env.now)
+            if len(json.dumps(summary_metrics, indent=2, allow_nan=False).encode("utf-8")) > 1_048_576:
+                raise ValueError("Upstream delivery receipt exceeds the 1 MiB summary byte limit.")
 
         packet_df = packet_df.sort_values(["created_s", "packet_id"]).reset_index(drop=True)
         queue_df = queue_df.sort_values(["time_s", "relay"]).reset_index(drop=True)

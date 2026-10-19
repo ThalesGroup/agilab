@@ -69,6 +69,7 @@ def _merge_uav_relay_queue_partials(partials: Sequence[ReducePartial]) -> dict[s
     delay_weighted_sum_ms = 0.0
     queue_wait_weighted_sum_ms = 0.0
     max_queue_depth_pkts = 0
+    empty_delivery_trace_scenarios = 0
 
     for partial in partials:
         payload = partial.payload
@@ -78,6 +79,7 @@ def _merge_uav_relay_queue_partials(partials: Sequence[ReducePartial]) -> dict[s
         delay_weighted_sum_ms += float(payload["delay_weighted_sum_ms"])
         queue_wait_weighted_sum_ms += float(payload["queue_wait_weighted_sum_ms"])
         max_queue_depth_pkts = max(max_queue_depth_pkts, int(payload["max_queue_depth_pkts"]))
+        empty_delivery_trace_scenarios += int(payload.get("empty_delivery_trace_scenarios", 0))
         scenarios.update(str(item) for item in payload["scenarios"])
         routing_policies.update(str(item) for item in payload["routing_policies"])
         bottleneck_relays.update(str(item) for item in payload["bottleneck_relays"])
@@ -96,6 +98,7 @@ def _merge_uav_relay_queue_partials(partials: Sequence[ReducePartial]) -> dict[s
         "mean_e2e_delay_ms": round(delay_weighted_sum_ms / delivered, 3) if delivered else 0.0,
         "mean_queue_wait_ms": round(queue_wait_weighted_sum_ms / delivered, 3) if delivered else 0.0,
         "max_queue_depth_pkts": max_queue_depth_pkts,
+        "empty_delivery_trace_scenarios": empty_delivery_trace_scenarios,
     }
 
 
@@ -103,7 +106,9 @@ def _validate_uav_relay_queue_artifact(artifact: ReduceArtifact) -> None:
     payload = artifact.payload
     if int(payload["scenario_count"]) <= 0:
         raise ValueError("uav_relay_queue reducer produced no scenarios")
-    if int(payload["packets_generated"]) <= 0:
+    if int(payload["packets_generated"]) <= 0 and (
+        int(payload.get("empty_delivery_trace_scenarios", 0)) != int(payload["scenario_count"])
+    ):
         raise ValueError("uav_relay_queue reducer produced no generated packets")
 
 
@@ -143,7 +148,18 @@ def partial_from_summary_metrics(
     routing_policy = str(metrics["routing_policy"])
     bottleneck_relay = str(metrics["bottleneck_relay"])
     random_seed = str(metrics["random_seed"])
+    receipt = metrics.get("upstream_queue_receipt")
+    intentional_empty_trace = (
+        metrics.get("source_arrival_mode") == "upstream_delivery_trace"
+        and isinstance(receipt, Mapping)
+        and receipt.get("read_scope") == "worker"
+        and receipt.get("numerically_conditioned") is True
+        and receipt.get("source_packet_count") == 0
+        and receipt.get("scheduled_packets") == []
+        and _as_int(metrics, "packets_generated") == 0
+    )
     payload = {
+        "empty_delivery_trace_scenarios": int(intentional_empty_trace),
         "scenario_count": 1,
         "scenarios": [scenario],
         "routing_policies": [routing_policy],

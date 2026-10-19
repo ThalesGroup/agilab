@@ -2,7 +2,7 @@
   "schema": "agilab.multi_app_dag.v1",
   "dag_id": "uav-queue-to-relay-template",
   "label": "UAV queue to relay",
-  "description": "App-owned DAG template that runs the UAV queue app first, then hands queue metrics to the relay queue app.",
+  "description": "App-owned DAG that replays the exact delivered source-packet trace from the UAV queue worker as relay arrivals.",
   "execution": {
     "mode": "sequential_dependency_order",
     "runner_status": "controlled_real_stage_execution",
@@ -26,14 +26,15 @@
           "sampling_interval_s": 0.5,
           "source_rate_pps": 14.0,
           "queue_weight": 2.5,
-          "random_seed": 2026
+          "random_seed": 2026,
+          "emit_delivery_trace": true
         },
         "stages": [],
         "data_in": "uav_queue/scenarios",
         "data_out": "uav_queue/results",
         "reset_target": false
       },
-      "purpose": "Run the base UAV queue scenario and produce queue summary metrics.",
+      "purpose": "Run the base UAV queue scenario and export metrics with the exact delivered source-packet identities and timestamps.",
       "produces": [
         {
           "id": "queue_metrics",
@@ -55,14 +56,15 @@
           "sampling_interval_s": 0.5,
           "source_rate_pps": 14.0,
           "queue_weight": 2.5,
-          "random_seed": 2026
+          "random_seed": 2026,
+          "use_upstream_delivery_trace": true
         },
         "stages": [],
         "data_in": "uav_relay_queue/scenarios",
         "data_out": "uav_relay_queue/results",
         "reset_target": false
       },
-      "purpose": "Run the relay queue scenario using queue metrics as upstream context.",
+      "purpose": "Verify the original queue artifact inside the relay worker and replay every delivered source packet, including late deliveries, without resampling.",
       "consumes": [
         {
           "id": "queue_metrics",
@@ -84,7 +86,7 @@
       "from": "queue_baseline",
       "to": "relay_followup",
       "artifact": "queue_metrics",
-      "handoff": "Use base queue summary metrics as the relay scenario context."
+      "handoff": "Replay the original queue artifact's exact delivered source-packet trace as relay arrivals; verify its producer and SHA-256 inside the worker."
     }
   ]
 }

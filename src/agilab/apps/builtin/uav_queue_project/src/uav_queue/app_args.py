@@ -25,6 +25,7 @@ class UavQueueArgs(BaseModel):
     source_rate_pps: float = Field(default=14.0, gt=0.0, le=500.0)
     queue_weight: float = Field(default=2.5, ge=0.0, le=20.0)
     random_seed: int = Field(default=2026, ge=0)
+    emit_delivery_trace: bool = False
     reset_target: bool = False
 
     @model_validator(mode="after")
@@ -46,6 +47,7 @@ class UavQueueArgsTD(TypedDict, total=False):
     source_rate_pps: float
     queue_weight: float
     random_seed: int
+    emit_delivery_trace: bool
     reset_target: bool
 
 

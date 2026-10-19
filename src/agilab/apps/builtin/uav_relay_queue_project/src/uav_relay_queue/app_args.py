@@ -25,11 +25,15 @@ class UavRelayQueueArgs(BaseModel):
     source_rate_pps: float = Field(default=14.0, gt=0.0, le=500.0)
     queue_weight: float = Field(default=2.5, ge=0.0, le=20.0)
     random_seed: int = Field(default=2026, ge=0)
+    use_upstream_delivery_trace: bool = False
+    upstream_queue_metrics: dict[str, Any] | None = None
     reset_target: bool = False
 
     @model_validator(mode="after")
     def _validate_consistency(self) -> "UavRelayQueueArgs":
         self.files = self.files.strip() or "*.json"
+        if self.use_upstream_delivery_trace and self.nfile != 1:
+            raise ValueError("Exact upstream delivery trace handoff supports a single scenario (nfile=1).")
         if self.sampling_interval_s >= self.sim_time_s:
             raise ValueError("sampling_interval_s must be smaller than sim_time_s")
         return self
@@ -46,6 +50,8 @@ class UavRelayQueueArgsTD(TypedDict, total=False):
     source_rate_pps: float
     queue_weight: float
     random_seed: int
+    use_upstream_delivery_trace: bool
+    upstream_queue_metrics: dict[str, Any] | None
     reset_target: bool
 
 

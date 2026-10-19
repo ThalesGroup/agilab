@@ -2066,6 +2066,7 @@ def test_owned_pipeline_lock_snapshot_waits_for_real_heartbeat_rewrite(
             is False
         )
         assert module._acquire_pipeline_run_lock(env, "contender") is None
+        assert module._acquire_pipeline_run_lock(env, "contender", force=True) is None
         # The writer has already captured and acquired the native mutex.
         # Forward only the reader's acquisition so production type checks stay intact.
         assert real_io_lock.locked()
