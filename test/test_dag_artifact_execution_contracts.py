@@ -919,6 +919,52 @@ def test_registered_callback_replay_cannot_republish_a_deleted_cached_output(tmp
     assert calls == ["cached-callback-output"]
 
 
+@pytest.mark.parametrize("phase", ["callback", "completed_cache"])
+def test_distributed_adapter_preserves_exact_packet_intent_across_callback_and_cache(tmp_path, phase):
+    producer = tmp_path / "original-queue.json"
+    producer.write_text('{"packets_generated": 3, "packets_delivered": 2}')
+    original = {
+        "artifact": "queue_metrics", "producer": "queue_baseline", "kind": "summary_metrics",
+        "path": str(producer), "resolved_path": str(producer.resolve()),
+        "producer_run_root": str(tmp_path), **submitter.artifact_file_identity(producer),
+    }
+    unit = {
+        "id": "relay_followup", "app": "uav_relay_queue_project",
+        "execution_contract": {"params": {}},
+        "execution_attempt": {"idempotency_token": "authored-packet-intent"},
+        "artifact_dependencies": [{"from": "queue_baseline", "artifact": "queue_metrics"}],
+        "produces": [{"artifact": "relay_metrics", "kind": "summary_metrics", "path": "relay.json"}],
+    }
+    artifact = unit["produces"][0]
+    calls = []
+
+    def legacy_endpoint(**arguments):
+        calls.append(arguments)
+        output = arguments["run_root"] / "relay.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text('{"packets_generated": 3, "packets_delivered": 2}')
+        return {
+            "summary_metrics_path": str(output),
+            "input_artifact_fingerprint": submitter._input_artifact_fingerprint([original]),
+            "consumed_artifacts": [{**original, "role": "upstream_context",
+                "read_scope": "child_orchestrator", "numerically_conditioned": False,
+                "summary_metrics": {"packets_generated": 3, "packets_delivered": 2}}],
+        }
+
+    context = _context(tmp_path, stage_submit_fn=legacy_endpoint)
+    if phase == "completed_cache":
+        adapters._distributed_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now", input_artifacts=[original],
+        )
+    unit["execution_contract"]["params"]["use_upstream_delivery_trace"] = True
+    expected_error = RuntimeError if phase == "callback" else ValueError
+    with pytest.raises(expected_error, match="actual worker packet consumption receipt"):
+        adapters._distributed_stage_result(
+            context, unit=unit, artifact=artifact, timestamp="now", input_artifacts=[original],
+        )
+    assert len(calls) == 1
+
+
 def test_submission_receipt_write_cannot_make_an_old_dataset_directory_fresh(tmp_path):
     run_root = tmp_path / "run"
     run_root.mkdir()

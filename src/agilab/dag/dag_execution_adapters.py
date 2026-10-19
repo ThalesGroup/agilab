@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import inspect
+import json
 import os
 from pathlib import Path
 import re
@@ -557,6 +558,8 @@ def _contract_artifact_kind(artifact_id: str, declared_kind: str) -> str:
 def _invoke_uav_stage_runner(
     runner: Callable[..., Mapping[str, Any]],
     unit: Mapping[str, Any],
+    *,
+    input_artifacts: list[dict[str, Any]] | None = None,
     **kwargs: Any,
 ) -> Mapping[str, Any]:
     # Adapt injected legacy callbacks before execution; never retry a body error.
@@ -564,13 +567,35 @@ def _invoke_uav_stage_runner(
         signature = inspect.signature(runner)
     except (TypeError, ValueError):
         return runner(**kwargs)
+    authored_contract = _unit_execution_contract(unit) or None
+    runtime_contract = authored_contract
     if "execution_contract" in signature.parameters or any(
         parameter.kind == inspect.Parameter.VAR_KEYWORD
         for parameter in signature.parameters.values()
     ):
-        kwargs["execution_contract"] = _unit_execution_contract(unit) or None
+        if authored_contract:
+            from .dag_distributed_submitter import (
+                _bind_distributed_worker_params,
+                _queue_trace_requested,
+            )
+
+            app_name = str(unit.get("app", ""))
+            params = authored_contract.get("params") or authored_contract.get("run_params") or {}
+            if _queue_trace_requested(app_name, params):
+                parameter_key = "params" if "params" in authored_contract else "run_params"
+                runtime_contract = {
+                    **authored_contract,
+                    parameter_key: _bind_distributed_worker_params(
+                        app_name, params, input_artifacts or []
+                    ),
+                }
+        kwargs["execution_contract"] = runtime_contract
     signature.bind(**kwargs)
-    return runner(**kwargs)
+    result = runner(**kwargs)
+    if runtime_contract is not authored_contract:
+        # The binding is a runtime derivative; keep the author's plan unchanged.
+        return {**result, "execution_contract": authored_contract}
+    return result
 
 
 def _run_next_uav_queue_to_relay_stage(
@@ -679,6 +704,15 @@ def _run_next_uav_queue_to_relay_stage(
         _persist_execution_claim(context, mutable_state)
         run_root = _real_run_root(context.lab_dir, RELAY_UNIT_ID)
         queue_result = _queue_result_for_relay(mutable_state)
+        from .dag_distributed_submitter import _queue_trace_requested
+
+        contract = _unit_execution_contract(relay)
+        params = contract.get("params") or contract.get("run_params") or {}
+        exact_trace = _queue_trace_requested(str(relay.get("app", "")), params)
+        input_artifacts = (
+            _distributed_input_artifacts(mutable_state, unit=relay, context=context)
+            if exact_trace else []
+        )
         result = _execute_idempotently(
             run_root=run_root,
             unit_id=RELAY_UNIT_ID,
@@ -687,9 +721,12 @@ def _run_next_uav_queue_to_relay_stage(
                 relay,
                 run_root=run_root,
                 prefix="relay",
+                input_artifacts=input_artifacts,
+                queue_result=queue_result,
                 callback=lambda: _invoke_uav_stage_runner(
                     run_relay_fn,
                     relay,
+                    input_artifacts=input_artifacts,
                     repo_root=context.repo_root,
                     run_root=run_root,
                     queue_result=queue_result,
@@ -698,7 +735,7 @@ def _run_next_uav_queue_to_relay_stage(
             ),
         )
         try:
-            if "app_entry" in result and not any(
+            if not exact_trace and "app_entry" in result and not any(
                 isinstance(consumed, Mapping)
                 and consumed.get("role") == "upstream_context"
                 for consumed in result.get("consumed_artifacts", [])
@@ -708,7 +745,7 @@ def _run_next_uav_queue_to_relay_stage(
                 )
             for consumed in result.get("consumed_artifacts", []):
                 if (
-                    isinstance(consumed, Mapping)
+                    not exact_trace and isinstance(consumed, Mapping)
                     and consumed.get("role") == "upstream_context"
                 ):
                     if dict(consumed) != _read_queue_context(queue_result):
@@ -718,6 +755,11 @@ def _run_next_uav_queue_to_relay_stage(
             result = _validated_uav_stage_result(
                 relay, run_root=run_root, result=result, prefix="relay"
             )
+            if exact_trace:
+                result = _validated_uav_packet_handoff_result(
+                    relay, result=result, input_artifacts=input_artifacts,
+                    queue_result=queue_result,
+                )
         except Exception as exc:
             _mark_controlled_stage_failure(
                 mutable_state, relay, timestamp=timestamp, message=str(exc)
@@ -1153,7 +1195,8 @@ def _distributed_stage_result(
     result.setdefault("execution_contract", contract)
     result.setdefault("stage_backend", DAG_STAGE_BACKEND_DISTRIBUTED)
     require_distributed_input_receipts(
-        result, inputs, app_name=str(unit.get("app", ""))
+        result, inputs, app_name=str(unit.get("app", "")),
+        params=contract.get("params") or contract.get("run_params") or {},
     )
     return _validated_contract_stage_result(
         unit, artifact, run_root=run_root, result=result, bind_output_identity=False
@@ -1204,7 +1247,8 @@ def _run_distributed_stage_callback_once(
         signature.bind(**kwargs)
     result = dict(submitter(**kwargs))
     require_distributed_input_receipts(
-        result, input_artifacts or [], app_name=str(unit.get("app", ""))
+        result, input_artifacts or [], app_name=str(unit.get("app", "")),
+        params=contract.get("params") or contract.get("run_params") or {},
     )
     validated = _validated_contract_stage_result(
         unit, artifact, run_root=run_root, result=result, bind_output_identity=True
@@ -1624,6 +1668,33 @@ def _validated_uav_stage_result(
     return validated
 
 
+def _validated_uav_packet_handoff_result(
+    unit: Mapping[str, Any], *, result: Mapping[str, Any],
+    input_artifacts: list[dict[str, Any]], queue_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    from .dag_distributed_submitter import _queue_trace_requested, _validated_worker_packet_summary
+
+    validated = dict(result)
+    contract = _unit_execution_contract(unit)
+    params = contract.get("params") or contract.get("run_params") or {}
+    if not _queue_trace_requested(str(unit.get("app", "")), params):
+        return validated
+    metrics, receipt = _validated_worker_packet_summary(validated, input_artifacts)
+    if json.dumps(validated.get("summary_metrics"), sort_keys=True, allow_nan=False) != json.dumps(
+        metrics, sort_keys=True, allow_nan=False
+    ):
+        raise ValueError("Local worker summary metrics differ from the actual worker artifact.")
+    original = next(
+        item for item in input_artifacts
+        if item["artifact"] == "queue_metrics" and item["producer"] == QUEUE_UNIT_ID
+    )
+    validated["consumed_artifacts"] = [{
+        **original, **_read_queue_context(queue_result), **receipt, "role": "upstream_context",
+    }]
+    validated["relay_numerically_conditioned_on_queue_metrics"] = True
+    return validated
+
+
 def _callback_output_snapshot(
     unit: Mapping[str, Any], *, run_root: Path
 ) -> ArtifactOutputSnapshot:
@@ -1654,6 +1725,8 @@ def _run_uav_stage_callback_once(
     run_root: Path,
     prefix: str,
     callback: Callable[[], Mapping[str, Any]],
+    input_artifacts: list[dict[str, Any]] | None = None,
+    queue_result: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     freshness = _callback_output_snapshot(unit, run_root=run_root)
     result = dict(callback())
@@ -1666,6 +1739,11 @@ def _run_uav_stage_callback_once(
             bind_output_identity=True,
         )
         _require_fresh_stage_outputs(validated, freshness)
+        if queue_result is not None:
+            validated = _validated_uav_packet_handoff_result(
+                unit, result=validated, input_artifacts=input_artifacts or [],
+                queue_result=queue_result,
+            )
         return validated
     except Exception as exc:
         # The callback returned, so its output validation is a known failure.
