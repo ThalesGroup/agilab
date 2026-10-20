@@ -3,6 +3,9 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import io
+import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -1113,13 +1116,91 @@ def test_clean_shortcut_keeps_apply_flag():
     ]
 
 
-def test_scope_shortcut_runs_worktree_scope_guard():
-    assert agilab_dev.planned_commands(["scope", "--max-scopes", "1"]) == [
+@pytest.mark.skipif(
+    shutil.which("uv") is None or shutil.which("git") is None,
+    reason="uv and Git are required for the scope command process regression",
+)
+def test_scope_runs_without_project_discovery_or_shared_environment_sync(tmp_path):
+    repo = tmp_path / "scope-repo"
+    (repo / "tools").mkdir(parents=True)
+    shutil.copyfile(
+        ROOT / "tools" / "worktree_scope_guard.py",
+        repo / "tools" / "worktree_scope_guard.py",
+    )
+    (repo / "pyproject.toml").write_text("this is invalid TOML\n", encoding="utf-8")
+    shared_environment = tmp_path / "shared-environment"
+    shared_environment.mkdir()
+    marker = shared_environment / "owner-marker"
+    marker.write_bytes(b"another session owns this environment\n")
+    marker_before = marker.stat()
+
+    isolated_home = tmp_path / "home"
+    isolated_home.mkdir()
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("UV_", "GIT_")) and key != "VIRTUAL_ENV"
+    }
+    env.update(
+        {
+            "HOME": str(isolated_home),
+            "USERPROFILE": str(isolated_home),
+            "XDG_CONFIG_HOME": str(isolated_home / ".config"),
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "UV_PROJECT_ENVIRONMENT": str(shared_environment),
+            "UV_CACHE_DIR": str(tmp_path / "uv-cache"),
+            "UV_PYTHON": sys.executable,
+            "UV_PYTHON_DOWNLOADS": "never",
+            "UV_OFFLINE": "1",
+        }
+    )
+    for args in (
+        ("init", "-q"),
+        ("add", "."),
+        (
+            "-c",
+            "user.name=AGILAB Test",
+            "-c",
+            "user.email=agilab-test@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-qm",
+            "scope fixture",
+        ),
+    ):
+        subprocess.run(
+            ["git", *args], cwd=repo, env=env, capture_output=True, check=True
+        )
+
+    result = subprocess.run(
+        agilab_dev.planned_commands(["scope"])[0],
+        cwd=repo,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "worktree scope: clean" in result.stdout
+    assert sorted(path.name for path in shared_environment.iterdir()) == ["owner-marker"]
+    assert marker.read_bytes() == b"another session owns this environment\n"
+    assert marker.stat().st_mtime_ns == marker_before.st_mtime_ns
+
+
+@pytest.mark.parametrize("shortcut", ("scope", "scope-guard"))
+def test_scope_shortcut_runs_worktree_scope_guard(shortcut):
+    assert agilab_dev.planned_commands([shortcut, "--max-scopes", "1"]) == [
         [
             "uv",
             "--preview-features",
             "extra-build-dependencies",
             "run",
+            "--no-project",
+            "--no-sync",
             "python",
             "tools/worktree_scope_guard.py",
             "--max-scopes",
