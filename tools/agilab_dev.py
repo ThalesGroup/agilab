@@ -625,7 +625,18 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
         return [_uv_python("tools/clean_local_artifacts.py", *args)]
 
     if command in {"scope", "scope-guard"}:
-        return [_uv_python("tools/worktree_scope_guard.py", *args)]
+        # Scope inspection must work with broken project metadata and must not
+        # synchronize an environment another validation session may be using.
+        return [
+            [
+                *UV_RUN,
+                "--no-project",
+                "--no-sync",
+                "python",
+                "tools/worktree_scope_guard.py",
+                *args,
+            ]
+        ]
 
     if command in {"task-worktree", "worktree"}:
         if not args:
