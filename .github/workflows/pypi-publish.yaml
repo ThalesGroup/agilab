@@ -622,7 +622,7 @@ jobs:
 
       - name: Publish ${{ matrix.package }} to PyPI with trusted publishing
         if: matrix.publish_to_pypi == 'true'
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1 (v1.14.2)
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1 (v1.14.2)
         with:
           packages-dir: publish-artifact/${{ matrix.dist }}
           print-hash: true
@@ -752,7 +752,7 @@ jobs:
           path: publish-artifact
 
       - name: Publish agilab to PyPI with trusted publishing
-        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1 (v1.14.2)
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # release/v1 (v1.14.2)
         with:
           packages-dir: publish-artifact/dist/
           print-hash: true
