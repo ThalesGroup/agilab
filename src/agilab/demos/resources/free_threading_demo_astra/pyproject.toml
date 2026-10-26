@@ -3,7 +3,7 @@ name = "agilab-free-threading-lab"
 version = "0.1.0"
 description = "Truthful local CPU scaling with the unchanged AGILAB pool engine"
 requires-python = ">=3.13"
-dependencies = ["agi-web>=2026.07.17,<2027.0", "altair>=6,<7", "Pillow>=12,<13"]
+dependencies = ["agi-web>=2026.07.17,<2027.0", "altair>=6,<7", "Pillow>=12,<14"]
 license = "BSD-3-Clause"
 
 [tool.setuptools]
