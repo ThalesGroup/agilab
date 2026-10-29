@@ -39,12 +39,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "0.10.7"
           prune-cache: true
@@ -75,7 +75,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-node \
             --with sqlalchemy \
             --with-editable ./src/agilab/lib/agi-web \
-            --with pytest \
+            --with "pytest==9.1.1" \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_env --cov-config=.coveragerc.agi-env --cov-report=xml:coverage-agi-env.xml \
@@ -118,12 +118,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "0.10.7"
           prune-cache: true
@@ -156,7 +156,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with fastparquet \
-            --with pytest \
+            --with "pytest==9.1.1" \
             --with pytest-asyncio \
             --with coverage \
             python -m coverage run --rcfile=.coveragerc.agi-core \
@@ -171,7 +171,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with fastparquet \
-            --with pytest \
+            --with "pytest==9.1.1" \
             --with pytest-asyncio \
             --with coverage \
             python -m coverage xml --rcfile=.coveragerc.agi-core \
@@ -184,7 +184,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with sqlalchemy \
             --with fastparquet \
-            --with pytest \
+            --with "pytest==9.1.1" \
             --with pytest-asyncio \
             --with coverage \
             python -m coverage xml --rcfile=.coveragerc.agi-core \
@@ -272,12 +272,12 @@ jobs:
           lfs: ${{ matrix.chunk == 'general' }}
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "0.10.7"
           prune-cache: true
@@ -360,7 +360,7 @@ jobs:
             timeout 3m uv run --no-project --python 3.12 \
               --with 'featuretools==1.31.0' --with 'pandas==2.3.3' \
               --with 'woodwork==0.31.0' --with 'setuptools==80.9.0' \
-              --with 'coverage==7.16.1' --with pytest --with pytest-asyncio \
+              --with 'coverage==7.16.1' --with "pytest==9.1.1" --with pytest-asyncio \
               python -m coverage run --parallel-mode --rcfile=.coveragerc.agi-gui \
               --data-file=test-results/coverage-agi-gui-demos.db \
               -m pytest --noconftest -q -o addopts= \
@@ -419,12 +419,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "0.10.7"
           prune-cache: true
@@ -437,7 +437,7 @@ jobs:
           COVERAGE_FILE=.coverage.agi-web uv run --no-project \
             --with-editable "./src/agilab/lib/agi-web[notebook]" \
             --with-editable "./src/agilab/lib/agi-gui" \
-            --with pytest \
+            --with "pytest==9.1.1" \
             --with pytest-cov \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_web --cov-report=xml:coverage-agi-web.xml \
@@ -480,12 +480,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Python 3.13
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
         with:
           python-version: "3.13"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           version: "0.10.7"
           prune-cache: true
