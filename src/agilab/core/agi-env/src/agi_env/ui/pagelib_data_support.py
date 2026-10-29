@@ -172,9 +172,9 @@ def load_df(
                 df["index"] = pd.to_timedelta(df[col_name], unit="s")
             elif keyword == "date":
                 df["index"] = pd.to_datetime(df[col_name], errors="coerce")
-            df.set_index("index", inplace=True, drop=True)
+            df = df.set_index("index", drop=True)
         else:
-            df.set_index(df.columns[0], inplace=True, drop=False)
+            df = df.set_index(df.columns[0], drop=False)
 
     return df
 
