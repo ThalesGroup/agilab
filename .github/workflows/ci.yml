@@ -203,6 +203,13 @@ jobs:
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --extra dev ruff --version
 
+      - name: Validate agent instruction surfaces
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run python tools/workflow_parity.py \
+            --profile skills --skills agilab-testing agilab-runbook
+          git diff --exit-code
+
       - name: Validate fast repository contracts
         run: |
           set -euo pipefail

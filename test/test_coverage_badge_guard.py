@@ -458,3 +458,28 @@ def test_public_badge_rejects_invalid_svg(monkeypatch, document):
     monkeypatch.setattr(guard, "_public_command", command)
     with pytest.raises(guard.GuardError, match="SVG"):
         guard.public_workflow_badge("https://github.com/badge", attempts=1)
+
+
+def test_web_coverage_hint_keeps_pytest_in_the_qualified_range() -> None:
+    import shlex
+
+    from packaging.requirements import Requirement
+
+    module = _load_module()
+    command = next(
+        command for command in module._guard_commands(["agi-web"])
+        if "--no-project" in command
+    )
+    arguments = shlex.split(command)
+    requirements = [
+        Requirement(arguments[index + 1])
+        for index, argument in enumerate(arguments[:-1])
+        if argument == "--with"
+    ]
+    pytest_requirements = [
+        requirement for requirement in requirements
+        if requirement.name == "pytest"
+    ]
+    assert len(pytest_requirements) == 1
+    assert "9.1.1" in pytest_requirements[0].specifier
+    assert "9.2.0" not in pytest_requirements[0].specifier

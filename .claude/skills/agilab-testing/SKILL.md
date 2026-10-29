@@ -3,7 +3,7 @@ name: agilab-testing
 description: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-14
+  updated: 2026-10-29
 ---
 
 # Testing Skill (AGILAB)
@@ -342,11 +342,11 @@ Ordinary unit/app validation follows the workflow below.
   - `uv --preview-features extra-build-dependencies run --no-sync pytest src/agilab/core/agi-env/test`
   - `uv --preview-features extra-build-dependencies run --no-sync pytest src/agilab/core/test`
 - Root repo smoke/coverage step with CI parity:
-  - `PYTHONPATH='src' COVERAGE_FILE=.coverage.agilab uv --preview-features extra-build-dependencies run --no-project --with pytest --with pytest-cov --with toml --with packaging python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' -m 'not integration' --cov=agilab --cov-report=xml:coverage-agilab.xml --ignore=src/agilab/test/test_model_returns_code.py src/agilab/test`
+  - `PYTHONPATH='src' COVERAGE_FILE=.coverage.agilab uv --preview-features extra-build-dependencies run --no-project --with pytest==9.1.1 --with pytest-cov --with toml --with packaging python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' -m 'not integration' --cov=agilab --cov-report=xml:coverage-agilab.xml --ignore=src/agilab/test/test_model_returns_code.py src/agilab/test`
 - `agi-env` isolated coverage step with CI parity:
-  - `COVERAGE_FILE=.coverage.agi-env uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with sqlalchemy --with pytest --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_env --cov-report=xml:coverage-agi-env.xml src/agilab/core/agi-env/test`
+  - `COVERAGE_FILE=.coverage.agi-env uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with sqlalchemy --with pytest==9.1.1 --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_env --cov-report=xml:coverage-agi-env.xml src/agilab/core/agi-env/test`
 - Shared core isolated coverage step with CI parity:
-  - `COVERAGE_FILE=.coverage.agi-node uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_node --cov-report=xml:coverage-agi-node.xml src/agilab/core/test`
+  - `COVERAGE_FILE=.coverage.agi-node uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest==9.1.1 --with pytest-asyncio --with pytest-cov python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' --cov=agi_node --cov-report=xml:coverage-agi-node.xml src/agilab/core/test`
 - Shared core dependency collection caveat:
   - On Python 3.13, if collection fails before AGILAB tests run inside
     `sklearn -> scipy.stats -> numpy` with `_CopyMode.IF_NEEDED is neither True
@@ -370,14 +370,14 @@ Ordinary unit/app validation follows the workflow below.
   - Use this shape when validating a user-visible ORCHESTRATE action failure:
     `AGILAB_WIDGET_ROBOT_RUNTIME_ISOLATION=current-home uv --preview-features extra-build-dependencies run --with playwright python tools/agilab_widget_robot.py --apps flight_project --pages ORCHESTRATE --apps-pages none --json --json-output /tmp/flight-orchestrate-widget-robot.json --progress-log /tmp/flight-orchestrate-widget-robot.ndjson --interaction-mode full --action-button-policy click-selected --click-action-labels "CHECK distribute" --preselect-labels "Run now" --missing-selected-action-policy fail --runtime-isolation current-home`
 - Service health smoke tests (CI parity on Python 3.13):
-  - `COVERAGE_FILE=.coverage.service-health uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest --with pytest-asyncio --with pytest-cov python -m pytest -q -o addopts='' --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml src/agilab/core/test/test_agi_distributor_service_state_support.py src/agilab/core/test/test_agi_distributor_service_runtime_support.py test/test_service_health_check.py`
+  - `COVERAGE_FILE=.coverage.service-health uv --preview-features extra-build-dependencies run --no-project --with-editable ./src/agilab/core/agi-env --with-editable ./src/agilab/core/agi-node --with-editable ./src/agilab/core/agi-cluster --with-editable ./src/agilab/core/agi-core --with sqlalchemy --with pytest==9.1.1 --with pytest-asyncio --with pytest-cov python -m pytest -q -o addopts='' --cov=agi_cluster --cov=agi_env --cov-report=xml:coverage-service-health.xml src/agilab/core/test/test_agi_distributor_service_state_support.py src/agilab/core/test/test_agi_distributor_service_runtime_support.py test/test_service_health_check.py`
 - Account-free cloud connector validation:
   - Use this when AWS/Azure/GCP compatibility needs evidence but no cloud account or credentials are available.
   - `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile cloud-emulators`
   - This proves connector schemas, local-emulator endpoint boundaries, runtime adapter mappings, and no credential materialization for MinIO/S3, Azurite/Azure Blob, fake-gcs-server/GCS, and local search endpoints.
   - Do not claim real-cloud validation from this profile; IAM, private networking, region behavior, quota, and billing still require opt-in live smoke in a real cloud account.
 - External scanner discoverability:
-  - `uv --preview-features extra-build-dependencies run --with pytest python -m pytest -q -o addopts='' test/test_github_ai_scraper_discoverability.py`
+  - `uv --preview-features extra-build-dependencies run --with pytest==9.1.1 python -m pytest -q -o addopts='' test/test_github_ai_scraper_discoverability.py`
   - Add `AGILAB_GITHUB_AI_SCRAPER_LIVE=1` only when intentionally running the
     network-backed github-ai-scraper integration check.
 

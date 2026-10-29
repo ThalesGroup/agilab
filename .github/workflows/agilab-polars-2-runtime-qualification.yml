@@ -90,7 +90,7 @@ jobs:
             --with-editable ./src/agilab/core/agi-core \
             --with-editable ./src/agilab/lib/agi-web \
             --with polars==2.0.0 --with pydantic==2.14.0 \
-            --with "pytest>=9,<10" --with "pytest-asyncio>=1.3,<2" \
+            --with "pytest==9.1.1" --with "pytest-asyncio>=1.3,<2" \
             --with sqlalchemy --with fastparquet \
             python .github/scripts/agilab_polars_2_runtime_qualification.py \
             --source-sha "$QUALIFICATION_SOURCE_SHA" \

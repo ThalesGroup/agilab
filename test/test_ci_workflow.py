@@ -927,21 +927,28 @@ def test_pytest_requirements_retain_the_qualified_lazy_proxy_boundary() -> None:
         assert "9.1.1" in pytest_requirements[0].specifier
         assert "9.2.0" not in pytest_requirements[0].specifier
 
-    text = COVERAGE_WORKFLOW_PATH.read_text(encoding="utf-8")
-    arguments = re.findall(
-        r"--with\s+(?:'([^']+)'|\"([^\"]+)\"|([^\s\\]+))", text
+    workflow_paths = (
+        WORKFLOW_PATH,
+        COVERAGE_WORKFLOW_PATH,
+        WINDOWS_CORE_TESTS_WORKFLOW_PATH,
+        Path(".github/workflows/agilab-polars-2-runtime-qualification.yml"),
     )
-    standalone_pytest = []
-    for alternatives in arguments:
-        argument = next(value for value in alternatives if value)
-        if not argument.startswith("pytest"):
-            continue
-        requirement = Requirement(argument)
-        if requirement.name == "pytest":
-            standalone_pytest.append(requirement)
-            assert "9.1.1" in requirement.specifier
-            assert "9.2.0" not in requirement.specifier
-    assert standalone_pytest
+    for workflow_path in workflow_paths:
+        text = workflow_path.read_text(encoding="utf-8")
+        arguments = re.findall(
+            r"--with\s+(?:'([^']+)'|\"([^\"]+)\"|([^\s\\]+))", text
+        )
+        standalone_pytest = []
+        for alternatives in arguments:
+            argument = next(value for value in alternatives if value)
+            if not argument.startswith("pytest"):
+                continue
+            requirement = Requirement(argument)
+            if requirement.name == "pytest":
+                standalone_pytest.append(requirement)
+                assert "9.1.1" in requirement.specifier, workflow_path
+                assert "9.2.0" not in requirement.specifier, workflow_path
+        assert standalone_pytest, workflow_path
 
 
 @pytest.mark.parametrize(

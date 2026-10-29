@@ -67,7 +67,7 @@ jobs:
             --with sqlalchemy `
             --with-editable ./src/agilab/lib/agi-web `
             --with fastparquet `
-            --with pytest `
+            --with "pytest==9.1.1" `
             --with pytest-asyncio `
             --with pytest-cov `
             python -m pytest -q -o addopts='' --import-mode=importlib `
