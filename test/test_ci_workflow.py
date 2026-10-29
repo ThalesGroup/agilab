@@ -907,3 +907,107 @@ def test_all_ubuntu_dependency_steps_select_the_archive_first() -> None:
     assert consumers == {WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH,
                          PYPI_PUBLISH_WORKFLOW_PATH, UI_ROBOT_MATRIX_WORKFLOW_PATH}
     assert "'.github/actions/configure-ubuntu-apt/**'" in DOCS_PUBLISH_WORKFLOW_PATH.read_text(encoding='utf-8')
+
+
+def test_pytest_requirements_retain_the_qualified_lazy_proxy_boundary() -> None:
+    from packaging.requirements import Requirement
+
+    project = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
+    groups = (
+        project["project"]["optional-dependencies"]["dev"],
+        project["dependency-groups"]["dev"],
+    )
+    for entries in groups:
+        requirements = [Requirement(entry) for entry in entries]
+        pytest_requirements = [
+            requirement for requirement in requirements
+            if requirement.name == "pytest"
+        ]
+        assert len(pytest_requirements) == 1
+        assert "9.1.1" in pytest_requirements[0].specifier
+        assert "9.2.0" not in pytest_requirements[0].specifier
+
+    text = COVERAGE_WORKFLOW_PATH.read_text(encoding="utf-8")
+    arguments = re.findall(
+        r"--with\s+(?:'([^']+)'|\"([^\"]+)\"|([^\s\\]+))", text
+    )
+    standalone_pytest = []
+    for alternatives in arguments:
+        argument = next(value for value in alternatives if value)
+        if not argument.startswith("pytest"):
+            continue
+        requirement = Requirement(argument)
+        if requirement.name == "pytest":
+            standalone_pytest.append(requirement)
+            assert "9.1.1" in requirement.specifier
+            assert "9.2.0" not in requirement.specifier
+    assert standalone_pytest
+
+
+@pytest.mark.parametrize(
+    ("pytest_version", "expected_restored"),
+    [("9.1.1", True), ("9.2.0", False)],
+)
+def test_pytest_lazy_proxy_restore_boundary_uses_real_worker_cli(
+    pytest_version: str, expected_restored: bool
+) -> None:
+    import json
+    import textwrap
+
+    uv = shutil.which("uv")
+    if uv is None:
+        pytest.skip("uv is required for the isolated pytest compatibility probe")
+    worker_cli = Path(
+        "src/agilab/core/agi-node/src/agi_node/agi_dispatcher/cli.py"
+    ).resolve()
+    probe = textwrap.dedent(
+        """
+        import importlib.util
+        import json
+        import sys
+        from types import SimpleNamespace
+
+        import pytest
+
+        spec = importlib.util.spec_from_file_location("pytest_proxy_probe", sys.argv[1])
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        target = SimpleNamespace(Process=object())
+        original = target.Process
+        proxy = module._LazyPsutil()
+        proxy._module = target
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(proxy, "Process", object())
+        print(json.dumps({
+            "pytest_version": pytest.__version__,
+            "restored": getattr(target, "Process", None) is original,
+        }))
+        """
+    )
+    result = subprocess.run(
+        [
+            uv,
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--no-project",
+            "--python",
+            sys.executable,
+            "--with",
+            f"pytest=={pytest_version}",
+            "python",
+            "-c",
+            probe,
+            str(worker_cli),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stderr[-2000:]
+    receipt = json.loads(result.stdout)
+    assert receipt == {
+        "pytest_version": pytest_version,
+        "restored": expected_restored,
+    }
