@@ -524,7 +524,7 @@ def _guard_commands(components: Sequence[str]) -> list[str]:
     if "agi-web" in components:
         commands.append(
             "uv --preview-features extra-build-dependencies run --no-project "
-            "--with-editable ./src/agilab/lib/agi-web --with pytest --with pytest-cov "
+            "--with-editable ./src/agilab/lib/agi-web --with pytest==9.1.1 --with pytest-cov "
             "python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' "
             "--cov=agi_web --cov-report=xml:coverage-agi-web.xml src/agilab/lib/agi-web/test"
         )

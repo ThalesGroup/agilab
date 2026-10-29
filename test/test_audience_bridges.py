@@ -453,6 +453,70 @@ def test_duckdb_bridge_plan_and_optional_execution(tmp_path: Path) -> None:
         )
 
 
+
+@pytest.mark.parametrize("suffix", [".csv", ".json", ".parquet"])
+def test_duckdb_bridge_real_file_inputs_and_parameters(tmp_path: Path, suffix: str) -> None:
+    """Exercise the optional engine, including bound paths and result evidence."""
+    import csv
+    import hashlib
+
+    duckdb = pytest.importorskip("duckdb")
+    source = tmp_path / f"input's sample{suffix}"
+    if suffix == ".csv":
+        source.write_text("value\n1\n2\n3\n", encoding="utf-8")
+    elif suffix == ".json":
+        source.write_text('[{"value": 1}, {"value": 2}, {"value": 3}]', encoding="utf-8")
+    else:
+        with duckdb.connect(database=":memory:") as connection:
+            connection.execute(
+                "COPY (SELECT value FROM (VALUES (1), (2), (3)) samples(value)) TO "
+                + "'" + str(source).replace("'", "''") + "' (FORMAT PARQUET)"
+            )
+    query = tmp_path / "aggregate.sql"
+    query.write_text(
+        "SELECT SUM(value) AS total FROM source_rows WHERE value >= $minimum",
+        encoding="utf-8",
+    )
+    params = tmp_path / "parameters.json"
+    params.write_text('{"minimum": 2}', encoding="utf-8")
+    result = bridge_cli.run_duckdb_query(
+        query,
+        tmp_path / f"results-{suffix[1:]}",
+        input_path=source,
+        params_path=params,
+        table_name="source_rows",
+    )
+
+    assert result["status"] == "pass"
+    assert result["row_count"] == 1
+    assert result["columns"] == ["total"]
+    result_json = Path(result["result_json"])
+    assert json.loads(result_json.read_text(encoding="utf-8")) == {
+        "columns": ["total"],
+        "rows": [{"total": 5}],
+    }
+    with Path(result["result_csv"]).open(encoding="utf-8", newline="") as stream:
+        assert list(csv.DictReader(stream)) == [{"total": "5"}]
+    assert result["query_sha256"] == hashlib.sha256(query.read_bytes()).hexdigest()
+    assert result["result_sha256"] == hashlib.sha256(result_json.read_bytes()).hexdigest()
+    recorded = json.loads((result_json.parent / "duckdb_manifest.json").read_text(encoding="utf-8"))
+    assert recorded == result
+
+
+def test_duckdb_bridge_real_query_without_inputs(tmp_path: Path) -> None:
+    pytest.importorskip("duckdb")
+    query = tmp_path / "literal.sql"
+    query.write_text("SELECT 42 AS answer", encoding="utf-8")
+
+    result = bridge_cli.run_duckdb_query(query, tmp_path / "literal-results")
+
+    assert result["status"] == "pass"
+    assert result["row_count"] == 1
+    assert json.loads(Path(result["result_json"]).read_text(encoding="utf-8"))["rows"] == [
+        {"answer": 42}
+    ]
+
+
 def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> None:
     list_json = tmp_path / "list.json"
     list_json.write_text("[]\n", encoding="utf-8")

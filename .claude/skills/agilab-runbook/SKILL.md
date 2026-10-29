@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, native Python UI, run c
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-10-14
+  updated: 2026-10-29
 ---
 
 # AGILab runbook (Agent Skill)
@@ -368,7 +368,7 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
 ## CI workflow lessons
 
 - The root `src/agilab/test` step is more stable when run from the source tree instead of the full project environment:
-  - `PYTHONPATH='src' COVERAGE_FILE=.coverage.agilab uv --preview-features extra-build-dependencies run --no-project --with pytest --with pytest-cov --with toml --with packaging python -m pytest ... --ignore=src/agilab/test/test_model_returns_code.py src/agilab/test`
+  - `PYTHONPATH='src' COVERAGE_FILE=.coverage.agilab uv --preview-features extra-build-dependencies run --no-project --with pytest==9.1.1 --with pytest-cov --with toml --with packaging python -m pytest ... --ignore=src/agilab/test/test_model_returns_code.py src/agilab/test`
 - The integration-only `src/agilab/test/test_model_returns_code.py` should be ignored in CI collection, not merely deselected by marker, because import-time behavior can still break collection.
 - Core package coverage steps are more reliable when each step uses an isolated no-project env with explicit editable core packages and test-only extras, instead of relying on the monorepo root env.
 - `agi-env` tests need:

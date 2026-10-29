@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-10-19T12:44:45Z",
+  "generated_at_utc": "2026-10-29T18:28:50Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -935,7 +935,7 @@
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-10-14"
+      "updated": "2026-10-29"
     },
     {
       "name": "agilab-security-review-patterns",
@@ -953,7 +953,7 @@
       "name": "agilab-testing",
       "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "path": ".claude/skills/agilab-testing/SKILL.md",
-      "updated": "2026-10-14"
+      "updated": "2026-10-29"
     },
     {
       "name": "agilab-ui-robot-validation",
