@@ -402,7 +402,9 @@ jobs:
           [[ "$version_output" == "agilab "* ]]
           printf '%s\n' "$version_output"
 
+      # Exercise the oldest dependency pair on the minimum supported Python.
       - name: Qualify optional backend lower bounds
+        if: matrix.python-version == '3.12'
         run: |
           set -euo pipefail
           uv --preview-features extra-build-dependencies run --no-project \
