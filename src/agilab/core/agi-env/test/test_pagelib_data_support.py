@@ -196,3 +196,59 @@ def test_list_views_and_read_file_lines_and_scan_dir(tmp_path):
     assert list(support.read_file_lines(data)) == ["a", "1"]
 
     assert sorted(support.scan_dir(tmp_path)) == ["nested", "views"]
+
+
+@pytest.mark.parametrize("entrypoint", ["support", "public"])
+@pytest.mark.parametrize(
+    ("csv_text", "index_kind", "expected_index", "expected_columns"),
+    [
+        (
+            "time,value,index\n1,10,stale\n2,20,stale\n",
+            "time",
+            [pd.Timedelta(seconds=1), pd.Timedelta(seconds=2)],
+            ["time", "value"],
+        ),
+        (
+            "date,value,index\n2026-10-29,10,stale\n2026-10-30,20,stale\n",
+            "date",
+            [pd.Timestamp("2026-10-29"), pd.Timestamp("2026-10-30")],
+            ["date", "value"],
+        ),
+        (
+            "id,value,index\n1,10,stale\n2,20,stale\n",
+            "fallback",
+            [1, 2],
+            ["id", "value"],
+        ),
+    ],
+)
+def test_load_df_indexing_preserves_public_results_without_inplace_deprecation(
+    tmp_path, entrypoint, csv_text, index_kind, expected_index, expected_columns
+):
+    import warnings
+
+    if entrypoint == "public":
+        from agi_env import pagelib
+
+        loader = getattr(pagelib.load_df, "__wrapped__", pagelib.load_df)
+    else:
+        loader = support.load_df
+    csv_path = tmp_path / "indexed.csv"
+    csv_path.write_text(csv_text, encoding="utf-8")
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "error",
+            message=r"The inplace keyword in DataFrame\.set_index is deprecated.*",
+        )
+        frame = loader(csv_path, with_index=True)
+
+    assert frame is not None
+    assert list(frame.columns) == expected_columns
+    assert frame.index.tolist() == expected_index
+    assert frame["value"].tolist() == [10, 20]
+    assert frame.index.name == ("id" if index_kind == "fallback" else "index")
+    if index_kind == "time":
+        assert isinstance(frame.index, pd.TimedeltaIndex)
+    elif index_kind == "date":
+        assert isinstance(frame.index, pd.DatetimeIndex)
