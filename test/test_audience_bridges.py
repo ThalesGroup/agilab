@@ -454,7 +454,7 @@ def test_duckdb_bridge_plan_and_optional_execution(tmp_path: Path) -> None:
 
 
 
-@pytest.mark.parametrize("suffix", [".csv", ".json", ".parquet"])
+@pytest.mark.parametrize("suffix", [".csv", ".json", ".jsonl", ".ndjson", ".parquet", ".pq"])
 def test_duckdb_bridge_real_file_inputs_and_parameters(tmp_path: Path, suffix: str) -> None:
     """Exercise the optional engine, including bound paths and result evidence."""
     import csv
@@ -466,6 +466,8 @@ def test_duckdb_bridge_real_file_inputs_and_parameters(tmp_path: Path, suffix: s
         source.write_text("value\n1\n2\n3\n", encoding="utf-8")
     elif suffix == ".json":
         source.write_text('[{"value": 1}, {"value": 2}, {"value": 3}]', encoding="utf-8")
+    elif suffix in {".jsonl", ".ndjson"}:
+        source.write_text('{"value": 1}\n{"value": 2}\n{"value": 3}\n', encoding="utf-8")
     else:
         with duckdb.connect(database=":memory:") as connection:
             connection.execute(
@@ -561,6 +563,22 @@ def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> No
         def __init__(self):
             self.calls: list[tuple[str, object]] = []
 
+        def read_csv(self, path):
+            self.calls.append(("read_csv", path))
+            return self
+
+        def read_parquet(self, path):
+            self.calls.append(("read_parquet", path))
+            return self
+
+        def read_json(self, path):
+            self.calls.append(("read_json", path))
+            return self
+
+        def create_view(self, name):
+            self.calls.append(("create_view", name))
+            return self
+
         def execute(self, query_text, params=None):
             self.calls.append((query_text, params))
             return self
@@ -571,9 +589,9 @@ def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> No
     connection = FakeConnection()
     fake_duckdb = SimpleNamespace(connect=lambda database: connection)
     for suffix, expected_reader in (
-        (".csv", "read_csv_auto"),
+        (".csv", "read_csv"),
         (".parquet", "read_parquet"),
-        (".jsonl", "read_json_auto"),
+        (".jsonl", "read_json"),
     ):
         data = tmp_path / f"input{suffix}"
         data.write_text("value\n1\n", encoding="utf-8")
@@ -583,7 +601,8 @@ def test_bridge_cli_helper_edges_and_duckdb_inputs(tmp_path: Path, capsys) -> No
             input_path=data,
             duckdb_module=fake_duckdb,
         )
-        assert expected_reader in connection.calls[-2][0]
+        assert connection.calls[-3] == (expected_reader, str(data.resolve()))
+        assert connection.calls[-2] == ("create_view", "input_data")
 
     unsupported = tmp_path / "input.txt"
     unsupported.write_text("value\n", encoding="utf-8")

@@ -46,15 +46,6 @@ jobs:
           version: "0.10.7"
           prune-cache: true
 
-      - name: Run the root test suite
-        shell: bash
-        run: |
-          set -euo pipefail
-          uv --preview-features extra-build-dependencies run \
-            --extra ui \
-            --extra notebook \
-            --group test-ui \
-            python -m tools.testing.root_test_runner
 
       - name: Qualify setuptools native build boundaries
         shell: bash
@@ -111,3 +102,13 @@ jobs:
           }, sort_keys=True))
           PY
           done
+
+      - name: Run the root test suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run \
+            --extra ui \
+            --extra notebook \
+            --group test-ui \
+            python -m tools.testing.root_test_runner
