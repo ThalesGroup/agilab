@@ -46,6 +46,63 @@ jobs:
           version: "0.10.7"
           prune-cache: true
 
+
+      - name: Qualify setuptools native build boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for setuptools_version in 83.0.0 84.2.1; do
+            AGILAB_EXPECTED_SETUPTOOLS="$setuptools_version" \
+              uv --preview-features extra-build-dependencies run \
+                --extra ui --extra notebook --group test-ui \
+                --with "setuptools==$setuptools_version" --with pytest==9.1.1 \
+                python - <<'PY'
+          import hashlib
+          import importlib.metadata
+          import json
+          import os
+          import platform
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          import pytest
+          import setuptools
+          from agi_node.agi_dispatcher import build
+
+          expected = os.environ["AGILAB_EXPECTED_SETUPTOOLS"]
+          source = Path("src/agilab/core/agi-node/src/agi_node/agi_dispatcher/build.py")
+          assert Path(build.__file__).resolve() == source.resolve()
+          assert setuptools.__version__ == expected
+          assert importlib.metadata.version("setuptools") == expected
+          junit = Path("test-results") / f"agilab-setuptools-{expected}-native.xml"
+          result = pytest.main([
+              "-q", "-o", "addopts=", f"--junitxml={junit}",
+              "test/test_uav_dag_scientific_handoff.py::test_compiled_relay_worker_loads_scientific_handoff_through_sdk",
+          ])
+          cases = ET.parse(junit).findall(".//testcase")
+          assert result == 0 and len(cases) == 1
+          assert not list(cases[0].iter("skipped")), "native compilation must execute"
+          properties = {
+              item.attrib["name"]: item.attrib["value"]
+              for item in cases[0].findall("./properties/property")
+          }
+          assert properties["sdk_selected_worker_module"] == "uav_relay_queue_worker_cy"
+          assert len(properties["compiled_worker_sha256"]) == 64
+          print(json.dumps({
+              "schema": "agilab.setuptools_native_qualification.v1",
+              "source_sha": os.environ["GITHUB_SHA"],
+              "run_id": os.environ["GITHUB_RUN_ID"],
+              "run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "platform": platform.system(),
+              "python": platform.python_version(),
+              "setuptools": expected,
+              "sdk_build_source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+              "native_worker_sha256": properties["compiled_worker_sha256"],
+              "sdk_selected_worker_module": properties["sdk_selected_worker_module"],
+              "status": "passed",
+          }, sort_keys=True))
+          PY
+          done
+
       - name: Run the root test suite
         shell: bash
         run: |

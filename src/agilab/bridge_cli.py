@@ -1181,23 +1181,16 @@ def run_duckdb_query(
     if input_path is not None:
         source = input_path.expanduser().resolve(strict=False)
         suffix = source.suffix.lower()
+        # CREATE VIEW cannot bind file parameters; readers retain paths as values.
         if suffix == ".csv":
-            connection.execute(
-                f"CREATE VIEW {safe_table_name} AS SELECT * FROM read_csv_auto(?)",
-                [str(source)],
-            )
+            relation = connection.read_csv(str(source))
         elif suffix in {".parquet", ".pq"}:
-            connection.execute(
-                f"CREATE VIEW {safe_table_name} AS SELECT * FROM read_parquet(?)",
-                [str(source)],
-            )
+            relation = connection.read_parquet(str(source))
         elif suffix in {".json", ".jsonl", ".ndjson"}:
-            connection.execute(
-                f"CREATE VIEW {safe_table_name} AS SELECT * FROM read_json_auto(?)",
-                [str(source)],
-            )
+            relation = connection.read_json(str(source))
         else:
             raise ValueError(f"Unsupported DuckDB input format: {source.suffix}")
+        relation.create_view(safe_table_name)
     cursor = connection.execute(query, params or None)
     rows = cursor.fetchall()
     columns = [item[0] for item in (cursor.description or [])]

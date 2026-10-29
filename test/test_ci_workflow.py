@@ -540,9 +540,15 @@ def test_base_python_compat_exercises_supported_boundaries_through_the_cli() -> 
         "test/test_lab_run.py"
     ) in compat_block
     assert "agilab --version" in compat_block
-    assert compat_block.count("run --no-project") == 2
-    assert compat_block.count("--with-editable .") == 2
-    assert compat_block.count("--with pytest==9.1.1") == 1
+    workflow = yaml.safe_load(text)
+    cli_command = next(
+        step["run"]
+        for step in workflow["jobs"]["base-python-compat"]["steps"]
+        if step.get("name") == "Validate base CLI runtime"
+    )
+    assert cli_command.count("run --no-project") == 2
+    assert cli_command.count("--with-editable .") == 2
+    assert cli_command.count("--with pytest==9.1.1") == 1
     assert "Validate base package import" not in compat_block
 
     primary_python_313_block = text.split("  local-only-policy:", 1)[1].split(

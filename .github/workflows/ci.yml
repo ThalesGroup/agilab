@@ -402,6 +402,32 @@ jobs:
           [[ "$version_output" == "agilab "* ]]
           printf '%s\n' "$version_output"
 
+      # Exercise the oldest dependency pair on the minimum supported Python.
+      - name: Qualify optional backend lower bounds
+        if: matrix.python-version == '3.12'
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --no-project \
+            --python "${{ matrix.python-version }}" \
+            --with-editable . \
+            --with pytest==9.1.1 --with pillow==12.2.0 --with duckdb==1.4.0 \
+            python -m pytest -q --noconftest -c /dev/null -p no:cacheprovider \
+            test/test_agilab_mcp_preview.py \
+            test/test_audience_bridges.py::test_duckdb_bridge_real_file_inputs_and_parameters \
+            test/test_audience_bridges.py::test_duckdb_bridge_real_query_without_inputs
+
+      - name: Qualify optional backend new majors
+        run: |
+          set -euo pipefail
+          uv --preview-features extra-build-dependencies run --no-project \
+            --python "${{ matrix.python-version }}" \
+            --with-editable . \
+            --with pytest==9.1.1 --with pillow==13.0.0 --with duckdb==2.0.0 \
+            python -m pytest -q --noconftest -c /dev/null -p no:cacheprovider \
+            test/test_agilab_mcp_preview.py \
+            test/test_audience_bridges.py::test_duckdb_bridge_real_file_inputs_and_parameters \
+            test/test_audience_bridges.py::test_duckdb_bridge_real_query_without_inputs
+
   clean-public-install:
     name: clean-public-install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
