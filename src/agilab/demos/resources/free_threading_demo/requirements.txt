@@ -2,5 +2,5 @@ agi-web>=2026.07.17,<2027.0
 altair>=6,<7
 numpy>=2.3,<3
 pandas>=2.3,<3
-Pillow>=12,<14
+Pillow>=12,<13
 pytest>=8,<10

@@ -13,6 +13,11 @@ DIRECT_PIN_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)"
     r"==(?P<version>[^\s;\\]+)$"
 )
+COMPILED_PIN_RE = re.compile(
+    r"^(?P<name>[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)"
+    r"(?:\[[A-Za-z0-9_.-]+(?:,[A-Za-z0-9_.-]+)*\])?"
+    r"==(?P<version>[^\s;\\]+)$"
+)
 INPUT_REFERENCE_RE = re.compile(r"#\s+(?:via\s+)?-r\s+(?P<path>\S+)")
 
 
@@ -44,9 +49,12 @@ def _normalize_project_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
-def _parse_pin(text: str, *, path: Path, line_number: int) -> tuple[str, str]:
+def _parse_pin(
+    text: str, *, path: Path, line_number: int, allow_extras: bool = False
+) -> tuple[str, str]:
     pin_text = text.split(";", 1)[0].removesuffix("\\").strip()
-    match = DIRECT_PIN_RE.fullmatch(pin_text)
+    pattern = COMPILED_PIN_RE if allow_extras else DIRECT_PIN_RE
+    match = pattern.fullmatch(pin_text)
     if match is None:
         raise LockIntegrityError(
             f"{path}:{line_number}: expected an exact NAME==VERSION pin, got {text!r}"
@@ -99,7 +107,7 @@ def read_compiled_lock_pins(path: Path) -> list[LockedPin]:
         if raw_line and not raw_line[0].isspace() and not raw_line.startswith("#"):
             append_current()
             current_name, current_version = _parse_pin(
-                raw_line, path=path, line_number=line_number
+                raw_line, path=path, line_number=line_number, allow_extras=True
             )
             current_line = line_number
             current_block = [raw_line]
@@ -112,8 +120,14 @@ def read_compiled_lock_pins(path: Path) -> list[LockedPin]:
     return entries
 
 
-def _reference_matches_input(reference: str, input_path: Path) -> bool:
-    return Path(reference).resolve() == input_path.resolve()
+def _reference_matches_input(
+    reference: str, input_path: Path, lock_path: Path
+) -> bool:
+    reference_path = Path(reference)
+    if reference_path.parent == Path("."):
+        # Compilers may record a basename after running in the lock directory.
+        reference_path = lock_path.parent / reference_path
+    return reference_path.resolve() == input_path.resolve()
 
 
 def validate_lock_pair(input_path: Path, lock_path: Path) -> None:
@@ -123,7 +137,7 @@ def validate_lock_pair(input_path: Path, lock_path: Path) -> None:
 
     for entry in lock_entries:
         if not any(
-            _reference_matches_input(reference, input_path)
+            _reference_matches_input(reference, input_path, lock_path)
             for reference in entry.input_references
         ):
             continue
