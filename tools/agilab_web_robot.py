@@ -685,9 +685,46 @@ def _load_playwright() -> Any:
     return Error, TimeoutError, sync_playwright
 
 
-def _body_text(page: Any) -> str:
+VISIBLE_BODY_TEXT_JS = r"""
+(body) => {
+  const texts = [body.innerText || ""];
+  const rendered = (element) => {
+    for (let current = element; current; ) {
+      const style = getComputedStyle(current);
+      if (style.display === "none" || style.visibility === "hidden" ||
+          style.visibility === "collapse" || Number(style.opacity) === 0) return false;
+      current = current.parentElement || current.getRootNode().host || null;
+    }
+    return true;
+  };
+  const visit = (root) => {
+    for (const host of root.querySelectorAll("*")) {
+      if (!host.shadowRoot || !rendered(host)) continue;
+      for (const child of host.shadowRoot.children) {
+        if (child instanceof HTMLElement && rendered(child) && child.getClientRects().length) {
+          const text = child.innerText || "";
+          if (text) texts.push(text);
+        }
+      }
+      visit(host.shadowRoot);
+    }
+  };
+  visit(body);
+  return texts.join("\n");
+}
+"""
+
+
+def _body_text(page: Any, *, timeout_ms: float = 2000.0) -> str:
+    """Read rendered text in the host and its open React component islands."""
     try:
-        return page.locator("body").inner_text(timeout=2000)
+        body = page.locator("body")
+        try:
+            text = body.evaluate(VISIBLE_BODY_TEXT_JS, timeout=timeout_ms)
+        except AttributeError:
+            # Lightweight locator adapters retain their existing text protocol.
+            text = body.inner_text(timeout=timeout_ms)
+        return text if isinstance(text, str) else ""
     except Exception:
         return ""
 

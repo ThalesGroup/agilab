@@ -7424,3 +7424,150 @@ def test_workflow_robot_discovers_and_tails_compressed_run_logs(tmp_path):
         stream.flush()
         assert path in module._snapshot_workflow_run_logs(context).files
         assert module._tail_text_file(path, lines=1) == "latest\n"
+
+
+@pytest.fixture
+def _native_shadow_browser(monkeypatch):
+    require_browser = os.environ.get(REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION_ENV) == "1"
+    try:
+        from playwright import sync_api
+    except ModuleNotFoundError:
+        if require_browser:
+            pytest.fail("Playwright is required by the native shadow-text gate", pytrace=False)
+        pytest.skip("Playwright is not installed")
+    candidates = [
+        Path(REAL_PLAYWRIGHT_BROWSERS_PATH) if REAL_PLAYWRIGHT_BROWSERS_PATH else None,
+        REAL_HOME / "Library" / "Caches" / "ms-playwright",
+        REAL_HOME / ".cache" / "ms-playwright",
+        REAL_HOME / "AppData" / "Local" / "ms-playwright",
+    ]
+    cache = next((path for path in candidates if path is not None and path.is_dir()), None)
+    if cache is not None:
+        monkeypatch.setenv("PLAYWRIGHT_BROWSERS_PATH", str(cache))
+    with sync_api.sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch(headless=True)
+        except sync_api.Error as exc:
+            if require_browser:
+                pytest.fail(f"Chromium is required by the native shadow-text gate: {exc}", pytrace=False)
+            pytest.skip(f"Chromium is unavailable: {exc}")
+        try:
+            yield browser
+        finally:
+            browser.close()
+
+
+@pytest.mark.parametrize(
+    ("variant", "expected_success", "expected_text_visible"),
+    [
+        ("visible", True, True),
+        ("hidden", False, False),
+        ("blank", False, False),
+        ("traceback", False, True),
+        ("hidden-traceback", True, True),
+    ],
+)
+def test_analysis_health_oracle_reads_visible_native_shadow_islands(
+    _native_shadow_browser, variant, expected_success, expected_text_visible
+):
+    module = _load_module()
+    web_robot = module._load_web_robot()
+    page = _native_shadow_browser.new_page()
+    try:
+        analysis_html = """
+          <section class="agilab-analysis-workspace" aria-label="Analysis workspace">
+            <p>Analysis workspace</p><h1>Explore flight_telemetry_project</h1>
+            <p>Choose your result views and notebooks.</p>
+            <fieldset><legend>Analysis views</legend></fieldset>
+            <button>Save selection</button>
+          </section>
+        """
+        if variant == "blank":
+            analysis_html = ""
+        elif variant == "hidden":
+            analysis_html = f'<div style="display:none">{analysis_html}</div>'
+        elif variant == "traceback":
+            analysis_html += "<pre>Traceback (most recent call last):</pre>"
+        elif variant == "hidden-traceback":
+            analysis_html += '<pre hidden>Traceback (most recent call last):</pre>'
+        page.set_content(
+            '<main class="py-app">Native host<div class="py-island" id="outer"></div></main>'
+        )
+        page.evaluate(
+            """html => {
+              const outer = document.querySelector("#outer").attachShadow({mode: "open"});
+              const nested = document.createElement("div");
+              outer.appendChild(nested);
+              nested.attachShadow({mode: "open"}).innerHTML = html;
+            }""",
+            analysis_html,
+        )
+        outer_text = page.locator("body").inner_text()
+        assert "Analysis workspace" not in outer_text
+        health = web_robot.assert_page_healthy(
+            page, label=f"ANALYSIS-shadow-{variant}",
+            expect_any=module.PAGE_EXPECTED_TEXT["ANALYSIS"], timeout_ms=500,
+        )
+        sibling_text = module._page_and_frame_text(page, timeout_ms=500)
+        diagnostic = json.dumps({
+            "variant": variant, "outer_body": outer_text,
+            "react_sections": page.locator(".agilab-analysis-workspace").count(),
+            "collected_text": sibling_text, "health_detail": health.detail,
+        })
+        assert health.success is expected_success, diagnostic
+        assert ("Analysis workspace" in sibling_text) is expected_text_visible, diagnostic
+        if variant in {"hidden", "blank"}:
+            assert "missing expected text" in health.detail, diagnostic
+        elif variant == "traceback":
+            assert "rejected pattern" in health.detail, diagnostic
+    finally:
+        page.close()
+
+
+@pytest.mark.skipif(
+    os.environ.get(REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION_ENV) != "1",
+    reason="Cold source-host qualification runs in the explicit browser CI gate",
+)
+@pytest.mark.parametrize("app_name", ["minimal_app_project", "flight_telemetry_project"])
+def test_analysis_cold_main_route_keeps_react_health_contract(
+    _native_shadow_browser, tmp_path, app_name
+):
+    module = _load_module()
+    web_robot = module._load_web_robot()
+    app = module.DEFAULT_APPS_ROOT / app_name
+    port = web_robot._free_port()
+    base_url = f"http://127.0.0.1:{port}"
+    seeded = module.build_seeded_server_env(
+        web_robot, app_name=app_name, runtime_root=tmp_path / "analysis-runtime",
+        seed_demo_artifacts=True, runtime_isolation="isolated",
+    )
+    command = web_robot.build_react_command(
+        active_app=app, apps_path=web_robot.DEFAULT_APPS_PATH, port=port,
+    )
+    with web_robot.ReactPythonServer(command, env=seeded.env, url=base_url) as server:
+        health = web_robot.wait_for_react_health(base_url, timeout=90)
+        assert health.success, module._react_health_failure_detail(health, server, base_url=base_url)
+        page = _native_shadow_browser.new_page(viewport={"width": 1440, "height": 1000})
+        issues = module._attach_browser_issue_capture(page)
+        try:
+            page.goto(
+                web_robot.build_page_url(base_url, "ANALYSIS", active_app=str(app)),
+                wait_until="domcontentloaded", timeout=90000,
+            )
+            health = web_robot.assert_page_healthy(
+                page, label=f"{app_name}-cold-ANALYSIS",
+                expect_any=module.PAGE_EXPECTED_TEXT["ANALYSIS"], timeout_ms=90000,
+            )
+            screenshot = web_robot._screenshot(
+                page, Path("test-results/ui-robot-shadow-health"), f"{app_name}-cold-ANALYSIS",
+            )
+            diagnostic = json.dumps({
+                "app": app_name, "health": health.detail, "browser_issues": issues,
+                "screenshot": screenshot, "body": web_robot._body_text(page)[:3000],
+            })
+            assert health.success, diagnostic
+            assert page.locator(".agilab-workspace-navigation").is_visible(), diagnostic
+            assert page.locator(".agilab-analysis-workspace").is_visible(), diagnostic
+            assert not issues, diagnostic
+        finally:
+            page.close()

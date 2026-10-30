@@ -6095,6 +6095,7 @@ def _remaining_timeout_ms(deadline: float) -> float:
 
 def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:  # pragma: no cover - live browser path
     texts: list[str] = []
+    web_robot = _load_web_robot()
     deadline = time.perf_counter() + max(timeout_ms, 0.0) / 1000.0
 
     def append_locator_text(owner: Any) -> None:
@@ -6102,7 +6103,7 @@ def _page_and_frame_text(page: Any, *, timeout_ms: float = 1000.0) -> str:  # pr
         if remaining_ms <= 0:
             return
         try:
-            text = owner.locator("body").inner_text(timeout=remaining_ms)
+            text = web_robot._body_text(owner, timeout_ms=remaining_ms)
         except Exception:
             text = ""
         if text:
