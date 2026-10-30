@@ -685,9 +685,48 @@ def _load_playwright() -> Any:
     return Error, TimeoutError, sync_playwright
 
 
-def _body_text(page: Any) -> str:
+VISIBLE_BODY_TEXT_JS = r"""
+(body) => {
+  const texts = [];
+  const rendered = (element) => {
+    for (let current = element; current; ) {
+      const style = getComputedStyle(current);
+      if (style.display === "none" || style.visibility === "hidden" ||
+          style.visibility === "collapse" || Number(style.opacity) === 0) return false;
+      current = current.parentElement || current.getRootNode().host || null;
+    }
+    return true;
+  };
+  const visit = (root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent.trim() || !rendered(node.parentElement || root.host)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      if (Array.from(range.getClientRects()).some(rect => rect.width > 0 && rect.height > 0)) {
+        texts.push(node.textContent.trim());
+      }
+    }
+    for (const host of root.querySelectorAll("*")) {
+      if (host.shadowRoot && rendered(host)) visit(host.shadowRoot);
+    }
+  };
+  visit(body);
+  return texts.join(" ");
+}
+"""
+
+
+def _body_text(page: Any, *, timeout_ms: float = 2000.0) -> str:
+    """Read rendered text in the host and its open React component islands."""
     try:
-        return page.locator("body").inner_text(timeout=2000)
+        body = page.locator("body")
+        try:
+            text = body.evaluate(VISIBLE_BODY_TEXT_JS, timeout=timeout_ms)
+        except AttributeError:
+            # Lightweight locator adapters retain their existing text protocol.
+            text = body.inner_text(timeout=timeout_ms)
+        return text if isinstance(text, str) else ""
     except Exception:
         return ""
 
