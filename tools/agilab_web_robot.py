@@ -687,7 +687,7 @@ def _load_playwright() -> Any:
 
 VISIBLE_BODY_TEXT_JS = r"""
 (body) => {
-  const texts = [body.innerText || ""];
+  const texts = [];
   const rendered = (element) => {
     for (let current = element; current; ) {
       const style = getComputedStyle(current);
@@ -698,19 +698,21 @@ VISIBLE_BODY_TEXT_JS = r"""
     return true;
   };
   const visit = (root) => {
-    for (const host of root.querySelectorAll("*")) {
-      if (!host.shadowRoot || !rendered(host)) continue;
-      for (const child of host.shadowRoot.children) {
-        if (child instanceof HTMLElement && rendered(child) && child.getClientRects().length) {
-          const text = child.innerText || "";
-          if (text) texts.push(text);
-        }
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent.trim() || !rendered(node.parentElement || root.host)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      if (Array.from(range.getClientRects()).some(rect => rect.width > 0 && rect.height > 0)) {
+        texts.push(node.textContent.trim());
       }
-      visit(host.shadowRoot);
+    }
+    for (const host of root.querySelectorAll("*")) {
+      if (host.shadowRoot && rendered(host)) visit(host.shadowRoot);
     }
   };
   visit(body);
-  return texts.join("\n");
+  return texts.join(" ");
 }
 """
 

@@ -7462,9 +7462,11 @@ def _native_shadow_browser(monkeypatch):
     [
         ("visible", True, True),
         ("hidden", False, False),
+        ("nested-opacity", False, False),
         ("blank", False, False),
         ("traceback", False, True),
         ("hidden-traceback", True, True),
+        ("hidden-traceback-opacity", True, True),
     ],
 )
 def test_analysis_health_oracle_reads_visible_native_shadow_islands(
@@ -7486,10 +7488,14 @@ def test_analysis_health_oracle_reads_visible_native_shadow_islands(
             analysis_html = ""
         elif variant == "hidden":
             analysis_html = f'<div style="display:none">{analysis_html}</div>'
+        elif variant == "nested-opacity":
+            analysis_html = f'<section>Loading results<div style="opacity:0">{analysis_html}</div></section>'
         elif variant == "traceback":
             analysis_html += "<pre>Traceback (most recent call last):</pre>"
         elif variant == "hidden-traceback":
             analysis_html += '<pre hidden>Traceback (most recent call last):</pre>'
+        if variant == "hidden-traceback-opacity":
+            analysis_html += '<div style="opacity:0"><pre>Traceback (most recent call last):</pre></div>'
         page.set_content(
             '<main class="py-app">Native host<div class="py-island" id="outer"></div></main>'
         )
@@ -7516,7 +7522,7 @@ def test_analysis_health_oracle_reads_visible_native_shadow_islands(
         })
         assert health.success is expected_success, diagnostic
         assert ("Analysis workspace" in sibling_text) is expected_text_visible, diagnostic
-        if variant in {"hidden", "blank"}:
+        if variant in {"hidden", "blank", "nested-opacity"}:
             assert "missing expected text" in health.detail, diagnostic
         elif variant == "traceback":
             assert "rejected pattern" in health.detail, diagnostic
@@ -7566,8 +7572,33 @@ def test_analysis_cold_main_route_keeps_react_health_contract(
                 "screenshot": screenshot, "body": web_robot._body_text(page)[:3000],
             })
             assert health.success, diagnostic
-            assert page.locator(".agilab-workspace-navigation").is_visible(), diagnostic
-            assert page.locator(".agilab-analysis-workspace").is_visible(), diagnostic
+            page.locator(".agilab-workspace-navigation").wait_for(state="visible", timeout=10000)
+            page.locator(".agilab-analysis-workspace").wait_for(state="visible", timeout=10000)
+            page.get_by_role("heading", name=f"Explore {app_name}", exact=True).wait_for(
+                state="visible", timeout=10000,
+            )
             assert not issues, diagnostic
         finally:
             page.close()
+
+
+def test_page_text_loader_cannot_refund_an_exhausted_deadline(monkeypatch):
+    from types import SimpleNamespace
+
+    module = _load_module()
+    clock = SimpleNamespace(now=0.0)
+    reads = []
+    monkeypatch.setattr(module.time, "perf_counter", lambda: clock.now)
+
+    def read_body(*args, **kwargs):
+        reads.append(kwargs)
+        return "unexpected late text"
+
+    def load_reader():
+        clock.now = 1.0
+        return SimpleNamespace(_body_text=read_body)
+
+    monkeypatch.setattr(module, "_load_web_robot", load_reader)
+    page = SimpleNamespace(frames=[], main_frame=None)
+    assert module._page_and_frame_text(page, timeout_ms=10) == ""
+    assert reads == []
