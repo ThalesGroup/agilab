@@ -8,12 +8,6 @@ This page is the public verification index for the current AGILAB release. It
 records install, CI, demo, and scope evidence in one place so reviewers can
 check the release without inferring status from scattered badges.
 
-.. note::
-
-   The source checkout is intentionally ahead of the public release
-   ``2026.10.13``. The package and links below still describe that exact
-   published release.
-
 Current public release
 ----------------------
 
@@ -24,13 +18,13 @@ Current public release
    * - Item
      - Public evidence
    * - Package version
-     - ``agilab[examples]==2026.10.13`` on `PyPI <https://pypi.org/project/agilab/>`__
+     - ``agilab[examples]==2026.11.02`` on `PyPI <https://pypi.org/project/agilab/>`__
    * - GitHub release
-     - `v2026.10.13 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13>`__
+     - `v2026.11.02 <https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02>`__
    * - Dataset release
      - `datasets-82d4b1accb144409 <https://github.com/ThalesGroup/agilab/releases/tag/datasets-82d4b1accb144409>`__ for ``13`` tracked dataset files; manifest ``82d4b1accb144409af883b3600dab54400aa30cb65034e2c122307020b070d75``
    * - Hosted demo
-     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``6a8e5051045111ce3908d775d48938a35d4a5364``
+     - `jpmorard/agilab <https://huggingface.co/spaces/jpmorard/agilab>`__ at Space commit ``f3961cad08e5332e77dfab3a6cdda1c8308f70cb``
    * - Public guardrails
      - `repo-guardrails run 38274133339 <https://github.com/ThalesGroup/agilab/actions/runs/38274133339>`__ at commit ``a331e22acc1f`` passed repository guardrails for the release-proof metadata merge; skipped jobs remain out of scope unless separately evidenced
    * - Docs source guard
@@ -40,7 +34,7 @@ Current public release
    * - Coverage
      - `coverage run 38254954532 <https://github.com/ThalesGroup/agilab/actions/runs/38254954532>`__ at commit ``bb343922fc2d`` historical 2026.10.12 coverage baseline; project coverage 95.08%, agi-gui 95.92%; this is not a coverage measurement for the current release source
    * - PyPI publish
-     - `pypi-publish run 38471746516 <https://github.com/ThalesGroup/agilab/actions/runs/38471746516/attempts/1>`__ at commit ``8dd841b0246f`` publication workflow for the recorded release commit; see the linked attempt for its final result
+     - `pypi-publish run 41460902153 <https://github.com/ThalesGroup/agilab/actions/runs/41460902153/attempts/1>`__ at commit ``d13af54e2d41`` publication workflow for the recorded release commit; see the linked attempt for its final result
 
 What was proved
 ---------------
@@ -49,7 +43,7 @@ What was proved
 
   .. code-block:: bash
 
-     python -m pip install "agilab[examples]==2026.10.13"
+     python -m pip install "agilab[examples]==2026.11.02"
      python -m agilab.lab_run first-proof --json --max-seconds 60
 
 - The pinned GitHub Actions rows record successful repository, documentation,
@@ -89,7 +83,7 @@ the current source checkout:
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install "agilab[examples]==2026.10.13"
+   python -m pip install "agilab[examples]==2026.11.02"
    python -m agilab.lab_run first-proof --json --max-seconds 60
 
 Use :doc:`quick-start` when you want the fuller source-checkout path with the
