@@ -214,6 +214,17 @@ def test_analyze_paths_adds_docs_workflow_parity_for_docs_source() -> None:
     assert "tools/workflow_parity.py --profile docs" in artifact.commands[0]
 
 
+def test_root_manifest_includes_notebook_optional_dependency_contracts() -> None:
+    module = _load_module()
+
+    report = module.analyze_paths(["pyproject.toml"], use_cache=False)
+
+    test_path = "test/test_notebook_demo_optional_dependencies.py"
+    assert test_path in report.guessed_tests
+    targeted = next(action for action in report.required_validations if action.key == "targeted-pytest")
+    assert test_path in targeted.commands[0]
+
+
 def test_analyze_paths_includes_indirect_docs_evidence_consumers() -> None:
     module = _load_module()
 
