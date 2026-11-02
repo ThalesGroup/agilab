@@ -178,8 +178,8 @@
     "benchmark.py": "e9ed8505a41456ac5704d89df64bdfe55ff91ee840163f9d95c59c6bb47b7177",
     "free_threading_core.py": "d10a74f6e6c3cb1ddb2932949685273db36a42862118188ea372ac939ec58d7f",
     "lab_stages.toml": "ba462c5f52f8c334222d5bc95709285be8d02060aaffe3901da22c742f168a49",
-    "pyproject.toml": "5c819d857a7e4bcef84629648b91068d9cec44b004e684f0789068a7d801b591",
-    "requirements.txt": "a0cab6beace831d78f20bc503cbe4c15fbd4038fc14938bf14f16a2b86332510",
+    "pyproject.toml": "39f8bb565344327bc8cc4ba816cb052c714c8990dfbb51aa03a6be1dc66e0ba5",
+    "requirements.txt": "36bb054ea610ac2ffbdaf010af6cb3436c65a6c45536e8b793409406fbf88cdd",
     "solution.ipynb": "552edfb16401300f43604e18698e897e0508479c5aa29cadb52d120b0a9f0aa2",
     "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
     "tests.py": "779193db06e7914c70dbe6f3c111d3859a166e8419375c9fd783aa56a2add107"
@@ -204,7 +204,7 @@
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-05T11:54:38.304324+00:00",
+    "verified_at_utc": "2026-11-02T08:40:46.541382+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -399,6 +399,29 @@
       "verification_scope": "execution_and_interface"
     },
     "interface_test_verification": {},
+    "interface_adjustments": [
+      {
+        "scope": "post-generation interface adjustment; original autonomous build retained",
+        "note": "Require Pillow 13.0.0 or newer to remediate the Pillow Dependabot advisories; refresh current dependency artifacts after fresh native notebook and interface verification.",
+        "verified_at_utc": "2026-11-02T08:40:46.541382+00:00",
+        "files": {
+          "pyproject.toml": {
+            "before_sha256": "5c819d857a7e4bcef84629648b91068d9cec44b004e684f0789068a7d801b591",
+            "after_sha256": "39f8bb565344327bc8cc4ba816cb052c714c8990dfbb51aa03a6be1dc66e0ba5"
+          },
+          "requirements.txt": {
+            "before_sha256": "a0cab6beace831d78f20bc503cbe4c15fbd4038fc14938bf14f16a2b86332510",
+            "after_sha256": "36bb054ea610ac2ffbdaf010af6cb3436c65a6c45536e8b793409406fbf88cdd"
+          }
+        },
+        "verification_checks": [
+          "fresh_notebook_execution",
+          "fresh_result_artifact",
+          "app_startup",
+          "app_run_analysis_interaction"
+        ]
+      }
+    ],
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [

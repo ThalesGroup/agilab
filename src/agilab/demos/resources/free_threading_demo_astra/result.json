@@ -133,15 +133,15 @@
     "benchmark.py": "090e1e0a08d39b7804ee95af30cf6fef95e09becfdfcefefea22b06ab63d7dbe",
     "free_threading_core.py": "dfb8e7f8fe60d38da2ad4b080c55143f552275c0078371931d07fde17671e228",
     "lab_stages.toml": "586f5d3e0ed189bca7bd2e44e26103de4867b5e76b0aa8c53f0bf4c2b8ab8e52",
-    "pyproject.toml": "1335d1fdaa7fd0d48adf897e10361cce7efb4b5d52d0c47c639ea08f8ffc3cf5",
-    "requirements.txt": "21bc2b4598deaffc87034b0538476645cf9894d6c5472fd54327284fdd8a8b77",
+    "pyproject.toml": "0711604b176b7753ec671d619babedfc7b99743adc1035ab54e6e6d627a70f29",
+    "requirements.txt": "f9467947669b12b4df3b8156b78a486a9498f8c01e838d576dbd085ae3136dd2",
     "solution.ipynb": "19e272cfa116611a5913cfdc4d406859674d368ef3f35774ee239b7136ad181d",
     "source/original.ipynb": "ea34493fc5caaa6062dfa9b4210b1d0620f205cce4cc117c9293155f75a1c911",
     "tests.py": "e306be08200818e9b77e347f62692b8a4e1cfdfe19da84fd1595e77c7cf184ab"
   },
   "native_ui_migration": {
     "schema": "agilab.native_notebook_demo_migration.v1",
-    "verified_at_utc": "2026-10-05T11:54:41.252232+00:00",
+    "verified_at_utc": "2026-11-02T08:40:49.456904+00:00",
     "interface_runtime": "agi_web.python_ui",
     "original_files": {
       "LICENSE": "b9c2bbb8087ee916e1f8628c002b1f9af77cf7dc112331edca5edec4cd5b0a16",
@@ -277,12 +277,35 @@
       "result_names": [
         "local_cpu_scaling"
       ],
-      "result_sha256": "e28caed3d526d34bb13de3b6087b1b148c86c1951fcc73609d6c1719d75f149e",
+      "result_sha256": "366db5c309a8510533447ceaa774f3e87f2b69dc4885c48abcc741f1c6668eb2",
       "scientific_correctness_verified": false,
       "status": "passed",
       "verification_scope": "execution_and_interface"
     },
     "interface_test_verification": {},
+    "interface_adjustments": [
+      {
+        "scope": "post-generation interface adjustment; original autonomous build retained",
+        "note": "Require Pillow 13.0.0 or newer to remediate the Pillow Dependabot advisories; refresh current dependency artifacts after fresh native notebook and interface verification.",
+        "verified_at_utc": "2026-11-02T08:40:49.456904+00:00",
+        "files": {
+          "pyproject.toml": {
+            "before_sha256": "1335d1fdaa7fd0d48adf897e10361cce7efb4b5d52d0c47c639ea08f8ffc3cf5",
+            "after_sha256": "0711604b176b7753ec671d619babedfc7b99743adc1035ab54e6e6d627a70f29"
+          },
+          "requirements.txt": {
+            "before_sha256": "21bc2b4598deaffc87034b0538476645cf9894d6c5472fd54327284fdd8a8b77",
+            "after_sha256": "f9467947669b12b4df3b8156b78a486a9498f8c01e838d576dbd085ae3136dd2"
+          }
+        },
+        "verification_checks": [
+          "fresh_notebook_execution",
+          "fresh_result_artifact",
+          "app_startup",
+          "app_run_analysis_interaction"
+        ]
+      }
+    ],
     "scientific_proof_retention": {
       "scope": "historical independent scientific verification; unchanged scientific sources and data",
       "sections": [

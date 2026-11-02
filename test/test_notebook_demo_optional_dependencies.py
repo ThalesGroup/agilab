@@ -110,10 +110,11 @@ def test_notebook_agent_extra_supplies_runtime_distributions_without_base_ui_wei
     requirements = {Requirement(value).name.lower(): Requirement(value)
                     for value in project["optional-dependencies"]["notebook-agent"]}
     # These three direct demo requirements were absent from the public extra.
-    for name, supported in (("altair", "6.0"), ("pillow", "12.2"), ("psutil", "7.0")):
+    for name, supported in (("altair", "6.0"), ("pillow", "13.0.0"), ("psutil", "7.0")):
         assert requirements[name].specifier.contains(supported)
         for minimal in (project["dependencies"], project["optional-dependencies"]["ui"]):
             assert name not in {Requirement(value).name.lower() for value in minimal}
+    assert not requirements["pillow"].specifier.contains("12.3.0")
     direct = {runtime._MODULE_DISTRIBUTIONS.get(module, module).lower()
               for modules in runtime._DEMO_DEPENDENCIES.values() for module in modules}
     assert direct - {"torch", "threadpoolctl"} <= requirements.keys()

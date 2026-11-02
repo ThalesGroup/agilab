@@ -465,6 +465,31 @@ def test_root_optional_extras_own_ai_and_visualization_stacks() -> None:
     assert violations == []
 
 
+def test_pillow_profiles_and_demo_installers_keep_security_floor() -> None:
+    # The Pillow advisories affecting 12.x are first patched in 13.0.0.
+    locations = {
+        f"root[{extra}]": _optional_dependencies(REPO_ROOT / "pyproject.toml", extra)
+        for extra in ("preview", "notebook-agent")
+    }
+    for demo in ("free_threading_demo", "free_threading_demo_astra"):
+        project = REPO_ROOT / "src/agilab/demos/resources" / demo
+        locations[f"{demo}/pyproject.toml"] = _dependencies(project / "pyproject.toml")
+        locations[f"{demo}/requirements.txt"] = [
+            Requirement(line)
+            for line in (project / "requirements.txt").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+
+    for location, requirements in locations.items():
+        pillow = [requirement for requirement in requirements if requirement.name.lower() == "pillow"]
+        assert len(pillow) == 1, location
+        requirement = pillow[0]
+        assert _has_minimum_version(requirement, "13.0.0"), location
+        assert _has_upper_bound(requirement), location
+        assert requirement.specifier.contains("13.0.0"), location
+        assert not requirement.specifier.contains("12.3.0"), location
+
+
 def test_root_starlette_profiles_keep_supply_chain_safe_floor() -> None:
     pyproject = REPO_ROOT / "pyproject.toml"
 

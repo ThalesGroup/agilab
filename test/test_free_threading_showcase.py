@@ -48,7 +48,7 @@ def test_bundle_matches_build_receipt_and_download():
             assert hashlib.sha256(archive.read(name)).hexdigest() == expected
 
 
-@pytest.mark.parametrize("name", ["app.py", "benchmark.py", "free_threading_core.py", "agilab_pool.py", "source/original.ipynb"])
+@pytest.mark.parametrize("name", ["app.py", "benchmark.py", "free_threading_core.py", "agilab_pool.py", "source/original.ipynb", "pyproject.toml", "requirements.txt"])
 def test_changed_artifacts_cannot_execute_or_download(bundle, name, monkeypatch):
     (bundle / name).write_text("raise AssertionError('must not execute')")
     monkeypatch.setattr(showcase, "_run_verified_app", lambda _: pytest.fail("Unverified app executed"))

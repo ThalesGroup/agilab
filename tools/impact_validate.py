@@ -75,6 +75,8 @@ TEST_GUESS_ROOTS = (
 # does not select their public documentation boundary regressions.
 # The global runner consumes artifact records from all three DAG producers.
 INDIRECT_TOOL_TESTS = {
+    # Notebook demo contracts also consume the root extras directly.
+    "pyproject.toml": ("test/test_notebook_demo_optional_dependencies.py",),
     "src/agilab/dag/dag_artifact_contracts.py": (
         "test/test_dag_artifact_execution_contracts.py",
         "test/test_pipeline_lab.py",
