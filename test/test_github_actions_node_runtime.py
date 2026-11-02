@@ -7,7 +7,7 @@ import yaml
 
 AUTOMATION_GLOBS = ("*.yml", "*.yaml")
 AUTOMATION_DIRS = (Path(".github/workflows"), Path(".github/actions"))
-SETUP_UV_SHA = "07a047e608db84b3d8c06cd9a7c7dcc9c355c18e"
+SETUP_UV_SHA = "68559e99cc807c1eb7e9238fd43a15bba460eec2"
 
 NODE24_COMPATIBLE_ACTIONS = {
     "actions/cache/restore": {"v5"},
