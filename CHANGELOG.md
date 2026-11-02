@@ -26,6 +26,10 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+## [2026.11.02] - 2026-11-02
+
+GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02
+
 ### Notebook authoring and recovery
 
 - Preserve notebook documents, cell state, and explicit Manager or Worker roles through project and workflow import. Review supported setup conversion without installing dependencies or executing the notebook.
@@ -41,6 +45,11 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 - Keep public documentation independently owned by the public checkout and preserve existing public evidence when refreshing its integrity stamp.
 
+### Changed
+
+- Published AGILAB `2026.11.02` to PyPI for `agi-env`, `agi-gui`, `agi-web`, `agi-page-live-artifacts`, `agi-page-network-map`, `agi-page-queue-health`, `agi-page-relay-health`, `agi-page-scenario-cockpit`, `agi-page-feature-attribution`, `agi-pages`, `agi-node`, `agi-cluster`, `agi-core`, `agi-app-mission-decision`, `agi-app-pandas-execution`, `agi-app-polars-execution`, `agi-app-flight-telemetry`, `agi-app-weather-forecast`, `agi-app-sklearn-pipeline`, `agi-app-data-quality-gate`, `agi-app-learning-assessment`, `agi-app-uav-relay-queue`, `agi-apps`, and `agilab`.
+- Updated release metadata so public docs, changelog, PyPI, and GitHub Releases point to the same source tag.
+- Kept release automation active so future PyPI publishes create or update the matching GitHub Release after pushing the tag.
 
 ## [2026.10.13] - 2026-10-13
 
@@ -1390,3 +1399,4 @@ GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.06.04
 [2026.10.11]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.11
 [2026.10.12]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.12
 [2026.10.13]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13
+[2026.11.02]: https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02
