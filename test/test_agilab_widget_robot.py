@@ -66,7 +66,7 @@ def test_settings_page_has_stable_robot_expectations() -> None:
     module = _load_module()
 
     assert module.PAGE_EXPECTED_TEXT["SETTINGS"] == ("SETTINGS", "Settings", "README")
-    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["SETTINGS"] == ("SETTINGS", "README")
+    assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["SETTINGS"] == ("Settings", "Environment variables", "Save .env")
     assert module.PAGE_EXPECTED_TEXT[""] == (
         "Run a project, explore its results",
         "1. Prepare demo",
@@ -83,10 +83,10 @@ def test_core_page_above_fold_expectations_track_current_layout() -> None:
 
     assert module.PAGE_MIN_WIDGETS["WORKFLOW"] == 2
     assert module.PAGE_ABOVE_FOLD_EXPECTED_LABELS["PROJECT"] == (
-        "PROJECT",
-        "Flight Telemetry",
-        "agi-app",
+        "Project workspace",
         "Project path",
+        "Manager env",
+        "Worker env",
     )
     assert module.PAGE_EXPECTED_TEXT["PROJECT"] == (
         "PROJECT",
@@ -7602,3 +7602,84 @@ def test_page_text_loader_cannot_refund_an_exhausted_deadline(monkeypatch):
     page = SimpleNamespace(frames=[], main_frame=None)
     assert module._page_and_frame_text(page, timeout_ms=10) == ""
     assert reads == []
+
+
+@pytest.mark.parametrize("root_kind", ["light", "shadow"])
+def test_required_text_probe_reads_native_select_display_labels(_native_shadow_browser, root_kind):
+    module = _load_module()
+    page = _native_shadow_browser.new_page()
+    try:
+        html = """
+          <select aria-label="Pool executor">
+            <option value="0" selected>Auto (ORCHESTRATE setting)</option>
+            <option value="1">Process</option>
+          </select>
+          <div hidden><select aria-label="Hidden pool">
+            <option selected>Hidden selection</option>
+          </select></div>
+        """
+        if root_kind == "shadow":
+            page.set_content('<div id="root"></div>')
+            page.evaluate("""html => {
+              document.querySelector("#root").attachShadow({mode: "open"}).innerHTML = html;
+            }""", html)
+        else:
+            page.set_content(html)
+        semantics = page.evaluate(module.VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS)
+        assert "Pool executor" in semantics
+        assert "Auto (ORCHESTRATE setting)" in semantics
+        assert "Process" not in semantics
+        assert "Hidden selection" not in semantics
+        probe = module._required_text_probe(
+            page, app_name="execution_pandas_project", display="ORCHESTRATE",
+            required_text=("Pool executor", "Auto (ORCHESTRATE setting)"), timeout_ms=500,
+        )
+        assert probe.status == "interacted", probe.detail
+    finally:
+        page.close()
+
+
+@pytest.mark.parametrize(("state", "loading"), [("complete", False), ("running", True)])
+def test_initialization_readiness_respects_native_status_state(_native_shadow_browser, state, loading):
+    module = _load_module()
+    page = _native_shadow_browser.new_page()
+    try:
+        page.set_content(
+            f'<details data-widget-kind="status" data-state="{state}" open>'
+            '<summary>Initializing environment...</summary></details>'
+        )
+        assert module._initializing_environment_visible(page) is loading
+    finally:
+        page.close()
+
+
+def test_above_fold_probe_measures_page_before_robot_expands_details(
+    _native_shadow_browser, monkeypatch, tmp_path
+):
+    from urllib.parse import quote
+
+    module = _load_module()
+    web_robot = module._load_web_robot()
+    html = """
+      <main class="py-app"><h1>Run a project, explore its results</h1>
+      <details><summary>Advanced workspace paths</summary>
+        <div style="height:1200px"><input aria-label="Workspace path"></div>
+      </details>
+      <button>1. Prepare demo</button>
+      <button>2. Run demo</button>
+      <button>3. Explore results</button></main>
+    """
+    monkeypatch.setattr(web_robot, "build_url", lambda *_args, **_kwargs: "data:text/html," + quote(html))
+    page = _native_shadow_browser.new_page(viewport={"width": 1440, "height": 1000})
+    try:
+        result = module.sweep_page(
+            page, web_robot=web_robot, base_url="http://demo", active_app_query="demo",
+            app_name="demo", page_name="", check_active_app_route=False,
+            timeout=2, widget_timeout=1, interaction_mode="actionability",
+            action_button_policy="trial", upload_file=tmp_path / "unused.csv",
+            combination_mode="off", discovery_passes=0, max_action_clicks_per_page=0,
+            above_fold_check=True,
+        )
+        assert result.success, [probe.detail for probe in result.failures]
+    finally:
+        page.close()

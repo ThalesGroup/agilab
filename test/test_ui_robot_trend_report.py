@@ -275,6 +275,7 @@ def test_ui_robot_trend_report_strict_cli_fails_on_failed_pages(tmp_path, capsys
     exit_code = module.main(["--progress-log", str(log), "--glob", "no-match/**/*.ndjson", "--strict"])
 
     assert exit_code == 1
+    assert "verdict: FAIL" in capsys.readouterr().out
 
 
 def test_ui_robot_trend_report_cli_fails_on_parse_errors(tmp_path) -> None:
@@ -345,3 +346,31 @@ def test_ui_robot_trend_report_strict_budget_fails_on_runtime_budget(tmp_path) -
     )
 
     assert exit_code == 1
+
+
+@pytest.mark.parametrize(
+    ("status", "duration", "gates", "success"),
+    [
+        ("failed", 1.0, ["--strict"], False),
+        ("passed", 11.0, ["--strict-budget", "--max-total-seconds", "10"], False),
+        ("failed", 1.0, [], True),
+    ],
+)
+def test_ui_robot_trend_report_json_verdict_matches_exit_status(
+    tmp_path, capsys, status, duration, gates, success
+):
+    module = _load_module()
+    log = tmp_path / "robot.ndjson"
+    output = tmp_path / "trend.json"
+    _write_records(log, [{
+        "event": "page_done", "app": "flight", "page": "PROJECT",
+        "status": status, "success": status == "passed", "duration_seconds": duration,
+    }])
+    exit_code = module.main([
+        "--progress-log", str(log), "--glob", "no-match/**/*.ndjson",
+        "--json", "--output", str(output), *gates,
+    ])
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["success"] is success
+    assert json.loads(output.read_text()) == printed
+    assert exit_code == (0 if success else 1)

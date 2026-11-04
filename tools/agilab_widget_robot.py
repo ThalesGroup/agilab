@@ -244,10 +244,10 @@ PAGE_ABOVE_FOLD_EXPECTED_LABELS = {
     "HOME": (
         "Run a project, explore its results", "1. Prepare demo", "2. Run demo", "3. Explore results",
     ),
-    "PROJECT": ("PROJECT", "Flight Telemetry", "agi-app", "Project path"),
+    "PROJECT": ("Project workspace", "Project path", "Manager env", "Worker env"),
     "PROJECT_EDITOR": ("PROJECT", "Flight Telemetry", "Edit project files"),
     "PROJECT_EDIT": ("PROJECT", "Flight Telemetry", "Edit project files"),
-    "SETTINGS": ("SETTINGS", "README"),
+    "SETTINGS": ("Settings", "Environment variables", "Save .env"),
     "ORCHESTRATE": ("Configure and run your project", "Run or serve", "Run options"),
     "WORKFLOW": ("Build and run a workflow", "Workflow status and outputs", "Notebook"),
     "ANALYSIS": ("Analysis workspace", "Choose your result views and notebooks", "Analysis views"),
@@ -418,10 +418,13 @@ VISIBLE_COMBOBOX_SEMANTICS_COLLECTOR_JS = r"""
       semantics.push(normalized);
     }
   };
-  for (const element of document.querySelectorAll("[role='combobox']")) {
+  for (const element of document.querySelectorAll("select, [role='combobox']")) {
     if (isHidden(element)) continue;
     append(element.getAttribute("aria-label"));
     append(element.value);
+    for (const option of element.selectedOptions || []) {
+      append(option.label || option.textContent);
+    }
   }
   return semantics;
 }
@@ -2164,7 +2167,22 @@ def _initializing_environment_visible(page: Any) -> bool:
         except Exception:
             logger.debug("_initializing_environment_visible: body text probe failed", exc_info=True)
             return False
-    return _any_visible_locator(locator)
+    try:
+        for index in range(locator.count()):
+            match = locator.nth(index)
+            if not match.is_visible(timeout=BODY_TEXT_PROBE_TIMEOUT_MS):
+                continue
+            try:
+                state = match.evaluate(
+                    "(element) => element.closest(\"[data-widget-kind='status']\")?.getAttribute('data-state')"
+                )
+            except Exception:
+                state = None
+            if state not in {"complete", "error"}:
+                return True
+    except Exception:
+        logger.debug("_initializing_environment_visible: text visibility probe failed", exc_info=True)
+    return False
 
 
 def wait_for_page_ready(page: Any, *, timeout_ms: float) -> None:  # pragma: no cover - live browser path
@@ -5060,9 +5078,10 @@ def sweep_page(  # pragma: no cover - live browser path
     action_click_budget = [max_action_clicks_per_page]
     performance_probe_enabled = max_first_render_seconds > 0 or max_widgets_ready_seconds > 0
     performance_recorded = False
+    initial_above_fold_probe = None
 
     def restore_view() -> None:
-        nonlocal performance_recorded
+        nonlocal performance_recorded, initial_above_fold_probe
         _enforce_page_deadline(page_deadline, "page watchdog expired before navigation")
         render_started = time.perf_counter()
         page.goto(target_url, wait_until="domcontentloaded", timeout=timeout_ms)
@@ -5074,6 +5093,9 @@ def sweep_page(  # pragma: no cover - live browser path
         page.wait_for_timeout(PAGE_READY_STABILIZE_MS)
         _enforce_page_deadline(page_deadline, "page watchdog expired before readiness wait")
         wait_for_page_ready(page, timeout_ms=timeout_ms)
+        if above_fold_check:
+            # Measure the loaded layout before discovery opens optional sections.
+            initial_above_fold_probe = _above_fold_probe(page, app_name=app_name, display=display)
         _enforce_page_deadline(page_deadline, "page watchdog expired before widget readiness wait")
         widgets_started = time.perf_counter()
         wait_for_widgets_ready(page, page_name=page_name, timeout_ms=timeout_ms)
@@ -5144,8 +5166,8 @@ def sweep_page(  # pragma: no cover - live browser path
                 probes.append(_layout_integrity_probe(page, app_name=app_name, display=display))
             if accessibility_check and not any(probe.status == "failed" for probe in probes):
                 probes.append(_accessibility_probe(page, app_name=app_name, display=display))
-            if above_fold_check and not any(probe.status == "failed" for probe in probes):
-                probes.append(_above_fold_probe(page, app_name=app_name, display=display))
+            if initial_above_fold_probe is not None and not any(probe.status == "failed" for probe in probes):
+                probes.append(initial_above_fold_probe)
             if required_text and not any(probe.status == "failed" for probe in probes):
                 probes.append(
                     _required_text_probe(
