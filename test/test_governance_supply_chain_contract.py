@@ -173,3 +173,26 @@ def test_pyproject_keeps_local_artifacts_out_of_package_surface() -> None:
     assert "*/pyproject.toml" not in agi_pages_package_data
     assert "*/src/**/*.py" not in agi_pages_package_data
     assert "*/uv.lock" not in agi_pages_exclude_data
+
+
+def test_dependabot_pytest_ignore_matches_qualified_requirement_boundary() -> None:
+    import re
+
+    from packaging.requirements import Requirement
+    from packaging.specifiers import SpecifierSet
+
+    text = DEPENDABOT.read_text(encoding="utf-8")
+    start = text.index('package-ecosystem: "pip"\n    directory: "/"')
+    next_entry = text.find("\n  - package-ecosystem:", start + 1)
+    root_updates = text[start:] if next_entry == -1 else text[start:next_entry]
+    assert 'dependency-name: "pytest"' in root_updates
+    ignore = root_updates.split('dependency-name: "pytest"', 1)[1]
+    ignore = ignore.split("\n      - dependency-name:", 1)[0]
+    ignored = SpecifierSet(",".join(re.findall(r'^\s+- "([^"]+)"$', ignore, flags=re.MULTILINE)))
+    assert str(ignored), "pytest needs an explicit ignored version range"
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    groups = (project["project"]["optional-dependencies"]["dev"], project["dependency-groups"]["dev"])
+    for entries in groups:
+        requirement = next(Requirement(entry) for entry in entries if Requirement(entry).name == "pytest")
+        for version in ("9.0.0", "9.1.1", "9.2.0", "9.3.0"):
+            assert (version in ignored) == (version not in requirement.specifier), version
