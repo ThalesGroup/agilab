@@ -683,7 +683,12 @@ def render(
 
     if surface_mode == "full":
         _safe_page_config()
-    st.title("Learning & Assessment")
+    render_heading = (
+        st.header
+        if surface_mode == "analysis" and _kwargs.get("container") is not None
+        else st.title
+    )
+    render_heading("Learning & Assessment")
     st.caption(
         "Evidence-based diagnostic reasoning and deterministic self-evaluation. "
         "This teaching example does not process acoustic, vibration, or telemetry signals."

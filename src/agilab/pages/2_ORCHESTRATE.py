@@ -2617,7 +2617,7 @@ async def _render_run_panels(
     workers = optional_python_expr(enabled, cluster_params.get("workers"))
 
     if show_run_panel:
-        st.markdown("#### Run or serve")
+        st.markdown("## Run or serve")
         st.caption(
             "Use the selected execution view, then keep benchmark and generated-code details available on demand."
         )
