@@ -504,7 +504,57 @@ def test_lazy_process_dependency_supports_patch_restore_without_reimports(monkey
     lazy.Process = "replacement"
     assert lazy.Process == "replacement"
     del lazy.Process
-    assert not hasattr(module, "Process")
+    assert module.Process == "original"
+    assert imports == []
+    assert lazy.Process == "original"
     lazy._module = SimpleNamespace(Process="restored")
     assert lazy.Process == "restored"
     assert imports == ["psutil"]
+
+
+@pytest.mark.parametrize("attribute", ["Process", "process_iter"])
+def test_lazy_psutil_overrides_do_not_mutate_the_loaded_module(attribute):
+    original = object()
+    replacement = object()
+    target = SimpleNamespace(**{attribute: original})
+    proxy = cli._LazyPsutil()
+    proxy._module = target
+
+    setattr(proxy, attribute, replacement)
+    assert getattr(proxy, attribute) is replacement
+    assert getattr(target, attribute) is original
+
+    delattr(proxy, attribute)
+    assert getattr(proxy, attribute) is original
+    assert getattr(target, attribute) is original
+
+
+@pytest.mark.parametrize("attribute", ["Process", "process_iter"])
+def test_lazy_psutil_monkeypatch_restores_delegated_attributes(attribute):
+    original = object()
+    replacement = object()
+    target = SimpleNamespace(**{attribute: original})
+    proxy = cli._LazyPsutil()
+    proxy._module = target
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(proxy, attribute, replacement)
+        assert getattr(proxy, attribute) is replacement
+        assert getattr(target, attribute) is original
+
+    assert getattr(proxy, attribute) is original
+    assert getattr(target, attribute) is original
+
+
+def test_lazy_psutil_override_does_not_load_the_optional_dependency(monkeypatch):
+    def unexpected_import(name):
+        raise AssertionError(f"Setting a proxy override imported {name}")
+
+    proxy = cli._LazyPsutil()
+    replacement = object()
+    with monkeypatch.context() as patch:
+        patch.setattr(cli.importlib, "import_module", unexpected_import)
+        proxy.Process = replacement
+        assert proxy.Process is replacement
+        del proxy.Process
+        assert proxy._module is None
