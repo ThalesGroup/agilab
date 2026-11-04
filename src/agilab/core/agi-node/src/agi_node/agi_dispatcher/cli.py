@@ -85,6 +85,10 @@ class _LazyPsutil:
     This module is copied to ``~/wenv/cli.py`` and lease commands execute it
     before the worker environment, including optional third-party packages,
     exists.
+
+    Reads delegate to the loaded module. Attribute overrides stay on the proxy
+    so patching tools can restore or remove them without changing the shared
+    module.
     """
 
     def __init__(self) -> None:
@@ -104,15 +108,6 @@ class _LazyPsutil:
 
     def __getattr__(self, name):
         return getattr(self._load(), name)
-
-    def __setattr__(self, name, value) -> None:
-        if name == "_module":
-            object.__setattr__(self, name, value)
-            return
-        setattr(self._load(), name, value)
-
-    def __delattr__(self, name) -> None:
-        delattr(self._load(), name)
 
 
 psutil = _LazyPsutil()
