@@ -19,6 +19,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 
 ## Current rules
 
+- Before cluster SSH setup, inspect `ssh -G` for each selected alias and the manager's existing named account keys. Reuse the configured identity and saved share settings; distinguish host-key verification from authentication. Never generate or copy a key to work around incomplete discovery; a verified gap needs a concrete approved change, not repeated requests for settings already recorded.
 - For a numeric-zero form bug, inventory truthiness fallbacks with AST, including fractional and negative constants; a seed-name or integer-only regex is incomplete. Compare model, widget and runtime contracts, distinguish positive-only fields and normalized sentinels, then cover every confirmed zero-preservation case through cold render, automatic saving and reload.
 - Before calling an SDK patch approval-ready, check changed calls against real helper signatures and include a regression using the real pure helper; mock process/network effects at their boundaries. Keep in-memory proposal results separate from validation of applied source.
 - Before reusing a completed sub-agent, start its new task with `followup_task` and verify its live status is running before waiting. `send_message` queues a message without starting a completed agent. Recheck status after an interruption, and keep prior results distinct from the new task.
@@ -27,8 +28,7 @@ This correction ledger complements `AGENTS.md`, `AGENT_CONVENTIONS.md` and skill
 - When adding or moving tools, check `test/test_tools_surface_contract.py` locally. Keep fixture robots under `tools/testing/`. Register new notebook tests in `tools/coverage_shard_plan.py` and run `test/test_coverage_shard_plan.py` before pushing.
 - After schema additions (including literals in existing runtime modules), moves in source, or package-version bumps, regenerate discovery before pushing with `python3 tools/agilab_capabilities_manifest.py --apply` and `python3 tools/agenticweb_manifest.py --apply`.
   After schema, source or package-version changes, run the `skills` parity profile; commit generated artifacts and rerun it to prove no drift.
-- When asked to hide badges or public README metadata, do not interpret
-  "hide" as deletion. Keep badge source/assets available and move secondary
+- When asked to hide badges or public README metadata, do not interpret "hide" as deletion. Keep badge source/assets available and move secondary
   badges into a rendered expander unless the user explicitly asks for removal.
 - When external agent-instruction projects inspire AGILAB, extract the
   AGILAB-native operating primitive and reject generic boilerplate replacement.

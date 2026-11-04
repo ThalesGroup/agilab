@@ -48,6 +48,84 @@ def _args(**overrides):
     return Namespace(**values)
 
 
+@pytest.mark.parametrize("app_name", ["flight_telemetry_project", "weather_forecast_project"])
+def test_plan_resolves_installed_app_provider_when_apps_path_is_omitted(
+    tmp_path, monkeypatch, app_name
+):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "site-packages" / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    project = tmp_path / "site-packages" / "agi_app_payload" / "project" / app_name
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "installed-app"\nversion = "1.0"\n')
+    monkeypatch.setattr(
+        providers, "resolve_installed_app_project", lambda name: project if name == app_name else None
+    )
+    args = cfv._parse_args(
+        [
+            "--cluster", "--scheduler", "127.0.0.1", "--workers", "127.0.0.1",
+            "--remote-user", "tester", "--app", app_name,
+        ]
+    )
+
+    plan = cfv.build_validation_plan(args, home=tmp_path / "home", environ={"USER": "tester"})
+
+    assert plan.apps_path == project.parent
+    assert (plan.apps_path / plan.app / "pyproject.toml").is_file()
+
+
+def test_default_apps_path_prefers_existing_builtin_project(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    builtin = package_root / "apps" / "builtin"
+    project = builtin / cfv.DEFAULT_APP
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "source-app"\nversion = "1.0"\n')
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+
+    def unexpected_provider_lookup(_name):
+        pytest.fail("An existing built-in project must retain priority over installed providers")
+
+    monkeypatch.setattr(providers, "resolve_installed_app_project", unexpected_provider_lookup)
+
+    assert cfv._default_apps_path() == builtin
+
+
+def test_plan_keeps_explicit_apps_path_without_provider_lookup(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    explicit = tmp_path / "custom-apps"
+
+    def unexpected_provider_lookup(_name):
+        pytest.fail("An explicit apps path must not query installed providers")
+
+    monkeypatch.setattr(providers, "resolve_installed_app_project", unexpected_provider_lookup)
+    args = cfv._parse_args(
+        [
+            "--cluster", "--scheduler", "127.0.0.1", "--workers", "127.0.0.1",
+            "--remote-user", "tester", "--apps-path", str(explicit),
+        ]
+    )
+
+    plan = cfv.build_validation_plan(args, home=tmp_path / "home", environ={"USER": "tester"})
+
+    assert plan.apps_path == explicit
+
+
+def test_default_apps_path_retains_builtin_fallback_without_installed_provider(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    monkeypatch.setattr(providers, "resolve_installed_app_project", lambda _name: None)
+
+    assert cfv._default_apps_path() == package_root / "apps" / "builtin"
+
+
 def test_worker_spec_ssh_target_formats_user_host():
     assert cfv.WorkerSpec(host="192.168.3.35", user="jpm").ssh_target == "jpm@192.168.3.35"
     assert cfv.WorkerSpec(host="192.168.3.35").ssh_target == "192.168.3.35"

@@ -159,8 +159,18 @@ def _share_setup_uses_premounted(plan: ValidationPlan, backend: str) -> bool:
     return bool(plan.remote_cluster_share_premounted or _share_backend_implies_premounted(backend))
 
 
-def _default_apps_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "apps" / "builtin"
+def _default_apps_path(app: str = DEFAULT_APP) -> Path:
+    builtin = Path(__file__).resolve().parents[1] / "apps" / "builtin"
+    if (builtin / app / "pyproject.toml").is_file():
+        return builtin
+    try:
+        from agi_env.app_provider_registry import resolve_installed_app_project
+    except ImportError:
+        return builtin
+    project = resolve_installed_app_project(app)
+    if project is not None and (project / "pyproject.toml").is_file():
+        return project.parent
+    return builtin
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -204,8 +214,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--app", default=DEFAULT_APP, help=f"App name. Default: {DEFAULT_APP}.")
     parser.add_argument(
         "--apps-path",
-        default=str(_default_apps_path()),
-        help="Directory containing app projects. Defaults to packaged built-in apps.",
+        default=None,
+        help="Directory containing app projects. Defaults to built-in or installed app providers.",
     )
     parser.add_argument(
         "--local-share",
@@ -545,7 +555,7 @@ def build_validation_plan(
     cluster_share_backend = _resolve_cluster_share_backend(args)
     return ValidationPlan(
         app=args.app,
-        apps_path=Path(args.apps_path).expanduser().resolve(strict=False),
+        apps_path=Path(args.apps_path or _default_apps_path(args.app)).expanduser().resolve(strict=False),
         scheduler=args.scheduler,
         workers=build_workers_map(args.scheduler, specs),
         worker_specs=tuple(specs),
