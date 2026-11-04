@@ -959,7 +959,7 @@ def test_pytest_requirements_retain_the_qualified_lazy_proxy_boundary() -> None:
 
 @pytest.mark.parametrize(
     ("pytest_version", "expected_restored"),
-    [("9.1.1", True), ("9.2.0", False)],
+    [("9.1.1", True), ("9.2.0", True)],
 )
 def test_pytest_lazy_proxy_restore_boundary_uses_real_worker_cli(
     pytest_version: str, expected_restored: bool
@@ -991,9 +991,11 @@ def test_pytest_lazy_proxy_restore_boundary_uses_real_worker_cli(
         proxy._module = target
         with pytest.MonkeyPatch.context() as patch:
             patch.setattr(proxy, "Process", object())
+            local_override = target.Process is original
         print(json.dumps({
             "pytest_version": pytest.__version__,
-            "restored": getattr(target, "Process", None) is original,
+            "restored": proxy.Process is original and target.Process is original,
+            "local_override": local_override,
         }))
         """
     )
@@ -1023,4 +1025,5 @@ def test_pytest_lazy_proxy_restore_boundary_uses_real_worker_cli(
     assert receipt == {
         "pytest_version": pytest_version,
         "restored": expected_restored,
+        "local_override": True,
     }
