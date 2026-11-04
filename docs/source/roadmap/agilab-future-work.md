@@ -14,13 +14,13 @@ This page tracks remaining work and the delivered baseline for each theme.
 The goal here is to rank the next acceptance criteria without reopening delivered
 work as a new feature request.
 
-## Delivery checkpoint — reviewed 2026-10-14
+## Delivery checkpoint — reviewed 2026-11-04
 
 The published root release is
-[`2026.10.13`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.10.13),
-from source commit `8dd841b0246f6269cafaec7d91e66c70c485a0b2`.
-Its UI profile pins `agi-apps`, `agi-pages` and `agi-gui 2026.10.13`,
-while the shared React runtime remains `agi-web 2026.10.12`. Builtin app
+[`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02),
+from source commit `d13af54e2d41fbf70bae7cddf0fb270388dceaaf`.
+Its UI profile pins `agi-apps`, `agi-pages` and `agi-gui 2026.11.02`,
+with the shared React runtime `agi-web 2026.11.02`. Builtin app
 packages keep their own version constraints. See {doc}`../release-proof` for
 the package, hosted demonstration and evidence boundaries. Later source, CI or
 documentation changes do not imply another package release.
@@ -34,7 +34,7 @@ documentation changes do not imply another package release.
 | [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing cluster controls and dynamic `agi-core` worker-loading guards | Real platform, degraded-network and team-operation qualification |
 | [Pinned private apps](https://github.com/ThalesGroup/agilab/issues/565) | Pinned validation contracts and scoped private app checks | Broader scientific workload qualification without publishing private source |
 | [Multi-app DAG](https://github.com/ThalesGroup/agilab/issues/566) | Two-app artifact handoff, retry, partial rerun, durable state and WORKFLOW controls | Larger graphs, more apps, placement and operator consolidation |
-| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Published MVP in `agilab 2026.10.13` with `agi-web 2026.10.12`: seven profiles, a server command registry and four snapshot panes; navigation, reviewed switching and layout evidence | Actual palette install/scientific-run qualification, broader discovery/actions, hosted-demo qualification, cluster scenarios and smaller-machine measurements |
+| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Published MVP in `agilab 2026.11.02` with `agi-web 2026.11.02`: seven profiles, a server command registry and four snapshot panes; navigation, reviewed switching and layout evidence | Actual palette install/scientific-run qualification, broader discovery/actions, hosted-demo qualification, cluster scenarios and smaller-machine measurements |
 | [Data connectors](https://github.com/ThalesGroup/agilab/issues/568) | Catalog, resolution, health-action, adapter and view contracts | Prepared live endpoints: IAM, network, quota, latency and provider behavior |
 
 These nine issues were opened as roadmap themes in June 2026. They and the
@@ -656,6 +656,8 @@ demo.
 Acceptance gate:
 
 - cluster requests fail when no usable shared path exists
+- readiness checks the selected mounted share and the scheduler-written sentinel
+  on every worker before recommending storage setup
 - SSH, SSHFS, LAN discovery, remote path, and share-sentinel checks are exposed
   through CLI and UI diagnostics
 - validation evidence covers local, bare-metal cluster, VM cluster, AI
