@@ -473,10 +473,20 @@ def test_discover_private_ssh_keys_ignores_config_and_public_metadata(tmp_path):
         encoding="utf-8",
     )
     (ssh_dir / "id_rsa.old").write_text("stale backup", encoding="utf-8")
+    (ssh_dir / "cluster-operator").write_text(
+        "-----BEGIN OPENSSH PRIVATE KEY-----\nmock\n-----END OPENSSH PRIVATE KEY-----\n",
+        encoding="utf-8",
+    )
+    before = {file.name: file.read_bytes() for file in ssh_dir.iterdir()}
 
     keys = transport_support.discover_private_ssh_keys(ssh_dir)
 
-    assert keys == [str(ssh_dir / "id_ed25519"), str(ssh_dir / "id_rsa")]
+    assert keys == [
+        str(ssh_dir / "cluster-operator"),
+        str(ssh_dir / "id_ed25519"),
+        str(ssh_dir / "id_rsa"),
+    ]
+    assert {file.name: file.read_bytes() for file in ssh_dir.iterdir()} == before
 
 
 def test_private_key_discovery_handles_missing_dir_and_unreadable_files(tmp_path, monkeypatch):
