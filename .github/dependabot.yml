@@ -26,6 +26,11 @@ updates:
         patterns:
           - "*"
     ignore:
+      # Keep the qualified pytest boundary until lazy-proxy restoration passes.
+      # Qualification: test/test_ci_workflow.py.
+      - dependency-name: "pytest"
+        versions:
+          - ">=9.2"
       - dependency-name: "streamlit"
         update-types:
           - "version-update:semver-major"
