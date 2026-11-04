@@ -1144,7 +1144,7 @@ def settings_page(env: Any) -> None:
     st.caption(
         "Persistent environment variables and global runtime diagnostics for AGILAB actions."
     )
-    st.markdown("#### Environment variables")
+    st.markdown("### Environment variables")
     _render_env_editor(env)
     st.divider()
     with st.expander("Runtime diagnostics", expanded=False):

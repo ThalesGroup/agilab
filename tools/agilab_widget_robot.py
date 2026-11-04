@@ -5068,6 +5068,14 @@ def sweep_page(  # pragma: no cover - live browser path
     target_url = append_route_query(target_url, route_query)
     display = display_page or page_label(page_name)
     expect_any = tuple(expected_text) if expected_text is not None else (("View:",) if current_page else PAGE_EXPECTED_TEXT.get(page_name, (page_label(page_name),)))
+    requested_view = urllib.parse.parse_qs(route_query.lstrip("?")).get("current_page", [""])[0]
+    if (
+        expected_text is None and page_name == "ANALYSIS" and required_text
+        and requested_view in {"app_ui", "view_app_ui"}
+    ):
+        # Explicit app surfaces own their headings. Every authored requirement
+        # is still checked below after optional controls become visible.
+        expect_any = tuple(required_text)
     probes: list[WidgetProbe] = []
     browser_issue_start_index = len(browser_issues or [])
     page_status = "passed"

@@ -7683,3 +7683,38 @@ def test_above_fold_probe_measures_page_before_robot_expands_details(
         assert result.success, [probe.detail for probe in result.failures]
     finally:
         page.close()
+
+
+@pytest.mark.parametrize(("route_query", "expected_success"), [
+    ("current_page=app_ui", True),
+    ("", False),
+])
+def test_app_surface_health_uses_the_explicit_route_contract(
+    _native_shadow_browser, monkeypatch, tmp_path, route_query, expected_success
+):
+    from urllib.parse import quote
+
+    module = _load_module()
+    web_robot = module._load_web_robot()
+    html = """
+      <main class="py-app"><h1>Custom app surface</h1>
+      <p>Evidence unavailable</p>
+      <button>Refresh</button><button>Settings</button><button>Help</button></main>
+    """
+    monkeypatch.setattr(
+        web_robot, "build_page_url",
+        lambda *_args, **_kwargs: "data:text/html," + quote(html),
+    )
+    page = _native_shadow_browser.new_page()
+    try:
+        result = module.sweep_page(
+            page, web_robot=web_robot, base_url="http://demo", active_app_query="demo",
+            app_name="demo", page_name="ANALYSIS", check_active_app_route=False,
+            timeout=1, widget_timeout=1, interaction_mode="actionability",
+            action_button_policy="trial", upload_file=tmp_path / "unused.csv",
+            combination_mode="off", discovery_passes=0, max_action_clicks_per_page=0,
+            route_query=route_query, required_text=("Custom app surface", "Evidence unavailable"),
+        )
+        assert result.success is expected_success, [probe.detail for probe in result.failures]
+    finally:
+        page.close()
