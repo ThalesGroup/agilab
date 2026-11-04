@@ -221,18 +221,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         max_total_seconds=args.max_total_seconds,
         max_mean_page_seconds=args.max_mean_page_seconds,
     )
+    summary = report["summary"]
+    if args.strict and (summary["failed_page_count"] or summary["flaky_page_count"]):
+        report["success"] = False
+    if args.strict_budget and summary["budget_violation_count"]:
+        report["success"] = False
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True) if args.json else render_human(report))
-    if not report["success"]:
-        return 1
-    summary = report["summary"]
-    if args.strict and (summary["failed_page_count"] or summary["flaky_page_count"]):
-        return 1
-    if args.strict_budget and summary["budget_violation_count"]:
-        return 1
-    return 0
+    return 0 if report["success"] else 1
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -868,8 +868,9 @@ def test_agilab_main_page_env_editor(mock_ui_env):
     assert "Runtime diagnostics" not in _element_labels(at.sidebar)
     assert "Diagnostics level" not in _element_labels(at.sidebar)
     settings_markdown = "\n".join(str(item.value) for item in at.markdown)
-    assert "#### Environment variables" in settings_markdown
-    assert "#### Environment variables (" not in settings_markdown
+    assert "### Environment variables" in settings_markdown.splitlines()
+    assert "#### Environment variables" not in settings_markdown.splitlines()
+    assert "Environment variables (" not in settings_markdown
     assert any("Stored in `" in str(item.value) for item in at.caption)
     _assert_docs_actions_absent(at)
 
