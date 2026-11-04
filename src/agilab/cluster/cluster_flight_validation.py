@@ -1453,6 +1453,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "success": True,
                     "setup_backend": args.print_share_setup,
+                    "dry_run": True,
+                    "setup_applied": False,
                     "plan": plan.to_dict(),
                 },
             )

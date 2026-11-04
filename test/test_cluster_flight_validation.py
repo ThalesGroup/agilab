@@ -1139,11 +1139,17 @@ def test_main_share_check_only_skips_dataset_and_writes_summary(
 
 def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
+    summary = tmp_path / "agilab-cluster-share-setup-plan.json"
 
-    def fail_dataset(*args, **kwargs):
-        raise AssertionError("share setup printing should not synthesize Flight data")
+    def fail_execution(*args, **kwargs):
+        raise AssertionError("printing a share setup plan must not execute setup or data generation")
 
-    monkeypatch.setattr(cfv, "write_synthetic_flight_dataset", fail_dataset)
+    for name in (
+        "write_synthetic_flight_dataset",
+        "apply_share_setup",
+        "validate_shared_cluster_share",
+    ):
+        monkeypatch.setattr(cfv, name, fail_execution)
 
     rc = cfv.main(
         [
@@ -1158,11 +1164,18 @@ def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsy
             "/Users/jpm/clustershare/agilab-two-node",
             "--print-share-setup",
             "sshfs",
+            "--summary-json",
+            str(summary),
         ]
     )
 
     output = capsys.readouterr().out
+    payload = json.loads(summary.read_text(encoding="utf-8"))
     assert rc == 0
+    assert payload["success"] is True
+    assert payload["dry_run"] is True
+    assert payload["setup_applied"] is False
+    assert payload["setup_backend"] == "sshfs"
     assert "AGILAB cluster-share setup using SSHFS" in output
     assert "sshfs" in output
     assert "--share-check-only" in output
