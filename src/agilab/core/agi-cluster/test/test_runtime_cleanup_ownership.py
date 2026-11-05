@@ -115,10 +115,17 @@ def test_token_cleanup_signal_failures_are_reported(monkeypatch, fake_psutil, ph
 
 @pytest.mark.parametrize("remaining,uncertain,match", [([process(7)], [], "still alive: 7"), ([], [8], "candidate pid.s.: 8")])
 def test_cleanup_requires_post_signal_proof(monkeypatch, fake_psutil, remaining, uncertain, match):
-    monkeypatch.setattr(runtime, "_owned_token_processes", Mock(side_effect=[([], []), (remaining, uncertain)]))
+    observations = [([], []), (remaining, uncertain)]
+    if uncertain:
+        observations.append((remaining, uncertain))
+    scan = Mock(side_effect=observations)
+    monkeypatch.setattr(runtime, "_owned_token_processes", scan)
     monkeypatch.setattr(runtime, "_known_process_tree", lambda _: [])
     with pytest.raises(RuntimeError, match=match):
         runtime._terminate_token_process_tree(SimpleNamespace(ownership_token="owned"), timeout=0)
+    assert scan.call_count == len(observations)
+    fake_psutil.Process.return_value.terminate.assert_not_called()
+    fake_psutil.Process.return_value.kill.assert_not_called()
 
 
 @pytest.mark.parametrize("status,group,result", [("running", 42, True), (psutil.STATUS_ZOMBIE, 42, False), ("running", 9, False)])
