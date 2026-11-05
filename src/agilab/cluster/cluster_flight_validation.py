@@ -1356,7 +1356,8 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
         params=_request_params(),
         data_in=input_dir.relative_to(local_cluster_share_root(plan)).as_posix(),
         data_out=plan.output_rel.as_posix(),
-        reset_target=True,
+        # Outputs were cleared before deployment; workers share this target.
+        reset_target=False,
         scheduler=plan.scheduler,
         workers=plan.workers,
         workers_data_path=plan.remote_cluster_share_setting,
@@ -1368,12 +1369,17 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     remote_outputs = collect_remote_outputs(plan, timeout=args.timeout)
     output_summaries = (*local_outputs, *remote_outputs)
     remote_targets = remote_worker_specs(plan)
-    success = validation_success(output_summaries, remote_targets)
+    missing_output_files = sorted(
+        {f"{plane}.parquet" for plane in plan.aircraft}
+        - {name for summary in output_summaries for name in summary.parquet_files}
+    )
+    success = validation_success(output_summaries, remote_targets) and not missing_output_files
     return {
         "success": success,
         "plan": plan.to_dict(),
         "shared_cluster_share": [asdict(probe) for probe in share_probes],
         "written_inputs": [str(input_dir / path.name) for path in files],
+        "missing_output_files": missing_output_files,
         "run_result": run_result,
         "outputs": [asdict(summary) for summary in output_summaries],
     }
