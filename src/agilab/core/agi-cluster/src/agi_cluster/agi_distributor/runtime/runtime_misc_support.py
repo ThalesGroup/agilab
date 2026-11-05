@@ -827,6 +827,15 @@ def bootstrap_capacity_predictor(
         log=log,
         trusted_root=env.resources_path,
     )
+    # A failed initial load can train a replacement before returning None.
+    # Reload that artifact through all trust checks, not mutable class state.
+    if predictor is None and retrain_fn is not None and model_path.is_file():
+        predictor = load_capacity_predictor(
+            model_path,
+            load_fn=load_fn,
+            log=log,
+            trusted_root=env.resources_path,
+        )
     agi_cls._capacity_predictor = predictor
     if (
         predictor is None

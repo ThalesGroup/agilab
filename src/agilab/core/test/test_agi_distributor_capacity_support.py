@@ -1208,3 +1208,41 @@ def test_train_capacity_missing_and_success(tmp_path):
     assert manifest["model_file"] == model_path.name
     assert manifest["algorithm"] == runtime_misc_support.CAPACITY_MODEL_HASH_ALGORITHM
     assert hasattr(AGI._capacity_predictor, "predict")
+
+
+@pytest.mark.asyncio
+async def test_calibration_reports_missing_capacity_model(tmp_path, monkeypatch):
+    class Client:
+        def run(self, *_args, **_kwargs):
+            return {
+                "tcp://127.0.0.1:8787": {
+                    "ram_total": [10.0],
+                    "ram_available": [5.0],
+                    "cpu_count": [4.0],
+                    "cpu_frequency": [2.5],
+                    "network_speed": [1.0],
+                }
+            }
+
+        def gather(self, payload):
+            return payload
+
+    monkeypatch.setattr(
+        capacity_support, "_restore_calibration_cache", lambda *_a, **_k: False
+    )
+    model = tmp_path / "balancer_model.pkl"
+    state = SimpleNamespace(
+        _dask_client=Client(),
+        _dask_workers=["127.0.0.1:8787"],
+        _workers={"127.0.0.1": 1},
+        _capacity_predictor=None,
+        _capacity_model_file=model,
+    )
+
+    with pytest.raises(RuntimeError) as error:
+        await capacity_support.calibration(state)
+
+    message = str(error.value)
+    assert str(model) in message
+    assert "AGILAB_RESOURCES_DIR" in message
+    assert "balancer_df.csv" in message

@@ -683,7 +683,21 @@ async def calibration(agi_cls: Any, log: Any = logger) -> None:
             )
             continue
         data = np.array([[worker_count, *values]], dtype=float)
-        agi_cls._capacity[ipport] = agi_cls._capacity_predictor.predict(data)[0]
+        predictor = getattr(agi_cls, "_capacity_predictor", None)
+        if predictor is None:
+            model_path = getattr(agi_cls, "_capacity_model_file", None)
+            location = (
+                str(model_path)
+                if model_path is not None
+                else "the selected resource directory"
+            )
+            raise RuntimeError(
+                f"Worker capacity calibration has no usable model at {location}. "
+                "Select the configured AGILAB_RESOURCES_DIR, or provide "
+                "balancer_df.csv in that resource directory and retry. "
+                "Check the preceding model trust or training diagnostics."
+            )
+        agi_cls._capacity[ipport] = predictor.predict(data)[0]
         info["label"] = agi_cls._capacity[ipport]
         workers_info[ipport] = info
 
