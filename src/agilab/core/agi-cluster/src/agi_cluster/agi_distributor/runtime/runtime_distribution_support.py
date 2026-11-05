@@ -1444,6 +1444,17 @@ def _terminate_token_process_tree(job: Any, *, timeout: float) -> None:
     _gone, alive = psutil.wait_procs(killed, timeout=timeout)
 
     remaining_token_processes, token_uncertainties = _owned_token_processes(job)
+    if token_uncertainties:
+        # A process whose environment became inaccessible may already be exiting.
+        # Wait without signalling it, then refresh the ownership evidence.
+        candidates = []
+        for pid in token_uncertainties:
+            try:
+                candidates.append(psutil.Process(pid))
+            except (psutil.NoSuchProcess, psutil.ZombieProcess, psutil.AccessDenied, OSError):
+                continue
+        psutil.wait_procs(candidates, timeout=timeout)
+        remaining_token_processes, token_uncertainties = _owned_token_processes(job)
     remaining = _unique_processes([*alive, *remaining_token_processes])
     if signal_failures or remaining or token_uncertainties:
         details = "; ".join(signal_failures)
