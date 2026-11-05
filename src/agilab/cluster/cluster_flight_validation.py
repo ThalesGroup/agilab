@@ -1035,26 +1035,26 @@ def sync_remote_inputs(
     files: Sequence[Path],
     *,
     timeout: int,
-) -> None:
-    remote_dir = plan.dataset_rel_to_home.as_posix()
-    for spec in remote_worker_specs(plan):
-        target = _ssh_target(spec, plan)
-        quoted_remote_dir = shlex.quote(remote_dir)
-        mkdir_cmd = (
-            f"mkdir -p \"$HOME\"/{quoted_remote_dir} && "
-            f"rm -f \"$HOME\"/{quoted_remote_dir}/*.csv"
-        )
-        _run_command(_ssh_argv(target, mkdir_cmd), timeout=timeout)
-        for file_path in files:
-            destination = f"{target}:{remote_dir}/"
-            _run_command(
-                ["scp", "-q", "-o", "BatchMode=yes", str(file_path), destination],
-                timeout=timeout,
-            )
-        cluster_share = plan.remote_cluster_share_setting
-        if cluster_share:
-            mkdir_share_cmd = f"mkdir -p {shlex.quote(cluster_share)}"
-            _run_command(_ssh_argv(target, mkdir_share_cmd), timeout=timeout)
+) -> Path:
+    """Stage inputs once in the share already verified on every worker."""
+    dataset_rel = plan.local_dataset_dir.resolve().relative_to(local_share_root(plan))
+    share_root = local_cluster_share_root(plan)
+    dataset_dir = (share_root / dataset_rel).resolve()
+    if dataset_dir == share_root or not dataset_dir.is_relative_to(share_root):
+        raise ValueError("Validation inputs must stay inside the cluster share.")
+    destinations = [(source, dataset_dir / source.name) for source in files]
+    if any(not target.resolve().is_relative_to(share_root) for _, target in destinations):
+        raise ValueError("Validation inputs must stay inside the cluster share.")
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    incoming_names = {target.name for _, target in destinations}
+    for stale in dataset_dir.glob("*_cluster_validation.csv"):
+        if stale.name not in incoming_names and (stale.is_file() or stale.is_symlink()):
+            stale.unlink()
+    for source, target in destinations:
+        if source.resolve() != target.resolve():
+            shutil.copy2(source, target)
+    return dataset_dir
 
 
 def _summarize_output_dir(path: Path, *, location: str) -> OutputSummary:
@@ -1317,7 +1317,7 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     )
     clean_validation_outputs(plan, timeout=args.timeout)
     share_probes = validate_shared_cluster_share(plan, timeout=args.timeout)
-    sync_remote_inputs(plan, files, timeout=args.timeout)
+    input_dir = sync_remote_inputs(plan, files, timeout=args.timeout)
 
     from agi_cluster.agi_distributor import AGI, RunRequest
     from agi_env import AgiEnv
@@ -1354,7 +1354,7 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
 
     request = RunRequest(
         params=_request_params(),
-        data_in=str(plan.local_dataset_dir),
+        data_in=input_dir.relative_to(local_cluster_share_root(plan)).as_posix(),
         data_out=plan.output_rel.as_posix(),
         reset_target=True,
         scheduler=plan.scheduler,
@@ -1373,7 +1373,7 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
         "success": success,
         "plan": plan.to_dict(),
         "shared_cluster_share": [asdict(probe) for probe in share_probes],
-        "written_inputs": [str(path) for path in files],
+        "written_inputs": [str(input_dir / path.name) for path in files],
         "run_result": run_result,
         "outputs": [asdict(summary) for summary in output_summaries],
     }
