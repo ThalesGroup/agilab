@@ -13,6 +13,7 @@ import subprocess
 import sys
 import uuid
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -589,13 +590,16 @@ def write_synthetic_flight_dataset(
         if stale_csv.is_file():
             stale_csv.unlink()
     written: list[Path] = []
+    start_time = datetime(2020, 1, 1)
     for plane in aircraft:
         output = dataset_dir / f"{plane:02d}_cluster_validation.csv"
         rows = ["aircraft,date,lat,long"]
         for index in range(rows_per_aircraft):
-            minute = index % 60
+            timestamp = (start_time + timedelta(minutes=index)).isoformat(
+                sep=" ", timespec="seconds"
+            )
             rows.append(
-                f"{plane},2020-01-01 00:{minute:02d}:00,"
+                f"{plane},{timestamp},"
                 f"{48.0 + (plane / 1000.0) + (index / 10000.0):.6f},"
                 f"{2.0 + (plane / 1000.0) + (index / 10000.0):.6f}"
             )

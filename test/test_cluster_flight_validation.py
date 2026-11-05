@@ -1548,3 +1548,24 @@ def test_run_cluster_validation_with_mocked_agi_success(
     ]
     assert run_requests[0].kwargs["mode"] == 4
     assert run_requests[0].kwargs["data_out"] == "flight_cluster_validation/dataframe_cluster_validation"
+
+@pytest.mark.parametrize(
+    ("rows_per_aircraft", "last_timestamp"),
+    [(61, "2020-01-01 01:00:00"), (1441, "2020-01-02 00:00:00")],
+)
+def test_write_synthetic_flight_dataset_keeps_chronological_timestamps(
+    tmp_path: Path, rows_per_aircraft: int, last_timestamp: str
+):
+    import csv
+
+    files = cfv.write_synthetic_flight_dataset(
+        tmp_path, aircraft=(60,), rows_per_aircraft=rows_per_aircraft
+    )
+    with files[0].open(newline="", encoding="utf-8") as stream:
+        records = list(csv.DictReader(stream))
+
+    timestamps = [record["date"] for record in records]
+    assert timestamps[0] == "2020-01-01 00:00:00"
+    assert timestamps[-1] == last_timestamp
+    assert len(set(timestamps)) == rows_per_aircraft
+    assert timestamps == sorted(timestamps)
