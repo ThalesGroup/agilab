@@ -128,6 +128,46 @@ def test_cleanup_requires_post_signal_proof(monkeypatch, fake_psutil, remaining,
     fake_psutil.Process.return_value.kill.assert_not_called()
 
 
+@pytest.mark.parametrize("exit_before_wait", [False, True])
+def test_cleanup_rechecks_exiting_unknown_candidate(
+    monkeypatch, fake_os, fake_psutil, exit_before_wait
+):
+    candidate = process(8)
+    candidate.environ.side_effect = psutil.AccessDenied(8)
+    current = process(1)
+    state = {"exited": False}
+
+    def find_process(pid):
+        if pid != candidate.pid:
+            return current
+        if exit_before_wait:
+            state["exited"] = True
+            raise psutil.NoSuchProcess(pid)
+        return candidate
+
+    def wait_procs(processes, *, timeout):
+        if candidate in processes:
+            state["exited"] = True
+            return [candidate], []
+        return [], []
+
+    fake_psutil.Process.side_effect = find_process
+    fake_psutil.process_iter.side_effect = lambda attrs: iter(
+        [] if state["exited"] else [candidate]
+    )
+    fake_psutil.wait_procs.side_effect = wait_procs
+    job = SimpleNamespace(
+        ownership_token="owned", ownership_started_at=100,
+        process=SimpleNamespace(poll=lambda: 0),
+    )
+
+    runtime._terminate_token_process_tree(job, timeout=0)
+
+    assert state["exited"] is True
+    candidate.terminate.assert_not_called()
+    candidate.kill.assert_not_called()
+
+
 @pytest.mark.parametrize("status,group,result", [("running", 42, True), (psutil.STATUS_ZOMBIE, 42, False), ("running", 9, False)])
 def test_live_group_ignores_zombies_and_other_groups(fake_os, fake_psutil, status, group, result):
     candidate = process(2)

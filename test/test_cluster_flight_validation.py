@@ -1436,10 +1436,14 @@ def test_main_prints_non_dry_run_output_summary(monkeypatch, capsys, tmp_path: P
     assert "ok: jpm@192.168.3.35" in output
 
 
-def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("aircraft,expected_success", [("60", True), ("60,61", False)])
+def test_run_cluster_validation_with_mocked_agi_success(
+    tmp_path: Path, monkeypatch, aircraft, expected_success
+):
     from agi_node.agi_dispatcher.base_worker import BaseWorker
 
     install_calls: list[dict[str, object]] = []
+    lifecycle_calls: list[str] = []
     run_requests: list[object] = []
 
     class FakeAgiEnv:
@@ -1466,10 +1470,15 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
 
         @staticmethod
         async def install(**kwargs):
+            assert lifecycle_calls == ["clean"]
+            lifecycle_calls.append("install")
             install_calls.append(kwargs)
 
         @staticmethod
         async def run(env, *, request):
+            assert lifecycle_calls == ["clean", "install"]
+            assert request.kwargs["reset_target"] is False
+            lifecycle_calls.append("run")
             dataset = BaseWorker._resolve_data_dir(env, request.kwargs["data_in"])
             assert dataset == tmp_path / "cluster-root/flight_cluster_validation/dataset/csv"
             assert (dataset / "60_cluster_validation.csv").is_file()
@@ -1486,7 +1495,9 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
     monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", agi_distributor)
     monkeypatch.setitem(sys.modules, "agi_env", agi_env)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(cfv, "clean_validation_outputs", lambda plan, *, timeout: None)
+    monkeypatch.setattr(
+        cfv, "clean_validation_outputs", lambda plan, *, timeout: lifecycle_calls.append("clean")
+    )
     monkeypatch.setattr(
         cfv,
         "collect_local_outputs",
@@ -1509,7 +1520,7 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
                 scheduler="127.0.0.1",
                 workers="127.0.0.1",
                 cluster_share="cluster-root",
-                aircraft="60",
+                aircraft=aircraft,
                 timeout=5,
                 verbose=2,
                 ssh_key=str(tmp_path / "id_ed25519"),
@@ -1517,7 +1528,8 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
         )
     )
 
-    assert payload["success"] is True
+    assert payload["success"] is expected_success
+    assert payload["missing_output_files"] == ([] if expected_success else ["61.parquet"])
     assert payload["run_result"] == "run-ok"
     assert payload["outputs"][0]["parquet_files"] == ("60.parquet",)
     assert FakeAgiEnv.reset_called is True
@@ -1531,7 +1543,8 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
     assert install_env.envars["AGI_CLUSTER_SHARE"] == "cluster-root"
     assert run_requests[0].kwargs["data_in"] == "flight_cluster_validation/dataset/csv"
     assert payload["written_inputs"] == [
-        str(tmp_path / "cluster-root/flight_cluster_validation/dataset/csv/60_cluster_validation.csv")
+        str(tmp_path / f"cluster-root/flight_cluster_validation/dataset/csv/{plane}_cluster_validation.csv")
+        for plane in aircraft.split(",")
     ]
     assert run_requests[0].kwargs["mode"] == 4
     assert run_requests[0].kwargs["data_out"] == "flight_cluster_validation/dataframe_cluster_validation"
