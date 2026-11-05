@@ -1584,3 +1584,81 @@ def test_format_elapsed_uses_precisedelta_callback():
     )
 
     assert text == "12.5s"
+
+
+@pytest.mark.parametrize("existing_model", [False, True], ids=["missing", "unloadable"])
+def test_bootstrap_capacity_predictor_recovers_trained_model(tmp_path, existing_model):
+    env = SimpleNamespace(resources_path=tmp_path / "resources")
+    env.resources_path.mkdir()
+    state = SimpleNamespace(_capacity_predictor=None)
+    model = env.resources_path / "balancer_model.pkl"
+    if existing_model:
+        model.write_bytes(pickle.dumps("legacy"))
+        runtime_misc_support.write_capacity_model_manifest(model)
+    trained = {"trained": True}
+    calls = {"retrain": 0, "loads": 0}
+
+    def load(stream):
+        calls["loads"] += 1
+        value = pickle.load(stream)
+        if value == "legacy":
+            raise ModuleNotFoundError("legacy model module")
+        return value
+
+    def retrain():
+        calls["retrain"] += 1
+        state._capacity_predictor = trained
+        model.write_bytes(pickle.dumps(trained))
+        runtime_misc_support.write_capacity_model_manifest(model)
+
+    result = runtime_misc_support.bootstrap_capacity_predictor(
+        state, env, retrain_fn=retrain, load_fn=load
+    )
+
+    assert result == trained
+    assert state._capacity_predictor == trained
+    assert calls == {"retrain": 1, "loads": 2 if existing_model else 1}
+
+
+@pytest.mark.parametrize(
+    "invalid_output", ["missing-manifest", "changed-model", "outside-root"]
+)
+def test_bootstrap_capacity_predictor_rechecks_retrained_model_trust(
+    tmp_path, invalid_output
+):
+    env = SimpleNamespace(resources_path=tmp_path / "resources")
+    env.resources_path.mkdir()
+    state = SimpleNamespace(_capacity_predictor=None)
+    model = env.resources_path / "balancer_model.pkl"
+    calls = {"retrain": 0, "loads": 0}
+
+    def load(_stream):
+        calls["loads"] += 1
+        raise AssertionError("Unverified retraining output must not be deserialized")
+
+    def retrain():
+        calls["retrain"] += 1
+        state._capacity_predictor = {"unverified": True}
+        if invalid_output == "outside-root":
+            outside = tmp_path / "outside.pkl"
+            outside.write_bytes(pickle.dumps("outside"))
+            runtime_misc_support.write_capacity_model_manifest(outside)
+            try:
+                model.symlink_to(outside)
+            except OSError as exc:
+                if os.name == "nt" and getattr(exc, "winerror", None) == 1314:
+                    pytest.skip("Windows symlink creation privilege is unavailable")
+                raise
+        else:
+            model.write_bytes(pickle.dumps("replacement"))
+            if invalid_output == "changed-model":
+                runtime_misc_support.write_capacity_model_manifest(model)
+                model.write_bytes(pickle.dumps("changed"))
+
+    result = runtime_misc_support.bootstrap_capacity_predictor(
+        state, env, retrain_fn=retrain, load_fn=load
+    )
+
+    assert result is None
+    assert state._capacity_predictor is None
+    assert calls == {"retrain": 1, "loads": 0}
