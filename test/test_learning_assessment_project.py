@@ -3402,3 +3402,38 @@ def test_tescia_worker_rejects_invalid_case_file(monkeypatch, tmp_path) -> None:
         ValueError, match="Invalid TeSciA diagnostic file.*between 0.0 and 1.0"
     ):
         worker._load_cases(case_file)
+
+
+@pytest.mark.parametrize(("mode", "embedded", "expected_heading"), [
+    ("analysis", False, "title"),
+    ("analysis", True, "header"),
+    ("full", False, "title"),
+    ("full", True, "title"),
+])
+def test_tescia_app_surface_uses_section_heading_when_embedded(
+    monkeypatch, mode, embedded, expected_heading
+) -> None:
+    monkeypatch.syspath_prepend(str(APP_SRC))
+    module = _load_app_surface_module()
+    headings = []
+
+    class HeadingRendered(Exception):
+        pass
+
+    def record_heading(kind):
+        def render_heading(text):
+            headings.append((kind, text))
+            raise HeadingRendered
+        return render_heading
+
+    fake_st = SimpleNamespace(
+        title=record_heading("title"), header=record_heading("header")
+    )
+    import agi_web
+    monkeypatch.setattr(agi_web, "python_ui", fake_st)
+    monkeypatch.setitem(sys.modules, "agi_web.python_ui", fake_st)
+    monkeypatch.setattr(module, "_safe_page_config", lambda: None)
+    kwargs = {"container": object()} if embedded else {}
+    with pytest.raises(HeadingRendered):
+        module.render(mode=mode, **kwargs)
+    assert headings == [(expected_heading, "Learning & Assessment")]

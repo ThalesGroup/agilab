@@ -736,7 +736,7 @@ def _render_notebook_actions(
 
         import_module_dir = stages_file.parent
         view_manifest_dir = _resolve_active_app_project_dir(env, project_name)
-        st.markdown("##### Import")
+        st.markdown("## Import")
         st.file_uploader(
             "Import notebook",
             type="ipynb",
@@ -770,7 +770,7 @@ def _render_notebook_actions(
         notebook_path = refresh_notebook_export(
             stages_file, export_context=export_context
         )
-        st.markdown("##### Export")
+        st.markdown("## Export")
         if notebook_path and notebook_path.exists():
             _render_notebook_download_button(
                 notebook_path,

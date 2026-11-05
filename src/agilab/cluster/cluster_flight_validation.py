@@ -159,8 +159,18 @@ def _share_setup_uses_premounted(plan: ValidationPlan, backend: str) -> bool:
     return bool(plan.remote_cluster_share_premounted or _share_backend_implies_premounted(backend))
 
 
-def _default_apps_path() -> Path:
-    return Path(__file__).resolve().parents[1] / "apps" / "builtin"
+def _default_apps_path(app: str = DEFAULT_APP) -> Path:
+    builtin = Path(__file__).resolve().parents[1] / "apps" / "builtin"
+    if (builtin / app / "pyproject.toml").is_file():
+        return builtin
+    try:
+        from agi_env.app_provider_registry import resolve_installed_app_project
+    except ImportError:
+        return builtin
+    project = resolve_installed_app_project(app)
+    if project is not None and (project / "pyproject.toml").is_file():
+        return project.parent
+    return builtin
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -204,8 +214,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--app", default=DEFAULT_APP, help=f"App name. Default: {DEFAULT_APP}.")
     parser.add_argument(
         "--apps-path",
-        default=str(_default_apps_path()),
-        help="Directory containing app projects. Defaults to packaged built-in apps.",
+        default=None,
+        help="Directory containing app projects. Defaults to built-in or installed app providers.",
     )
     parser.add_argument(
         "--local-share",
@@ -545,7 +555,7 @@ def build_validation_plan(
     cluster_share_backend = _resolve_cluster_share_backend(args)
     return ValidationPlan(
         app=args.app,
-        apps_path=Path(args.apps_path).expanduser().resolve(strict=False),
+        apps_path=Path(args.apps_path or _default_apps_path(args.app)).expanduser().resolve(strict=False),
         scheduler=args.scheduler,
         workers=build_workers_map(args.scheduler, specs),
         worker_specs=tuple(specs),
@@ -1025,26 +1035,26 @@ def sync_remote_inputs(
     files: Sequence[Path],
     *,
     timeout: int,
-) -> None:
-    remote_dir = plan.dataset_rel_to_home.as_posix()
-    for spec in remote_worker_specs(plan):
-        target = _ssh_target(spec, plan)
-        quoted_remote_dir = shlex.quote(remote_dir)
-        mkdir_cmd = (
-            f"mkdir -p \"$HOME\"/{quoted_remote_dir} && "
-            f"rm -f \"$HOME\"/{quoted_remote_dir}/*.csv"
-        )
-        _run_command(_ssh_argv(target, mkdir_cmd), timeout=timeout)
-        for file_path in files:
-            destination = f"{target}:{remote_dir}/"
-            _run_command(
-                ["scp", "-q", "-o", "BatchMode=yes", str(file_path), destination],
-                timeout=timeout,
-            )
-        cluster_share = plan.remote_cluster_share_setting
-        if cluster_share:
-            mkdir_share_cmd = f"mkdir -p {shlex.quote(cluster_share)}"
-            _run_command(_ssh_argv(target, mkdir_share_cmd), timeout=timeout)
+) -> Path:
+    """Stage inputs once in the share already verified on every worker."""
+    dataset_rel = plan.local_dataset_dir.resolve().relative_to(local_share_root(plan))
+    share_root = local_cluster_share_root(plan)
+    dataset_dir = (share_root / dataset_rel).resolve()
+    if dataset_dir == share_root or not dataset_dir.is_relative_to(share_root):
+        raise ValueError("Validation inputs must stay inside the cluster share.")
+    destinations = [(source, dataset_dir / source.name) for source in files]
+    if any(not target.resolve().is_relative_to(share_root) for _, target in destinations):
+        raise ValueError("Validation inputs must stay inside the cluster share.")
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    incoming_names = {target.name for _, target in destinations}
+    for stale in dataset_dir.glob("*_cluster_validation.csv"):
+        if stale.name not in incoming_names and (stale.is_file() or stale.is_symlink()):
+            stale.unlink()
+    for source, target in destinations:
+        if source.resolve() != target.resolve():
+            shutil.copy2(source, target)
+    return dataset_dir
 
 
 def _summarize_output_dir(path: Path, *, location: str) -> OutputSummary:
@@ -1307,7 +1317,7 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     )
     clean_validation_outputs(plan, timeout=args.timeout)
     share_probes = validate_shared_cluster_share(plan, timeout=args.timeout)
-    sync_remote_inputs(plan, files, timeout=args.timeout)
+    input_dir = sync_remote_inputs(plan, files, timeout=args.timeout)
 
     from agi_cluster.agi_distributor import AGI, RunRequest
     from agi_env import AgiEnv
@@ -1344,9 +1354,10 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
 
     request = RunRequest(
         params=_request_params(),
-        data_in=str(plan.local_dataset_dir),
+        data_in=input_dir.relative_to(local_cluster_share_root(plan)).as_posix(),
         data_out=plan.output_rel.as_posix(),
-        reset_target=True,
+        # Outputs were cleared before deployment; workers share this target.
+        reset_target=False,
         scheduler=plan.scheduler,
         workers=plan.workers,
         workers_data_path=plan.remote_cluster_share_setting,
@@ -1358,12 +1369,17 @@ async def run_cluster_validation(args: argparse.Namespace) -> dict[str, Any]:
     remote_outputs = collect_remote_outputs(plan, timeout=args.timeout)
     output_summaries = (*local_outputs, *remote_outputs)
     remote_targets = remote_worker_specs(plan)
-    success = validation_success(output_summaries, remote_targets)
+    missing_output_files = sorted(
+        {f"{plane}.parquet" for plane in plan.aircraft}
+        - {name for summary in output_summaries for name in summary.parquet_files}
+    )
+    success = validation_success(output_summaries, remote_targets) and not missing_output_files
     return {
         "success": success,
         "plan": plan.to_dict(),
         "shared_cluster_share": [asdict(probe) for probe in share_probes],
-        "written_inputs": [str(path) for path in files],
+        "written_inputs": [str(input_dir / path.name) for path in files],
+        "missing_output_files": missing_output_files,
         "run_result": run_result,
         "outputs": [asdict(summary) for summary in output_summaries],
     }
@@ -1453,6 +1469,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 {
                     "success": True,
                     "setup_backend": args.print_share_setup,
+                    "dry_run": True,
+                    "setup_applied": False,
                     "plan": plan.to_dict(),
                 },
             )

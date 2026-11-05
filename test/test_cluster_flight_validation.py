@@ -48,6 +48,84 @@ def _args(**overrides):
     return Namespace(**values)
 
 
+@pytest.mark.parametrize("app_name", ["flight_telemetry_project", "weather_forecast_project"])
+def test_plan_resolves_installed_app_provider_when_apps_path_is_omitted(
+    tmp_path, monkeypatch, app_name
+):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "site-packages" / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    project = tmp_path / "site-packages" / "agi_app_payload" / "project" / app_name
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "installed-app"\nversion = "1.0"\n')
+    monkeypatch.setattr(
+        providers, "resolve_installed_app_project", lambda name: project if name == app_name else None
+    )
+    args = cfv._parse_args(
+        [
+            "--cluster", "--scheduler", "127.0.0.1", "--workers", "127.0.0.1",
+            "--remote-user", "tester", "--app", app_name,
+        ]
+    )
+
+    plan = cfv.build_validation_plan(args, home=tmp_path / "home", environ={"USER": "tester"})
+
+    assert plan.apps_path == project.parent
+    assert (plan.apps_path / plan.app / "pyproject.toml").is_file()
+
+
+def test_default_apps_path_prefers_existing_builtin_project(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    builtin = package_root / "apps" / "builtin"
+    project = builtin / cfv.DEFAULT_APP
+    project.mkdir(parents=True)
+    (project / "pyproject.toml").write_text('[project]\nname = "source-app"\nversion = "1.0"\n')
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+
+    def unexpected_provider_lookup(_name):
+        pytest.fail("An existing built-in project must retain priority over installed providers")
+
+    monkeypatch.setattr(providers, "resolve_installed_app_project", unexpected_provider_lookup)
+
+    assert cfv._default_apps_path() == builtin
+
+
+def test_plan_keeps_explicit_apps_path_without_provider_lookup(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    explicit = tmp_path / "custom-apps"
+
+    def unexpected_provider_lookup(_name):
+        pytest.fail("An explicit apps path must not query installed providers")
+
+    monkeypatch.setattr(providers, "resolve_installed_app_project", unexpected_provider_lookup)
+    args = cfv._parse_args(
+        [
+            "--cluster", "--scheduler", "127.0.0.1", "--workers", "127.0.0.1",
+            "--remote-user", "tester", "--apps-path", str(explicit),
+        ]
+    )
+
+    plan = cfv.build_validation_plan(args, home=tmp_path / "home", environ={"USER": "tester"})
+
+    assert plan.apps_path == explicit
+
+
+def test_default_apps_path_retains_builtin_fallback_without_installed_provider(tmp_path, monkeypatch):
+    import agi_env.app_provider_registry as providers
+
+    package_root = tmp_path / "agilab"
+    monkeypatch.setattr(cfv, "__file__", str(package_root / "cluster" / "cluster_flight_validation.py"))
+    monkeypatch.setattr(providers, "resolve_installed_app_project", lambda _name: None)
+
+    assert cfv._default_apps_path() == package_root / "apps" / "builtin"
+
+
 def test_worker_spec_ssh_target_formats_user_host():
     assert cfv.WorkerSpec(host="192.168.3.35", user="jpm").ssh_target == "jpm@192.168.3.35"
     assert cfv.WorkerSpec(host="192.168.3.35").ssh_target == "192.168.3.35"
@@ -451,62 +529,57 @@ def test_remote_worker_specs_filters_local_scheduler(tmp_path: Path):
     )
 
 
-def test_sync_remote_inputs_builds_ssh_and_scp_commands(tmp_path: Path, monkeypatch):
+def test_sync_remote_inputs_stages_once_in_verified_share(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
     plan = cfv.build_validation_plan(
-        _args(workers="jpm@192.168.3.35", remote_cluster_share="remote share"),
+        _args(workers="tester@192.0.2.2", cluster_share="cluster share"),
         home=tmp_path,
-        environ={"USER": "agi"},
+        environ={"USER": "tester"},
     )
-    input_file = tmp_path / "input.csv"
-    input_file.write_text("aircraft,date,lat,long\n", encoding="utf-8")
-    commands: list[tuple[list[str], int | None]] = []
-
-    def fake_run(argv, *, timeout=None):
-        commands.append((list(argv), timeout))
-        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
-
-    monkeypatch.setattr(cfv, "_run_command", fake_run)
-
-    cfv.sync_remote_inputs(plan, [input_file], timeout=12)
-
-    assert commands[0][0][:4] == ["ssh", "-o", "BatchMode=yes", "jpm@192.168.3.35"]
-    assert "rm -f" in commands[0][0][-1]
-    assert commands[1][0] == [
-        "scp",
-        "-q",
-        "-o",
-        "BatchMode=yes",
-        str(input_file),
-        "jpm@192.168.3.35:localshare/flight_cluster_validation/dataset/csv/",
-    ]
-    assert "mkdir -p 'remote share'" in commands[2][0][-1]
-    assert all(timeout == 12 for _, timeout in commands)
-
-
-def test_sync_remote_inputs_skips_remote_cluster_share_when_empty(tmp_path: Path, monkeypatch):
-    plan = replace(
-        cfv.build_validation_plan(
-            _args(workers="jpm@192.168.3.35"),
-            home=tmp_path,
-            environ={"USER": "agi"},
-        ),
-        remote_cluster_share_setting="",
+    files = cfv.write_synthetic_flight_dataset(
+        plan.local_dataset_dir, aircraft=plan.aircraft, rows_per_aircraft=3
     )
-    input_file = tmp_path / "input.csv"
-    input_file.write_text("aircraft,date,lat,long\n", encoding="utf-8")
-    commands: list[list[str]] = []
+    originals = {path.name: path.read_bytes() for path in files}
+    staged = tmp_path / "cluster share/flight_cluster_validation/dataset/csv"
+    staged.mkdir(parents=True)
+    (staged / "99_cluster_validation.csv").write_text("stale")
+    unrelated = staged / "operator.csv"
+    unrelated.write_text("preserve")
+    monkeypatch.setattr(
+        cfv, "_run_command",
+        lambda *args, **kwargs: pytest.fail("shared inputs must not be copied over SSH"),
+    )
 
-    def fake_run(argv, *, timeout=None):
-        commands.append(list(argv))
-        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+    result = cfv.sync_remote_inputs(plan, files, timeout=12)
 
-    monkeypatch.setattr(cfv, "_run_command", fake_run)
+    assert result == staged
+    assert {path.name: path.read_bytes() for path in files} == originals
+    assert {path.name: path.read_bytes() for path in staged.glob("*_cluster_validation.csv")} == originals
+    assert unrelated.read_text() == "preserve"
 
-    cfv.sync_remote_inputs(plan, [input_file], timeout=12)
 
-    assert len(commands) == 2
-    assert commands[0][0] == "ssh"
-    assert commands[1][0] == "scp"
+def test_sync_remote_inputs_rejects_share_symlink_escape(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    plan = cfv.build_validation_plan(
+        _args(cluster_share="cluster-root"), home=tmp_path, environ={"USER": "tester"}
+    )
+    files = cfv.write_synthetic_flight_dataset(
+        plan.local_dataset_dir, aircraft=(60,), rows_per_aircraft=1
+    )
+    share = tmp_path / "cluster-root"
+    share.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (share / "flight_cluster_validation").symlink_to(outside, target_is_directory=True)
+    monkeypatch.setattr(
+        cfv, "_run_command", lambda *args, **kwargs: pytest.fail("unexpected SSH")
+    )
+
+    with pytest.raises(ValueError, match="inside.*cluster share"):
+        cfv.sync_remote_inputs(plan, files, timeout=12)
+
+    assert not list(outside.iterdir())
+    assert files[0].is_file()
 
 
 def test_run_command_captures_stdout():
@@ -1139,11 +1212,17 @@ def test_main_share_check_only_skips_dataset_and_writes_summary(
 
 def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsys):
     monkeypatch.setenv("HOME", str(tmp_path))
+    summary = tmp_path / "agilab-cluster-share-setup-plan.json"
 
-    def fail_dataset(*args, **kwargs):
-        raise AssertionError("share setup printing should not synthesize Flight data")
+    def fail_execution(*args, **kwargs):
+        raise AssertionError("printing a share setup plan must not execute setup or data generation")
 
-    monkeypatch.setattr(cfv, "write_synthetic_flight_dataset", fail_dataset)
+    for name in (
+        "write_synthetic_flight_dataset",
+        "apply_share_setup",
+        "validate_shared_cluster_share",
+    ):
+        monkeypatch.setattr(cfv, name, fail_execution)
 
     rc = cfv.main(
         [
@@ -1158,11 +1237,18 @@ def test_main_print_share_setup_skips_dataset(tmp_path: Path, monkeypatch, capsy
             "/Users/jpm/clustershare/agilab-two-node",
             "--print-share-setup",
             "sshfs",
+            "--summary-json",
+            str(summary),
         ]
     )
 
     output = capsys.readouterr().out
+    payload = json.loads(summary.read_text(encoding="utf-8"))
     assert rc == 0
+    assert payload["success"] is True
+    assert payload["dry_run"] is True
+    assert payload["setup_applied"] is False
+    assert payload["setup_backend"] == "sshfs"
     assert "AGILAB cluster-share setup using SSHFS" in output
     assert "sshfs" in output
     assert "--share-check-only" in output
@@ -1350,8 +1436,14 @@ def test_main_prints_non_dry_run_output_summary(monkeypatch, capsys, tmp_path: P
     assert "ok: jpm@192.168.3.35" in output
 
 
-def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypatch):
+@pytest.mark.parametrize("aircraft,expected_success", [("60", True), ("60,61", False)])
+def test_run_cluster_validation_with_mocked_agi_success(
+    tmp_path: Path, monkeypatch, aircraft, expected_success
+):
+    from agi_node.agi_dispatcher.base_worker import BaseWorker
+
     install_calls: list[dict[str, object]] = []
+    lifecycle_calls: list[str] = []
     run_requests: list[object] = []
 
     class FakeAgiEnv:
@@ -1365,6 +1457,7 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
             self.kwargs = kwargs
             self.user = None
             self.password = "set later"
+            self._is_managed_pc = False
 
     class FakeRunRequest:
         def __init__(self, **kwargs):
@@ -1377,10 +1470,18 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
 
         @staticmethod
         async def install(**kwargs):
+            assert lifecycle_calls == ["clean"]
+            lifecycle_calls.append("install")
             install_calls.append(kwargs)
 
         @staticmethod
         async def run(env, *, request):
+            assert lifecycle_calls == ["clean", "install"]
+            assert request.kwargs["reset_target"] is False
+            lifecycle_calls.append("run")
+            dataset = BaseWorker._resolve_data_dir(env, request.kwargs["data_in"])
+            assert dataset == tmp_path / "cluster-root/flight_cluster_validation/dataset/csv"
+            assert (dataset / "60_cluster_validation.csv").is_file()
             return "run-ok"
 
     agi_distributor = types.ModuleType("agi_cluster.agi_distributor")
@@ -1394,8 +1495,9 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
     monkeypatch.setitem(sys.modules, "agi_cluster.agi_distributor", agi_distributor)
     monkeypatch.setitem(sys.modules, "agi_env", agi_env)
     monkeypatch.setenv("HOME", str(tmp_path))
-    monkeypatch.setattr(cfv, "clean_validation_outputs", lambda plan, *, timeout: None)
-    monkeypatch.setattr(cfv, "sync_remote_inputs", lambda plan, files, *, timeout: None)
+    monkeypatch.setattr(
+        cfv, "clean_validation_outputs", lambda plan, *, timeout: lifecycle_calls.append("clean")
+    )
     monkeypatch.setattr(
         cfv,
         "collect_local_outputs",
@@ -1418,7 +1520,7 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
                 scheduler="127.0.0.1",
                 workers="127.0.0.1",
                 cluster_share="cluster-root",
-                aircraft="60",
+                aircraft=aircraft,
                 timeout=5,
                 verbose=2,
                 ssh_key=str(tmp_path / "id_ed25519"),
@@ -1426,7 +1528,8 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
         )
     )
 
-    assert payload["success"] is True
+    assert payload["success"] is expected_success
+    assert payload["missing_output_files"] == ([] if expected_success else ["61.parquet"])
     assert payload["run_result"] == "run-ok"
     assert payload["outputs"][0]["parquet_files"] == ("60.parquet",)
     assert FakeAgiEnv.reset_called is True
@@ -1438,5 +1541,10 @@ def test_run_cluster_validation_with_mocked_agi_success(tmp_path: Path, monkeypa
     assert install_env.agi_share_path == "cluster-root"
     assert install_env.envars["AGI_CLUSTER_ENABLED"] == "1"
     assert install_env.envars["AGI_CLUSTER_SHARE"] == "cluster-root"
+    assert run_requests[0].kwargs["data_in"] == "flight_cluster_validation/dataset/csv"
+    assert payload["written_inputs"] == [
+        str(tmp_path / f"cluster-root/flight_cluster_validation/dataset/csv/{plane}_cluster_validation.csv")
+        for plane in aircraft.split(",")
+    ]
     assert run_requests[0].kwargs["mode"] == 4
     assert run_requests[0].kwargs["data_out"] == "flight_cluster_validation/dataframe_cluster_validation"
