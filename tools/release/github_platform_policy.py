@@ -12,13 +12,6 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
-try:
-    from tools.pypi_trusted_publisher_contract import trusted_publisher_claims
-except ModuleNotFoundError:  # pragma: no cover - direct tools/ script execution
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from pypi_trusted_publisher_contract import trusted_publisher_claims
-
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -223,6 +216,9 @@ def _environment_names(api: GhApi, policy: dict[str, Any]) -> list[str]:
 
 def expected_pypi_environment_names() -> set[str]:
     """Return every environment in the checked-in trusted-publisher contract."""
+
+    # Offline cost checks also run in fresh Mac hooks without release dependencies.
+    from tools.pypi_trusted_publisher_contract import trusted_publisher_claims
 
     return {claim.environment for claim in trusted_publisher_claims()}
 
@@ -439,7 +435,19 @@ def _ruleset_matches(actual: Any, desired: dict[str, Any]) -> bool:
 
 
 def _workflow_events(text: str) -> set[str]:
-    import yaml
+    try:
+        import yaml
+    except ModuleNotFoundError as exc:
+        if exc.name != "yaml":
+            raise
+        raise ModuleNotFoundError(
+            "Workflow cost checks require PyYAML in the hook interpreter. "
+            "Use a project .venv containing PyYAML. For a fresh checkout without "
+            ".venv, prepare only the lightweight guard environment: "
+            "uv venv --python 3.13 .venv; "
+            "uv pip install --python .venv/bin/python PyYAML. "
+            "No full project sync or Actions run is needed."
+        ) from exc
 
     class WorkflowLoader(yaml.SafeLoader):
         pass

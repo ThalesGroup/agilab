@@ -5,7 +5,8 @@
 # fails on interpreters without prebuilt wheels (e.g. free-threaded CPython
 # building polars from source). Prefer the project environment when it
 # exists, then the main checkout's environment, then plain python3 for the
-# stdlib-only guards.
+# lightweight guards. The workflow-cost guard requires PyYAML and reports
+# isolated environment recovery when the selected interpreter lacks it.
 run_guard_python() {
   if [[ -x "$ROOT_DIR/.venv/Scripts/python.exe" ]]; then
     "$ROOT_DIR/.venv/Scripts/python.exe" "$@"

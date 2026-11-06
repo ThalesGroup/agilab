@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import pytest
 import sys
 from pathlib import Path
@@ -307,3 +308,73 @@ def test_local_pre_push_cost_guard_runs_before_general_skip_escape():
     assert hook.index("--check-workflow-cost --pre-push-spec") < hook.index(
         "AGILAB_SKIP_LOCAL_GUARDS"
     )
+
+
+def test_offline_cost_entrypoint_does_not_load_publication_dependencies(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    script = """
+import builtins
+import runpy
+import sys
+
+original_import = builtins.__import__
+
+def offline_import(name, *args, **kwargs):
+    if name in {"tomllib", "tools.pypi_trusted_publisher_contract", "pypi_trusted_publisher_contract"}:
+        raise AssertionError("offline hook imported publication dependencies: " + name)
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = offline_import
+sys.argv = [sys.argv[1], "--check-workflow-cost"]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(MODULE_PATH)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["live_api_contacted"] is False
+    assert all(check["status"] == "pass" for check in payload["checks"])
+
+
+def test_offline_cost_entrypoint_missing_yaml_has_offline_recovery(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    script = """
+import builtins
+import runpy
+import sys
+
+original_import = builtins.__import__
+
+def without_yaml(name, *args, **kwargs):
+    if name == "yaml":
+        raise ModuleNotFoundError("No module named 'yaml'", name="yaml")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = without_yaml
+sys.argv = [sys.argv[1], "--check-workflow-cost"]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(MODULE_PATH)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    payload = json.loads(completed.stdout)
+    assert payload["live_api_contacted"] is False
+    failures = " ".join(payload["checks"][0]["failures"])
+    assert "PyYAML" in failures
+    assert "uv venv --python 3.13 .venv" in failures
+    assert "No full project sync or Actions run is needed." in failures
+    assert "Traceback" not in completed.stderr
