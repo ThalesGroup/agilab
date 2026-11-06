@@ -740,10 +740,10 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "--skip-existing-pypi": (
             "workflow must omit already-published package versions from publish/provenance by default"
         ),
-        "uses: ./.github/actions/setup-locked-python-tools": (
-            "release tooling jobs must install Python tools through the locked local action"
+        "python tools/setup_locked_python_tools.py": (
+            "release tooling jobs must install Python tools through the locked local installer"
         ),
-        "requirements: .github/requirements/ci-publish.txt": (
+        "--requirements .github/requirements/ci-publish.txt": (
             "release-plan and unprivileged build jobs must use the hash-locked publishing toolchain"
         ),
         "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}": (
@@ -872,7 +872,7 @@ def validate_workflow_contract(workflow_path: Path) -> list[str]:
         "ref: ${{ github.sha }}": (
             "HF Space sync must deploy from the workflow SHA, not a stale manual release_tag checkout"
         ),
-        "requirements: .github/requirements/ci-hf-release.txt": (
+        "--requirements .github/requirements/ci-hf-release.txt": (
             "HF Space sync must use the hash-locked HF CLI dependency set"
         ),
         "tools/hf_space_release_sync.py": "workflow must use the release HF Space sync tool",

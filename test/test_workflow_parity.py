@@ -1697,21 +1697,21 @@ def test_run_profiles_reuses_cached_success_without_executing(
         argv=[sys.executable, "-c", "raise SystemExit(9)"],
         timeout_seconds=10,
     )
-    commands_by_profile = {"skills": [spec]}
+    commands_by_profile = {"installer": [spec]}
     monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
     monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
     args = _cache_args(cache_path)
     descriptions = module._profile_descriptions()
     cache_key = module._run_result_cache_key(
-        ["skills"],
+        ["installer"],
         commands_by_profile,
         descriptions,
         changed_files=[],
         cache_path=cache_path,
     )
     cached_result = module.ProfileResult(
-        profile="skills",
-        description=descriptions["skills"],
+        profile="installer",
+        description=descriptions["installer"],
         success=True,
         commands=[
             module.CommandResult(
@@ -1728,11 +1728,11 @@ def test_run_profiles_reuses_cached_success_without_executing(
         cache_path,
         module._empty_result_cache(),
         cache_key,
-        ["skills"],
+        ["installer"],
         [cached_result],
     )
 
-    results = module.run_profiles(["skills"], args=args)
+    results = module.run_profiles(["installer"], args=args)
 
     assert results[0].success is True
     assert results[0].commands[0].returncode == 0
@@ -1747,23 +1747,23 @@ def test_run_profiles_records_successful_result_cache(tmp_path, monkeypatch) -> 
         argv=[sys.executable, "-c", "pass"],
         timeout_seconds=10,
     )
-    commands_by_profile = {"skills": [spec]}
+    commands_by_profile = {"installer": [spec]}
     monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
     monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
     args = _cache_args(cache_path)
 
-    results = module.run_profiles(["skills"], args=args)
+    results = module.run_profiles(["installer"], args=args)
 
     assert results[0].success is True
     cache_key = module._run_result_cache_key(
-        ["skills"],
+        ["installer"],
         commands_by_profile,
         module._profile_descriptions(),
         changed_files=[],
         cache_path=cache_path,
     )
     cached = module._cached_run_results(
-        module._load_result_cache(cache_path), cache_key, ["skills"]
+        module._load_result_cache(cache_path), cache_key, ["installer"]
     )
     assert cached is not None
     assert cached[0].commands[0].label == "quick success"
@@ -1777,23 +1777,23 @@ def test_run_profiles_does_not_cache_failures(tmp_path, monkeypatch) -> None:
         argv=[sys.executable, "-c", "raise SystemExit(7)"],
         timeout_seconds=10,
     )
-    commands_by_profile = {"skills": [spec]}
+    commands_by_profile = {"installer": [spec]}
     monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
     monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
     args = _cache_args(cache_path)
 
-    results = module.run_profiles(["skills"], args=args)
+    results = module.run_profiles(["installer"], args=args)
 
     assert results[0].success is False
     cache_key = module._run_result_cache_key(
-        ["skills"],
+        ["installer"],
         commands_by_profile,
         module._profile_descriptions(),
         changed_files=[],
         cache_path=cache_path,
     )
     cached = module._cached_run_results(
-        module._load_result_cache(cache_path), cache_key, ["skills"]
+        module._load_result_cache(cache_path), cache_key, ["installer"]
     )
     assert cached is None
 
@@ -1808,12 +1808,12 @@ def test_run_profiles_no_result_cache_bypasses_cached_success(
         argv=[sys.executable, "-c", "raise SystemExit(5)"],
         timeout_seconds=10,
     )
-    commands_by_profile = {"skills": [spec]}
+    commands_by_profile = {"installer": [spec]}
     monkeypatch.setattr(module, "_profile_commands", lambda _args: commands_by_profile)
     monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
     descriptions = module._profile_descriptions()
     cache_key = module._run_result_cache_key(
-        ["skills"],
+        ["installer"],
         commands_by_profile,
         descriptions,
         changed_files=[],
@@ -1823,11 +1823,11 @@ def test_run_profiles_no_result_cache_bypasses_cached_success(
         cache_path,
         module._empty_result_cache(),
         cache_key,
-        ["skills"],
+        ["installer"],
         [
             module.ProfileResult(
-                profile="skills",
-                description=descriptions["skills"],
+                profile="installer",
+                description=descriptions["installer"],
                 success=True,
                 commands=[
                     module.CommandResult(
@@ -1844,7 +1844,7 @@ def test_run_profiles_no_result_cache_bypasses_cached_success(
     )
 
     results = module.run_profiles(
-        ["skills"], args=_cache_args(cache_path, no_result_cache=True)
+        ["installer"], args=_cache_args(cache_path, no_result_cache=True)
     )
 
     assert results[0].success is False
@@ -2322,3 +2322,164 @@ def test_workflow_parity_modernization_profiles_are_registered() -> None:
     descriptions = module._profile_descriptions()
     assert "uv binary" in descriptions["uv-preflight"]
     assert "pandas 3" in descriptions["pandas-compat"]
+
+
+def test_local_qualification_profiles_are_explicit_and_portable_defaults_do_not_install():
+    module = _load_module()
+    args = module._build_parser().parse_args([])
+    names = {"ci-tool-lock-integrity", "ci-tool-lock-audit", "polars-2-runtime"}
+    assert not names.intersection(module._selected_profiles(args))
+    profiles = module._profile_commands(args)
+    assert profiles["ci-tool-lock-integrity"][0].argv == [
+        sys.executable, "tools/ci_tool_lock_integrity.py",
+        "--requirements-dir", ".github/requirements",
+    ]
+    audit = profiles["ci-tool-lock-audit"]
+    assert len(audit) == 2
+    assert "Linux" in audit[0].argv[-1] and "x86_64" in audit[0].argv[-1]
+    assert "--with" in audit[1].argv and "uv==0.10.7" in audit[1].argv
+    assert _option_values(audit[1].argv, "--python") == ["3.13"]
+    assert _option_values(audit[1].argv, "--requirements") == [
+        ".github/requirements/ci-lock-audit.txt"
+    ]
+    assert audit[1].argv[audit[1].argv.index("--run") + 1:] == [
+        "python", "tools/ci_tool_lock_integrity.py",
+        "--requirements-dir", ".github/requirements", "--audit",
+    ]
+    polars = profiles["polars-2-runtime"][0]
+    assert "tools/testing/agilab_polars_2_runtime_qualification.py" in polars.argv
+    assert _option_values(polars.argv, "--python") == [sys.executable]
+    assert _has_with_dependency(polars.argv, "polars==2.0.0")
+    assert _has_with_dependency(polars.argv, "pydantic==2.14.0")
+    assert _has_with_dependency(polars.argv, "pytest==9.1.1")
+    assert len(_option_values(polars.argv, "--with-editable")) == 5
+    assert _option_values(polars.argv, "--expected-platform") == [module.platform.system()]
+    assert _option_values(polars.argv, "--expected-python") == [
+        ".".join(module.platform.python_version_tuple()[:2])
+    ]
+
+
+def test_opt_in_polars_print_only_selects_output_directory_without_execution(capsys):
+    module = _load_module()
+    assert module.main([
+        "--profile", "polars-2-runtime", "--polars-output-dir", "test-results/custom-evidence",
+        "--print-only", "--json",
+    ]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["profiles"] == ["polars-2-runtime"]
+    command = output["commands"]["polars-2-runtime"][0]
+    assert _option_values(command["argv"], "--output-dir") == ["test-results/custom-evidence"]
+
+
+@pytest.mark.parametrize("profile", ["ci-tool-lock-audit", "polars-2-runtime", "docs"])
+def test_evidence_and_live_audit_profiles_execute_even_with_explicit_cached_success(
+    tmp_path, monkeypatch, profile,
+):
+    module = _load_module()
+    cache_path = tmp_path / "workflow-parity-cache.json"
+    spec = module.CommandSpec(
+        label="fresh failure", argv=[sys.executable, "-c", "raise SystemExit(7)"],
+    )
+    commands = {profile: [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands)
+    monkeypatch.setattr(module, "_git_changed_files", lambda base="": [])
+    args = _cache_args(cache_path)
+    key = module._run_result_cache_key(
+        [profile], commands, module._profile_descriptions(),
+        changed_files=[], cache_path=cache_path,
+    )
+    cached = module.ProfileResult(
+        profile=profile, description=module._profile_descriptions()[profile],
+        success=True,
+        commands=[module.CommandResult(
+            label=spec.label, argv=spec.argv, returncode=0,
+            duration_seconds=1, cwd=str(module.REPO_ROOT), env={},
+        )],
+    )
+    module._store_run_results(
+        cache_path, module._empty_result_cache(), key, [profile], [cached],
+    )
+    before = cache_path.read_bytes()
+    results = module.run_profiles([profile], args=args)
+    assert results[0].success is False
+    assert results[0].commands[0].returncode == 7
+    assert cache_path.read_bytes() == before
+    assert module._result_cache_enabled(args, module._run_command, ["installer", profile]) is False
+
+
+@pytest.mark.parametrize("fixed_input", [
+    ".github/requirements/ci-example.in",
+    ".github/requirements/ci-example.txt",
+    "tools/ci_tool_lock_integrity.py",
+])
+def test_lock_integrity_cache_invalidates_despite_unrelated_explicit_changed_file(
+    tmp_path, monkeypatch, fixed_input,
+):
+    module = _load_module()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(module, "_git_head", lambda: "a" * 40)
+    monkeypatch.setattr(
+        module, "_git_changed_files",
+        lambda base="": pytest.fail("Explicit changed-file should remain independent"),
+    )
+    changed = tmp_path / fixed_input
+    changed.parent.mkdir(parents=True, exist_ok=True)
+    changed.write_text("original input", encoding="utf-8")
+    profile = "ci-tool-lock-integrity"
+    cache_path = tmp_path / "cache.json"
+    spec = module.CommandSpec(
+        label="rerun changed lock validation",
+        argv=[sys.executable, "-c", "raise SystemExit(7)"],
+    )
+    commands = {profile: [spec]}
+    monkeypatch.setattr(module, "_profile_commands", lambda _args: commands)
+    args = module._build_parser().parse_args([
+        "--profile", profile, "--result-cache",
+        "--result-cache-path", str(cache_path), "--changed-file", "README.md",
+    ])
+    assert module._result_cache_changed_files(args) == ["README.md"]
+    key = module._run_result_cache_key(
+        [profile], commands, module._profile_descriptions(),
+        changed_files=["README.md"], cache_path=cache_path,
+    )
+    cached = module.ProfileResult(
+        profile=profile, description=module._profile_descriptions()[profile],
+        success=True,
+        commands=[module.CommandResult(
+            label=spec.label, argv=spec.argv, returncode=0,
+            duration_seconds=1, cwd=str(tmp_path), env={},
+        )],
+    )
+    module._store_run_results(
+        cache_path, module._empty_result_cache(), key, [profile], [cached],
+    )
+    assert module.run_profiles([profile], args=args)[0].success is True
+    changed.write_text("modified input", encoding="utf-8")
+    result = module.run_profiles([profile], args=args)[0]
+    assert result.success is False
+    assert result.commands[0].returncode == 7
+
+
+def test_default_polars_profile_runs_twice_with_distinct_preserved_evidence(tmp_path):
+    module = _load_module()
+    args = module._build_parser().parse_args(["--profile", "polars-2-runtime"])
+    outputs = []
+
+    def record_evidence(spec):
+        relative = _option_values(spec.argv, "--output-dir")[0]
+        assert relative.startswith("test-results/polars-2-runtime-local-")
+        output = tmp_path / relative
+        output.mkdir(parents=True, exist_ok=False)
+        (output / "evidence.txt").write_text(str(len(outputs)), encoding="utf-8")
+        outputs.append(output)
+        return module.CommandResult(
+            label=spec.label, argv=spec.argv, returncode=0,
+            duration_seconds=0, cwd=str(module.REPO_ROOT), env=spec.env,
+        )
+
+    for _ in range(2):
+        assert module.run_profiles(
+            ["polars-2-runtime"], args=args, runner=record_evidence,
+        )[0].success is True
+    assert outputs[0] != outputs[1]
+    assert [(output / "evidence.txt").read_text() for output in outputs] == ["0", "1"]

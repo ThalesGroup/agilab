@@ -2,44 +2,6 @@ name: ci-tool-lock-integrity
 
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - ".github/actions/setup-locked-python-tools/**"
-      - ".github/requirements/ci-*"
-      - ".github/workflows/ci-tool-lock-integrity.yml"
-      - ".github/workflows/pypi-pending-trusted-publisher.yaml"
-      - ".github/workflows/pypi-publish.yaml"
-      - ".github/workflows/pypi-release-retention.yaml"
-      - ".github/workflows/test-pypi-publish.yaml"
-      - "dev"
-      - "tools/agilab_dev.py"
-      - "tools/ci_tool_lock_integrity.py"
-      - "tools/hf_space_release_sync.py"
-      - "tools/package_split_contract.py"
-      - "tools/pypi_*.py"
-      - "tools/release_*.py"
-      - "tools/sync_docs_source.py"
-      - "tools/testing/pypi_metadata_smoke.py"
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/actions/setup-locked-python-tools/**"
-      - ".github/requirements/ci-*"
-      - ".github/workflows/ci-tool-lock-integrity.yml"
-      - ".github/workflows/pypi-pending-trusted-publisher.yaml"
-      - ".github/workflows/pypi-publish.yaml"
-      - ".github/workflows/pypi-release-retention.yaml"
-      - ".github/workflows/test-pypi-publish.yaml"
-      - "dev"
-      - "tools/agilab_dev.py"
-      - "tools/ci_tool_lock_integrity.py"
-      - "tools/hf_space_release_sync.py"
-      - "tools/package_split_contract.py"
-      - "tools/pypi_*.py"
-      - "tools/release_*.py"
-      - "tools/sync_docs_source.py"
-      - "tools/testing/pypi_metadata_smoke.py"
 
 permissions:
   contents: read
@@ -66,10 +28,14 @@ jobs:
           python tools/ci_tool_lock_integrity.py \
             --requirements-dir .github/requirements
 
-      - name: Clean-install CI lock auditor
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-lock-audit.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Clean-install CI lock auditor
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-lock-audit.txt --github-env
 
       - name: Audit locked CI release tools
         run: |
@@ -87,10 +53,14 @@ jobs:
               --disable-pip
           done
 
-      - name: Clean-install publishing lock
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-publish.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Clean-install publishing lock
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-publish.txt --github-env
 
       - name: Import-smoke publishing tools
         env:
@@ -110,10 +80,14 @@ jobs:
           PIP_NO_INDEX: "1"
         run: python tools/testing/pypi_metadata_smoke.py
 
-      - name: Clean-install PyPI web lock
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-pypi-web.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Clean-install PyPI web lock
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-pypi-web.txt --github-env
 
       - name: Import-smoke PyPI web tools
         env:
@@ -128,10 +102,14 @@ jobs:
           PY
           python tools/pypi_release_retention.py --help >/dev/null
 
-      - name: Clean-install Hugging Face release lock
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-hf-release.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Clean-install Hugging Face release lock
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-hf-release.txt --github-env
 
       - name: Import-smoke Hugging Face release tools
         env:
@@ -147,10 +125,14 @@ jobs:
           import tools.pypi_publish
           PY
 
-      - name: Clean-install free-threaded coverage lock
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-free-threaded-coverage.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Clean-install free-threaded coverage lock
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-free-threaded-coverage.txt --github-env
 
       - name: Import-smoke coverage tooling
         env:

@@ -17,7 +17,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
     "agilab_polars_2_qualification",
-    ROOT / ".github/scripts/agilab_polars_2_runtime_qualification.py",
+    ROOT / "tools/testing/agilab_polars_2_runtime_qualification.py",
 )
 assert SPEC and SPEC.loader
 qualification = importlib.util.module_from_spec(SPEC)
@@ -286,7 +286,7 @@ def test_workflow_runs_all_six_cells_without_credentials_or_weak_dependency_reso
     workflow = yaml.safe_load(text)
     assert workflow["permissions"] == {"contents": "read"}
     triggers = workflow.get("on", workflow.get(True))
-    assert set(triggers) == {"pull_request", "push", "workflow_dispatch"}
+    assert set(triggers) == {"workflow_dispatch"}
     job = workflow["jobs"]["polars-2-runtime-qualification"]
     assert job["strategy"] == {
         "fail-fast": False,
@@ -386,7 +386,7 @@ raise SystemExit(helper.run_qualification(
     helper.platform.system(),
 ))
 """
-    environment = dict(os.environ)
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("TOKKI_")}
     environment.update(
         PYTEST_ADDOPTS="-k test_one",
         PYTEST_PLUGINS="qualification_plugin_that_does_not_exist",
@@ -427,3 +427,25 @@ def test_workflow_passes_matrix_python_to_uv_before_resolution():
     assert execution["run"].index('--python "$QUALIFICATION_PYTHON"') < execution[
         "run"
     ].index("--with-editable")
+
+def test_moved_helper_inventory_binds_local_runner_and_qualification_sources():
+    assert qualification.HELPER_PATH == "tools/testing/agilab_polars_2_runtime_qualification.py"
+    hashes = qualification.source_hashes(ROOT)
+    assert qualification.HELPER_PATH in hashes
+    assert "tools/workflow_parity.py" in hashes
+    assert all((ROOT / name).is_file() for name in hashes)
+    assert ".github/scripts/agilab_polars_2_runtime_qualification.py" not in hashes
+
+
+def test_local_default_source_sha_is_observed_and_validated(monkeypatch):
+    monkeypatch.setattr(
+        qualification.subprocess, "run",
+        lambda *a, **k: SimpleNamespace(stdout="a" * 40 + "\n"),
+    )
+    assert qualification.source_head(ROOT) == "a" * 40
+    monkeypatch.setattr(
+        qualification.subprocess, "run",
+        lambda *a, **k: SimpleNamespace(stdout="invalid\n"),
+    )
+    with pytest.raises(qualification.QualificationError, match="invalid_checkout_sha"):
+        qualification.source_head(ROOT)

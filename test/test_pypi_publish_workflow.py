@@ -244,8 +244,8 @@ def test_pypi_publish_skips_existing_artifacts_and_requires_trusted_auth() -> No
     assert "pypi_publish_selected: ${{ steps.release-plan.outputs.pypi_publish_selected }}" in text
     assert "pypi_existing_packages: ${{ steps.release-plan.outputs.pypi_existing_packages }}" in text
     assert "provenance_packages: ${{ steps.release-plan.outputs.provenance_packages }}" in text
-    assert "uses: ./.github/actions/setup-locked-python-tools" in text
-    assert "requirements: .github/requirements/ci-publish.txt" in text
+    assert "python tools/setup_locked_python_tools.py" in text
+    assert "--requirements .github/requirements/ci-publish.txt" in text
     assert "include: ${{ fromJSON(needs.release-plan.outputs.library_matrix) }}" in text
     assert "needs.release-plan.outputs.library_selected == 'true'" in text
     assert "needs.release-plan.outputs.umbrella_selected == 'true'" in text
@@ -418,7 +418,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert "HF_TOKEN: ${{ secrets.HF_TOKEN }}" in text
     assert "HF_SPACE_ID: ${{ vars.AGILAB_HF_SPACE_ID || 'jpmorard/agilab' }}" in text
     assert "ref: ${{ github.sha }}" in text
-    assert "requirements: .github/requirements/ci-hf-release.txt" in text
+    assert "--requirements .github/requirements/ci-hf-release.txt" in text
     assert "tools/hf_space_release_sync.py" in text
     assert "HF_TOKEN secret is required" in text
     assert "--github-output \"$GITHUB_OUTPUT\"" in text
@@ -679,7 +679,7 @@ def test_test_pypi_publish_uses_the_local_shortcut() -> None:
     assert "next available TestPyPI .postN retry" in text
     assert "user: __token__" in text
     assert "password: ${{ secrets.TEST_PYPI_API_TOKEN || secrets.TEST_PYPI_SECRET }}" in text
-    assert "requirements: .github/requirements/ci-publish.txt" in text
+    assert "--requirements .github/requirements/ci-publish.txt" in text
     assert 'UV_NO_SYNC: "1"' in text
     assert "--build-only" in text
     assert "actions/upload-artifact@" in text

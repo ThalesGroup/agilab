@@ -482,8 +482,8 @@ def test_release_plan_workflow_contract_requires_locked_toolchains(
     workflow = tmp_path / "pypi-publish.yaml"
     workflow.write_text(
         live.replace(
-            f"requirements: {requirements}",
-            "requirements: .github/requirements/unlocked.txt",
+            f"--requirements {requirements}",
+            "--requirements .github/requirements/unlocked.txt",
         ),
         encoding="utf-8",
     )
@@ -491,3 +491,15 @@ def test_release_plan_workflow_contract_requires_locked_toolchains(
     missing = module.validate_workflow_contract(workflow)
 
     assert any(expected_message in error for error in missing)
+
+def test_release_plan_requires_local_locked_installer(tmp_path: Path) -> None:
+    module = _load_module()
+    text = (REPO_ROOT / ".github/workflows/pypi-publish.yaml").read_text()
+    workflow = tmp_path / "pypi-publish.yaml"
+    workflow.write_text(text.replace(
+        "python tools/setup_locked_python_tools.py", "python tools/unlocked_tools.py",
+    ))
+    assert any(
+        "locked local installer" in error
+        for error in module.validate_workflow_contract(workflow)
+    )

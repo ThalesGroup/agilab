@@ -1,9 +1,10 @@
-"""Verify direct CI tool pins stay synchronized with compiled hash locks."""
+"""Verify CI tool pins and optionally audit each compiled lock independently."""
 
 from __future__ import annotations
 
 import argparse
 import re
+import subprocess
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -208,6 +209,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=Path(".github/requirements"),
         help="Directory containing paired ci-*.in and ci-*.txt files",
     )
+    parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Audit each lock separately with pip-audit from the current environment",
+    )
     return parser.parse_args(argv)
 
 
@@ -219,6 +225,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"CI tool lock integrity failed: {exc}", file=sys.stderr)
         return 2
     print(f"CI tool lock integrity passed: {len(pairs)} lock pair(s)")
+    if args.audit:
+        for _input_path, lock_path in pairs:
+            print(f"Auditing CI tool lock: {lock_path}", flush=True)
+            result = subprocess.run(
+                [
+                    sys.executable, "-m", "pip_audit",
+                    "--requirement", str(lock_path), "--no-deps", "--disable-pip",
+                ],
+                check=False,
+            )
+            if result.returncode:
+                return result.returncode
     return 0
 
 

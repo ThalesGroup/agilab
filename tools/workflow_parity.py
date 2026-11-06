@@ -8,10 +8,12 @@ import hashlib
 import importlib.util
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
@@ -30,6 +32,9 @@ RESULT_CACHE_INPUT_GLOBS = (
     "tools/workflow_parity.py",
     "tools/coverage_shard_plan.py",
     "tools/agilab_dev.py",
+    "tools/ci_tool_lock_integrity.py",
+    ".github/requirements/ci-*.in",
+    ".github/requirements/ci-*.txt",
     ".github/workflows/*.yml",
     ".github/workflows/*.yaml",
 )
@@ -158,6 +163,9 @@ def _build_parser() -> argparse.ArgumentParser:
             "dependency-policy",
             "uv-preflight",
             "pandas-compat",
+            "ci-tool-lock-integrity",
+            "ci-tool-lock-audit",
+            "polars-2-runtime",
             "release-proof",
             "security-adoption",
             "production-readiness",
@@ -185,6 +193,13 @@ def _build_parser() -> argparse.ArgumentParser:
             "hf-visual-smoke-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--polars-output-dir",
+        help=(
+            "Evidence directory for the opt-in Polars 2 runtime profile; "
+            "defaults to a fresh test-results/polars-2-runtime-local-<unique-id> per run."
+        ),
     )
     parser.add_argument(
         "--list-profiles",
@@ -286,6 +301,9 @@ def _profile_descriptions() -> dict[str, str]:
         "dependency-policy": "Run dependency hygiene checks for runtime and release manifests.",
         "uv-preflight": "Check that the active uv binary is new enough for AGILAB workflow tooling.",
         "pandas-compat": "Run a static pandas 3 / Copy-on-Write compatibility risk audit.",
+        "ci-tool-lock-integrity": "Check CI tool lock inputs and hashes locally without installing tools.",
+        "ci-tool-lock-audit": "Opt in to a fresh Linux x86_64 / Python 3.13 locked-tool advisory audit.",
+        "polars-2-runtime": "Opt in to isolated same-process Polars 2 evidence on the current host and Python.",
         "release-proof": "Run expensive release-proof gates such as fresh-clone first-proof install validation.",
         "security-adoption": (
             "Write an advisory security-check JSON artifact; set "
@@ -337,6 +355,9 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "dependency-policy": _dependency_policy_profile(),
         "uv-preflight": _uv_preflight_profile(),
         "pandas-compat": _pandas_compat_profile(),
+        "ci-tool-lock-integrity": _ci_tool_lock_integrity_profile(),
+        "ci-tool-lock-audit": _ci_tool_lock_audit_profile(),
+        "polars-2-runtime": _polars_2_runtime_profile(args),
         "release-proof": _release_proof_profile(),
         "security-adoption": _security_adoption_profile(),
         "production-readiness": _production_readiness_profile(),
@@ -391,6 +412,8 @@ RESULT_CACHE_UNSAFE_PROFILES = {
     # These profiles generate, mutate, or publish evidence/artifacts as part of
     # their contract. A previous successful run is useful context, but should not
     # stand in for a fresh artifact-producing validation.
+    "ci-tool-lock-audit",
+    "polars-2-runtime",
     "docs",
     "badges",
     "skills",
@@ -1764,6 +1787,86 @@ def _pandas_compat_profile() -> list[CommandSpec]:
     ]
 
 
+def _ci_tool_lock_integrity_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="portable CI tool lock integrity",
+            argv=[
+                sys.executable, "tools/ci_tool_lock_integrity.py",
+                "--requirements-dir", ".github/requirements",
+            ],
+        )
+    ]
+
+
+def _ci_tool_lock_audit_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="require the Linux x86_64 lock target before any installation",
+            argv=[
+                sys.executable, "-c",
+                "import platform,sys; "
+                "sys.exit(0 if platform.system() == 'Linux' and "
+                "platform.machine().lower() in ('x86_64', 'amd64') else "
+                "'CI locks target Linux x86_64 / Python 3.13; "
+                "use the portable ci-tool-lock-integrity profile on this host')",
+            ],
+        ),
+        CommandSpec(
+            label="fresh locked CI tool audit against live advisories",
+            argv=[
+                "uv", "--preview-features", "extra-build-dependencies",
+                "run", "--isolated", "--no-project", "--python", "3.13",
+                "--with", "uv==0.10.7",
+                "python", "tools/setup_locked_python_tools.py",
+                "--requirements", ".github/requirements/ci-lock-audit.txt",
+                "--run", "python", "tools/ci_tool_lock_integrity.py",
+                "--requirements-dir", ".github/requirements", "--audit",
+            ],
+            timeout_seconds=20 * 60,
+        ),
+    ]
+
+
+def _polars_2_runtime_profile(args: argparse.Namespace) -> list[CommandSpec]:
+    python_minor = ".".join(platform.python_version_tuple()[:2])
+    output_dir = getattr(args, "polars_output_dir", None)
+    if output_dir is None:
+        output_dir = f"test-results/polars-2-runtime-local-{uuid.uuid4().hex}"
+    return [
+        CommandSpec(
+            label="same-process Polars 2 qualification on this Python and platform",
+            argv=[
+                "uv", "--preview-features", "extra-build-dependencies",
+                "run", "--isolated", "--no-project", "--python", sys.executable,
+                *[
+                    arg
+                    for package in (
+                        "src/agilab/core/agi-env", "src/agilab/core/agi-node",
+                        "src/agilab/core/agi-cluster", "src/agilab/core/agi-core",
+                        "src/agilab/lib/agi-web",
+                    )
+                    for arg in ("--with-editable", f"./{package}")
+                ],
+                "--with", "polars==2.0.0", "--with", "pydantic==2.14.0",
+                "--with", "pytest==9.1.1", "--with", "pytest-asyncio>=1.3,<2",
+                "--with", "sqlalchemy", "--with", "fastparquet",
+                "python", "tools/testing/agilab_polars_2_runtime_qualification.py",
+                "--expected-python", python_minor,
+                "--expected-platform", platform.system(),
+                "--output-dir", output_dir,
+            ],
+            env={
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "VIRTUAL_ENV": "",
+            },
+            timeout_seconds=20 * 60,
+        )
+    ]
+
+
 def _release_proof_uv_python() -> str:
     explicit_python = os.environ.get("AGILAB_RELEASE_PROOF_PYTHON")
     if explicit_python:
@@ -2796,6 +2899,9 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         "production-readiness",
         "uv-preflight",
         "pandas-compat",
+        "ci-tool-lock-integrity",
+        "ci-tool-lock-audit",
+        "polars-2-runtime",
         "ty-typing",
         "ui-robot-matrix",
         "ui-robot-contract",
@@ -2885,6 +2991,9 @@ def _result_cache_enabled(
         runner is _run_command
         and (cache_requested or auto_cacheable)
         and not bool(getattr(args, "no_result_cache", False))
+        and not any(
+            profile in RESULT_CACHE_UNSAFE_PROFILES for profile in (profile_names or ())
+        )
     )
 
 
