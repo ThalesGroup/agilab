@@ -1,25 +1,6 @@
 name: coverage
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - ".coveragerc*"
-      - "codecov.yml"
-      - ".github/requirements/ci-free-threaded-coverage.*"
-      - ".github/workflows/coverage.yml"
-      - "pyproject.toml"
-      - "src/**"
-      - "test/**"
-      - "tools/coverage_badge_guard.py"
-      - "tools/coverage_shard_plan.py"
-      - "tools/testing/root_test_runner.py"
-      - "tools/builtin_app_tests.py"
-      - "tools/coverage_timing_report.py"
-      - "tools/generate_component_coverage_badges.py"
-      - "tools/workflow_parity.py"
-      - "badges/coverage-*.svg"
-      - "uv.lock"
   workflow_dispatch:
 
 permissions:

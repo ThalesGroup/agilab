@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-02T13:26:01Z",
+  "generated_at_utc": "2026-11-06T16:27:53Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 321,
+    "evidence_schema_count": 325,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -869,7 +869,7 @@
       "name": "agilab-docs",
       "description": "Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).",
       "path": ".claude/skills/agilab-docs/SKILL.md",
-      "updated": "2026-10-14"
+      "updated": "2026-11-06"
     },
     {
       "name": "agilab-evidence-contracts",
@@ -929,13 +929,13 @@
       "name": "agilab-release-verification",
       "description": "Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks \"ready for release?\", \"release it\", \"all good?\", \"HF aligned?\", \"why badge failed?\", or any release/publication alignment check.",
       "path": ".claude/skills/agilab-release-verification/SKILL.md",
-      "updated": "2026-10-14"
+      "updated": "2026-11-06"
     },
     {
       "name": "agilab-runbook",
       "description": "Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting).",
       "path": ".claude/skills/agilab-runbook/SKILL.md",
-      "updated": "2026-10-29"
+      "updated": "2026-11-06"
     },
     {
       "name": "agilab-security-review-patterns",
@@ -953,7 +953,7 @@
       "name": "agilab-testing",
       "description": "Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.",
       "path": ".claude/skills/agilab-testing/SKILL.md",
-      "updated": "2026-10-29"
+      "updated": "2026-11-06"
     },
     {
       "name": "agilab-ui-robot-validation",
@@ -1968,6 +1968,12 @@
       ]
     },
     {
+      "schema": "agilab.local_validation.v1",
+      "sources": [
+        "tools/testing/local_validation_receipt.py"
+      ]
+    },
+    {
       "schema": "agilab.maintenance_dashboard.v1",
       "sources": [
         "tools/maintenance_dashboard.py"
@@ -2634,6 +2640,12 @@
       ]
     },
     {
+      "schema": "agilab.public_install_qualification.v1",
+      "sources": [
+        "tools/testing/public_install_qualification.py"
+      ]
+    },
+    {
       "schema": "agilab.public_proof_scenarios.v1",
       "sources": [
         "docs/source/features.rst",
@@ -2894,6 +2906,12 @@
       "schema": "agilab.session_rule_proposals.v1",
       "sources": [
         "tools/session_intent_synthesis.py"
+      ]
+    },
+    {
+      "schema": "agilab.setuptools_native_qualification.v1",
+      "sources": [
+        "tools/testing/setuptools_native_qualification.py"
       ]
     },
     {
@@ -3208,6 +3226,12 @@
       "schema": "agilab.worker_dynamic_import_contract.v1",
       "sources": [
         "tools/app_contracts/worker_dynamic_import_contract.py"
+      ]
+    },
+    {
+      "schema": "agilab.workflow_cost_policy.v1",
+      "sources": [
+        "tools/release/github_platform_policy.py"
       ]
     },
     {

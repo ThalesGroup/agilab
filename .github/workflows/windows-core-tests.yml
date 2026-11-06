@@ -1,29 +1,7 @@
 name: windows-core-tests
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - ".github/workflows/windows-core-tests.yml"
-      - "WINDOWS_TEST_FAILURES.md"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "src/agilab/core/**"
-      - "src/agilab/dag/dag_artifact_contracts.py"
-      - "test/**"
-  pull_request:
-    branches: ["**"]
-    paths:
-      - ".github/workflows/windows-core-tests.yml"
-      - "WINDOWS_TEST_FAILURES.md"
-      - "pyproject.toml"
-      - "uv.lock"
-      - "src/agilab/core/**"
-      - "src/agilab/dag/dag_artifact_contracts.py"
-      - "test/**"
   workflow_dispatch:
-  schedule:
-    - cron: "43 6 * * 1"
 
 permissions:
   contents: read

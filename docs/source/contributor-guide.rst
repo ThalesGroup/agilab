@@ -4,6 +4,11 @@ Contributor Guide
 This page is for people changing AGILAB itself. If you only want to try the
 product, start with :doc:`quick-start` instead.
 
+.. toctree::
+   :maxdepth: 1
+
+   agilab-local-validation
+
 Contributor goal
 ----------------
 
@@ -65,7 +70,9 @@ packaging, cluster execution, and packaged public examples.
 Validation map
 --------------
 
-Use the smallest command that proves your change:
+Start with ``./dev ci`` for portable current-host guards. See
+:doc:`agilab-local-validation` for explicit heavy qualifications and retained
+GitHub service/platform boundaries. Use the smallest command that proves your change:
 
 .. list-table::
    :header-rows: 1
@@ -81,7 +88,7 @@ Use the smallest command that proves your change:
    * - Skill catalog
      - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile skills``
    * - Badge or coverage tooling
-     - ``uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile badges``
+     - ``./dev flow coverage`` runs coverage; ``./dev flow badges`` only consumes existing XML
    * - Shared-core typing
      - ``uv --preview-features extra-build-dependencies run --with mypy python tools/shared_core_strict_typing.py``
 
@@ -91,7 +98,8 @@ complete source contracts, run ``./dev test``. The helper enables the
 geographic page bundles and scientific-view test libraries. Targeted core
 tests keep their headless dependency contract.
 
-The isolated root suite used by CI can also be run directly::
+The canonical isolated root suite can be run locally with ``./dev flow root-tests``
+or directly::
 
    uv --preview-features extra-build-dependencies run --extra ui --extra notebook --group test-ui python -m tools.testing.root_test_runner
 

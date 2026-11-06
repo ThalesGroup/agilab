@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
+import pytest
 import sys
 from pathlib import Path
 
@@ -31,14 +34,12 @@ def test_checked_in_platform_policy_builds_fail_closed_rulesets() -> None:
         "non_fast_forward",
         "required_signatures",
         "pull_request",
-        "required_status_checks",
     }
     pull_request = next(rule for rule in main["rules"] if rule["type"] == "pull_request")
     assert pull_request["parameters"]["required_approving_review_count"] == 1
     assert pull_request["parameters"]["require_last_push_approval"] is True
-    status_checks = next(rule for rule in main["rules"] if rule["type"] == "required_status_checks")
-    contexts = {row["context"] for row in status_checks["parameters"]["required_status_checks"]}
-    assert {"root-tests", "local-only-policy"} <= contexts
+    assert not any(rule["type"] == "required_status_checks" for rule in main["rules"])
+    assert policy["actions"]["enabled"] is False
     assert tag["enforcement"] == "active"
     assert tag["conditions"]["ref_name"]["include"] == ["refs/tags/v*.*.*"]
     assert tag["bypass_actors"] == [
@@ -130,3 +131,250 @@ def test_subset_match_accepts_github_response_metadata_but_not_missing_policy() 
         {"name": "protected-main", "rules": []},
         {"name": "protected-main", "rules": [{"type": "deletion"}]},
     )
+
+
+def _cost_checkout(tmp_path):
+    root = tmp_path
+    workflows = root / ".github/workflows"
+    workflows.mkdir(parents=True)
+    policy = _load_module().load_policy()
+    (root / ".github/platform-policy.json").write_text(json.dumps(policy))
+    (workflows / "manual.yml").write_text(
+        "name: explicit\non:\n  workflow_dispatch:\njobs: {}\n"
+    )
+    return root
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        "push",
+        "pull_request",
+        "schedule",
+        "workflow_run",
+        "repository_dispatch",
+        "workflow_call",
+    ],
+)
+def test_new_automatic_workflow_is_rejected_offline(tmp_path, event):
+    module = _load_module()
+    root = _cost_checkout(tmp_path)
+    assert module.check_workflow_cost(root)["status"] == "pass"
+    (root / ".github/workflows/future-unknown.yaml").write_text(
+        f"on: [{event}]\njobs: {{}}\n"
+    )
+    result = module.check_workflow_cost(root)
+    assert result["status"] == "fail"
+    assert any("future-unknown.yaml" in failure for failure in result["failures"])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "name: missing\njobs: {}",
+        "on: [workflow_dispatch, workflow_dispatch]",
+        "on: false",
+        "on: [workflow_dispatch",
+        "on: workflow_dispatch\non: push",
+        "on: {workflow_dispatch: null, workflow_dispatch: null}",
+        "on: {workflow_dispatch: invalid}",
+    ],
+)
+def test_malformed_missing_or_duplicate_event_declarations_fail(tmp_path, text):
+    module = _load_module()
+    root = _cost_checkout(tmp_path)
+    (root / ".github/workflows/future.yml").write_text(text)
+    assert module.check_workflow_cost(root)["status"] == "fail"
+
+
+def test_disabled_actions_and_no_ci_requirements_are_desired(tmp_path):
+    module = _load_module()
+    root = _cost_checkout(tmp_path)
+    assert module.check_workflow_cost(root)["status"] == "pass"
+    path = root / ".github/platform-policy.json"
+    policy = json.loads(path.read_text())
+    policy["actions"]["enabled"] = True
+    path.write_text(json.dumps(policy))
+    assert module.check_workflow_cost(root)["status"] == "fail"
+    policy["actions"]["enabled"] = False
+    policy["main_ruleset"]["required_status_checks"] = ["obsolete"]
+    path.write_text(json.dumps(policy))
+    assert module.check_workflow_cost(root)["status"] == "fail"
+
+
+def test_clean_working_tree_cannot_hide_an_automatic_workflow_in_nominated_sha(
+    tmp_path, monkeypatch
+):
+    module = _load_module()
+    root = _cost_checkout(tmp_path)
+    policy_raw = (root / ".github/platform-policy.json").read_bytes()
+    bad, good = "a" * 40, "b" * 40
+    calls = []
+
+    def git_bytes(_root, *args):
+        calls.append(args)
+        if args[0] == "rev-parse":
+            return args[-1].split("^")[0].encode()
+        if args[0] == "show":
+            return policy_raw
+        if args[0] == "ls-tree":
+            oid = "c" * 40 if args[3] == bad else "d" * 40
+            return f"100644 blob {oid}\t.github/workflows/new-unlisted.yml\0".encode()
+        if args[:2] == ("cat-file", "blob"):
+            return b"on: push\n" if args[-1] == "c" * 40 else b"on: workflow_dispatch\n"
+        raise AssertionError(args)
+
+    monkeypatch.setattr(module, "_git_bytes", git_bytes)
+    assert module.check_workflow_cost(root)["status"] == "pass"
+    spec = root / "push-spec.txt"
+    spec.write_text(f"refs/heads/task {bad} refs/heads/task {'0' * 40}\n")
+    result = module.check_pushed_workflow_cost(root, spec)
+    assert result[0]["status"] == "fail" and result[0]["ref"] == bad
+    spec.write_text(f"refs/heads/task {good} refs/heads/task {'0' * 40}\n")
+    assert module.check_pushed_workflow_cost(root, spec)[0]["status"] == "pass"
+    assert any(args[0] == "ls-tree" and args[3] == bad for args in calls)
+
+
+@pytest.mark.parametrize(
+    "mutation,expected",
+    [
+        ("none", "pass"),
+        ("old-checks", "fail"),
+        ("actions-enabled", "fail"),
+        ("unsigned", "fail"),
+    ],
+)
+def test_audit_checks_absence_and_disabled_actions_without_weakening_protection(
+    monkeypatch, mutation, expected
+):
+    module = _load_module()
+    policy = module.load_policy()
+    main = module.desired_main_ruleset(policy)
+    tags = module.desired_tag_ruleset(policy, 42)
+    if mutation == "old-checks":
+        main["rules"].append(
+            {
+                "type": "required_status_checks",
+                "parameters": {
+                    "required_status_checks": [{"context": str(i)} for i in range(7)]
+                },
+            }
+        )
+    if mutation == "unsigned":
+        main["rules"] = [
+            rule for rule in main["rules"] if rule["type"] != "required_signatures"
+        ]
+    names = ["pypi-agilab", policy["release_approval_environment"]["name"]]
+    monkeypatch.setattr(module, "_team", lambda *a: {"id": 42})
+    monkeypatch.setattr(module, "_environment_names", lambda *a: names)
+    monkeypatch.setattr(
+        module, "expected_pypi_environment_names", lambda: {"pypi-agilab"}
+    )
+    monkeypatch.setattr(
+        module, "_custom_policies", lambda *a: policy["deployment_ref_policies"]
+    )
+    monkeypatch.setattr(
+        module,
+        "_rulesets",
+        lambda *a: [{"id": 1, "name": main["name"]}, {"id": 2, "name": tags["name"]}],
+    )
+
+    class Api:
+        def request(self, method, path):
+            assert method == "GET"
+            if path.endswith("rulesets/1"):
+                return main
+            if path.endswith("rulesets/2"):
+                return tags
+            if path.endswith("actions/permissions"):
+                return {"enabled": mutation == "actions-enabled"}
+            return {
+                "deployment_branch_policy": {"custom_branch_policies": True},
+                "protection_rules": [
+                    {
+                        "type": "required_reviewers",
+                        "prevent_self_review": True,
+                        "reviewers": [{"reviewer": {"id": 42, "type": "Team"}}],
+                    }
+                ],
+            }
+
+    report = module.audit_policy(Api(), policy)
+    assert report["status"] == expected
+
+
+def test_local_pre_push_cost_guard_runs_before_general_skip_escape():
+    hook = Path(".githooks/pre-push").read_text()
+    assert hook.index("--check-workflow-cost --pre-push-spec") < hook.index(
+        "AGILAB_SKIP_LOCAL_GUARDS"
+    )
+
+
+def test_offline_cost_entrypoint_does_not_load_publication_dependencies(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    script = """
+import builtins
+import runpy
+import sys
+
+original_import = builtins.__import__
+
+def offline_import(name, *args, **kwargs):
+    if name in {"tomllib", "tools.pypi_trusted_publisher_contract", "pypi_trusted_publisher_contract"}:
+        raise AssertionError("offline hook imported publication dependencies: " + name)
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = offline_import
+sys.argv = [sys.argv[1], "--check-workflow-cost"]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(MODULE_PATH)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["live_api_contacted"] is False
+    assert all(check["status"] == "pass" for check in payload["checks"])
+
+
+def test_offline_cost_entrypoint_missing_yaml_has_offline_recovery(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    script = """
+import builtins
+import runpy
+import sys
+
+original_import = builtins.__import__
+
+def without_yaml(name, *args, **kwargs):
+    if name == "yaml":
+        raise ModuleNotFoundError("No module named 'yaml'", name="yaml")
+    return original_import(name, *args, **kwargs)
+
+builtins.__import__ = without_yaml
+sys.argv = [sys.argv[1], "--check-workflow-cost"]
+runpy.run_path(sys.argv[0], run_name="__main__")
+"""
+    completed = subprocess.run(
+        [sys.executable, "-c", script, str(MODULE_PATH)],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    payload = json.loads(completed.stdout)
+    assert payload["live_api_contacted"] is False
+    failures = " ".join(payload["checks"][0]["failures"])
+    assert "PyYAML" in failures
+    assert "uv venv --python 3.13 .venv" in failures
+    assert "No full project sync or Actions run is needed." in failures
+    assert "Traceback" not in completed.stderr

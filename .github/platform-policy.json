@@ -19,15 +19,7 @@
   ],
   "main_ruleset": {
     "name": "protected-main",
-    "required_status_checks": [
-      "root-tests",
-      "local-only-policy",
-      "base-python-compat (3.12)",
-      "base-python-compat (3.14)",
-      "clean-public-install (ubuntu-latest)",
-      "clean-public-install (macos-latest)",
-      "clean-public-install (windows-latest)"
-    ]
+    "required_status_checks": []
   },
   "release_tag_ruleset": {
     "name": "protected-release-tags",
@@ -35,5 +27,8 @@
   },
   "retire_rulesets": [
     "donotouch"
-  ]
+  ],
+  "actions": {
+    "enabled": false
+  }
 }

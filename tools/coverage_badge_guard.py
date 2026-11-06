@@ -6,7 +6,7 @@ fails if ``badges/`` differs. This local guard mirrors that final gate and can
 also require XML inputs to be newer than coverage-sensitive files changed since
 the upstream branch.
 
-Use --readme-only for the offline main/push link contract. The separate
+Use --readme-only for the offline main/manual link contract. The separate
 --check-public-workflow postflight compares the exact public SVG with Actions
 after coverage completes, allowing its cache to settle.
 """
@@ -76,7 +76,7 @@ class GuardError(RuntimeError):
 
 
 WORKFLOW_PATH = "/ThalesGroup/agilab/actions/workflows/coverage.yml"
-WORKFLOW_RUNS_API = "repos/ThalesGroup/agilab/actions/workflows/coverage.yml/runs?branch=main&event=push&per_page=1"
+WORKFLOW_RUNS_API = "repos/ThalesGroup/agilab/actions/workflows/coverage.yml/runs?branch=main&event=workflow_dispatch&per_page=1"
 
 
 class _WorkflowBadgeParser(HTMLParser):
@@ -101,7 +101,7 @@ class _WorkflowBadgeParser(HTMLParser):
 
 
 def readme_workflow_badge(readme: Path) -> str:
-    """Require a transparent main/push scope for both image and destination."""
+    """Require a transparent main/manual scope for both image and destination."""
     try:
         parser = _WorkflowBadgeParser()
         parser.feed(readme.read_text(encoding="utf-8"))
@@ -114,19 +114,25 @@ def readme_workflow_badge(readme: Path) -> str:
     if (
         image.scheme != "https" or image.netloc != "github.com"
         or image.path != WORKFLOW_PATH + "/badge.svg"
-        or parse_qs(image.query) != {"branch": ["main"], "event": ["push"]}
+        or parse_qs(image.query) != {"branch": ["main"], "event": ["workflow_dispatch"]}
         or image.fragment
     ):
-        raise GuardError("Coverage workflow badge must use the GitHub main/push URL; no static success image or cache-busting token.")
+        raise GuardError(
+            "Coverage workflow badge must use the GitHub main/manual URL; no static success image or cache-busting token."
+        )
     if (
         link.scheme != "https" or link.netloc != "github.com"
         or link.path != WORKFLOW_PATH
-        or parse_qs(link.query) != {"query": ["branch:main event:push"]}
+        or parse_qs(link.query) != {"query": ["branch:main event:workflow_dispatch"]}
         or link.fragment
     ):
-        raise GuardError("Coverage workflow badge link must select branch:main event:push.")
-    if label != "Coverage workflow (main push)":
-        raise GuardError("Coverage workflow badge label must disclose its main push scope.")
+        raise GuardError(
+            "Coverage workflow badge link must select branch:main event:workflow_dispatch."
+        )
+    if label != "Coverage workflow (main manual)":
+        raise GuardError(
+            "Coverage workflow badge label must disclose its main manual scope."
+        )
     return source
 
 
@@ -145,8 +151,8 @@ def public_workflow_badge(
 ) -> str:
     """Compare the exact published SVG against Actions, allowing its 300s cache TTL.
 
-    A superseded workflow_run event never compares its old result to a newer
-    branch badge. Its successor owns the subsequent postflight verification.
+    Run locally after the explicitly requested manual coverage run completes.
+    A superseded run never compares its old result with a newer branch badge.
     """
     if attempts < 1 or not 0 <= delay <= 60:
         raise GuardError("Badge verification needs at least one attempt and a delay between 0 and 60 seconds.")
@@ -159,7 +165,9 @@ def public_workflow_badge(
             conclusion = latest["conclusion"]
             state = latest["status"]
         except (ValueError, TypeError, KeyError, IndexError) as exc:
-            raise GuardError("GitHub returned no valid main push coverage run.") from exc
+            raise GuardError(
+                "GitHub returned no valid main manual coverage run."
+            ) from exc
         if run_id is not None and latest_id != run_id:
             return f"Badge postflight superseded by run {latest_id}; no verdict on the newer run."
         if state != "completed":
@@ -238,12 +246,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Emit a compact JSON-like diagnostic payload for automation.",
     )
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--readme-only", action="store_true",
-                      help="Check the README main/push workflow badge contract without coverage XML.")
-    mode.add_argument("--check-public-workflow", action="store_true",
-                      help="Check README configuration and compare its public SVG to Actions (requires gh and curl).")
-    parser.add_argument("--workflow-run-id", type=int,
-                        help="Postflight run identity; skip a superseded run instead of comparing it to a newer badge.")
+    mode.add_argument(
+        "--readme-only",
+        action="store_true",
+        help="Check the README main/manual workflow badge contract without coverage XML.",
+    )
+    mode.add_argument(
+        "--check-public-workflow",
+        action="store_true",
+        help="Check README configuration and compare its public SVG to Actions (requires gh and curl).",
+    )
+    parser.add_argument(
+        "--workflow-run-id",
+        type=int,
+        help="Postflight run identity; skip a superseded run instead of comparing it to a newer badge.",
+    )
     return parser
 
 

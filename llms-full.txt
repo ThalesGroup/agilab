@@ -28,7 +28,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB Deep Audit Skill Use this skill when the user asks for an AGILAB audit or a review artifact. Do not treat an audit request as a maintenance/fix request unless the user explicitly asks to patch findings.
 - agilab-docs: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks). (.claude/skills/agilab-docs/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-14
+  updated: 2026-11-06
   preview: # Docs Skill (AGILAB) Use this skill when editing docs content or docs build tooling for AGILAB. ## Source Of Truth - The public checkout independently owns its editable `docs/source` tree.
 - agilab-evidence-contracts: Maintain AGILAB evidence, proof, replay, and verification contracts. Use when code, docs, tests, or workflows touch run manifests, artifact hashes, first-proof or release-proof evidence, proof capsules, notebook exports, agent-run traces, MLflow handoff, replay commands, or claims about reproducibility and attestation. (.claude/skills/agilab-evidence-contracts/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -68,11 +68,11 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # AGILAB PyPI Release Maintenance Use the current procedure in `docs/pypi-cleanup-maintainer-guide.md` and inspect `tools/pypi_release_retention.py` before maintenance. This skill covers exact `package==version` selections, review evidence, verified distribution backups,
 - agilab-release-verification: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check. (.claude/skills/agilab-release-verification/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-14
+  updated: 2026-11-06
   preview: # AGILAB Release Verification Use this skill for release readiness, release execution checks, and post-release alignment. Its purpose is to prevent stale plans and false "all good" answers by checking the current code, current workflows, and public surfaces before making
 - agilab-runbook: Runbook for working in the AGILab repo (uv, native Python UI, run configs, packaging, troubleshooting). (.claude/skills/agilab-runbook/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-29
+  updated: 2026-11-06
   preview: # AGILab runbook (Agent Skill) Use this skill when you need repo-specific “how we do things” guidance in `agilab/`: launching the native React interface, regenerating run-config wrappers, debugging installs, or preparing releases. ## AGILab working rules (repo policy) - **Use `uv` for all runs** so dependencies resolve in managed envs:
 - agilab-security-review-patterns: Review AGILAB changes for security hardening risks. Use when code, docs, or workflows touch installers, native Python UI exposure, cluster/SSH/share behavior, app execution, notebooks, LLM connectors, secrets, PyPI/GitHub/Hugging Face publishing, dependency policy, or external repositories. (.claude/skills/agilab-security-review-patterns/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
@@ -84,7 +84,7 @@ This file is generated from `.claude/skills/*/SKILL.md` for LLM and scraper disc
   preview: # Python Views Skill (AGILAB) Use this skill when editing: - `src/agilab/main_page.py` - `src/agilab/pages/*.py`
 - agilab-testing: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains. (.claude/skills/agilab-testing/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)
-  updated: 2026-10-29
+  updated: 2026-11-06
   preview: # Testing Skill (AGILAB) Use this skill when validating changes. For benchmark work or changes to generated test inputs, read the relevant section of [benchmark and generator review](references/benchmark-and-generator-review.md).
 - agilab-ui-robot-validation: Validate AGILAB native React/Python UI changes with the repo's browser and widget robots. Use when touching ABOUT, PROJECT, ORCHESTRATE, ANALYSIS, SETTINGS, sidebar flows, first-proof wizard links, notebook import, screenshots, or public demo UI evidence. (.claude/skills/agilab-ui-robot-validation/SKILL.md)
   license: BSD-3-Clause (see repo LICENSE)

@@ -131,13 +131,13 @@ PR opens. No private signing key is stored in Actions. If verification fails,
 inspect the retained branch and permissions; do not replace it with an unsigned
 commit, force-update it, or weaken signed-commit protection.
 
-PRs created with `GITHUB_TOKEN` do not automatically trigger validation workflows,
-so the publishing workflow dispatches the three evidence checks once. Validation
-concurrency separates events: manual dispatches cannot cancel PR checks, while
-new updates to the same PR still supersede older PR runs. Check the required PR
-rollup before merging; a successful separate dispatch is not proof that an
-cancelled PR check has recovered. Re-run the affected PR jobs through GitHub when
-necessary. Existing human publication and PyPI device-confirmation gates remain.
+The publishing workflow opens the signed evidence PR and reports its checks;
+it does not dispatch three portable validation workflows. Run the source-bound
+local guards and coverage before review. Repository Actions stays disabled and
+all workflow definitions are manual-only. Pre-push checks every nominated commit
+tree for newly introduced automatic triggers. Service publication and genuine
+native qualification require an explicit operator request; existing publication
+and device-confirmation gates remain.
 
 To qualify the real Actions token after changing signing automation, dispatch
 `ci.yml` once with `validate_release_proof_signing=true`. Its opt-in job creates

@@ -1,26 +1,6 @@
 name: docs-source-guard
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "docs/source/**"
-      - "docs/.docs_source_mirror_stamp.json"
-      - "tools/sync_docs_source.py"
-      - "tools/release_proof_report.py"
-      - "test/test_sync_docs_source.py"
-      - "test/test_release_proof_report.py"
-      - ".github/workflows/docs-source-guard.yaml"
-  pull_request:
-    paths:
-      - "docs/source/**"
-      - "docs/.docs_source_mirror_stamp.json"
-      - "tools/sync_docs_source.py"
-      - "tools/release_proof_report.py"
-      - "test/test_sync_docs_source.py"
-      - "test/test_release_proof_report.py"
-      - ".github/workflows/docs-source-guard.yaml"
   workflow_dispatch:
 
 permissions:

@@ -3,7 +3,7 @@ name: agilab-testing
 description: Targeted AGILAB validation for unit and app regressions, performance benchmarks and scaling claims, or changes to generated test data and property-test input domains.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-29
+  updated: 2026-11-06
 ---
 
 # Testing Skill (AGILAB)
@@ -14,6 +14,20 @@ For benchmark work or changes to generated test inputs, read the relevant sectio
 of [benchmark and generator review](references/benchmark-and-generator-review.md).
 It covers measurement contracts and the input domains a test actually exercises.
 Ordinary unit/app validation follows the workflow below.
+
+## Local validation policy
+
+Portable validation is local by default. Start with `./dev ci` on the current
+host (macOS first), then select `root-tests`, `core-tests`, `guardrails-extended`,
+`base-python-compat`, `setuptools-native`, `public-install`, `coverage` or UI
+profiles explicitly. See `docs/source/agilab-local-validation.rst` for the full
+mapping. Artifact-producing profiles and `--receipt` runs must execute freshly.
+A Mac pass does not qualify Windows junctions, Linux APT, Python 3.14t or service
+permissions. Hosted validation is manual; keep Pages/publication, OIDC,
+attestations and Actions-token signing under their existing explicit gates.
+Never dispatch Actions merely to reproduce a portable failure. Verify local
+receipts with `workflow_parity.py --verify-receipt`; failed, skipped, missing or
+stale profiles are not release evidence.
 
 ## Philosophy
 
@@ -447,12 +461,10 @@ validation, release, and Hugging Face sync in one flow.
   `tools/generate_component_coverage_badges.py`, `tools/coverage_badge_guard.py`
   must call the generator with the same policy before a release badge guard can
   be trusted.
-- Treat committed coverage badges as CI-canonical for release/pre-release
-  freshness. Local macOS coverage can differ by one executable line from Ubuntu
-  because optional/runtime compatibility branches may execute differently. If a
-  local badge refresh disagrees with the latest green coverage workflow, inspect
-  the CI XML artifacts first and align the badge with the CI aggregate instead
-  of blindly committing the local percentage.
+- Bind committed coverage badges to a complete, fresh local coverage receipt and
+  its recorded source and platform. macOS and Linux can execute different optional
+  branches; preserve those source/platform boundaries rather than forcing one
+  percentage to match another host. Historical hosted coverage remains historical.
 - For badge refreshes, generate from a complete current XML set. The full
   `badges` profile expects `coverage-agi-env.xml`, `coverage-agi-node.xml`,
   `coverage-agi-cluster.xml`, `coverage-agi-gui.xml`, and
@@ -464,9 +476,9 @@ validation, release, and Hugging Face sync in one flow.
   committed or the tree is otherwise clean; its final `git diff --exit-code --
   badges/` step is expected to fail while the intended badge refresh is still
   unstaged or uncommitted.
-- Badge-only commits normally do not trigger the coverage workflow. After a
-  badge correction, manually dispatch `coverage.yml` on `main` and wait for the
-  aggregate badge-freshness job before calling the badge fixed.
+- After a badge correction, run local coverage and freshness checks. Do not dispatch
+  `coverage.yml` automatically or as a mandatory badge repair. Only an explicitly
+  requested native-platform/service qualification may use the manual workflow.
 - For `agi-gui` coverage parity, keep the optional visualization extra aligned
   with CI (`--extra ui --extra viz`). Tests that import plotting-aware pages can
   require `plotly` even when the touched code is not directly visualization

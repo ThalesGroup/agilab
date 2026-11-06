@@ -157,6 +157,8 @@ def _ui_robot_matrix_workflow_contracts() -> dict[str, dict[str, object]]:
 def _ui_robot_matrix_parity_contracts() -> dict[str, dict[str, object]]:
     contracts: dict[str, dict[str, object]] = {}
     for command in _ui_robot_matrix_parity_commands():
+        if not command.label.startswith("ui robot matrix ("):
+            continue
         contract = _ui_robot_matrix_command_contract(list(command.argv))
         shard = Path(str(contract["output_dir"])).name
         contracts[shard] = contract
@@ -253,11 +255,10 @@ def test_first_launch_flight_dataset_guard_rejects_unavailable_or_unreviewed_byt
 
 def test_ci_workflow_includes_minimal_first_proof_contract() -> None:
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    push_block = text.split("pull_request:", 1)[0]
-
-    assert 'branches: ["main"]' in push_block
-    assert 'branches: ["**"]' not in push_block
-    assert 'cron: "17 5 * * 1"' in text
+    workflow = yaml.safe_load(text)
+    assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
+    assert "schedule:" not in text
+    assert "cron:" not in text
     assert 'cron: "17 5 * * *"' not in text
     assert "Validate first-launch robot" in text
     assert (
@@ -453,14 +454,15 @@ def test_release_proof_signing_validation_requires_explicit_manual_opt_in() -> N
     assert upload["with"]["if-no-files-found"] == "error"
 
 
-def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
+def test_root_test_suite_retains_manual_canonical_isolated_plan() -> None:
     text = ROOT_TEST_SUITE_WORKFLOW_PATH.read_text(encoding="utf-8")
     checkout = text.split("- name: Checkout", 1)[1].split(
         "- name: Set up Python", 1
     )[0]
 
-    assert 'pull_request:\n    branches: ["**"]\n  push:' in text
-    assert 'push:\n    branches: ["main"]\n  workflow_dispatch:' in text
+    workflow = yaml.safe_load(text)
+    assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
+    assert "push:" not in workflow.get("on", workflow.get(True))
     assert "paths:" not in text
     assert "lfs: true" in checkout
     assert "--extra ui" in text
@@ -471,16 +473,17 @@ def test_root_test_suite_runs_canonical_isolated_plan_on_every_change() -> None:
 
 
 def test_maintenance_workflows_do_not_run_twice_for_pr_branch_pushes() -> None:
-    assert 'branches: ["main"]' in WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert 'branches: ["main"]' in ENSURE_ROADMAP_LABEL_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
+    labels = yaml.safe_load(ENSURE_ROADMAP_LABEL_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    assert set(labels.get("on", labels.get(True))) == {"workflow_dispatch"}
 
 
 def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     text = WINDOWS_CORE_TESTS_WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = yaml.safe_load(text)
     triggers = workflow.get("on", workflow.get(True))
-    for event in ("push", "pull_request"):
-        assert "src/agilab/dag/dag_artifact_contracts.py" in triggers[event]["paths"]
+    assert set(triggers) == {"workflow_dispatch"}
     test_step = next(
         step
         for step in workflow["jobs"]["windows-core-tests"]["steps"]
@@ -494,9 +497,8 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     assert "name: windows-core-tests" in text
     assert "runs-on: windows-latest" in text
     assert "workflow_dispatch:" in text
-    assert "schedule:" in text
-    assert 'branches: ["main"]' in text
-    assert 'branches: ["**"]' in text
+    assert "schedule:" not in text
+    assert "push" not in triggers and "pull_request" not in triggers
     assert "--import-mode=importlib" in text
     assert "--disable-warnings" not in text
     assert "Audit Windows warning output" in text
@@ -639,13 +641,13 @@ def test_docs_workflows_fetch_release_tags_for_exact_proof() -> None:
         assert "fetch-depth: 0" in checkout_block
 
 
-def test_ui_robot_matrix_workflow_is_opt_in_or_weekly_only() -> None:
+def test_ui_robot_matrix_workflow_requires_explicit_dispatch() -> None:
     text = UI_ROBOT_MATRIX_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "name: ui-robot-matrix" in text
     assert "workflow_dispatch:" in text
-    assert "schedule:" in text
-    assert 'cron: "43 2 * * 3"' in text
+    assert "schedule:" not in text
+    assert "cron:" not in text
     assert 'cron: "43 2 * * *"' not in text
     assert "pull_request:" not in text
     assert "\n  push:" not in text
@@ -912,7 +914,7 @@ def test_all_ubuntu_dependency_steps_select_the_archive_first() -> None:
                 consumers.add(path)
     assert consumers == {WORKFLOW_PATH, DOCS_PUBLISH_WORKFLOW_PATH,
                          PYPI_PUBLISH_WORKFLOW_PATH, UI_ROBOT_MATRIX_WORKFLOW_PATH}
-    assert "'.github/actions/configure-ubuntu-apt/**'" in DOCS_PUBLISH_WORKFLOW_PATH.read_text(encoding='utf-8')
+    assert "workflow_dispatch:" in DOCS_PUBLISH_WORKFLOW_PATH.read_text(encoding="utf-8")
 
 
 def test_pytest_requirements_retain_the_qualified_lazy_proxy_boundary() -> None:

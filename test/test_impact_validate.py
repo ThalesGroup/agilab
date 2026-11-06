@@ -564,3 +564,16 @@ def test_non_schema_assets_do_not_require_capability_manifest_refresh() -> None:
         action.key != "capability-manifest-check"
         for action in report.required_validations
     )
+
+
+
+@pytest.mark.parametrize("path", [
+    "tools/testing/local_source_guard.py",
+    "tools/testing/local_validation_receipt.py",
+    "tools/testing/public_install_qualification.py",
+    "tools/testing/setuptools_native_qualification.py",
+])
+def test_local_qualification_helpers_select_evidence_failure_regressions(path):
+    module = _load_module()
+    report = module.analyze_paths([path], use_cache=False)
+    assert "test/test_macos_local_ci_migration.py" in report.guessed_tests

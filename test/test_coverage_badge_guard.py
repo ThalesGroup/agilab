@@ -295,9 +295,9 @@ def test_badge_only_update_messages_allows_explicit_override() -> None:
 # README status configuration is an offline contract; public verification uses
 # controlled HTTP/Actions responses so cache races do not make these tests flaky.
 
-def _readme_badge_html(source=None, destination=None, label="Coverage workflow (main push)"):
-    source = source or "https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=push"
-    destination = destination or "https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml?query=branch%3Amain+event%3Apush"
+def _readme_badge_html(source=None, destination=None, label="Coverage workflow (main manual)"):
+    source = source or "https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=workflow_dispatch"
+    destination = destination or "https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml?query=branch%3Amain+event%3Aworkflow_dispatch"
     return f'<a href="{destination}"><img src="{source}" alt="{label}" /></a>'
 
 
@@ -305,7 +305,7 @@ def test_readme_workflow_badge_decodes_html_and_query_scope(tmp_path):
     guard = _load_module()
     readme = tmp_path / "README.md"
     readme.write_text(_readme_badge_html())
-    assert guard.readme_workflow_badge(readme).endswith("?branch=main&event=push")
+    assert guard.readme_workflow_badge(readme).endswith("?branch=main&event=workflow_dispatch")
 
 
 @pytest.mark.parametrize("mutation", [
@@ -322,20 +322,20 @@ def test_readme_workflow_badge_rejects_scope_or_evidence_regression(tmp_path, mu
     elif mutation == "branch":
         text = text.replace("branch=main", "branch=feature")
     elif mutation == "event":
-        text = text.replace("&amp;event=push", "")
+        text = text.replace("&amp;event=workflow_dispatch", "")
     elif mutation == "static":
-        text = text.replace("https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=push",
+        text = text.replace("https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=workflow_dispatch",
                             "https://img.shields.io/badge/coverage-passing-green")
     elif mutation == "token":
-        text = text.replace("&amp;event=push", "&amp;event=push&amp;cache=123")
+        text = text.replace("&amp;event=workflow_dispatch", "&amp;event=workflow_dispatch&amp;cache=123")
     elif mutation == "destination":
-        text = text.replace("?query=branch%3Amain+event%3Apush", "")
+        text = text.replace("?query=branch%3Amain+event%3Aworkflow_dispatch", "")
     elif mutation == "label":
-        text = text.replace("Coverage workflow (main push)", "Coverage workflow")
+        text = text.replace("Coverage workflow (main manual)", "Coverage workflow")
     elif mutation == "foreign_host":
         text = text.replace("github.com", "example.com", 1)
     elif mutation == "fragment":
-        text = text.replace("&amp;event=push", "&amp;event=push#fragment")
+        text = text.replace("&amp;event=workflow_dispatch", "&amp;event=workflow_dispatch#fragment")
     readme = tmp_path / "README.md"
     readme.write_text(text)
     with pytest.raises(guard.GuardError):
@@ -413,7 +413,7 @@ def test_pending_run_without_event_identity_cannot_claim_badge_verified(monkeypa
 def test_public_badge_fails_closed_without_actions_evidence(monkeypatch, response):
     guard = _load_module()
     monkeypatch.setattr(guard, "_public_command", lambda args: response)
-    with pytest.raises(guard.GuardError, match="no valid main push"):
+    with pytest.raises(guard.GuardError, match="no valid main manual"):
         guard.public_workflow_badge("https://github.com/badge", attempts=1)
 
 
@@ -435,29 +435,9 @@ def test_badge_guard_is_wired_before_ci_dependencies_and_after_coverage_completi
     index = next(i for i, step in enumerate(steps)
                  if step.get("run") == "python tools/coverage_badge_guard.py --readme-only")
     assert index < next(i for i, step in enumerate(steps) if "Playwright" in step.get("name", ""))
-    postflight = yaml.load((root / ".github/workflows/coverage-badge-public-status.yml").read_text(),
-                          Loader=yaml.BaseLoader)
-    assert postflight["on"]["workflow_run"] == {
-        "workflows": ["coverage"], "types": ["completed"], "branches": ["main"]}
-    assert postflight["permissions"] == {"contents": "read", "actions": "read"}
-    job = postflight["jobs"]["verify-public-badge"]
-    assert "head_repository.full_name == github.repository" in job["if"]
-    assert ".event == 'push'" in job["if"]
-    assert job["steps"][0]["with"] == {"ref": "main", "persist-credentials": "false"}
-    assert "--workflow-run-id" in job["steps"][-1]["run"]
-
-
-@pytest.mark.parametrize("document", ["<broken", "<html><title>coverage - passing</title></html>"])
-def test_public_badge_rejects_invalid_svg(monkeypatch, document):
-    guard = _load_module()
-    def command(args):
-        if args[0] == "gh":
-            return json.dumps({"workflow_runs": [_coverage_run()]})
-        return document
-
-    monkeypatch.setattr(guard, "_public_command", command)
-    with pytest.raises(guard.GuardError, match="SVG"):
-        guard.public_workflow_badge("https://github.com/badge", attempts=1)
+    assert not (root / ".github/workflows/coverage-badge-public-status.yml").exists()
+    # The existing CLI verifies a completed manual run locally, without a second Actions job.
+    assert "--check-public-workflow" in (root / "tools/coverage_badge_guard.py").read_text()
 
 
 def test_web_coverage_hint_keeps_pytest_in_the_qualified_range() -> None:

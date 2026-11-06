@@ -3,16 +3,20 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
-  echo "[agilab pre-push] AGILAB_SKIP_LOCAL_GUARDS=1; skipping local guards." >&2
-  exit 0
-fi
-
 cd "$ROOT_DIR"
 . "$(dirname -- "${BASH_SOURCE[0]}")/guard_python.sh"
 push_spec_file="$(mktemp)"
 trap 'rm -f "$push_spec_file"' EXIT
 cat > "$push_spec_file"
+# This guard always inspects the nominated commit trees, including new workflows.
+run_guard_python tools/release/github_platform_policy.py \
+  --check-workflow-cost --pre-push-spec "$push_spec_file"
+
+if [[ "${AGILAB_SKIP_LOCAL_GUARDS:-}" == "1" ]]; then
+  echo "[agilab pre-push] AGILAB_SKIP_LOCAL_GUARDS=1; skipping local guards." >&2
+  exit 0
+fi
+
 run_guard_python tools/agent_commit_provenance_guard.py \
   --pre-push-spec "$push_spec_file"
 

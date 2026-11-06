@@ -511,6 +511,23 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             forwarded = ["--preflight"]
         return [_uv_python("tools/audit_quality_evaluator.py", *forwarded)]
 
+    if command in {"ci", "local-ci", "local"}:
+        # --no-sync belongs to this driver only. Nested isolated qualifiers
+        # retain their own dependency-resolution contract.
+        no_sync = "--no-sync" in args
+        forwarded = [arg for arg in args if arg != "--no-sync"]
+        return [
+            [
+                *UV_RUN,
+                *(["--no-sync"] if no_sync else []),
+                "python",
+                "tools/workflow_parity.py",
+                "--profile",
+                "local",
+                *forwarded,
+            ]
+        ]
+
     if command in {"flow", "profile"}:
         profiles, extras = _split_leading_values(args, command_name=command)
         profile_args: list[str] = []
@@ -698,6 +715,7 @@ def _usage() -> str:
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit [agilab_audit args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-quality [audit_quality_evaluator args|audit.md]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] audit-preflight
+  ./dev [--print-only] ci [--no-sync] [workflow args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] flow|profile <profile> [profile...] [workflow args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] ui-flow [workflow-parity changed-file args]
   ./dev [--print-only] [--raw-output|--compact-output] [--summary-lines N] perf-startup [perf_smoke args]
@@ -733,6 +751,7 @@ High-frequency mappings:
   audit     -> Audit local AGILAB worktrees, release proof, docs mirror, PyPI projects, and latest release truth.
   audit-quality -> Score a Markdown AGILAB audit, or print the deep-audit preflight when no file is provided.
   audit-preflight -> Print the mandatory architecture-foundation preflight for deep AGILAB audits.
+  ci        -> Run current-host portable guards, including public docs integrity; heavy qualification is opt-in.
   flow      -> Run one or more workflow_parity profiles with repeated --profile flags. Cache-safe profiles reuse successful local results automatically.
   ui-flow   -> Select the minimal UI robot workflow profiles from changed files.
   perf-startup -> Measure startup-sensitive AGILAB import paths with perf_smoke.

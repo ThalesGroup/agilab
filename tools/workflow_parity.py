@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,8 @@ from typing import Callable, Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 RESULT_CACHE_SCHEMA = "agilab-workflow-parity-result-cache-v1"
 DEFAULT_RESULT_CACHE_PATH = (
     REPO_ROOT / ".pytest_cache" / "agilab" / "workflow_parity_results.json"
@@ -103,6 +106,9 @@ class CommandSpec:
     cwd: str | None = None
     ensure_dirs: list[str] = field(default_factory=list)
     remove_paths: list[str] = field(default_factory=list)
+    stdout_path: str | None = None
+    exit_code_path: str | None = None
+    artifact_paths: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -113,6 +119,7 @@ class CommandResult:
     duration_seconds: float
     cwd: str
     env: dict[str, str]
+    terminal: str = "completed"
 
 
 @dataclass
@@ -148,6 +155,17 @@ def _build_parser() -> argparse.ArgumentParser:
         "--profile",
         action="append",
         choices=[
+            "local",
+            "local-guardrails",
+            "guardrails-extended",
+            "root-tests",
+            "core-tests",
+            "docs-guard",
+            "base-python-compat",
+            "setuptools-native",
+            "public-install",
+            "agi-web",
+            "coverage",
             "agi-env",
             "agi-core-combined",
             "agi-node",
@@ -193,6 +211,16 @@ def _build_parser() -> argparse.ArgumentParser:
             "hf-visual-smoke-robot",
         ],
         help="Parity profile to run. May be passed multiple times.",
+    )
+    parser.add_argument(
+        "--receipt",
+        type=Path,
+        help="Write source-bound local execution evidence; disables result caching.",
+    )
+    parser.add_argument(
+        "--verify-receipt",
+        type=Path,
+        help="Verify a local execution receipt against this checkout without running profiles.",
     )
     parser.add_argument(
         "--polars-output-dir",
@@ -286,6 +314,17 @@ def _profile_descriptions() -> dict[str, str]:
     # - shared-core-typing keeps mypy as the curated temporary release guard until
     #   ty has proven equivalent signal on the shared-core slice.
     return {
+        "local": "Run portable repository and public docs guards on the current host; no browser, coverage, native compilation or network qualification.",
+        "local-guardrails": "Run portable source, policy, lint and fast repository contracts.",
+        "guardrails-extended": "Opt in to first-launch, frontend, recovery and supply-chain evidence on this host.",
+        "root-tests": "Run the canonical isolated root test plan on this host.",
+        "core-tests": "Run core tests on this host without claiming Windows junction qualification.",
+        "docs-guard": "Verify public docs source integrity and proof contracts without rewriting the stamp.",
+        "base-python-compat": "Opt in to isolated Python 3.12/3.14 and Pillow/DuckDB boundary qualification.",
+        "setuptools-native": "Opt in to actual native worker compilation with setuptools 83.0.0 and 84.2.1.",
+        "public-install": "Opt in to the exact public release package and installed first-proof in an isolated home.",
+        "agi-web": "Run dedicated agi-web coverage on this host.",
+        "coverage": "Opt in to all component coverage, observed-core XML and badge verification.",
         "agi-env": "Run the local equivalent of the agi-env coverage workflow job.",
         "agi-core-combined": "Run the shared core test suite once and emit both agi-node and agi-cluster coverage XML files.",
         "agi-node": "Run the legacy standalone agi-node coverage slice.",
@@ -338,8 +377,445 @@ def _profile_descriptions() -> dict[str, str]:
     }
 
 
+def _python_check(label: str, *argv: str) -> CommandSpec:
+    return CommandSpec(label=label, argv=[sys.executable, *argv], timeout_seconds=600)
+
+
+def _local_guardrails_profile() -> list[CommandSpec]:
+    return [
+        _python_check(
+            "offline workflow cost policy",
+            "tools/release/github_platform_policy.py",
+            "--check-workflow-cost",
+        ),
+        _python_check(
+            "tracked repository policy and entrypoint syntax",
+            "tools/testing/local_source_guard.py",
+        ),
+        _python_check(
+            "README coverage scope", "tools/coverage_badge_guard.py", "--readme-only"
+        ),
+        _python_check(
+            "release proof manifest",
+            "tools/release_proof_report.py",
+            "--check",
+            "--compact",
+        ),
+        _python_check(
+            "release handoff freshness", "tools/release_handoff_guard.py", "--compact"
+        ),
+        CommandSpec(
+            label="first-proof command contract",
+            argv=[
+                sys.executable,
+                "src/agilab/first_proof_cli.py",
+                "--print-only",
+                "--json",
+            ],
+            env={"PYTHONPATH": str(REPO_ROOT / "src")},
+        ),
+        _python_check(
+            "public proof scenarios", "tools/public_proof_scenarios.py", "--compact"
+        ),
+        _python_check("app contracts", "tools/app_contract_matrix.py", "--quiet"),
+        _python_check(
+            "agent instruction contracts",
+            "tools/agent_instruction_contract.py",
+            "--check",
+        ),
+        _python_check(
+            "skill mirror integrity", "tools/sync_agent_skills.py", "--check"
+        ),
+        _python_check("locked tool input integrity", "tools/ci_tool_lock_integrity.py"),
+        *_local_lint_profile(),
+        _python_check(
+            "fast repository contracts",
+            "-m",
+            "pytest",
+            "-q",
+            "-o",
+            "addopts=",
+            "test/test_ci_workflow.py",
+            "test/test_package_split_contract.py",
+            "test/test_pypi_publish_workflow.py",
+            "test/test_compat_shim_inventory.py",
+            "test/test_github_actions_node_runtime.py",
+        ),
+    ]
+
+
+def _local_lint_profile() -> list[CommandSpec]:
+    # Reuse the shortcut's established lint inventory, without nesting uv sync.
+    from tools.agilab_dev import (
+        DEFAULT_LINT_TARGETS,
+        DEFAULT_UNDEFINED_NAME_LINT_TARGETS,
+    )
+
+    return [
+        _python_check("repository lint", "-m", "ruff", "check", *DEFAULT_LINT_TARGETS),
+        _python_check(
+            "undefined-name lint",
+            "-m",
+            "ruff",
+            "check",
+            "--select",
+            "F821,E9",
+            *DEFAULT_UNDEFINED_NAME_LINT_TARGETS,
+        ),
+    ]
+
+
+def _docs_guard_profile() -> list[CommandSpec]:
+    return [
+        _python_check(
+            "public docs target integrity",
+            "tools/sync_docs_source.py",
+            "--verify-target-integrity",
+            "--quiet",
+        ),
+        _python_check(
+            "public release proof consistency",
+            "tools/release_proof_report.py",
+            "--check",
+            "--compact",
+        ),
+        _python_check(
+            "docs and proof guard regressions",
+            "-m",
+            "pytest",
+            "-q",
+            "-o",
+            "addopts=",
+            "test/test_sync_docs_source.py",
+            "test/test_release_proof_report.py",
+        ),
+    ]
+
+
+def _root_tests_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="isolated root suite",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "--extra",
+                "notebook",
+                "--group",
+                "test-ui",
+                "python",
+                "-m",
+                "tools.testing.root_test_runner",
+                "--junit-dir",
+                "test-results/local-validation/root-tests",
+            ],
+            timeout_seconds=45 * 60,
+            artifact_paths=["test-results/local-validation/root-tests/junit-*.xml"],
+            remove_paths=["test-results/local-validation/root-tests"],
+        )
+    ]
+
+
+def _core_tests_profile() -> list[CommandSpec]:
+    # Coverage's combined core and env profiles own the dependency inventory.
+    core = _agi_core_combined_profile()[0]
+    argv = core.argv[: core.argv.index("python")] + [
+        "--with-editable",
+        "./src/agilab/lib/agi-web",
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-o",
+        "addopts=",
+        "--import-mode=importlib",
+        "src/agilab/core/test",
+        "src/agilab/core/agi-env/test",
+        "src/agilab/core/agi-cluster/test",
+    ]
+    return [
+        CommandSpec(label="current-host core tests", argv=argv, timeout_seconds=2700)
+    ]
+
+
+def _base_python_compat_profile() -> list[CommandSpec]:
+    commands = []
+    for version in ("3.12", "3.14"):
+        base = [
+            "uv",
+            "--preview-features",
+            "extra-build-dependencies",
+            "run",
+            "--isolated",
+            "--no-project",
+            "--python",
+            version,
+            "--with-editable",
+            ".",
+            "--with",
+            "pytest==9.1.1",
+        ]
+        pytest = [
+            "python",
+            "-m",
+            "pytest",
+            "-q",
+            "--noconftest",
+            "-c",
+            os.devnull,
+            "-p",
+            "no:cacheprovider",
+        ]
+        commands.append(
+            CommandSpec(
+                label=f"base CLI Python {version}",
+                argv=[*base, *pytest, "test/test_lab_run.py"],
+                timeout_seconds=600,
+            )
+        )
+        commands.append(
+            CommandSpec(
+                label=f"CLI version Python {version}",
+                argv=[
+                    *base,
+                    "python",
+                    "-c",
+                    "import subprocess; r=subprocess.run(['agilab','--version'],capture_output=True,text=True,check=True); assert r.stdout.startswith('agilab '); print(r.stdout.strip())",
+                ],
+                timeout_seconds=600,
+            )
+        )
+        for duckdb in ("1.4.0", "2.0.0") if version == "3.12" else ("2.0.0",):
+            commands.append(
+                CommandSpec(
+                    label=f"Python {version} Pillow 13 DuckDB {duckdb}",
+                    argv=[
+                        *base,
+                        "--with",
+                        "pillow==13.0.0",
+                        "--with",
+                        f"duckdb=={duckdb}",
+                        *pytest,
+                        "test/test_agilab_mcp_preview.py",
+                        "test/test_audience_bridges.py::test_duckdb_bridge_real_file_inputs_and_parameters",
+                        "test/test_audience_bridges.py::test_duckdb_bridge_real_query_without_inputs",
+                    ],
+                    timeout_seconds=600,
+                )
+            )
+    return commands
+
+
+def _setuptools_native_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label=f"setuptools {version} native worker compilation",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--isolated",
+                "--extra",
+                "ui",
+                "--extra",
+                "notebook",
+                "--group",
+                "test-ui",
+                "--with",
+                f"setuptools=={version}",
+                "--with",
+                "pytest==9.1.1",
+                "python",
+                "-m",
+                "tools.testing.setuptools_native_qualification",
+                "--expected-setuptools",
+                version,
+                "--output",
+                f"test-results/agilab-setuptools-{version}-native.json",
+            ],
+            timeout_seconds=1200,
+        )
+        for version in ("83.0.0", "84.2.1")
+    ]
+
+
+def _agi_web_coverage_profile() -> list[CommandSpec]:
+    return [
+        CommandSpec(
+            label="agi-web coverage",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--no-project",
+                "--with-editable",
+                "./src/agilab/lib/agi-web[notebook]",
+                "--with-editable",
+                "./src/agilab/lib/agi-gui",
+                "--with",
+                "pytest==9.1.1",
+                "--with",
+                "pytest-cov",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "--maxfail=1",
+                "--disable-warnings",
+                "-o",
+                "addopts=",
+                "--cov=agi_web",
+                "--cov-report=xml:coverage-agi-web.xml",
+                "src/agilab/lib/agi-web/test",
+            ],
+            env={"COVERAGE_FILE": ".coverage.agi-web"},
+            timeout_seconds=1200,
+            remove_paths=[".coverage.agi-web", "coverage-agi-web.xml"],
+            artifact_paths=["coverage-agi-web.xml"],
+        )
+    ]
+
+
+def _guardrails_extended_profile() -> list[CommandSpec]:
+    return [
+        _python_check(
+            "materialized first-launch dataset",
+            "tools/testing/local_source_guard.py",
+            "--first-launch-dataset",
+        ),
+        _python_check(
+            "recovery matrix",
+            "tools/robustness_matrix.py",
+            "--profile",
+            "all",
+            "--output",
+            "robustness-matrix.json",
+            "--compact",
+        ),
+        CommandSpec(
+            label="first launch robot",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "ui",
+                "python",
+                "tools/first_launch_robot.py",
+                "--json",
+                "--output",
+                "first-launch-robot.json",
+            ],
+            env={
+                "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                "OPENAI_API_KEY": "sk-test-first-launch-000000000000",
+            },
+            timeout_seconds=600,
+        ),
+        CommandSpec(
+            label="native React controls",
+            argv=["npm", "ci", "--ignore-scripts", "--engine-strict"],
+            cwd="src/agilab/lib/agi-web/frontend",
+            timeout_seconds=600,
+        ),
+        CommandSpec(
+            label="native React interaction contracts",
+            argv=["npm", "run", "test:controls"],
+            cwd="src/agilab/lib/agi-web/frontend",
+            timeout_seconds=600,
+        ),
+        CommandSpec(
+            label="visible layout collector contracts",
+            argv=[
+                "uv",
+                "--preview-features",
+                "extra-build-dependencies",
+                "run",
+                "--extra",
+                "dev",
+                "--extra",
+                "ui",
+                "--with",
+                "playwright",
+                "python",
+                "-m",
+                "pytest",
+                "-q",
+                "-o",
+                "addopts=",
+                *[
+                    "test/test_agilab_widget_robot.py::" + name
+                    for name in (
+                        "test_layout_integrity_collector_uses_painted_geometry_for_expander_content",
+                        "test_visible_combobox_semantics_collector_filters_hidden_controls",
+                        "test_analysis_health_oracle_reads_visible_native_shadow_islands",
+                        "test_analysis_cold_main_route_keeps_react_health_contract",
+                        "test_page_text_loader_cannot_refund_an_exhausted_deadline",
+                    )
+                ],
+            ],
+            env={"AGILAB_REQUIRE_PLAYWRIGHT_LAYOUT_REGRESSION": "1"},
+            timeout_seconds=600,
+        ),
+        *_ui_frontend_smoke_profile(),
+        _python_check(
+            "base supply-chain evidence",
+            "tools/profile_supply_chain_scan.py",
+            "--profile",
+            "base",
+            "--output-dir",
+            "test-results/supply-chain",
+            "--run",
+        ),
+        _python_check(
+            "security hygiene with scan artifacts",
+            "tools/security_hygiene_report.py",
+            "--pip-audit-json",
+            "test-results/supply-chain/base/pip-audit.json",
+            "--sbom-json",
+            "test-results/supply-chain/base/sbom-cyclonedx.json",
+            "--scan-requirements",
+            "test-results/supply-chain/base/requirements.txt",
+            "--require-scan-artifacts",
+            "--output",
+            "security-hygiene.json",
+            "--compact",
+        ),
+    ]
+
+
 def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
-    return {
+    profiles = {
+        "local": [*_local_guardrails_profile(), *_docs_guard_profile()],
+        "local-guardrails": _local_guardrails_profile(),
+        "guardrails-extended": _guardrails_extended_profile(),
+        "root-tests": _root_tests_profile(),
+        "core-tests": _core_tests_profile(),
+        "docs-guard": _docs_guard_profile(),
+        "base-python-compat": _base_python_compat_profile(),
+        "setuptools-native": _setuptools_native_profile(),
+        "public-install": [
+            CommandSpec(
+                label="public package first-proof",
+                argv=[sys.executable, "tools/testing/public_install_qualification.py"],
+                timeout_seconds=1800,
+            )
+        ],
+        "agi-web": _agi_web_coverage_profile(),
+        "coverage": [
+            *_agi_env_profile(),
+            *_agi_core_combined_profile(),
+            *_agi_gui_profile(),
+            *_agi_web_coverage_profile(),
+            *_badges_profile(None),
+        ],
         "agi-env": _agi_env_profile(),
         "agi-core-combined": _agi_core_combined_profile(),
         "agi-node": _agi_node_profile(),
@@ -385,6 +861,87 @@ def _profile_commands(args: argparse.Namespace) -> dict[str, list[CommandSpec]]:
         "hf-visual-smoke-robot": _hf_visual_smoke_robot_profile(),
     }
 
+    for profile_name, commands in profiles.items():
+        for spec in commands:
+            # Fresh JUnit proves collection/execution, including zero/all-skipped failures.
+            pytest_index = next(
+                (
+                    i
+                    for i in range(1, len(spec.argv))
+                    if spec.argv[i] == "pytest" and spec.argv[i - 1] == "-m"
+                ),
+                None,
+            )
+            if pytest_index is not None and not any(
+                arg.startswith("--junitxml") for arg in spec.argv
+            ):
+                slug = re.sub(r"[^a-z0-9]+", "-", spec.label.lower()).strip("-")
+                junit = f"test-results/local-validation/{profile_name}/junit-{slug}.xml"
+                spec.argv.insert(pytest_index + 1, "--junitxml=" + junit)
+                spec.ensure_dirs.append(f"test-results/local-validation/{profile_name}")
+                spec.remove_paths.append(junit)
+                spec.artifact_paths.append(junit)
+            outputs = list(spec.artifact_paths)
+            if (
+                any(
+                    tool in spec.argv
+                    for tool in (
+                        "tools/robustness_matrix.py",
+                        "tools/first_launch_robot.py",
+                        "tools/security_hygiene_report.py",
+                    )
+                )
+                and "--output" in spec.argv
+            ):
+                outputs.append(spec.argv[spec.argv.index("--output") + 1])
+            if (
+                "tools/profile_supply_chain_scan.py" in spec.argv
+                and "--output-dir" in spec.argv
+                and "--profile" in spec.argv
+            ):
+                directory = Path(spec.argv[spec.argv.index("--output-dir") + 1])
+                scan_profile = spec.argv[spec.argv.index("--profile") + 1]
+                outputs.extend(
+                    str(directory / scan_profile / name)
+                    for name in (
+                        "requirements.txt",
+                        "pip-audit.json",
+                        "sbom-cyclonedx.json",
+                    )
+                )
+            if (
+                "tools/agilab_web_robot.py" in spec.argv
+                and "--frontend-smoke-only" in spec.argv
+            ):
+                spec.stdout_path = f"test-results/local-validation/{profile_name}/frontend-smoke-summary.json"
+                outputs.append(spec.stdout_path)
+            for argument in spec.argv:
+                if argument.startswith("--cov-report=xml:"):
+                    outputs.append(argument.split(":", 1)[1])
+                elif argument.startswith("coverage-") and argument.endswith(".xml"):
+                    outputs.append(argument)
+            if spec.label.startswith("agi-gui coverage ("):
+                chunk = spec.label.removeprefix("agi-gui coverage (").removesuffix(")")
+                outputs.extend(
+                    [
+                        _agi_gui_coverage_manifest_path(chunk),
+                        f"test-results/coverage-agi-gui-{chunk}.db*",
+                        f"test-results/junit-agi-gui-{chunk}*.xml",
+                    ]
+                )
+            if spec.label == "coverage badge refresh":
+                outputs.append("badges/coverage-*.svg")
+            if spec.label == "docs sphinx build":
+                outputs.append("docs/html/index.html")
+            if spec.label == "public package first-proof":
+                outputs.append("test-results/public-install-qualification.json")
+            if spec.label.startswith("setuptools ") and "native worker" in spec.label:
+                outputs.extend(
+                    [spec.argv[-1], str(Path(spec.argv[-1]).with_suffix(".xml"))]
+                )
+            spec.artifact_paths = list(dict.fromkeys(outputs))
+    return profiles
+
 
 UI_ROBOT_PROFILE_ORDER = (
     "ui-robot-contract",
@@ -414,6 +971,22 @@ RESULT_CACHE_UNSAFE_PROFILES = {
     # stand in for a fresh artifact-producing validation.
     "ci-tool-lock-audit",
     "polars-2-runtime",
+    "agi-env",
+    "agi-core-combined",
+    "agi-node",
+    "agi-cluster",
+    "agi-gui",
+    "agi-web",
+    "local",
+    "local-guardrails",
+    "guardrails-extended",
+    "root-tests",
+    "core-tests",
+    "base-python-compat",
+    "setuptools-native",
+    "public-install",
+    "coverage",
+    "docs-guard",
     "docs",
     "badges",
     "skills",
@@ -635,6 +1208,22 @@ def _agi_gui_profile() -> list[CommandSpec]:
                 ensure_dirs=["test-results"],
             ),
         ]
+    )
+    gui_xml = commands[-1]
+    commands.append(
+        CommandSpec(
+            label="GUI observed-core coverage xml",
+            env=dict(gui_xml.env),
+            argv=[
+                *gui_xml.argv[: gui_xml.argv.index("--rcfile=.coveragerc.agi-gui")],
+                "--rcfile=.coveragerc.agi-core",
+                "--data-file=.coverage.agi-gui",
+                "--include=*/agi_node/*,*/agi_cluster/*,*/agi_env/*",
+                "-o",
+                "coverage-gui-observed-core.xml",
+            ],
+            timeout_seconds=300,
+        )
     )
     return commands
 
@@ -1129,6 +1718,7 @@ def _agi_gui_coverage_chunk(
     clean_paths = [
         ".coverage.agi-gui",
         "coverage-agi-gui.xml",
+        "coverage-gui-observed-core.xml",
         *(
             f"test-results/coverage-agi-gui-{chunk}.db"
             for chunk in AGI_GUI_COVERAGE_CHUNKS
@@ -1415,6 +2005,15 @@ def _agi_cluster_profile() -> list[CommandSpec]:
 
 def _docs_profile() -> list[CommandSpec]:
     return [
+        *_docs_guard_profile(),
+        CommandSpec(
+            label="Graphviz readiness",
+            argv=[
+                sys.executable,
+                "-c",
+                'import shutil; assert shutil.which("dot"), "Graphviz dot is required; install it explicitly before building docs."',
+            ],
+        ),
         CommandSpec(
             label="release proof manifest check",
             argv=[
@@ -2090,8 +2689,85 @@ def _ui_robot_matrix_profile() -> list[CommandSpec]:
                 argv=argv,
                 timeout_seconds=50 * 60,
                 remove_paths=[result_dir, screenshot_dir],
+                stdout_path=f"{result_dir}/summary.json",
+                exit_code_path=f"{result_dir}/exit-code.txt",
+                artifact_paths=[
+                    f"{result_dir}/summary.json",
+                    f"{result_dir}/exit-code.txt",
+                ],
             )
         )
+        commands.extend(
+            [
+                CommandSpec(
+                    label=f"UI robot strict trend ({shard})",
+                    argv=[
+                        sys.executable,
+                        "tools/ui_robot_trend_report.py",
+                        "--glob",
+                        f"{result_dir}/*.ndjson",
+                        "--max-total-seconds",
+                        "2700",
+                        "--max-mean-page-seconds",
+                        "180",
+                        "--strict",
+                        "--strict-budget",
+                        "--output",
+                        f"{result_dir}/trend-report.json",
+                    ],
+                    stdout_path=f"{result_dir}/trend-report.txt",
+                    timeout_seconds=300,
+                    artifact_paths=[
+                        f"{result_dir}/trend-report.json",
+                        f"{result_dir}/trend-report.txt",
+                    ],
+                ),
+                CommandSpec(
+                    label=f"UI robot shard manifest ({shard})",
+                    argv=[
+                        sys.executable,
+                        "tools/ui_robot_matrix_aggregate.py",
+                        "--write-shard-manifest",
+                        "--result-dir",
+                        result_dir,
+                        "--screenshot-dir",
+                        screenshot_dir,
+                        "--shard",
+                        shard,
+                        "--compact",
+                    ],
+                    artifact_paths=[f"{result_dir}/shard-manifest.json"],
+                ),
+            ]
+        )
+    commands.append(
+        CommandSpec(
+            label="UI robot full matrix aggregate",
+            argv=[
+                sys.executable,
+                "tools/ui_robot_matrix_aggregate.py",
+                "--root",
+                "test-results/ui-robot-matrix",
+                "--expected-shards",
+                ",".join(plan["expected_shards"]),
+                "--expected-apps",
+                ",".join(plan["apps"]),
+                "--upstream-result",
+                "success",
+                "--output",
+                "test-results/ui-robot-matrix-aggregate/aggregate.json",
+                "--summary-markdown",
+                "test-results/ui-robot-matrix-aggregate/summary.md",
+                "--compact",
+            ],
+            # Aggregate verifies every exit-code and trend report. "success" here
+            # permits that evaluation; it never overrides a failed shard or profile.
+            artifact_paths=[
+                "test-results/ui-robot-matrix-aggregate/aggregate.json",
+                "test-results/ui-robot-matrix-aggregate/summary.md",
+            ],
+        )
+    )
     return commands
 
 
@@ -2890,42 +3566,7 @@ def _selected_profiles(args: argparse.Namespace) -> list[str]:
         return args.profile
     if getattr(args, "select_ui_robot_profiles", False):
         return _selected_ui_robot_profiles(args)
-    opt_in_profiles = {
-        "agi-node",
-        "agi-cluster",
-        "builtin-app-tests",
-        "release-proof",
-        "security-adoption",
-        "production-readiness",
-        "uv-preflight",
-        "pandas-compat",
-        "ci-tool-lock-integrity",
-        "ci-tool-lock-audit",
-        "polars-2-runtime",
-        "ty-typing",
-        "ui-robot-matrix",
-        "ui-robot-contract",
-        "ui-robot-canary",
-        "ui-frontend-smoke",
-        "ui-artifact-capture-robot",
-        "ui-history-robot",
-        "ui-mobile-robot",
-        "ui-release-evidence-robot",
-        "ui-first-proof-robot",
-        "ui-keyboard-robot",
-        "ui-layout-robot",
-        "ui-accessibility-robot",
-        "ui-browser-error-robot",
-        "ui-above-fold-robot",
-        "ui-visual-baseline-robot",
-        "agi-web-visual",
-        "agi-web-cross-browser",
-        "ui-trend-robot",
-        "ui-cross-browser-robot",
-        "hf-install-robot",
-        "hf-visual-smoke-robot",
-    }
-    return [name for name in _profile_descriptions() if name not in opt_in_profiles]
+    return ["local"]
 
 
 def _prepare_command(spec: CommandSpec) -> None:
@@ -2953,17 +3594,45 @@ def _run_command(spec: CommandSpec) -> CommandResult:
     env.update(spec.env)
     cwd = REPO_ROOT / spec.cwd if spec.cwd else REPO_ROOT
     started = time.perf_counter()
-    completed = subprocess.run(
-        spec.argv,
-        cwd=cwd,
-        env=env,
-        check=False,
-        timeout=spec.timeout_seconds,
-    )
+    output = None
+    terminal = "completed"
+    try:
+        if spec.stdout_path:
+            path = REPO_ROOT / spec.stdout_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            output = path.open("w", encoding="utf-8")
+        completed = subprocess.run(
+            spec.argv,
+            cwd=cwd,
+            env=env,
+            check=False,
+            timeout=spec.timeout_seconds,
+            stdout=output,
+        )
+        returncode = completed.returncode
+    except subprocess.TimeoutExpired:
+        print(f"[workflow-parity] timed out: {spec.label}", file=sys.stderr)
+        returncode = 124
+        terminal = "timed_out"
+    except OSError as exc:
+        print(
+            f"[workflow-parity] could not execute {spec.label}: {exc}", file=sys.stderr
+        )
+        returncode = 127
+        terminal = "launch_failed"
+    finally:
+        if output:
+            output.close()
+    if spec.exit_code_path:
+        path = REPO_ROOT / spec.exit_code_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(returncode) + "\n", encoding="utf-8")
+
     return CommandResult(
         label=spec.label,
         argv=spec.argv,
-        returncode=completed.returncode,
+        returncode=returncode,
+        terminal=terminal,
         duration_seconds=time.perf_counter() - started,
         cwd=str(cwd),
         env=spec.env,
@@ -2991,6 +3660,7 @@ def _result_cache_enabled(
         runner is _run_command
         and (cache_requested or auto_cacheable)
         and not bool(getattr(args, "no_result_cache", False))
+        and not getattr(args, "receipt", None)
         and not any(
             profile in RESULT_CACHE_UNSAFE_PROFILES for profile in (profile_names or ())
         )
@@ -3290,8 +3960,9 @@ def run_profiles(
     *,
     args: argparse.Namespace,
     runner: Callable[[CommandSpec], CommandResult] = _run_command,
+    commands_by_profile: dict[str, list[CommandSpec]] | None = None,
 ) -> list[ProfileResult]:
-    commands_by_profile = _profile_commands(args)
+    commands_by_profile = commands_by_profile or _profile_commands(args)
     descriptions = _profile_descriptions()
     cache_path: Path | None = None
     cache_state: dict[str, object] | None = None
@@ -3325,7 +3996,8 @@ def run_profiles(
             command_results.append(result)
             if result.returncode != 0:
                 success = False
-                break
+                if profile != "ui-robot-matrix":
+                    break
         results.append(
             ProfileResult(
                 profile=profile,
@@ -3389,6 +4061,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"{name}: {description}")
         return 0
 
+    from tools.testing import local_validation_receipt as local_evidence
+
+    if args.verify_receipt:
+        report = local_evidence.verify_receipt(args.verify_receipt, root=REPO_ROOT)
+        print(json.dumps(report, sort_keys=True))
+        return 0 if report["status"] == "passed" else 1
+    if args.receipt and args.print_only:
+        parser.error("--receipt requires execution; --print-only cannot produce proof")
+    if args.receipt:
+        target = args.receipt.resolve()
+        if (
+            not target.is_relative_to(REPO_ROOT)
+            or args.receipt.is_symlink()
+            or subprocess.run(
+                ["git", "check-ignore", "-q", "--", str(target)], cwd=REPO_ROOT
+            ).returncode
+            != 0
+        ):
+            parser.error("--receipt must be an ignored output under this checkout")
+
     selected = _selected_profiles(args)
     if args.print_only:
         text = _render_human(selected, [], print_only=True, args=args)
@@ -3405,7 +4097,46 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(text)
         return 0
 
-    results = run_profiles(selected, args=args)
+    before = local_evidence.source_snapshot(REPO_ROOT) if args.receipt else None
+    runtime_before = local_evidence.runtime_identity() if args.receipt else None
+    started_at = (
+        __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat()
+    )
+    commands_by_profile = _profile_commands(args)
+    results = (
+        run_profiles(selected, args=args, commands_by_profile=commands_by_profile)
+        if args.receipt
+        else run_profiles(selected, args=args)
+    )
+    receipt = None
+    if args.receipt:
+        receipt = local_evidence.write_receipt(
+            args.receipt,
+            root=REPO_ROOT,
+            before=before,
+            profiles=selected,
+            results=[asdict(result) for result in results],
+            specs={
+                profile: [asdict(spec) for spec in commands_by_profile[profile]]
+                for profile in selected
+            },
+            started_at=started_at,
+            options={
+                key: getattr(args, key, None)
+                for key in (
+                    "components",
+                    "skills",
+                    "app_path",
+                    "worker_copy",
+                    "polars_output_dir",
+                )
+            },
+            runtime_before=runtime_before,
+        )
+        print(
+            f"[workflow-parity] local receipt: {args.receipt} ({receipt['status']})",
+            file=sys.stderr,
+        )
     if args.json:
         payload = {
             "profiles": selected,
@@ -3423,7 +4154,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     else:
         print(_render_human(selected, results, print_only=False, args=args))
 
-    return 0 if all(result.success for result in results) else 1
+    return (
+        0
+        if all(result.success for result in results)
+        and (receipt is None or receipt["status"] == "passed")
+        else 1
+    )
 
 
 if __name__ == "__main__":

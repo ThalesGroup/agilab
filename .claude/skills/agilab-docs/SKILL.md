@@ -3,7 +3,7 @@ name: agilab-docs
 description: Documentation workflow for AGILAB (sources vs generated HTML, public constraints, consistency checks).
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-14
+  updated: 2026-11-06
 ---
 
 # Docs Skill (AGILAB)
@@ -75,6 +75,10 @@ Use this skill when editing docs content or docs build tooling for AGILAB.
 
 If you accidentally edit `docs/html` directly, discard that manual edit and regenerate from source.
 
+## Local validation and manual publication
+
+Run `./dev flow docs-guard` for read-only source/proof checks, and `./dev flow docs` for the Sphinx build. Graphviz must be installed explicitly; never run Homebrew as an automatic readiness repair. Pages is manual and still rebuilds in its isolated hosted job because no trusted local artifact handoff exists. A local build does not prove publication. Do not dispatch without publication authorization.
+
 ## Source vs Published Pages
 
 - The Pages workflow currently builds `docs/html` from `docs/source` in the
@@ -91,8 +95,7 @@ If you accidentally edit `docs/html` directly, discard that manual edit and rege
   1. this checkout's `docs/source` is updated,
   2. the local integrity stamp was refreshed and verified,
   3. this checkout's `docs/html` has been regenerated locally for validation,
-  4. a publish/redeploy has been triggered after the commit (push to the branch path
-     watched by `docs-publish.yaml`).
+  4. the explicit manual `docs-publish.yaml` publication has succeeded after the commit.
 - Keep a habit of validating one public page after publish:
   - confirm `https://thalesgroup.github.io/agilab/agilab-help.html` and sibling pages
     show the new text.
