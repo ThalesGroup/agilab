@@ -44,7 +44,6 @@ import signal
 import subprocess
 import sys
 import tempfile
-import time
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -194,9 +193,25 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--yank-previous", action="store_true", help="On PyPI, yank versions older than the chosen version")
 
     # Git
-    ap.add_argument("--git-tag", action="store_true", help="Create & push date tag (vYYYY.MM.DD[-N]) on PyPI")
-    ap.add_argument("--git-commit-version", action="store_true", help="git add/commit pyproject version bumps")
-    ap.add_argument("--git-reset-on-failure", action="store_true", help="On failure, git checkout -- pyproject files")
+    ap.add_argument(
+        "--local-coverage-receipt",
+        help="Current-source local coverage receipt for a real tagged PyPI publication; never starts GitHub coverage",
+    )
+    ap.add_argument(
+        "--git-tag",
+        action="store_true",
+        help="Create & push date tag (vYYYY.MM.DD[-N]) on PyPI",
+    )
+    ap.add_argument(
+        "--git-commit-version",
+        action="store_true",
+        help="git add/commit pyproject version bumps",
+    )
+    ap.add_argument(
+        "--git-reset-on-failure",
+        action="store_true",
+        help="On failure, git checkout -- pyproject files",
+    )
     ap.add_argument(
         "--delete-former-github-release",
         action="store_true",
@@ -259,6 +274,7 @@ class Cfg:
     delete_former_github_release: bool = False
     delete_pypi_releases: list[str] | None = None
     build_only: bool = False
+    local_coverage_receipt: str | None = None
 
 
 def make_cfg(args: argparse.Namespace) -> Cfg:
@@ -291,6 +307,7 @@ def make_cfg(args: argparse.Namespace) -> Cfg:
         release_preflight=bool(getattr(args, "release_preflight", True)),
         delete_pypi_releases=list(getattr(args, "delete_pypi_release", []) or []),
         build_only=bool(getattr(args, "build_only", False)),
+        local_coverage_receipt=getattr(args, "local_coverage_receipt", None),
     )
 
 
@@ -341,7 +358,6 @@ APPS_REPO_REMOTE_ENV = "APPS_REPOSITORY_REMOTE"
 DOCS_REPO_REMOTE_ENV = "DOCS_REPOSITORY_REMOTE"
 GITHUB_RELEASES_URL = "https://github.com/ThalesGroup/agilab/releases"
 GITHUB_REPO = "ThalesGroup/agilab"
-COVERAGE_WORKFLOW = "coverage.yml"
 PUBLIC_RELEASE_METADATA_PATHS: tuple[str, ...] = (
     "CHANGELOG.md",
     "docs/.docs_source_mirror_stamp.json",
@@ -636,10 +652,13 @@ def require_public_post_release_policy(cfg: Cfg, package_versions: Dict[str, str
 def release_preflight_profiles(cfg: Cfg) -> list[str]:
     if cfg.repo != "pypi" or cfg.dry_run or cfg.cleanup_only or not cfg.release_preflight:
         return []
+    coverage = (
+        []
+        if release_local_coverage_required(cfg)
+        else ["agi-env", "agi-core-combined", "agi-gui", "agi-web"]
+    )
     return [
-        "agi-env",
-        "agi-core-combined",
-        "agi-gui",
+        *coverage,
         "docs",
         "installer",
         "shared-core-typing",
@@ -681,7 +700,10 @@ def run_release_preflight(cfg: Cfg) -> None:
     profiles = release_preflight_profiles(cfg)
     if not profiles:
         return
-    clean_release_preflight_coverage_artifacts()
+    if release_local_coverage_required(cfg):
+        run_release_local_coverage_prerequisite(cfg)
+    else:
+        clean_release_preflight_coverage_artifacts()
     cmd = [
         "uv",
         "--preview-features",
@@ -718,7 +740,10 @@ def run_pre_upload_release_guard(
         validate_planned_docs_release(planned_tag)
     print(f"[preflight] Running pre-upload release metadata guard for {chosen_version}")
     run_release_preflight(cfg)
-    run_release_coverage_badge_refresh()
+    if release_local_coverage_required(cfg):
+        run([sys.executable, "tools/coverage_badge_guard.py"], cwd=REPO_ROOT)
+    else:
+        run_release_coverage_badge_refresh()
     run(
         [
             sys.executable,
@@ -730,132 +755,49 @@ def run_pre_upload_release_guard(
     )
 
 
-def _git_head_sha(repo: pathlib.Path = REPO_ROOT) -> str:
-    result = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=str(repo),
-        check=True,
-        text=True,
-        capture_output=True,
-    )
-    return result.stdout.strip()
-
-
-def _gh_json(args: list[str]) -> object:
-    if shutil.which("gh") is None:
-        raise SystemExit("ERROR: GitHub CLI ('gh') is required for the release coverage prerequisite.")
-    result = subprocess.run(
-        ["gh", *args],
-        cwd=str(REPO_ROOT),
-        check=True,
-        text=True,
-        capture_output=True,
-    )
-    return json.loads(result.stdout or "null")
-
-
-def list_coverage_workflow_runs_for_head(head_sha: str) -> list[dict[str, object]]:
-    payload = _gh_json(
-        [
-            "run",
-            "list",
-            "--repo",
-            GITHUB_REPO,
-            "--workflow",
-            COVERAGE_WORKFLOW,
-            "--commit",
-            head_sha,
-            "--limit",
-            "5",
-            "--json",
-            "databaseId,status,conclusion,url,createdAt,headSha",
-        ]
-    )
-    if not isinstance(payload, list):
-        raise SystemExit("ERROR: could not read GitHub coverage workflow runs.")
-    return [run for run in payload if isinstance(run, dict)]
-
-
-def trigger_coverage_workflow(branch: str) -> None:
-    run(
-        [
-            "gh",
-            "workflow",
-            "run",
-            COVERAGE_WORKFLOW,
-            "--repo",
-            GITHUB_REPO,
-            "--ref",
-            branch,
-        ],
-        cwd=REPO_ROOT,
+def release_local_coverage_required(cfg: Cfg) -> bool:
+    return (
+        cfg.repo == "pypi"
+        and cfg.git_tag
+        and not cfg.dry_run
+        and not cfg.cleanup_only
+        and not cfg.build_only
     )
 
 
-def release_coverage_workflow_required(cfg: Cfg) -> bool:
-    return cfg.repo == "pypi" and cfg.git_tag and not cfg.dry_run and not cfg.cleanup_only
-
-
-def run_release_coverage_workflow_prerequisite(
+def run_release_local_coverage_prerequisite(
     cfg: Cfg,
     *,
-    timeout_seconds: int | None = None,
-    poll_seconds: int = 20,
-    list_runs_fn=list_coverage_workflow_runs_for_head,
-    trigger_fn=trigger_coverage_workflow,
-    sleep_fn=time.sleep,
-    time_fn=time.monotonic,
+    verify_fn=None,
 ) -> None:
-    """Require the GitHub coverage workflow to pass for the release commit."""
-
-    if not release_coverage_workflow_required(cfg):
+    """Require current-source local coverage proof; never dispatch portable CI."""
+    if not release_local_coverage_required(cfg):
         return
+    if verify_fn is None:
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from tools.testing.local_validation_receipt import verify_receipt
 
-    branch = current_git_branch()
-    if branch == "HEAD":
-        raise SystemExit("ERROR: release coverage prerequisite requires a named git branch, not detached HEAD.")
-    head_sha = _git_head_sha()
-    timeout = timeout_seconds
-    if timeout is None:
-        timeout = int(os.environ.get("AGILAB_RELEASE_COVERAGE_TIMEOUT_SECONDS", "1800"))
-    deadline = time_fn() + max(1, timeout)
-    triggered = False
-    last_state: tuple[str, str] | None = None
-
-    print(f"[preflight] Requiring {COVERAGE_WORKFLOW} success for release commit {head_sha[:12]}")
-    while True:
-        runs = list_runs_fn(head_sha)
-        if runs:
-            run_info = runs[0]
-            status = str(run_info.get("status") or "")
-            conclusion = str(run_info.get("conclusion") or "")
-            url = str(run_info.get("url") or "")
-            state = (status, conclusion)
-            if status == "completed":
-                if conclusion == "success":
-                    print(f"[preflight] Coverage workflow passed for release commit: {url}")
-                    return
-                raise SystemExit(
-                    f"ERROR: Coverage workflow prerequisite failed for release commit {head_sha[:12]} "
-                    f"(conclusion={conclusion}). Fix coverage badges or tests before tagging: {url}"
-                )
-            if state != last_state:
-                print(f"[preflight] Waiting for coverage workflow ({status or 'unknown'}): {url}")
-                last_state = state
-        elif not triggered:
-            print(f"[preflight] No coverage workflow run found for {head_sha[:12]}; triggering {COVERAGE_WORKFLOW}")
-            trigger_fn(branch)
-            triggered = True
-        elif last_state != ("missing", ""):
-            print(f"[preflight] Waiting for triggered coverage workflow to appear for {head_sha[:12]}")
-            last_state = ("missing", "")
-
-        remaining = deadline - time_fn()
-        if remaining <= 0:
-            raise SystemExit(
-                f"ERROR: Timed out waiting for {COVERAGE_WORKFLOW} to pass for release commit {head_sha[:12]}."
-            )
-        sleep_fn(min(max(1, poll_seconds), remaining))
+        verify_fn = verify_receipt
+    receipt = pathlib.Path(
+        cfg.local_coverage_receipt or "reports/local-validation/agilab-coverage.json"
+    )
+    if not receipt.is_absolute():
+        receipt = REPO_ROOT / receipt
+    result = verify_fn(receipt, root=REPO_ROOT)
+    if (
+        result.get("status") != "passed"
+        or result.get("profiles", {}).get("coverage") != "passed"
+    ):
+        raise SystemExit(
+            "ERROR: current-source local coverage receipt is missing, incomplete, failed or stale. "
+            "Run ./dev flow coverage --receipt reports/local-validation/agilab-coverage.json "
+            "after preparing the release source. No GitHub coverage workflow is dispatched."
+        )
+    print(
+        "[preflight] Verified current-source local coverage, artifacts and runtime: "
+        + str(receipt)
+    )
 
 
 EXTERNAL_INSTALL_PLATFORMS: tuple[str, ...] = (
@@ -3067,7 +3009,7 @@ def main():
             )
             docs_generated = True
 
-        run_release_coverage_workflow_prerequisite(cfg)
+        run_release_local_coverage_prerequisite(cfg)
 
         # Twine
         twine_check(all_files)

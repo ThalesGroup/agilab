@@ -15,8 +15,6 @@ on:
         description: "Low-level widget action timeout in seconds."
         required: false
         default: "3"
-  schedule:
-    - cron: "43 2 * * 3"
 
 permissions:
   actions: read

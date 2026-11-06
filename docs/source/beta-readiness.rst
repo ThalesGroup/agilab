@@ -78,7 +78,8 @@ The release should not be promoted when:
 - release-preflight profiles drift from the PyPI publisher workflow
 - public docs disagree with the maturity snapshot
 - package classifiers drift from the intended public status
-- GitHub guardrail or coverage workflows fail on the release commit
+- current-source local guardrail or coverage receipts are missing, failed, skipped or stale
+- explicitly requested service/native qualification or publication evidence fails
 
 Passing the beta gate means AGILAB is suitable for the documented trusted-operator
 experimentation and validation workflows. It does not mean AGILAB is a complete

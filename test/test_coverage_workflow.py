@@ -97,31 +97,10 @@ def test_core_coverage_uses_importlib_import_mode_for_src_layout() -> None:
     assert "--rcfile=.coveragerc.agi-core" in run_block
 
 
-def test_coverage_push_trigger_is_path_filtered_for_cost_control() -> None:
-    workflow_text = _workflow_text()
-    trigger_block = workflow_text.split("workflow_dispatch:", 1)[0]
-
-    for path in (
-        '".coveragerc*"',
-        '".github/workflows/coverage.yml"',
-        '"pyproject.toml"',
-        '"src/**"',
-        '"test/**"',
-        '"tools/coverage_badge_guard.py"',
-        '"tools/coverage_shard_plan.py"',
-        '"tools/testing/root_test_runner.py"',
-        '"tools/builtin_app_tests.py"',
-        '"tools/coverage_timing_report.py"',
-        '"tools/generate_component_coverage_badges.py"',
-        '"tools/workflow_parity.py"',
-        '"badges/coverage-*.svg"',
-        '"uv.lock"',
-    ):
-        assert path in trigger_block
-    assert '"docs/**"' not in trigger_block
-    assert '"README.md"' not in trigger_block
-    assert '"badges/**"' not in trigger_block
-    assert '"badges/skills.svg"' not in trigger_block
+def test_coverage_requires_explicit_manual_qualification() -> None:
+    import yaml
+    workflow = yaml.safe_load(_workflow_text())
+    assert set(workflow.get("on", workflow.get(True))) == {"workflow_dispatch"}
 
 
 def test_agi_env_coverage_installs_native_ui_source_dependency() -> None:
@@ -808,7 +787,7 @@ def test_codecov_waits_for_all_component_and_aggregate_uploads() -> None:
     assert uploads > 1
     assert re.search(rf"codecov:\n  notify:\n    after_n_builds: {uploads}\n", config)
     assert re.search(rf"comment:\n  after_n_builds: {uploads}\n", config)
-    assert '      - "codecov.yml"' in _workflow_text()
+    assert "workflow_dispatch:" in _workflow_text()
 
 def test_coverage_includes_isolated_general_tests_and_standalone_demo_processes():
     workflow = _workflow_text()
@@ -852,7 +831,7 @@ def test_free_threaded_coverage_install_uses_versioned_hash_lock():
     chunk = _step_block("Run agi-gui coverage chunk")
     assert "--require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt" in chunk
     assert "uv.lock" not in chunk
-    assert '".github/requirements/ci-free-threaded-coverage.*"' in workflow.split("workflow_dispatch:", 1)[0]
+    assert ".github/requirements/ci-free-threaded-coverage.txt" in Path("tools/workflow_parity.py").read_text()
     requirements = Path(".github/requirements/ci-free-threaded-coverage.txt").read_text()
     assert "coverage==7.16.1" in requirements
     assert "--hash=sha256:" in requirements

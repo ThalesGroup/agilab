@@ -410,8 +410,9 @@ making the aggregate badge complete.
 
 When a coverage change is ready to publish, keep the source tests, generated XML
 evidence, and badge refresh aligned. Do not edit badge SVGs by hand or describe
-local macOS coverage as release truth when the Ubuntu coverage workflow is the
-canonical badge source.
+a local macOS result as proof of Linux or Windows behaviour. Use the complete
+current-source local coverage receipt as the badge evidence, and retain the
+recorded host/platform boundary. Hosted native qualification is explicitly opt-in.
 
 Why can ``agi-gui`` be at 99% while global ``agilab`` coverage is lower?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

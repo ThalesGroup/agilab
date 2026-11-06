@@ -75,6 +75,16 @@ TEST_GUESS_ROOTS = (
 # does not select their public documentation boundary regressions.
 # The global runner consumes artifact records from all three DAG producers.
 INDIRECT_TOOL_TESTS = {
+    "tools/release/github_platform_policy.py": ("test/test_github_platform_policy.py",),
+    ".github/platform-policy.json": ("test/test_github_platform_policy.py",),
+    ".githooks/pre-push": ("test/test_github_platform_policy.py",),
+    "tools/workflow_parity.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/agilab_dev.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/release_proof_report.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/testing/local_source_guard.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/testing/local_validation_receipt.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/testing/public_install_qualification.py": ("test/test_macos_local_ci_migration.py",),
+    "tools/testing/setuptools_native_qualification.py": ("test/test_macos_local_ci_migration.py",),
     # Notebook demo contracts also consume the root extras directly.
     "pyproject.toml": ("test/test_notebook_demo_optional_dependencies.py",),
     "src/agilab/dag/dag_artifact_contracts.py": (

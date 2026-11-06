@@ -3,7 +3,7 @@ name: agilab-release-verification
 description: Verify AGILAB release readiness and post-release truth across PyPI, GitHub Releases, release proof, docs, coverage badges, and Hugging Face Space sync. Use when the user asks "ready for release?", "release it", "all good?", "HF aligned?", "why badge failed?", or any release/publication alignment check.
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
-  updated: 2026-10-14
+  updated: 2026-11-06
 ---
 
 # AGILAB Release Verification
@@ -433,9 +433,7 @@ rg -n "badge|coverage|pypi-version|actions/workflows" README.md badges .github/w
 uv --preview-features extra-build-dependencies run python tools/coverage_badge_guard.py --changed-only --require-fresh-xml
 ```
 
-Coverage badge freshness is not the same thing as the GitHub workflow badge.
-If the live badge still looks stale, check whether the workflow ran on `main`
-after the badge/source change.
+Coverage badge freshness is separate from the hosted workflow badge. The hosted badge discloses `main` / `workflow_dispatch`; inspect that manual run before attributing its status to current source. Run coverage locally with `./dev flow coverage`; `./dev badge` only checks freshness and `./dev flow badges` only consumes XML. Verified local parity receipts can cover portable checks through `release_proof_report.py --local-validation-receipt`. Incomplete profiles remain missing; local receipts never replace Pages, publication or other-platform evidence.
 
 ## Failure Triage
 

@@ -125,10 +125,15 @@ Use this runbook whenever you:
   reproduced or validated locally. First run the narrowest local check that can prove the change:
   targeted `pytest`, isolated coverage commands, `py_compile`, Sphinx builds, and release dry-runs.
   Reserve coverage badge generation for release/pre-release validation or badge tooling changes.
-  Reserve CI/workflow runs for GitHub-only behavior (runner differences,
-  OS/Python matrix coverage, permissions/secrets, Pages/PyPI publication, or final integration
-  confirmation after local validation). When a change maps cleanly to one of the repo workflow
-  profiles, prefer `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
+  Keep repository Actions disabled and every workflow explicit `workflow_dispatch` only.
+  Hosted runs require an explicitly requested service/publication or real native-platform
+  qualification; portable validation and final integration run locally.
+  `./dev local` checks the offline workflow cost policy. Pre-push applies the same
+  policy to every nominated commit tree, including future unknown workflows; a clean
+  working tree must not conceal an automatic trigger in a pushed commit. Publishers
+  must never dispatch portable coverage as an implicit prerequisite.
+  When a change maps to a workflow profile, prefer
+  `uv --preview-features extra-build-dependencies run python tools/workflow_parity.py --profile <name>`
   over handwritten command variants.
 - **Completion and prevention contract (Fix prevention close-out / Bug-class sweep)**: Every interruption caused by a guard,
   approval boundary, ambiguity, or environmental limitation must be made explicit:

@@ -140,7 +140,7 @@ def _prepare_minimal_tagged_release_main(
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: None)
     monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(module, "run_release_coverage_workflow_prerequisite", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_local_coverage_prerequisite", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.07.30")
     monkeypatch.setattr(
         module,
@@ -723,9 +723,6 @@ def test_release_preflight_profiles_only_for_real_pypi() -> None:
     )
 
     assert profiles == [
-        "agi-env",
-        "agi-core-combined",
-        "agi-gui",
         "docs",
         "installer",
         "shared-core-typing",
@@ -755,7 +752,7 @@ def test_run_release_preflight_cleans_stale_coverage_before_workflow(tmp_path, m
         _base_cfg(
             module,
             repo="pypi",
-            git_tag=True,
+            git_tag=False,
             git_commit_version=True,
             git_reset_on_failure=True,
         )
@@ -2521,7 +2518,7 @@ def test_main_runs_release_preflight_before_build(tmp_path, monkeypatch) -> None
     )
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -2883,7 +2880,7 @@ def test_main_rejects_real_pypi_collision_instead_of_post_rebuild(
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "next_free_post_for_all", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not auto-post for pypi")))
@@ -3060,7 +3057,7 @@ def test_main_commits_after_successful_upload_before_tagging(tmp_path, monkeypat
     )
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -3128,7 +3125,7 @@ def test_main_does_not_publish_release_metadata_when_upload_fails(tmp_path, monk
     monkeypatch.setattr(module, "run_release_preflight", lambda _cfg: order.append("preflight"))
     monkeypatch.setattr(module, "run_pre_upload_external_install_guard", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "run_pre_upload_release_guard", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(module, "run_release_coverage_workflow_prerequisite", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(module, "run_release_local_coverage_prerequisite", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(module, "compute_date_tag", lambda: "2026.03.23")
     monkeypatch.setattr(module, "update_public_release_references", lambda *_args, **_kwargs: order.append("release-refs"))
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -3211,7 +3208,7 @@ def test_main_deletes_former_github_release_after_current_release(tmp_path, monk
     )
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "git_commit_version", lambda *_args, **_kwargs: order.append("commit"))
@@ -3691,7 +3688,7 @@ def test_main_generates_public_docs_before_public_commit_and_tag(tmp_path, monke
     )
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: order.append("coverage-workflow"),
     )
     monkeypatch.setattr(module, "generate_docs_in_docs_repository", lambda: order.append("gen-docs"))
@@ -3869,7 +3866,7 @@ def test_main_preserves_clean_generator_output_after_later_failure(
     monkeypatch.setattr(module, "generate_docs_in_docs_repository", mutate_canonical_tree)
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("later guard failed")
         ),
@@ -3977,7 +3974,7 @@ def test_main_preserves_operator_write_during_canonical_generator(
     )
     monkeypatch.setattr(
         module,
-        "run_release_coverage_workflow_prerequisite",
+        "run_release_local_coverage_prerequisite",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("later guard failed after concurrent work")
         ),
@@ -4220,58 +4217,43 @@ def test_pre_upload_release_guard_runs_before_irreversible_upload(monkeypatch) -
     assert calls == [
         "docs-plan-validation",
         "preflight",
-        "coverage-badge-refresh",
         "coverage-guard-all",
         "coverage-guard-changed-only",
     ]
 
 
-def test_release_coverage_workflow_prerequisite_triggers_and_waits(monkeypatch) -> None:
+def test_local_release_coverage_accepts_current_source_without_dispatch(monkeypatch) -> None:
     module = _load_pypi_publish()
     cfg = _base_cfg(module, repo="pypi", git_tag=True)
-    states = iter(
-        [
-            [],
-            [{"status": "in_progress", "conclusion": "", "url": "https://example.test/runs/1"}],
-            [{"status": "completed", "conclusion": "success", "url": "https://example.test/runs/1"}],
-        ]
-    )
-    triggers: list[str] = []
-
-    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
-    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
-
-    module.run_release_coverage_workflow_prerequisite(
-        cfg,
-        timeout_seconds=30,
-        poll_seconds=1,
-        list_runs_fn=lambda _sha: next(states),
-        trigger_fn=lambda branch: triggers.append(branch),
-        sleep_fn=lambda _seconds: None,
-        time_fn=lambda: 0.0,
-    )
-
-    assert triggers == ["main"]
+    calls = []
+    monkeypatch.setattr(module, "run", lambda *args, **kwargs: pytest.fail("coverage must not dispatch GitHub"))
+    def verify(path, *, root):
+        calls.append((path, root))
+        return {"status": "passed", "profiles": {"coverage": "passed"}}
+    module.run_release_local_coverage_prerequisite(cfg, verify_fn=verify)
+    assert calls and calls[0][1] == module.REPO_ROOT
+    assert not hasattr(module, "trigger_coverage_workflow")
 
 
-def test_release_coverage_workflow_prerequisite_blocks_failed_run(monkeypatch) -> None:
+@pytest.mark.parametrize("result", [
+    {"status": "missing", "profiles": {}},
+    {"status": "failed", "profiles": {"coverage": "passed"}},
+    {"status": "passed", "profiles": {"agi-env": "passed"}},
+    {"status": "passed", "profiles": {"coverage": "skipped"}},
+])
+def test_local_release_coverage_blocks_without_dispatch(monkeypatch, result) -> None:
     module = _load_pypi_publish()
     cfg = _base_cfg(module, repo="pypi", git_tag=True)
+    monkeypatch.setattr(module, "run", lambda *args, **kwargs: pytest.fail("failure must not dispatch GitHub"))
+    with pytest.raises(SystemExit, match="local coverage receipt"):
+        module.run_release_local_coverage_prerequisite(cfg, verify_fn=lambda *args, **kwargs: result)
 
-    monkeypatch.setattr(module, "current_git_branch", lambda repo=module.REPO_ROOT: "main")
-    monkeypatch.setattr(module, "_git_head_sha", lambda: "abc123def456")
 
-    with pytest.raises(SystemExit, match="Coverage workflow prerequisite failed"):
-        module.run_release_coverage_workflow_prerequisite(
-            cfg,
-            timeout_seconds=30,
-            list_runs_fn=lambda _sha: [
-                {"status": "completed", "conclusion": "failure", "url": "https://example.test/runs/1"}
-            ],
-            trigger_fn=lambda _branch: None,
-            sleep_fn=lambda _seconds: None,
-            time_fn=lambda: 0.0,
-        )
+def test_local_coverage_gate_skips_nonpublishing_builds(monkeypatch) -> None:
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+    cfg.build_only = True
+    module.run_release_local_coverage_prerequisite(cfg, verify_fn=lambda *a, **k: pytest.fail("build-only is not publication"))
 
 
 def test_main_resets_release_files_only_when_publish_fails(tmp_path, monkeypatch) -> None:
@@ -4391,3 +4373,38 @@ def test_publisher_rejects_cleanup_options_before_release_mutation(monkeypatch, 
     monkeypatch.setattr(module, "capture_release_file_state", lambda *a, **k: pytest.fail("cleanup must stop before release mutations"))
     with pytest.raises(SystemExit, match="separate from publication"):
         module.main()
+
+def test_tagged_release_default_preflight_reuses_coverage_and_rechecks_before_upload(tmp_path, monkeypatch):
+    module = _load_pypi_publish()
+    cfg = _base_cfg(module, repo="pypi", git_tag=True)
+    assert cfg.release_preflight
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    xml = tmp_path / "coverage-agi-web.xml"
+    xml.write_text("verified coverage")
+    source = tmp_path / "prepared-source.py"
+    source.write_text("validated")
+    gates, commands = [], []
+    original_gate = module.run_release_local_coverage_prerequisite
+    def verify(path, *, root):
+        assert root == tmp_path and xml.read_text() == "verified coverage"
+        gates.append("verified")
+        return {"status": "passed" if source.read_text() == "validated" else "failed",
+                "profiles": {"coverage": "passed"}}
+    def gate(current):
+        return original_gate(current, verify_fn=verify)
+    monkeypatch.setattr(module, "run_release_local_coverage_prerequisite", gate)
+    monkeypatch.setattr(module, "clean_release_preflight_coverage_artifacts",
+                        lambda: pytest.fail("a verified coverage artifact must not be cleaned"))
+    monkeypatch.setattr(module, "run_release_coverage_badge_refresh",
+                        lambda: pytest.fail("a verified coverage badge must not be rewritten"))
+    monkeypatch.setattr(module, "run", lambda argv, **kwargs: commands.append(argv))
+    module.run_pre_upload_release_guard(cfg, planned_tag=None, chosen_version="2026.11.06",
+                                       version_targets=["agilab"])
+    parity = next(command for command in commands if "tools/workflow_parity.py" in command)
+    assert not {"agi-env", "agi-core-combined", "agi-gui", "agi-web", "coverage"} & set(parity)
+    assert {"docs", "installer", "shared-core-typing", "dependency-policy", "release-proof"} <= set(parity)
+    gate(cfg)  # main's final gate immediately before the irreversible upload.
+    assert len(gates) == 2 and xml.read_text() == "verified coverage"
+    source.write_text("changed after validation")
+    with pytest.raises(SystemExit, match="local coverage receipt"):
+        gate(cfg)

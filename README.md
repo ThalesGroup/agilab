@@ -278,7 +278,7 @@ below.</sub>
 
 <p>
   <a href="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main" alt="Repo guardrails" /></a>
-  <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml?query=branch%3Amain+event%3Apush"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=push" alt="Coverage workflow (main push)" /></a>
+  <a href="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml?query=branch%3Amain+event%3Aworkflow_dispatch"><img src="https://github.com/ThalesGroup/agilab/actions/workflows/coverage.yml/badge.svg?branch=main&amp;event=workflow_dispatch" alt="Coverage workflow (main manual)" /></a>
   <a href="https://codecov.io/gh/ThalesGroup/agilab"><img src="https://raw.githubusercontent.com/ThalesGroup/agilab/main/badges/coverage-agilab.svg" alt="Measured-scope coverage" /></a>
 </p>
 
@@ -752,8 +752,8 @@ state is rejected or recovered with a clear remediation and replay command.
 For adoption-surface evidence, maintainers can run `./dev app-contracts`; it
 checks that built-in apps, worker manifests, reducer expectations, promoted PyPI
 app packages, the app catalog, and public app docs stay aligned. The same guard
-runs in release validation, CI, and targeted pre-push checks when those inputs
-change.
+runs in local release validation and targeted pre-push checks when those inputs
+change. All workflows are manual-only; repository Actions remains disabled.
 For style tooling, maintainers should run `./dev lint`; it executes Ruff through
 the repo `dev` extra so a fresh checkout provisions the tool instead of relying
 on an already-synced local environment.
@@ -875,6 +875,15 @@ feature or behavior changes should advance to a deliberate new date-based
 release. Emergency public `.postN` versions are maintainer-gated and must be
 justified in release evidence; rehearsal builds should happen before final
 public release artifacts are cut.
+
+## Local validation
+
+Run `./dev ci` for portable current-host guards (macOS first). Use
+`./dev flow root-tests core-tests` for full local suites and select expensive
+browser, compatibility, native compilation, public-install and coverage profiles
+explicitly. [Local validation and retained GitHub exceptions](docs/source/agilab-local-validation.rst)
+lists commands and evidence boundaries. The manual Actions coverage badge
+describes hosted qualification only; it does not report local test status.
 
 ## Source Checkout
 

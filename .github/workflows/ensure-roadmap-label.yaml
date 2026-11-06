@@ -1,11 +1,6 @@
 name: Ensure roadmap label
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - ".github/ISSUE_TEMPLATE/roadmap-vote.yml"
-      - ".github/workflows/ensure-roadmap-label.yaml"
   workflow_dispatch:
 
 permissions:

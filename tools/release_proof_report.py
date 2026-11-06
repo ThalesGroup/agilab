@@ -20,6 +20,8 @@ import tomllib
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 DEFAULT_DOCS_SOURCE = REPO_ROOT / "docs" / "source"
 MANIFEST_RELATIVE_PATH = Path("data/release_proof.toml")
 UI_ROBOT_EVIDENCE_RELATIVE_PATH = Path("data/ui_robot_evidence.json")
@@ -1453,6 +1455,79 @@ def _ui_robot_evidence_check(
     )
 
 
+LOCAL_WORKFLOW_PROFILES = {
+    "repo-guardrails": {
+        "local-guardrails",
+        "guardrails-extended",
+        "base-python-compat",
+        "public-install",
+    },
+    "docs-source-guard": {"docs-guard"},
+    "coverage": {"agi-env", "agi-core-combined", "agi-gui", "agi-web", "badges"},
+}
+
+
+def _local_validation_checks(
+    paths: Sequence[Path],
+    *,
+    repo_root: Path,
+) -> tuple[list[dict[str, Any]], set[str]]:
+    from tools.testing.local_validation_receipt import verify_receipt
+
+    checks: list[dict[str, Any]] = []
+    observed: set[str] = set()
+    passed: set[str] = set()
+    for path in paths:
+        receipt = verify_receipt(path, root=repo_root)
+        profiles = set(receipt.get("profiles", {}))
+        observed.update(profiles)
+        if receipt["status"] == "passed":
+            passed.update(profiles)
+        checks.append(
+            _check_result(
+                "local_validation_receipt",
+                receipt["status"] == "passed",
+                "Local source/input/verifier/runtime binding: " + receipt["status"],
+                evidence=[str(path)],
+                details=receipt,
+            )
+        )
+    # Composite profiles have exactly these declared command contracts.
+    for profiles in (observed, passed):
+        if "local" in profiles:
+            profiles.update(("local-guardrails", "docs-guard"))
+        if "docs" in profiles:
+            profiles.add("docs-guard")
+        if "coverage" in profiles:
+            profiles.update(LOCAL_WORKFLOW_PROFILES["coverage"])
+    replaced = set()
+    for workflow, required in LOCAL_WORKFLOW_PROFILES.items():
+        if not observed.intersection(required):
+            continue
+        missing = sorted(required - passed)
+        checks.append(
+            _check_result(
+                "local_" + workflow,
+                not missing,
+                (
+                    "Verified local portable validation; hosted platform/service qualification remains separate."
+                    if not missing
+                    else "Missing or unsuccessful local profiles: " + ", ".join(missing)
+                ),
+                evidence=[str(path) for path in paths],
+                details={
+                    "required_profiles": sorted(required),
+                    "missing_profiles": missing,
+                    "scope": "recorded source and host only",
+                    "publication": False,
+                },
+            )
+        )
+        if not missing:
+            replaced.add(workflow)
+    return checks, replaced
+
+
 def build_report(
     *,
     manifest_path: Path,
@@ -1461,6 +1536,7 @@ def build_report(
     check_github_runs: bool = False,
     github_repo: str | None = None,
     github_max_age_days: int = DEFAULT_GITHUB_MAX_AGE_DAYS,
+    local_validation_receipts: Sequence[Path] = (),
 ) -> dict[str, Any]:
     manifest = load_manifest(manifest_path)
     rendered = render_release_proof(
@@ -1677,10 +1753,15 @@ def build_report(
             check_github_runs=check_github_runs,
         )
     )
+    local_checks, local_workflows = _local_validation_checks(
+        local_validation_receipts, repo_root=repo_root
+    )
+    checks.extend(local_checks)
+    github_runs = [run for run in ci_runs if run.get("workflow") not in local_workflows]
     if check_github_runs:
         checks.append(
             _github_ci_runs_check(
-                ci_runs,
+                github_runs,
                 repo_root=repo_root,
                 github_repo=github_repo,
                 max_age_days=github_max_age_days,
@@ -1736,8 +1817,19 @@ def _build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DOCS_SOURCE,
         help="Docs source root containing data/release_proof.toml.",
     )
-    parser.add_argument("--data", type=Path, default=None, help="Override manifest path.")
-    parser.add_argument("--output", type=Path, default=None, help="Override RST output path.")
+    parser.add_argument(
+        "--data", type=Path, default=None, help="Override manifest path."
+    )
+    parser.add_argument(
+        "--output", type=Path, default=None, help="Override RST output path."
+    )
+    parser.add_argument(
+        "--local-validation-receipt",
+        type=Path,
+        action="append",
+        default=[],
+        help="Verify source-bound local parity evidence for portable checks. Repeat for separate profiles. Missing/failed/skipped profiles fail; Pages and publication still require GitHub evidence.",
+    )
     parser.add_argument(
         "--refresh-from-local",
         action="store_true",
@@ -1832,13 +1924,24 @@ def main(argv: Sequence[str] | None = None) -> int:
             hf_space_commit=args.hf_space_commit,
         )
     if args.refresh_from_github:
+        local_checks, local_workflows = _local_validation_checks(
+            args.local_validation_receipt, repo_root=REPO_ROOT
+        )
+        if any(check["status"] != "pass" for check in local_checks):
+            raise ValueError(
+                "Local validation evidence is missing, failed, skipped or stale; manifest refresh refused."
+            )
         manifest = refresh_manifest_from_github(
             manifest,
             repo_root=REPO_ROOT,
             github_repo=args.github_repo,
             github_branch=args.github_branch or None,
             github_head_sha=args.github_head_sha,
-            workflows=tuple(args.github_workflows or DEFAULT_GITHUB_WORKFLOWS),
+            workflows=tuple(
+                workflow
+                for workflow in (args.github_workflows or DEFAULT_GITHUB_WORKFLOWS)
+                if workflow not in local_workflows
+            ),
             run_limit=args.github_run_limit,
         )
     publication_run_id = args.publication_run_id
@@ -1887,6 +1990,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         check_github_runs=args.check_github_runs,
         github_repo=args.github_repo,
         github_max_age_days=args.github_max_age_days,
+        local_validation_receipts=args.local_validation_receipt,
     )
     if not args.quiet:
         if args.compact:

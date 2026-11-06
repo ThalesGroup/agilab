@@ -198,14 +198,14 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     agi_gui_commands = profiles["agi-gui"]
     agi_gui_chunk_count = len(module._agi_gui_static_chunk_args())
     agi_gui_chunks = agi_gui_commands[:agi_gui_chunk_count]
-    agi_gui_combine = agi_gui_commands[-3]
-    agi_gui_timing = agi_gui_commands[-2]
-    agi_gui_xml = agi_gui_commands[-1]
+    agi_gui_combine = agi_gui_commands[-4]
+    agi_gui_timing = agi_gui_commands[-3]
+    agi_gui_xml = agi_gui_commands[-2]
     agi_gui_argv = [arg for command in agi_gui_commands for arg in command.argv]
     docs_commands = profiles["docs"]
-    release_proof_docs = docs_commands[0]
-    diagram_wording_docs = docs_commands[1]
-    docs = docs_commands[2]
+    release_proof_docs = next(command for command in docs_commands if command.label == "release proof manifest check")
+    diagram_wording_docs = next(command for command in docs_commands if command.label == "docs diagram wording check")
+    docs = next(command for command in docs_commands if command.label == "docs sphinx build")
     badges = profiles["badges"]
     strict_typing = profiles["shared-core-typing"][0]
     descriptions = module._profile_descriptions()
@@ -228,6 +228,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
     ui_robot_matrix = {
         command.label.removeprefix("ui robot matrix (").removesuffix(")"): command
         for command in ui_robot_matrix_commands
+        if command.label.startswith("ui robot matrix (")
     }
     ui_artifact_capture_robot = profiles["ui-artifact-capture-robot"][0]
     ui_history_robot = profiles["ui-history-robot"][0]
@@ -318,6 +319,7 @@ def test_profile_commands_cover_expected_coverage_and_docs_contracts() -> None:
         "agi-gui coverage combine",
         "agi-gui timing report",
         "agi-gui coverage xml",
+        "GUI observed-core coverage xml",
     ]
     assert all(command.timeout_seconds == 8 * 60 for command in agi_gui_chunks)
     assert all(
@@ -1352,14 +1354,15 @@ def test_badges_profile_accepts_component_filter() -> None:
     assert badges[0].argv[-3:] == ["--components", "agilab", "agi-env"]
 
 
-def test_selected_profiles_uses_combined_core_profile_by_default() -> None:
+def test_selected_profiles_uses_bounded_current_host_guards_by_default() -> None:
     module = _load_module()
     args = SimpleNamespace(profile=None)
 
     selected = module._selected_profiles(args)
 
-    assert "agi-core-combined" in selected
-    assert "cloud-emulators" in selected
+    assert selected == ["local"]
+    assert "agi-core-combined" not in selected
+    assert "cloud-emulators" not in selected
     assert "agi-node" not in selected
     assert "agi-cluster" not in selected
     assert "release-proof" not in selected

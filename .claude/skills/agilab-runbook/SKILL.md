@@ -4,7 +4,7 @@ description: Runbook for working in the AGILab repo (uv, native Python UI, run c
 license: BSD-3-Clause (see repo LICENSE)
 metadata:
   short-description: AGILab repo runbook
-  updated: 2026-10-29
+  updated: 2026-11-06
 ---
 
 # AGILab runbook (Agent Skill)
@@ -304,17 +304,29 @@ Use this skill when you need repo-specific “how we do things” guidance in `a
     PyPI account two-factor security-device settings if needed. Do not commit passwords,
     recovery codes, cookies, browser profiles, or PyPI session material.
 
+## Local validation policy
+
+Portable validation is local by default. Start with `./dev ci` on the current
+host (macOS first), then select `root-tests`, `core-tests`, `guardrails-extended`,
+`base-python-compat`, `setuptools-native`, `public-install`, `coverage` or UI
+profiles explicitly. See `docs/source/agilab-local-validation.rst` for the full
+mapping. Artifact-producing profiles and `--receipt` runs must execute freshly.
+A Mac pass does not qualify Windows junctions, Linux APT, Python 3.14t or service
+permissions. Hosted validation is manual; keep Pages/publication, OIDC,
+attestations and Actions-token signing under their existing explicit gates.
+Never dispatch Actions merely to reproduce a portable failure. Verify local
+receipts with `workflow_parity.py --verify-receipt`; failed, skipped, missing or
+stale profiles are not release evidence.
+
 ## CI and badge checks
 
-- Prefer local reproduction before rerunning workflows:
-  - if a failing step has a local command equivalent, run that first and fix locally
-  - only rerun a workflow after the local equivalent is green or when the issue is GitHub-specific
-- If a workflow is `cancelled`, fetch and compare the cancelled run head SHA with current
-  `origin/main` before debugging. A newer push often supersedes coverage on `main`; follow
-  the current head's run instead of fixing a cancelled predecessor unless the same failure
-  reproduces on the latest head.
-- CI badge is pinned to `main`:
-  - `https://github.com/ThalesGroup/agilab/actions/workflows/ci.yml/badge.svg?branch=main`
+- Run portable reproduction and integration locally. Repository Actions stays
+  disabled, and all current/future workflows allow only explicit manual dispatch.
+  `./dev local` and pre-push reject automatic triggers; pre-push checks nominated
+  commit trees. Do not rerun hosted jobs merely because a local check passed.
+- Inspect a historical cancelled run only when it explains an explicitly requested
+  service or native-platform qualification. It is not the current local validation status.
+- The hosted coverage badge is scoped to `main` / `workflow_dispatch`; it does not describe local validation.
 - When checking recent workflow state, prefer the GitHub Actions runs API:
   - `uv --preview-features extra-build-dependencies run python - <<'PY' ... https://api.github.com/repos/ThalesGroup/agilab/actions/workflows/ci.yml/runs?per_page=10 ... PY`
 - Public job logs may not be directly retrievable without auth. Use the runs/jobs API first to identify the failing step, then reproduce that exact command locally.

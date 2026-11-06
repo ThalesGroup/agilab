@@ -1,18 +1,12 @@
 name: repo-guardrails
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["**"]
   workflow_dispatch:
     inputs:
       validate_release_proof_signing:
         description: "Qualify server-signed release evidence with the real Actions token."
         type: boolean
         default: false
-  schedule:
-    - cron: "17 5 * * 1"
 
 permissions:
   contents: read
@@ -364,7 +358,7 @@ jobs:
 
       - name: Confirm extended test policy
         run: |
-          echo "GitHub Actions CI runs repository guardrails, fast repository contracts, and a minimal first-proof command contract."
+          echo "Portable validation runs locally with ./dev ci; this explicit hosted run also qualifies Linux/browser and service behaviour."
           echo "Run local workflow parity profiles before push for full test coverage."
 
   base-python-compat:
