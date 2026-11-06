@@ -345,10 +345,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up locked release-plan dependencies
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-publish.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Set up locked release-plan dependencies
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-publish.txt --github-env
 
       - name: Render release package plan
         id: release-plan
@@ -502,10 +506,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up locked publishing dependencies
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-publish.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Set up locked publishing dependencies
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-publish.txt --github-env
 
       - name: Check whether ${{ matrix.package }} can reuse PyPI artifacts
         id: library-pypi-reuse
@@ -651,10 +659,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up locked publishing dependencies
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-publish.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Set up locked publishing dependencies
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-publish.txt --github-env
 
       - name: Check whether agilab can reuse PyPI artifacts
         id: agilab-pypi-reuse
@@ -988,10 +1000,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up locked HF release dependencies
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-hf-release.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Set up locked HF release dependencies
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-hf-release.txt --github-env
 
       - name: Deploy and validate Hugging Face Space
         id: hf-sync
@@ -1043,10 +1059,14 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Set up locked release-proof dependencies
-        uses: ./.github/actions/setup-locked-python-tools
+      - name: Set up pinned uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
-          requirements: .github/requirements/ci-hf-release.txt
+          version: "0.10.7"
+          prune-cache: true
+
+      - name: Set up locked release-proof dependencies
+        run: python tools/setup_locked_python_tools.py --requirements .github/requirements/ci-hf-release.txt --github-env
 
       - name: Prepare immutable release proof and review branch
         id: release-proof

@@ -1,11 +1,12 @@
 import json
 import re
+import shlex
 from pathlib import Path
 
 import yaml
 
 WORKFLOW_ROOT = Path(".github/workflows")
-LOCKED_TOOLS_ACTION = Path(".github/actions/setup-locked-python-tools/action.yml")
+LOCKED_TOOLS_INSTALLER = Path("tools/setup_locked_python_tools.py")
 LOCK_INTEGRITY_WORKFLOW = WORKFLOW_ROOT / "ci-tool-lock-integrity.yml"
 REQUIREMENTS_ROOT = Path(".github/requirements")
 SETUP_UV_SHA = "68559e99cc807c1eb7e9238fd43a15bba460eec2"
@@ -43,22 +44,6 @@ CREDENTIAL_HARDENED_WORKFLOWS = (
     "test-pypi-publish.yaml",
 )
 
-LOCK_INTEGRITY_TRIGGER_PATHS = {
-    ".github/workflows/pypi-pending-trusted-publisher.yaml",
-    ".github/workflows/pypi-publish.yaml",
-    ".github/workflows/pypi-release-retention.yaml",
-    ".github/workflows/test-pypi-publish.yaml",
-    "dev",
-    "tools/agilab_dev.py",
-    "tools/ci_tool_lock_integrity.py",
-    "tools/hf_space_release_sync.py",
-    "tools/package_split_contract.py",
-    "tools/pypi_*.py",
-    "tools/release_*.py",
-    "tools/sync_docs_source.py",
-    "tools/testing/pypi_metadata_smoke.py",
-}
-
 EXPECTED_DIRECT_PINS = {
     "ci-free-threaded-coverage.in": ["coverage==7.16.1"],
     "ci-hf-release.in": [
@@ -93,6 +78,17 @@ def _load_yaml(path: Path) -> dict:
 def _contains_credential(value: object) -> bool:
     serialized = json.dumps(value, sort_keys=True)
     return "secrets." in serialized or "github.token" in serialized
+
+
+def _locked_setup_requirements(step: dict) -> str | None:
+    command = shlex.split(str(step.get("run", "")))
+    if "tools/setup_locked_python_tools.py" not in command:
+        return None
+    assert command[:3] == [
+        "python", "tools/setup_locked_python_tools.py", "--requirements",
+    ]
+    assert len(command) == 5 and command[4] == "--github-env"
+    return command[3]
 
 
 def test_credentialed_workflows_do_not_run_mutable_pip_installs() -> None:
@@ -250,7 +246,7 @@ def test_distribution_publish_jobs_do_not_execute_checkout_or_local_code() -> No
         assert {step["uses"] for step in job["steps"]} <= allowed_release_actions
         assert all(
             not str(step.get("uses", "")).startswith("actions/checkout@")
-            and step.get("uses") != "./.github/actions/setup-locked-python-tools"
+            and "tools/setup_locked_python_tools.py" not in str(step.get("run", ""))
             for step in job["steps"]
         )
 
@@ -365,15 +361,21 @@ def test_credentialed_tool_setup_is_locked_and_precedes_secret_steps() -> None:
         setup_indexes = [
             index
             for index, step in enumerate(steps)
-            if step.get("uses") == "./.github/actions/setup-locked-python-tools"
-            and step.get("with", {}).get("requirements") == requirements
+            if _locked_setup_requirements(step) == requirements
         ]
         assert len(setup_indexes) == 1, f"{workflow_path}:{job_name}:{requirements}"
+        pinned_setup = [
+            step for step in steps[:setup_indexes[0]]
+            if step.get("uses") == f"astral-sh/setup-uv@{SETUP_UV_SHA}"
+        ]
+        assert pinned_setup, f"{workflow_path}:{job_name}"
+        assert pinned_setup[-1]["with"]["version"] == "0.10.7"
+        assert pinned_setup[-1]["with"]["prune-cache"] is True
 
         credential_indexes = [
             index
             for index, step in enumerate(steps)
-            if _contains_credential(step.get("env", {}))
+            if _contains_credential(step)
         ]
         if credential_indexes:
             assert setup_indexes[0] < min(credential_indexes), (
@@ -381,54 +383,33 @@ def test_credentialed_tool_setup_is_locked_and_precedes_secret_steps() -> None:
             )
 
 
-def test_locked_python_tools_action_uses_pinned_uv_and_hashed_installs() -> None:
-    action = _load_yaml(LOCKED_TOOLS_ACTION)
-    steps = action["runs"]["steps"]
-
-    assert steps[0]["uses"] == f"astral-sh/setup-uv@{SETUP_UV_SHA}"
-    assert steps[0]["with"]["version"] == "0.10.7"
-    assert steps[0]["with"]["prune-cache"] is True
-    install_step = steps[1]
-    assert (
-        'uv venv --python "$(command -v python)" "$environment_path"'
-        in install_step["run"]
-    )
-    assert "uv pip install" in install_step["run"]
-    assert "--require-hashes" in install_step["run"]
-    assert "--no-build" in install_step["run"]
-    assert "AGILAB_DEV_UV_PROJECT_ENVIRONMENT=%s" in install_step["run"]
-
-
-def test_ci_tool_locks_have_a_path_scoped_unprivileged_install_smoke() -> None:
+def test_local_locked_installer_and_manual_workflow_preserve_unprivileged_smokes() -> None:
+    assert LOCKED_TOOLS_INSTALLER.is_file()
     workflow = _load_yaml(LOCK_INTEGRITY_WORKFLOW)
     trigger = workflow.get("on") or workflow.get(True)
     serialized = json.dumps(workflow)
-
+    assert set(trigger) == {"workflow_dispatch"}
     assert workflow["permissions"] == {"contents": "read"}
-    assert "secrets." not in serialized
-    assert "id-token" not in serialized
-    assert "workflow_dispatch" in trigger
-    for event_name in ("pull_request", "push"):
-        paths = set(trigger[event_name]["paths"])
-        assert ".github/actions/setup-locked-python-tools/**" in paths
-        assert ".github/requirements/ci-*" in paths
-        assert LOCK_INTEGRITY_TRIGGER_PATHS <= paths
-
+    assert "secrets." not in serialized and "id-token" not in serialized
     job = workflow["jobs"]["verify-locks"]
+    assert job["runs-on"] == "ubuntu-latest"
     assert job["permissions"] == {"contents": "read"}
     steps = job["steps"]
-    lock_setups = [
-        step
-        for step in steps
-        if step.get("uses") == "./.github/actions/setup-locked-python-tools"
+    setup_requirements = [
+        requirements for step in steps
+        if (requirements := _locked_setup_requirements(step)) is not None
     ]
-    setup_requirements = [step["with"]["requirements"] for step in lock_setups]
     expected_requirements = {
         path.as_posix() for path in REQUIREMENTS_ROOT.glob("ci-*.txt")
     }
     assert setup_requirements[0] == ".github/requirements/ci-lock-audit.txt"
     assert len(setup_requirements) == len(set(setup_requirements))
     assert set(setup_requirements) == expected_requirements
+    for index, step in enumerate(steps):
+        if _locked_setup_requirements(step):
+            pinned_uv = steps[index - 1]
+            assert pinned_uv["uses"] == f"astral-sh/setup-uv@{SETUP_UV_SHA}"
+            assert pinned_uv["with"] == {"version": "0.10.7", "prune-cache": True}
     run_text = "\n".join(str(step.get("run", "")) for step in steps)
     assert "python tools/ci_tool_lock_integrity.py" in run_text
     assert "--requirements-dir .github/requirements" in run_text
@@ -437,10 +418,11 @@ def test_ci_tool_locks_have_a_path_scoped_unprivileged_install_smoke() -> None:
     ]
     assert import_smokes
     assert all(step["env"]["PIP_NO_INDEX"] == "1" for step in import_smokes)
-    assert "import tools.pypi_publish" in run_text
-    assert "import tools.pypi_pending_trusted_publisher" in run_text
-    assert "import tools.pypi_release_retention" in run_text
-    assert "import tools.hf_space_release_sync" in run_text
+    for module in (
+        "pypi_publish", "pypi_pending_trusted_publisher",
+        "pypi_release_retention", "hf_space_release_sync",
+    ):
+        assert f"import tools.{module}" in run_text
 
 
 def test_ci_tool_requirements_pin_and_hash_every_dependency() -> None:

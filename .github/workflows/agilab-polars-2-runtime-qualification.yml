@@ -1,40 +1,6 @@
 name: agilab-polars-2-runtime-qualification
 
 on:
-  pull_request:
-    branches: ["**"]
-    paths:
-      - ".github/workflows/agilab-polars-2-runtime-qualification.yml"
-      - ".github/scripts/agilab_polars_2_runtime_qualification.py"
-      - "pyproject.toml"
-      - "src/agilab/core/**"
-      - "src/agilab/lib/agi-web/**"
-      - "src/agilab/apps/builtin/**"
-      - "src/agilab/apps/templates/**"
-      - "test/test_agilab_polars_2_runtime_qualification.py"
-      - "test/test_execution_polars_runtime_contracts.py"
-      - "test/test_worker_dynamic_import_contract.py"
-      - "test/test_app_args.py"
-      - "test/test_app_args_form_normalization.py"
-      - "test/test_streamlit_args.py"
-      - "tools/testing/pytest_entrypoint.py"
-  push:
-    branches: ["main"]
-    paths:
-      - ".github/workflows/agilab-polars-2-runtime-qualification.yml"
-      - ".github/scripts/agilab_polars_2_runtime_qualification.py"
-      - "pyproject.toml"
-      - "src/agilab/core/**"
-      - "src/agilab/lib/agi-web/**"
-      - "src/agilab/apps/builtin/**"
-      - "src/agilab/apps/templates/**"
-      - "test/test_agilab_polars_2_runtime_qualification.py"
-      - "test/test_execution_polars_runtime_contracts.py"
-      - "test/test_worker_dynamic_import_contract.py"
-      - "test/test_app_args.py"
-      - "test/test_app_args_form_normalization.py"
-      - "test/test_streamlit_args.py"
-      - "tools/testing/pytest_entrypoint.py"
   workflow_dispatch:
 
 permissions:
@@ -92,7 +58,7 @@ jobs:
             --with polars==2.0.0 --with pydantic==2.14.0 \
             --with "pytest==9.1.1" --with "pytest-asyncio>=1.3,<2" \
             --with sqlalchemy --with fastparquet \
-            python .github/scripts/agilab_polars_2_runtime_qualification.py \
+            python tools/testing/agilab_polars_2_runtime_qualification.py \
             --source-sha "$QUALIFICATION_SOURCE_SHA" \
             --expected-python "$QUALIFICATION_PYTHON" \
             --expected-platform "$QUALIFICATION_PLATFORM" \

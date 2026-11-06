@@ -15,9 +15,10 @@ def _write_lock_pair(
     input_pin: str,
     lock_pin: str,
     with_hash: bool = True,
+    name: str = "ci-example",
 ) -> tuple[Path, Path]:
-    input_path = root / "ci-example.in"
-    lock_path = root / "ci-example.txt"
+    input_path = root / f"{name}.in"
+    lock_path = root / f"{name}.txt"
     input_path.write_text(f"{input_pin}\n", encoding="utf-8")
     hash_line = "    --hash=sha256:" + ("a" * 64) if with_hash else ""
     lock_path.write_text(
@@ -44,7 +45,7 @@ def test_ci_tool_lock_workflow_audits_release_locks() -> None:
         encoding="utf-8"
     )
 
-    assert "requirements: .github/requirements/ci-lock-audit.txt" in workflow
+    assert "--requirements .github/requirements/ci-lock-audit.txt" in workflow
     for lock_name in (
         "ci-lock-audit.txt",
         "ci-publish.txt",
@@ -114,7 +115,7 @@ def test_pypi_web_workflow_smoke_executes_the_supported_guarded_cli() -> None:
     command[0] = sys.executable
     result = subprocess.run(
         command, check=True, capture_output=True, text=True,
-        env={**os.environ, "PIP_NO_INDEX": "1", "PYTHONNOUSERSITE": "1"},
+        env={**{key: value for key, value in os.environ.items() if not key.startswith("TOKKI_")}, "PIP_NO_INDEX": "1", "PYTHONNOUSERSITE": "1"},
     )
     assert "--delete-release" in result.stdout
     assert "--backup-dir" in result.stdout
@@ -252,3 +253,41 @@ def test_ci_tool_lock_integrity_does_not_silently_drop_direct_input_extras(
         match="expected an exact",
     ):
         ci_tool_lock_integrity.validate_lock_pair(input_path, lock_path)
+
+
+@pytest.mark.parametrize("audit_exit_code", [0, 1, 17])
+def test_audit_mode_checks_conflicting_pins_separately_and_propagates_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, audit_exit_code: int
+) -> None:
+    import subprocess
+    import sys
+
+    locks = []
+    for index, version in enumerate(("26.3", "26.2")):
+        _input, lock = _write_lock_pair(
+            tmp_path,
+            name=f"ci-{index}",
+            input_pin=f"packaging=={version}",
+            lock_pin=f"packaging=={version}",
+        )
+        locks.append(lock)
+    observed = []
+
+    def audit(argv, *, check):
+        assert check is False
+        lock = locks[len(observed)]
+        assert argv == [
+            sys.executable, "-m", "pip_audit",
+            "--requirement", str(lock), "--no-deps", "--disable-pip",
+        ]
+        pins = ci_tool_lock_integrity.read_compiled_lock_pins(lock)
+        observed.append((argv[0], pins[0].version))
+        return subprocess.CompletedProcess(
+            argv, audit_exit_code if len(observed) == 2 else 0
+        )
+
+    monkeypatch.setattr(ci_tool_lock_integrity.subprocess, "run", audit)
+    assert ci_tool_lock_integrity.main([
+        "--requirements-dir", str(tmp_path), "--audit",
+    ]) == audit_exit_code
+    assert observed == [(sys.executable, "26.3"), (sys.executable, "26.2")]

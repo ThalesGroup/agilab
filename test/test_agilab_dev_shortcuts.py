@@ -1369,3 +1369,28 @@ def test_capture_failure_terminates_and_reaps_only_its_child(
         agilab_dev._run_compact(["owned-child"], max_lines=5)
     assert calls == ["terminate", ("wait", 5), "archive closed"]
     assert "retained log=" in capsys.readouterr().err
+
+@pytest.mark.parametrize("profile", [
+    "ci-tool-lock-integrity", "ci-tool-lock-audit", "polars-2-runtime",
+])
+def test_local_qualification_profiles_use_the_existing_flow_entrypoint(profile):
+    command = agilab_dev.planned_commands(["flow", profile])[0]
+    assert command[-3:] == ["tools/workflow_parity.py", "--profile", profile]
+
+
+def test_profileless_flow_cannot_start_qualification_installs():
+    with pytest.raises(SystemExit):
+        agilab_dev.planned_commands(["flow"])
+
+
+def test_documented_local_qualification_commands_use_supported_flow_syntax():
+    import shlex
+    text = (ROOT / "docs/source/agilab-polars-2-runtime-qualification.rst").read_text()
+    commands = [
+        shlex.split(line.strip())
+        for line in text.splitlines() if line.strip().startswith("./dev flow ")
+    ]
+    assert len(commands) == 3
+    for command in commands:
+        plan = agilab_dev.planned_commands(command[1:])
+        assert plan[0][-3:] == ["tools/workflow_parity.py", "--profile", command[2]]

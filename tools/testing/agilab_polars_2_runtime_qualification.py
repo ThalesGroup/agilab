@@ -36,7 +36,7 @@ SDK_FILES = {
     "agi_cluster.agi_distributor.runtime.runtime_distribution_support": "src/agilab/core/agi-cluster/src/agi_cluster/agi_distributor/runtime/runtime_distribution_support.py",
     "agi_web.testing": "src/agilab/lib/agi-web/src/agi_web/testing.py",
 }
-HELPER_PATH = ".github/scripts/agilab_polars_2_runtime_qualification.py"
+HELPER_PATH = "tools/testing/agilab_polars_2_runtime_qualification.py"
 WORKFLOW_PATH = ".github/workflows/agilab-polars-2-runtime-qualification.yml"
 MANIFEST_PATHS = tuple(
     f"src/agilab/core/{name}/pyproject.toml"
@@ -49,6 +49,7 @@ SOURCE_PATHS = (
     + (
         HELPER_PATH,
         WORKFLOW_PATH,
+        "tools/workflow_parity.py",
         "tools/testing/pytest_entrypoint.py",
     )
 )
@@ -66,8 +67,8 @@ def source_hashes(root: Path) -> dict[str, str]:
     return {name: file_hash(root / name) for name in sorted(set(SOURCE_PATHS))}
 
 
-def source_head(root: Path, expected: str) -> str:
-    if re.fullmatch(r"[0-9a-f]{40}", expected) is None:
+def source_head(root: Path, expected: str | None = None) -> str:
+    if expected is not None and re.fullmatch(r"[0-9a-f]{40}", expected) is None:
         raise QualificationError("invalid_source_sha")
     head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -77,7 +78,9 @@ def source_head(root: Path, expected: str) -> str:
         check=True,
         timeout=10,
     ).stdout.strip()
-    if head != expected:
+    if re.fullmatch(r"[0-9a-f]{40}", head) is None:
+        raise QualificationError("invalid_checkout_sha")
+    if expected is not None and head != expected:
         raise QualificationError("source_sha_mismatch")
     return head
 
@@ -249,7 +252,7 @@ def validate_results(
 def run_qualification(
     root: Path,
     output: Path,
-    expected_sha: str,
+    expected_sha: str | None,
     expected_python: str,
     expected_platform: str,
 ) -> int:
@@ -363,7 +366,7 @@ def run_qualification(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--source-sha", help="Expected source commit; defaults to the local HEAD.")
     parser.add_argument(
         "--expected-python", choices=("3.12", "3.13", "3.14"), required=True
     )
