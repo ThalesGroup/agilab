@@ -132,9 +132,154 @@ def test_quarto_render_runner_and_empty_manifest_edges(tmp_path: Path) -> None:
 
     assert calls == [["quarto", "render", str(tmp_path / "rendered.qmd")]]
     assert report["render"]["status"] == "fail"
+    assert report["status"] == "fail"
+    assert report["render"]["returncode"] == 7
+    assert report["render"]["stdout"] == "ok"
+    assert report["render"]["stderr"] == "render failed"
     text = (tmp_path / "rendered.qmd").read_text(encoding="utf-8")
     assert "No validation rows recorded" in text
     assert "No artifacts recorded" in text
+
+
+@pytest.mark.parametrize("failure", ["oserror", "timeout"])
+def test_quarto_runner_exception_keeps_generated_evidence(
+    tmp_path: Path, failure: str
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    output = tmp_path / "report.qmd"
+    error = (
+        OSError("renderer could not start")
+        if failure == "oserror"
+        else subprocess.TimeoutExpired(["quarto", "render", str(output)], 1)
+    )
+
+    def failed_runner(argv, **kwargs):
+        assert argv == ["quarto", "render", str(output)]
+        assert not kwargs.get("shell", False)
+        raise error
+
+    with pytest.raises(type(error)) as caught:
+        bridge_cli.export_quarto_report(
+            manifest_path,
+            output,
+            render=True,
+            runner=failed_runner,
+            which=lambda _name: "/renderer/quarto",
+        )
+
+    assert caught.value is error
+    assert "AGILAB Run Report" in output.read_text(encoding="utf-8")
+    assert json.loads((tmp_path / "manifest.json").read_text()) == json.loads(
+        manifest_path.read_text()
+    )
+
+
+@pytest.mark.parametrize("group", ["export", "run"])
+@pytest.mark.parametrize("outcome", ["success", "nonzero", "missing", "export-only"])
+def test_quarto_public_cli_render_outcomes(
+    tmp_path: Path, group: str, outcome: str
+) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    output = tmp_path / "report.qmd"
+    # Python executes this renderer stand-in directly, without a shell or Quarto install.
+    (tmp_path / "render").write_text(
+        "import sys\n"
+        "print('renderer output')\n"
+        "print('renderer diagnostics', file=sys.stderr)\n"
+        f"raise SystemExit({7 if outcome == 'nonzero' else 0})\n",
+        encoding="utf-8",
+    )
+    renderer = (
+        str(tmp_path / "missing-renderer")
+        if outcome in {"missing", "export-only"}
+        else sys.executable
+    )
+    args = [
+        group,
+        "quarto",
+        "--run",
+        str(manifest_path),
+        "--output",
+        str(output),
+        "--quarto-bin",
+        renderer,
+        "--json",
+    ]
+    if group == "export" and outcome != "export-only":
+        args.append("--render")
+    elif group == "run" and outcome == "export-only":
+        args.append("--no-render")
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env.get("PYTHONPATH", "")])
+    completed = subprocess.run(
+        [sys.executable, "-m", "agilab", *args],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert completed.returncode == (1 if outcome == "nonzero" else 0), completed.stderr
+    payload = json.loads(completed.stdout)
+    assert payload["status"] == ("fail" if outcome == "nonzero" else "pass")
+    assert (
+        payload["render"]["status"]
+        == {
+            "success": "pass",
+            "nonzero": "fail",
+            "missing": "skipped",
+            "export-only": "not_requested",
+        }[outcome]
+    )
+    assert output.is_file()
+    assert json.loads((tmp_path / "manifest.json").read_text()) == json.loads(
+        manifest_path.read_text()
+    )
+    if outcome in {"success", "nonzero"}:
+        assert payload["render"]["returncode"] == (7 if outcome == "nonzero" else 0)
+        assert payload["render"]["stdout"] == "renderer output\n"
+        assert payload["render"]["stderr"] == "renderer diagnostics\n"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX executable format failure")
+def test_quarto_public_cli_renderer_start_failure_keeps_exports(tmp_path: Path) -> None:
+    manifest_path = _write_manifest(tmp_path)
+    output = tmp_path / "report.qmd"
+    renderer = tmp_path / "invalid-renderer"
+    renderer.write_text("invalid executable format\n", encoding="utf-8")
+    renderer.chmod(0o700)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.pathsep.join([str(ROOT / "src"), env.get("PYTHONPATH", "")])
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "agilab",
+            "run",
+            "quarto",
+            "--run",
+            str(manifest_path),
+            "--output",
+            str(output),
+            "--quarto-bin",
+            str(renderer),
+            "--json",
+        ],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert completed.returncode != 0
+    assert "OSError" in completed.stderr
+    assert output.is_file()
+    assert (tmp_path / "manifest.json").is_file()
 
 
 def test_hf_space_export_and_secret_rejection(tmp_path: Path) -> None:
@@ -349,6 +494,121 @@ def test_hf_space_export_ignores_virtualenv_symlinks(tmp_path: Path) -> None:
 
     assert (output / "agilab_project/README.md").is_file()
     assert not (output / "agilab_project/.venv").exists()
+
+
+_VSCODE_BRIDGE_DESTINATIONS = (
+    ".devcontainer/devcontainer.json",
+    ".vscode/tasks.json",
+    ".vscode/launch.json",
+    "AGILAB_QUICKSTART.md",
+)
+
+
+@pytest.mark.parametrize("relative_path", _VSCODE_BRIDGE_DESTINATIONS)
+def test_vscode_preflight_existing_target_and_recovery(
+    tmp_path: Path, relative_path: str
+) -> None:
+    workspace = tmp_path / "workspace"
+    existing = workspace / relative_path
+    existing.parent.mkdir(parents=True)
+    existing.write_bytes(b"existing user content\n")
+    before = sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*"))
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        bridge_cli.init_vscode_bridge(workspace)
+
+    assert existing.read_bytes() == b"existing user content\n"
+    assert sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*")) == before
+    existing.unlink()
+    result = bridge_cli.init_vscode_bridge(workspace)
+    assert result["status"] == "pass"
+    assert {str(Path(p).relative_to(workspace)) for p in result["files"]} == set(
+        _VSCODE_BRIDGE_DESTINATIONS
+    )
+    assert all((workspace / p).is_file() for p in _VSCODE_BRIDGE_DESTINATIONS)
+
+
+def test_vscode_force_overwrites_regular_generated_files(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    for relative_path in _VSCODE_BRIDGE_DESTINATIONS:
+        path = workspace / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("old content\n", encoding="utf-8")
+
+    result = bridge_cli.init_vscode_bridge(workspace, force=True)
+
+    assert result["status"] == "pass"
+    assert len(result["files"]) == 4
+    for relative_path in _VSCODE_BRIDGE_DESTINATIONS[:3]:
+        assert isinstance(json.loads((workspace / relative_path).read_text()), dict)
+    assert "# AGILAB Quickstart" in (workspace / "AGILAB_QUICKSTART.md").read_text()
+
+
+@pytest.mark.parametrize("relative_path", _VSCODE_BRIDGE_DESTINATIONS)
+@pytest.mark.parametrize("kind", ["directory", "symlink", "dangling-symlink"])
+@pytest.mark.parametrize("force", [False, True])
+def test_vscode_preflight_rejects_nonregular_destinations(
+    tmp_path: Path, relative_path: str, kind: str, force: bool
+) -> None:
+    workspace = tmp_path / "workspace"
+    destination = workspace / relative_path
+    destination.parent.mkdir(parents=True)
+    outside = tmp_path / "outside.txt"
+    if kind == "directory":
+        destination.mkdir()
+    else:
+        if kind == "symlink":
+            outside.write_text("outside content\n", encoding="utf-8")
+        try:
+            destination.symlink_to(outside)
+        except OSError as exc:
+            pytest.skip(f"file symlinks unavailable: {exc}")
+    before = sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*"))
+
+    expected_error = RuntimeError if force else FileExistsError
+    with pytest.raises(expected_error, match="already exists|symlink|regular"):
+        bridge_cli.init_vscode_bridge(workspace, force=force)
+
+    assert sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*")) == before
+    if kind == "directory":
+        assert destination.is_dir()
+    else:
+        assert destination.is_symlink()
+        if kind == "symlink":
+            assert outside.read_text() == "outside content\n"
+        else:
+            assert not outside.exists()
+
+
+@pytest.mark.parametrize("parent", [".devcontainer", ".vscode"])
+@pytest.mark.parametrize("kind", ["file", "symlink"])
+@pytest.mark.parametrize("force", [False, True])
+def test_vscode_preflight_rejects_invalid_parent_before_any_write(
+    tmp_path: Path, parent: str, kind: str, force: bool
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    destination = workspace / parent
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    if kind == "file":
+        destination.write_text("parent is a file\n", encoding="utf-8")
+    else:
+        try:
+            destination.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            pytest.skip(f"directory symlinks unavailable: {exc}")
+    before = sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*"))
+
+    with pytest.raises((RuntimeError, NotADirectoryError), match="symlink|directory"):
+        bridge_cli.init_vscode_bridge(workspace, force=force)
+
+    assert sorted(str(p.relative_to(workspace)) for p in workspace.rglob("*")) == before
+    assert list(outside.iterdir()) == []
+    if kind == "file":
+        assert destination.read_text() == "parent is a file\n"
+    else:
+        assert destination.is_symlink()
 
 
 def test_mlflow_vscode_and_workflow_handoff_exports(tmp_path: Path) -> None:
