@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import shlex
@@ -25,7 +26,9 @@ REPLAY_SCRIPT = "replay.sh"
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     return path
 
 
@@ -51,12 +54,50 @@ def _file_row(path: Path, *, id_: str, kind: str) -> dict[str, Any]:
     return row
 
 
-def _failed_items(rows: Sequence[Mapping[str, Any]]) -> list[str]:
-    return [
-        str(row.get("id", row.get("label", "")))
-        for row in rows
-        if str(row.get("status", "unknown")) not in {"pass", "ok"}
-    ]
+_REQUIRED_VERIFICATION_CHECKS = frozenset(
+    {
+        "manifest_exists",
+        "manifest_schema_supported",
+        "manifest_status_pass",
+        "validations_pass",
+        "command_present",
+        "replay_available",
+        "declared_artifacts_present",
+        "secret_env_values_redacted",
+    }
+)
+
+
+def _report_blockers(
+    report: Mapping[str, Any],
+    key: str,
+    label: str,
+    *,
+    required: frozenset[str] = frozenset(),
+) -> set[str]:
+    blockers: set[str] = set()
+    if report.get("status") != "pass":
+        blockers.add(f"{label}_status")
+    rows = report.get(key)
+    if not isinstance(rows, list) or not rows:
+        return blockers | {f"{label}_{key}_missing"}
+    seen: set[str] = set()
+    for row in rows:
+        if (
+            not isinstance(row, Mapping)
+            or not isinstance(row.get("id"), str)
+            or not row["id"].strip()
+        ):
+            blockers.add(f"{label}_{key}_invalid")
+            continue
+        identifier = row["id"]
+        if identifier in seen:
+            blockers.add(f"{label}_{key}_duplicate")
+        seen.add(identifier)
+        if row.get("status") != "pass":
+            blockers.add(identifier)
+    blockers.update(f"{label}_missing:{item}" for item in required - seen)
+    return blockers
 
 
 def _decision(
@@ -64,22 +105,51 @@ def _decision(
     policy_results: Mapping[str, Any],
     verification: Mapping[str, Any],
 ) -> dict[str, Any]:
-    failed_policy_rules = _failed_items(
-        [row for row in policy_results.get("rules", []) if isinstance(row, Mapping)]
+    policy_blockers = _report_blockers(policy_results, "rules", "policy")
+    verification_blockers = _report_blockers(
+        verification, "checks", "verification", required=_REQUIRED_VERIFICATION_CHECKS
     )
-    failed_verification_checks = _failed_items(
-        [row for row in verification.get("checks", []) if isinstance(row, Mapping)]
+    if verification.get("schema") != evidence_contract.VERIFY_SCHEMA:
+        verification_blockers.add("verification_schema")
+    digest = verification.get("manifest_sha256")
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(c not in "0123456789abcdef" for c in digest)
+    ):
+        verification_blockers.add("verification_manifest_digest")
+    if policy_results.get("schema") != evidence_contract.POLICY_SCHEMA:
+        policy_blockers.add("policy_schema")
+    verified_manifest = verification.get("manifest")
+    if not isinstance(verified_manifest, Mapping) or any(
+        verified_manifest.get(key) != value
+        for key, value in (("run_id", manifest.run_id), ("status", manifest.status))
+    ):
+        verification_blockers.add("verification_manifest_mismatch")
+    if policy_results.get("verification_status") != verification.get("status"):
+        verification_blockers.add("verification_policy_mismatch")
+    blockers = sorted(
+        policy_blockers
+        | verification_blockers
+        | ({"manifest_status"} if manifest.status != "pass" else set())
     )
-    blockers = sorted(set(failed_policy_rules or failed_verification_checks))
-    if manifest.status == "pass" and policy_results.get("status") == "pass":
-        decision = "promote"
-        reason = "policy_passed"
-    elif manifest.status == "fail" or blockers:
-        decision = "block"
-        reason = "policy_failed" if blockers else "manifest_failed"
+    if (
+        not blockers
+        and manifest.status
+        == policy_results.get("status")
+        == verification.get("status")
+        == "pass"
+    ):
+        decision, reason = "promote", "policy_passed"
     else:
-        decision = "manual-review"
-        reason = "insufficient_evidence"
+        decision = "block"
+        reason = (
+            "manifest_failed"
+            if manifest.status != "pass"
+            else "verification_failed"
+            if verification_blockers
+            else "policy_failed"
+        )
     return {
         "schema": DECISION_SCHEMA,
         "decision": decision,
@@ -183,8 +253,14 @@ def build_promotion_dossier(
     """Build and write a promotion dossier for one AGILAB run manifest."""
 
     resolved_manifest_path = manifest_path.expanduser().resolve(strict=False)
-    manifest = run_manifest.load_run_manifest(resolved_manifest_path)
-    target_dir = output_dir.expanduser() if output_dir else resolved_manifest_path.parent / "promotion_dossier"
+    frozen_manifest = resolved_manifest_path.read_bytes()
+    frozen_manifest_sha256 = hashlib.sha256(frozen_manifest).hexdigest()
+    manifest = run_manifest.RunManifest.from_dict(json.loads(frozen_manifest))
+    target_dir = (
+        output_dir.expanduser()
+        if output_dir
+        else resolved_manifest_path.parent / "promotion_dossier"
+    )
     target_dir.mkdir(parents=True, exist_ok=True)
 
     verification = evidence_contract.verify_manifest(resolved_manifest_path)
@@ -195,7 +271,21 @@ def build_promotion_dossier(
     )
     story = run_storyboard.build_run_story(resolved_manifest_path)
     decision = _decision(manifest, policy_results, verification)
-    lineage = evidence_contract.build_openlineage_event(manifest, resolved_manifest_path)
+    decision["manifest_sha256"] = frozen_manifest_sha256
+    if (
+        verification.get("manifest_sha256") != frozen_manifest_sha256
+        or evidence_contract.sha256_file(resolved_manifest_path)
+        != frozen_manifest_sha256
+    ):
+        decision.update(decision="block", status="fail", reason="manifest_changed")
+        decision["blockers"] = sorted(
+            set(decision["blockers"]) | {"manifest_changed_during_verification"}
+        )
+        decision["next_action"] = _next_action("block", decision["blockers"])
+    decision["verification_sha256"] = evidence_contract.sha256_payload(verification)
+    lineage = evidence_contract.build_openlineage_event(
+        manifest, resolved_manifest_path
+    )
 
     paths = {
         "promotion_decision": target_dir / PROMOTION_DECISION_JSON,
@@ -209,8 +299,11 @@ def build_promotion_dossier(
         "evidence_manifest": target_dir / EVIDENCE_MANIFEST_JSON,
     }
 
-    _write_json(paths["promotion_decision"], decision)
     _write_json(paths["policy_results"], policy_results)
+    decision["policy_results_sha256"] = evidence_contract.sha256_file(
+        paths["policy_results"]
+    )
+    _write_json(paths["promotion_decision"], decision)
     _write_json(paths["lineage"], lineage)
     bridge_cli.export_mlflow_handoff(resolved_manifest_path, paths["mlflow_export"])
     _write_json(paths["run_story_json"], story)
@@ -218,12 +311,16 @@ def build_promotion_dossier(
     _write_text(paths["replay"], _replay_script(manifest), executable=True)
 
     dossier_file_rows = [
-        _file_row(paths["promotion_decision"], id_="promotion_decision", kind="decision"),
+        _file_row(
+            paths["promotion_decision"], id_="promotion_decision", kind="decision"
+        ),
         _file_row(paths["policy_results"], id_="policy_results", kind="policy"),
         _file_row(paths["lineage"], id_="lineage", kind="openlineage"),
         _file_row(paths["mlflow_export"], id_="mlflow_export", kind="mlflow"),
         _file_row(paths["run_story_json"], id_="run_story_json", kind="story-json"),
-        _file_row(paths["run_story_markdown"], id_="run_story_markdown", kind="story-markdown"),
+        _file_row(
+            paths["run_story_markdown"], id_="run_story_markdown", kind="story-markdown"
+        ),
         _file_row(paths["replay"], id_="replay", kind="script"),
     ]
     _write_text(
@@ -278,14 +375,22 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", help="Directory for the dossier files.")
     parser.add_argument("--policy", help="Optional JSON/TOML policy file.")
     parser.add_argument("--json", action="store_true", help="Print JSON output.")
-    parser.add_argument("--strict", action="store_true", help="Exit non-zero unless the decision is promote.")
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero unless the decision is promote.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
-    manifest_path = Path(args.manifest).expanduser() if args.manifest else run_storyboard.DEFAULT_MANIFEST_PATH.expanduser()
+    manifest_path = (
+        Path(args.manifest).expanduser()
+        if args.manifest
+        else run_storyboard.DEFAULT_MANIFEST_PATH.expanduser()
+    )
     payload = build_promotion_dossier(
         manifest_path,
         Path(args.output_dir).expanduser() if args.output_dir else None,
