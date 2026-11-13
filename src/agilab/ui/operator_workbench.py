@@ -55,7 +55,7 @@ def workbench_data(
              "kind": "orchestrate_action", "value": action, "requires_review": True,
              "disabled": not bool(project), "reason": "Select a project first." if not project else ""}
             for action, label, description in (
-                ("install", "Install selected app", "Install the selected app with its current settings. This can download dependencies."),
+                ("install", "Deploy scheduler & workers", "Deploy the scheduler and workers with the current ORCHESTRATE settings. This can download dependencies."),
                 ("run", "Run configured project", "Run the selected app with its current ORCHESTRATE settings. Worker readiness is checked before execution."),
             )
         )
