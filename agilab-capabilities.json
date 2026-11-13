@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-06T16:27:53Z",
+  "generated_at_utc": "2026-11-13T20:54:01Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -2880,7 +2880,8 @@
     {
       "schema": "agilab.security_check.v1",
       "sources": [
-        "src/agilab/security/security_check.py"
+        "src/agilab/security/security_check.py",
+        "tools/shared_go_gate.py"
       ]
     },
     {

@@ -199,6 +199,7 @@ def test_packaged_scan_resolves_unpublished_source_versions_and_extra_dependenci
 
 def test_packaged_scan_real_cyclonedx_records_first_party_provenance(
     unpublished_source_scan: SimpleNamespace,
+    monkeypatch,
 ) -> None:
     if importlib.util.find_spec("cyclonedx_py") is None:
         pytest.skip("CycloneDX is optional agilab[dev] tooling; source-resolution regression runs separately")
@@ -217,6 +218,8 @@ def test_packaged_scan_real_cyclonedx_records_first_party_provenance(
         assert properties["agilab:source-manifest"] == f"{package.name}/pyproject.toml"
         assert len(properties["agilab:source-manifest:sha256"]) == 64
         assert any(r["url"] == (scan.root / package.project).as_uri() for r in component["externalReferences"])
+
+    _assert_packaged_producer_gate(scan, sbom, monkeypatch)
 
 
 def test_first_party_sources_fail_closed_on_missing_or_mismatched_metadata(tmp_path: Path, monkeypatch) -> None:
@@ -338,3 +341,83 @@ def test_current_profiles_have_no_stale_global_vulnerability_ignores(tmp_path: P
     plan = module.build_profile_scan("local-llm", output_root=tmp_path)
     audit_cmd = next(cmd for cmd in plan.commands if "pip-audit" in cmd)
     assert "--ignore-vuln" not in audit_cmd
+
+
+def _assert_packaged_producer_gate(scan, sbom: Path, monkeypatch) -> None:
+    """Feed actual compiler/CycloneDX/provenance outputs through the consumer."""
+    from datetime import datetime, timezone
+    from tools import shared_go_gate
+
+    supply = scan.root / "supply-chain"
+    directory = supply / "packaged-projects"
+    directory.mkdir(parents=True)
+    requirements = directory / "requirements.txt"
+    requirements.write_bytes(scan.compiled.read_bytes())
+    scan.module.write_pip_audit_requirements(
+        requirements, directory / "requirements-audit.txt"
+    )
+    (directory / "sbom-cyclonedx.json").write_bytes(sbom.read_bytes())
+    (directory / "pip-audit.json").write_text(
+        json.dumps(
+            {
+                "dependencies": [
+                    {"name": "external-widget", "version": "1.2", "vulns": []}
+                ]
+            }
+        )
+    )
+    security = scan.root / "agilab-producer-security-check.json"
+    security.write_text(
+        json.dumps(
+            {
+                "schema": "agilab.security_check.v1",
+                "schema_version": 1,
+                "kind": "agilab.security_check",
+                "status": "pass",
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "summary": {
+                    "profile": "shared",
+                    "advisory": True,
+                    "check_count": 1,
+                    "warnings": 0,
+                    "failures": 0,
+                },
+                "checks": [{"id": "producer-fixture", "status": "pass"}],
+            }
+        )
+    )
+    monkeypatch.setattr(
+        shared_go_gate,
+        "first_party_sources",
+        lambda: scan.module.first_party_sources(scan.root),
+    )
+    gate = shared_go_gate.build_gate(
+        security_check_json=security,
+        supply_chain_dir=supply,
+        install_profiles=("packaged-projects",),
+    )
+    assert gate["decision"] == "go", gate
+    # The same supported profile must also survive the CLI's all expansion.
+    for profile in shared_go_gate.INSTALL_PROFILES:
+        if profile == "packaged-projects":
+            continue
+        other = supply / profile
+        other.mkdir()
+        for path in sorted(directory.iterdir()):
+            (other / path.name).write_bytes(path.read_bytes())
+    assert (
+        shared_go_gate.main(
+            [
+                "--security-check-json",
+                str(security),
+                "--supply-chain-dir",
+                str(supply),
+                "--install-profile",
+                "all",
+                "--output",
+                str(scan.root / "agilab-producer-shared-go-result.json"),
+                "--strict",
+            ]
+        )
+        == 0
+    )

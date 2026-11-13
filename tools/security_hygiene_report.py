@@ -11,6 +11,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+import stat
 import tomllib
 from typing import Any, Mapping, Sequence
 
@@ -93,9 +94,25 @@ def _artifact_check_result(
     }
 
 
+def _regular_file_stat(path: Path) -> tuple[os.stat_result | None, str | None]:
+    """Reject static special files, following symlinks to regular artifacts."""
+    try:
+        metadata = path.stat()
+    except FileNotFoundError:
+        return None, "artifact is missing or not a regular file"
+    except (OSError, ValueError):
+        return None, "artifact metadata could not be read"
+    if not stat.S_ISREG(metadata.st_mode):
+        return None, "artifact is missing or not a regular file"
+    return metadata, None
+
+
 def _read_json_artifact(path: Path | None) -> tuple[bool, dict[str, Any] | list[Any] | None, str | None]:
     if path is None:
         return False, None, None
+    _metadata, error = _regular_file_stat(path)
+    if error is not None:
+        return True, None, error
     try:
         return True, json.loads(path.read_text(encoding="utf-8")), None
     except Exception as exc:
@@ -238,14 +255,43 @@ ScanRequirementsInventory = tuple[
 ]
 
 
+def _registered_source_identity(
+    name: str,
+    uri: str,
+    sources: Mapping[str, Mapping[str, str]],
+) -> tuple[tuple[str, str] | None, str | None]:
+    source = sources.get(str(canonicalize_name(name)))
+    if source is None or not uri.startswith("file:") or source.get("uri") != uri:
+        return None, "requirement does not match a registered first-party source"
+    return _canonical_package_identity(
+        name, source.get("version"), label="registered first-party source"
+    )
+
+
 def _scan_requirements_inventory(
     path: Path,
+    *,
+    registered_sources: Mapping[str, Mapping[str, str]] | None = None,
+    source_inventory: dict[str, Mapping[str, str]] | None = None,
 ) -> tuple[ScanRequirementsInventory | None, str | None]:
+    """Parse pins and local editables; registered source URLs require explicit opt-in.
+
+    On success, source_inventory records the exact catalog entries used, separately
+    from audit pins and complete SBOM inventory. Requirements never trigger source
+    discovery, file execution or network access.
+    """
+    if source_inventory is not None:
+        source_inventory.clear()
+    _metadata, error = _regular_file_stat(path)
+    if error is not None:
+        return None, error
     try:
         lines = path.read_text(encoding="utf-8").splitlines()
-    except OSError as exc:
-        return None, str(exc)
+    except (OSError, ValueError):
+        return None, "scan requirements could not be read"
 
+    sources = registered_sources or {}
+    used_sources: dict[str, Mapping[str, str]] = {}
     environment = default_environment()
     inventory: dict[str, str] = {}
     complete_inventory: dict[str, str] = {}
@@ -265,17 +311,12 @@ def _scan_requirements_inventory(
             ),
             None,
         )
+        source = None
+        active = True
         if editable_prefix is not None:
             editable_value = requirement_text[len(editable_prefix) :].strip()
             editable_path, separator, marker_text = editable_value.partition(";")
             editable_path = editable_path.strip()
-            if not editable_path or not (
-                editable_path == "." or editable_path.startswith("./")
-            ):
-                return None, (
-                    f"requirements line {line_number} must use a relative local "
-                    "editable path"
-                )
             if separator:
                 try:
                     marker_requirement = Requirement(
@@ -285,40 +326,72 @@ def _scan_requirements_inventory(
                     return None, f"requirements line {line_number} is invalid: {exc}"
                 if marker_requirement.marker is None:
                     return None, f"requirements line {line_number} has an empty marker"
-                marker_requirement.marker.evaluate(environment)
-            rendered_requirement = requirement_text
-            editables.append((line_number, editable_path, rendered_requirement))
-            continue
-        if requirement_text.startswith("-"):
-            return None, f"requirements line {line_number} uses an unsupported directive"
-        try:
-            requirement = Requirement(requirement_text)
-        except InvalidRequirement as exc:
-            return None, f"requirements line {line_number} is invalid: {exc}"
-        if requirement.url is not None:
-            return None, f"requirements line {line_number} must identify a pinned package"
-        specifiers = list(requirement.specifier)
-        if (
-            len(specifiers) != 1
-            or specifiers[0].operator not in {"==", "==="}
-            or "*" in specifiers[0].version
-        ):
-            return None, f"requirements line {line_number} must use one exact version pin"
-        identity, identity_error = _canonical_package_identity(
-            requirement.name,
-            specifiers[0].version,
-            label=f"requirements line {line_number}",
-        )
+                active = marker_requirement.marker.evaluate(environment)
+            if editable_path == "." or editable_path.startswith("./"):
+                editables.append((line_number, editable_path, requirement_text))
+                continue
+            matches = [
+                name
+                for name, candidate in sources.items()
+                if candidate.get("uri") == editable_path
+            ]
+            if len(matches) != 1:
+                return None, (
+                    f"requirements line {line_number} must use a relative local "
+                    "editable path or a registered first-party source"
+                )
+            identity, identity_error = _registered_source_identity(
+                matches[0], editable_path, sources
+            )
+            source = sources[matches[0]]
+        else:
+            if requirement_text.startswith("-"):
+                return (
+                    None,
+                    f"requirements line {line_number} uses an unsupported directive",
+                )
+            try:
+                requirement = Requirement(requirement_text)
+            except InvalidRequirement as exc:
+                return None, f"requirements line {line_number} is invalid: {exc}"
+            active = requirement.marker is None or requirement.marker.evaluate(
+                environment
+            )
+            if requirement.url is not None:
+                identity, identity_error = _registered_source_identity(
+                    requirement.name, requirement.url, sources
+                )
+                source = sources.get(str(canonicalize_name(requirement.name)))
+            else:
+                specifiers = list(requirement.specifier)
+                if (
+                    len(specifiers) != 1
+                    or specifiers[0].operator not in {"==", "==="}
+                    or "*" in specifiers[0].version
+                ):
+                    return (
+                        None,
+                        f"requirements line {line_number} must use one exact version pin",
+                    )
+                identity, identity_error = _canonical_package_identity(
+                    requirement.name,
+                    specifiers[0].version,
+                    label=f"requirements line {line_number}",
+                )
         if identity_error is not None or identity is None:
             return None, identity_error
         name, version = identity
         if name in complete_inventory:
             return None, f"requirements inventory contains duplicate package {name}"
         complete_inventory[name] = version
-        if requirement.marker is None or requirement.marker.evaluate(environment):
+        if source is not None:
+            used_sources[name] = source
+        elif active:
             inventory[name] = version
     if not complete_inventory:
         return None, "scan requirements must contain at least one pinned package"
+    if source_inventory is not None:
+        source_inventory.update(used_sources)
     return (inventory, complete_inventory, tuple(editables)), None
 
 
@@ -357,6 +430,7 @@ def _validate_sbom_payload(
     require_inventory: bool = False,
     expected_inventory: Mapping[str, str] | None = None,
     expected_editables: Sequence[EditableRequirement] = (),
+    expected_sources: Mapping[str, Mapping[str, str]] | None = None,
 ) -> tuple[int | None, str | None]:
     if not isinstance(payload, dict) or payload.get("bomFormat") != "CycloneDX":
         return None, "top-level payload must be a CycloneDX object"
@@ -399,6 +473,34 @@ def _validate_sbom_payload(
         )
         if purl_error is not None or purl_identity != identity:
             return None, purl_error or f"{label}.purl does not match component identity"
+        if expected_sources is not None and name in expected_sources:
+            source = expected_sources[name]
+            if version != str(Version(source["version"])):
+                return None, f"{label} does not match registered source version"
+            references = component.get("externalReferences")
+            if (
+                not isinstance(references, list)
+                or sum(
+                    isinstance(ref, dict) and ref.get("url") == source["uri"]
+                    for ref in references
+                )
+                != 1
+            ):
+                return None, f"{label} does not match registered source URI"
+            properties = component.get("properties")
+            if not isinstance(properties, list):
+                return None, f"{label} is missing registered source provenance"
+            for key, expected_value in (
+                ("agilab:source-manifest", source["manifest"]),
+                ("agilab:source-manifest:sha256", source["sha256"]),
+            ):
+                values = [
+                    prop.get("value")
+                    for prop in properties
+                    if isinstance(prop, dict) and prop.get("name") == key
+                ]
+                if values != [expected_value]:
+                    return None, f"{label} does not match registered source provenance"
         if name in inventory:
             return None, f"SBOM inventory contains duplicate package {name}"
         inventory[name] = version

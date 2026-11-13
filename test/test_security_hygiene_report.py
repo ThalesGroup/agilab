@@ -568,3 +568,129 @@ def test_coverage_upload_gate_ignores_version_comment_but_rejects_advisory_uploa
     result = module._coverage_upload_gate_check(tmp_path)
     assert result["status"] == "fail"
     assert "Upload agi-web coverage to Codecov" in result["details"]["failing_steps"]
+
+
+def test_registered_sources_are_explicit_and_preserve_inventory_tuple(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    path = tmp_path / "agilab-registered-source-requirements.txt"
+    source = {
+        "uri": "file:///registered/agi-scan-core",
+        "version": "9999.0.1",
+        "manifest": "agi-scan-core/pyproject.toml",
+        "sha256": "a" * 64,
+    }
+    sources = {"agi-scan-core": source}
+    path.write_text(
+        "third-party==1.0\nagi-scan-core @ file:///registered/agi-scan-core\n"
+    )
+    inventory, error = module._scan_requirements_inventory(path)
+    assert inventory is None and error
+    used = {}
+    inventory, error = module._scan_requirements_inventory(
+        path, registered_sources=sources, source_inventory=used
+    )
+    assert error is None
+    assert inventory == (
+        {"third-party": "1.0"},
+        {"third-party": "1.0", "agi-scan-core": "9999.0.1"},
+        (),
+    )
+    assert used == sources
+    # A pinned package is still audited even when its name is in the catalog.
+    path.write_text("agi-scan-core==9999.0.1\n")
+    inventory, error = module._scan_requirements_inventory(
+        path, registered_sources=sources, source_inventory=used
+    )
+    assert error is None
+    assert inventory[:2] == ({"agi-scan-core": "9999.0.1"},) * 2
+    assert used == {}
+
+
+def test_registered_source_extension_rejects_unknown_urls_and_duplicates(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    path = tmp_path / "agilab-registered-source-requirements.txt"
+    source = {
+        "uri": "file:///registered/agi-scan-core",
+        "version": "9999.0.1",
+        "manifest": "agi-scan-core/pyproject.toml",
+        "sha256": "a" * 64,
+    }
+    sources = {"agi-scan-core": source}
+    for requirement in (
+        "agi-scan-core @ file:///unregistered",
+        "unknown-name @ file:///registered/agi-scan-core",
+        "agi-scan-core @ https://example.invalid/package.whl",
+        "-e file:///unregistered",
+        "-e https://example.invalid/package.whl",
+        "agi-scan-core @ file:///registered/agi-scan-core\nagi-scan-core==9999.0.1",
+        "-e file:///registered/agi-scan-core\nagi-scan-core==9999.0.1",
+    ):
+        path.write_text("third-party==1.0\n" + requirement + "\n")
+        used = {"stale-source": source}
+        inventory, error = module._scan_requirements_inventory(
+            path, registered_sources=sources, source_inventory=used
+        )
+        assert inventory is None and error
+        assert used == {}
+
+
+def test_nonregular_guard_sanitizes_stat_errors(tmp_path: Path, monkeypatch) -> None:
+    module = _load_module()
+    target = tmp_path / "agilab-unreadable-artifact.json"
+    original = Path.stat
+
+    def stat(path, *args, **kwargs):
+        if path == target:
+            raise OSError("private-token-must-not-be-echoed")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", stat)
+    metadata, error = module._regular_file_stat(target)
+    assert metadata is None
+    assert error == "artifact metadata could not be read"
+    assert module._scan_requirements_inventory(target) == (None, error)
+    assert module._read_json_artifact(target) == (True, None, error)
+
+
+def test_hygiene_readers_reject_static_fifos_before_open(tmp_path: Path) -> None:
+    import os
+
+    if os.name != "posix":
+        import pytest
+
+        pytest.skip("POSIX FIFO regression")
+    fifo = tmp_path / "agilab-hygiene-input.fifo"
+    os.mkfifo(fifo)
+    link = tmp_path / "agilab-hygiene-input-link"
+    link.symlink_to(fifo)
+    script = """
+import pathlib,sys
+from tools import security_hygiene_report as module
+target = pathlib.Path(sys.argv[1])
+original = pathlib.Path.read_text
+def read_text(path, *args, **kwargs):
+    if path == target:
+        raise AssertionError("special file must not be read")
+    return original(path, *args, **kwargs)
+pathlib.Path.read_text = read_text
+assert module._scan_requirements_inventory(target) == (
+    None, "artifact is missing or not a regular file"
+)
+assert module._read_json_artifact(target) == (
+    True, None, "artifact is missing or not a regular file"
+)
+"""
+    for path in (fifo, link):
+        child = subprocess.run(
+            [sys.executable, "-c", script, str(path)],
+            cwd=Path.cwd(),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        assert child.returncode == 0, child.stderr
