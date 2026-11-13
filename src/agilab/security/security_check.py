@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import tomllib
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -305,19 +306,28 @@ def _check_cluster_share(config: Mapping[str, str], *, cwd: Path, profile: str =
     )
 
 
+class _NativeConfigSchemaError(ValueError):
+    """Native UI configuration has an unsupported server or address type."""
+
+
 def _native_config_address(home: Path) -> str | None:
     config_path = home / ".agilab" / "config.toml"
-    if not config_path.is_file():
-        return None
     try:
-        payload = tomllib.loads(config_path.read_text(encoding="utf-8"))
-    except Exception:
+        if not stat.S_ISREG(config_path.stat().st_mode):
+            raise OSError("Native UI configuration is not a regular file")
+        text = config_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return None
-    server = payload.get("server")
+    payload = tomllib.loads(text)
+    server = payload.get("server", {})
     if not isinstance(server, dict):
-        return None
+        raise _NativeConfigSchemaError("server must be a TOML table")
     value = server.get("address")
-    return str(value).strip() if value is not None else None
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise _NativeConfigSchemaError("server.address must be a string")
+    return value.strip()
 
 
 def _public_bind_evidence_state(
@@ -363,10 +373,40 @@ def _check_ui_exposure(
     host = configured_ui_host(config)
     # This report describes declared launch settings. A running host supplies
     # its effective address directly to the same guard and takes precedence.
-    if not any(str(config.get(name) or "").strip() for name in ("AGILAB_UI_HOST", "AGILAB_UI_ADDRESS")):
-        file_address = _native_config_address(home)
+    if not any(
+        str(config.get(name) or "").strip()
+        for name in ("AGILAB_UI_HOST", "AGILAB_UI_ADDRESS")
+    ):
+        try:
+            file_address = _native_config_address(home)
+        except (
+            OSError,
+            UnicodeDecodeError,
+            tomllib.TOMLDecodeError,
+            _NativeConfigSchemaError,
+        ) as exc:
+            return Check(
+                "ui_network_exposure",
+                "UI network exposure",
+                _status_for_profile(profile=profile),
+                "Native UI configuration is unreadable or invalid; the bind address is unknown.",
+                (
+                    "Ensure ~/.agilab/config.toml is a readable regular UTF-8 TOML file "
+                    "with a valid server.address type, or set "
+                    "AGILAB_UI_HOST/AGILAB_UI_ADDRESS explicitly."
+                ),
+                {
+                    "host": None,
+                    "config_path": "~/.agilab/config.toml",
+                    "config_status": "unreadable"
+                    if isinstance(exc, OSError)
+                    else "invalid",
+                },
+            )
         if file_address is not None:
-            host = configured_ui_host(config, ui_config_getter=lambda _option: file_address)
+            host = configured_ui_host(
+                config, ui_config_getter=lambda _option: file_address
+            )
     if not host_is_exposed(host):
         return Check(
             "ui_network_exposure",
@@ -377,10 +417,7 @@ def _check_ui_exposure(
             {"host": host or None},
         )
     public_bind_ok = _truthy(config.get(PUBLIC_BIND_OK_ENV))
-    auth_or_tls = any(
-        _truthy(config.get(name))
-        for name in PUBLIC_BIND_CONTROL_ENVS
-    )
+    auth_or_tls = any(_truthy(config.get(name)) for name in PUBLIC_BIND_CONTROL_ENVS)
     if public_bind_ok and auth_or_tls:
         evidence = _public_bind_evidence_state(config, cwd=cwd or home)
         details = {
@@ -419,7 +456,11 @@ def _check_ui_exposure(
             "Bind to 127.0.0.1, or set AGILAB_PUBLIC_BIND_OK=1 together with an auth/TLS "
             "indicator after a reverse proxy or equivalent control is actually configured."
         ),
-        {"host": host, "public_bind_ok": public_bind_ok, "auth_or_tls_indicator": auth_or_tls},
+        {
+            "host": host,
+            "public_bind_ok": public_bind_ok,
+            "auth_or_tls_indicator": auth_or_tls,
+        },
     )
 
 
