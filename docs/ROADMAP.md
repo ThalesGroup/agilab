@@ -1,12 +1,21 @@
 ## AGILAB Roadmap
 
-Status reviewed on 2026-11-04. The published root release is
+Delivery status reconciled on 2026-11-13. The published root release is
 [`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02),
 from source commit `d13af54e2d41fbf70bae7cddf0fb270388dceaaf`.
 Source changes, package publication and environment qualification remain separate
 checkpoints. The root UI profile pins `agi-apps`, `agi-pages` and `agi-gui`
 at `2026.11.02`, with the shared React runtime `agi-web 2026.11.02`;
 builtin app packages retain their own version constraints.
+
+Merged source checkpoint on 2026-11-13:
+[first-proof runtime isolation and origin](https://github.com/ThalesGroup/agilab/pull/1218),
+[unreadable native configuration reported as unknown](https://github.com/ThalesGroup/agilab/pull/1219),
+[run-diff caller-input preservation and provenance](https://github.com/ThalesGroup/agilab/pull/1220),
+and [qualified development/UI dependency bounds](https://github.com/ThalesGroup/agilab/pull/1217).
+These changes are merged through `466e8bd0169aac0628ef3940b8e9186f73b7e897`;
+they are not part of the published `2026.11.02` packages. Installed-package,
+UI and deployment qualification remain separate.
 
 The baseline already includes the native React interface, Python view host,
 first proof, run manifest, proof-pack/evidence capsule commands, release-decision
