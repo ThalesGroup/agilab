@@ -558,7 +558,7 @@ def _export_quarto_report_loaded(
 
     payload = {
         "schema": f"{SCHEMA_PREFIX}.quarto_export.v1",
-        "status": "pass",
+        "status": "fail" if render_payload["status"] == "fail" else "pass",
         "manifest_path": str(resolved_manifest),
         "qmd_path": str(output),
         "copied_manifest_path": str(copied_manifest),
@@ -900,19 +900,27 @@ def init_vscode_bridge(root: Path, *, force: bool = False) -> dict[str, Any]:
             ],
         },
     }
-    written: list[str] = []
-    for path, payload in files.items():
-        if path.exists() and not force:
+    quickstart = target / "AGILAB_QUICKSTART.md"
+    for path in (*files, quickstart):
+        if (path.exists() or _is_link_like(path)) and not force:
             raise FileExistsError(
                 f"{path} already exists. Use --force to overwrite generated VS Code bridge files."
             )
+        if _is_link_like(path) or _is_link_like(path.parent):
+            raise RuntimeError(f"Refusing symlink VS Code bridge destination: {path}")
+        if path.exists() and not path.is_file():
+            raise RuntimeError(
+                f"VS Code bridge destination must be a regular file: {path}"
+            )
+        if path.parent.exists() and not path.parent.is_dir():
+            raise NotADirectoryError(
+                f"VS Code bridge parent must be a directory: {path.parent}"
+            )
+
+    written: list[str] = []
+    for path, payload in files.items():
         _write_json(path, payload)
         written.append(str(path))
-    quickstart = target / "AGILAB_QUICKSTART.md"
-    if quickstart.exists() and not force:
-        raise FileExistsError(
-            f"{quickstart} already exists. Use --force to overwrite it."
-        )
     quickstart.write_text(
         textwrap.dedent(
             """\
