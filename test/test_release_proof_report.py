@@ -603,6 +603,68 @@ def test_local_release_apps_filters_and_sorts_project_directories(monkeypatch) -
     assert module._local_release_app_count(Path.cwd(), "v2099.01.01") == 2
 
 
+@pytest.mark.parametrize("working_subdirectory", [".", "nested", "nested/source-snapshot"])
+def test_local_release_apps_reads_the_tag_tree_independent_of_cwd(
+    tmp_path: Path, working_subdirectory: str
+) -> None:
+    import subprocess
+
+    git = shutil.which("git")
+    assert git is not None, "Git is required for the real tag-tree regression"
+    repo = tmp_path / "release-repo"
+    empty_template = tmp_path / "empty-git-template"
+    empty_template.mkdir()
+    subprocess.run(
+        [git, "init", "--quiet", "--template", str(empty_template), str(repo)],
+        check=True,
+        capture_output=True,
+    )
+    for name in ("zeta_project", "alpha_project", "notes"):
+        directory = repo / "src/agilab/apps/builtin" / name
+        directory.mkdir(parents=True)
+        (directory / "README.md").write_text("Local tag-tree fixture.\n", encoding="utf-8")
+    (repo / "src/agilab/apps/builtin/fake_project").write_text(
+        "A regular file.\n", encoding="utf-8"
+    )
+    subprocess.run([git, "-C", str(repo), "add", "src"], check=True, capture_output=True)
+    subprocess.run(
+        [
+            git,
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=AGILAB Test Fixture",
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            "-c",
+            "core.hooksPath=" + str(empty_template),
+            "commit",
+            "--quiet",
+            "-m",
+            "Local release-tree fixture",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [git, "-C", str(repo), "-c", "tag.gpgsign=false", "tag", "fixture-release"],
+        check=True,
+        capture_output=True,
+    )
+    working_root = repo / working_subdirectory
+    working_root.mkdir(parents=True, exist_ok=True)
+    module = _load_module()
+
+    assert module._local_release_apps(working_root, "fixture-release") == [
+        "alpha_project", "zeta_project",
+    ]
+    assert module._local_release_app_count(working_root, "fixture-release") == 2
+    assert module._local_release_apps(working_root, "missing-release") is None
+    assert module._local_release_apps(working_root, "") is None
+
+
 def test_release_proof_ui_robot_historical_mode_is_not_release_proof(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -582,7 +582,13 @@ def _local_release_apps(repo_root: Path, release_ref: str) -> list[str] | None:
         return None
     output = _run_git(
         repo_root,
-        ["ls-tree", "-d", "--name-only", f"{release_ref}:src/agilab/apps/builtin"],
+        [
+            "ls-tree",
+            "--full-tree",
+            "-d",
+            "--name-only",
+            f"{release_ref}:src/agilab/apps/builtin",
+        ],
     )
     if output is None:
         return None
