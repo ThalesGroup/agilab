@@ -244,7 +244,10 @@ def build_run_diff_evidence(
     candidate_artifacts: Sequence[Mapping[str, Any]] | Mapping[str, Any],
     run_id: str = DEFAULT_RUN_ID,
 ) -> dict[str, Any]:
-    """Build a deterministic run-diff evidence payload without live execution."""
+    """Build a deterministic run-diff evidence payload without live execution.
+
+    safe_for_public_evidence does not validate public suitability of caller JSON.
+    """
 
     baseline_checks = _checks_by_id(baseline_bundle)
     candidate_checks = _checks_by_id(candidate_bundle)
@@ -264,6 +267,30 @@ def build_run_diff_evidence(
         check_summary_changes=check_summary_changes,
         artifacts_added=artifacts_added,
     )
+
+    baseline_score = bundle["baseline_supported_score"]
+    candidate_score = bundle["candidate_supported_score"]
+    baseline_score_label = (
+        "unavailable"
+        if baseline_score is None or not str(baseline_score).strip()
+        else str(baseline_score)
+    )
+    candidate_score_label = (
+        "unavailable"
+        if candidate_score is None or not str(candidate_score).strip()
+        else str(candidate_score)
+    )
+    if "unavailable" in (baseline_score_label, candidate_score_label):
+        score_narrative = (
+            "KPI supported score comparison unavailable "
+            f"(baseline: {baseline_score_label}; candidate: {candidate_score_label})."
+        )
+    else:
+        score_narrative = (
+            "KPI supported score "
+            f"{'unchanged' if baseline_score == candidate_score else 'changed'}: "
+            f"{baseline_score_label} -> {candidate_score_label}."
+        )
 
     return {
         "schema": SCHEMA,
@@ -306,18 +333,32 @@ def build_run_diff_evidence(
         "counterfactuals": counterfactual_rows,
         "narrative": [
             (
-                "The candidate keeps the public KPI status stable while adding "
-                "one contract check and two artifact evidence rows."
+                "Bundle status "
+                f"{'unchanged' if bundle['baseline_status'] == bundle['candidate_status'] else 'changed'}: "
+                f"{bundle['baseline_status']} -> {bundle['candidate_status']}."
+            ),
+            score_narrative,
+            (
+                f"Check evidence: {len(checks_added)} added, "
+                f"{len(checks_removed)} removed, "
+                f"{len(check_status_changes)} status changes, "
+                f"{len(check_summary_changes)} summary changes."
             ),
             (
-                "The material changes are the runtime-adapter contract and the "
-                "broader multi-app DAG sample-suite coverage."
+                f"Artifact evidence: {len(artifacts_added)} added, "
+                f"{len(artifacts_removed)} removed."
+            ),
+            (
+                f"Manifest status {'changed' if manifest['status_changed'] else 'unchanged'}: "
+                f"{manifest['baseline_status']} -> {manifest['candidate_status']}; "
+                f"artifact count: {manifest['baseline_artifact_count']} -> "
+                f"{manifest['candidate_artifact_count']}."
             ),
         ],
         "provenance": {
             "executes_commands": False,
             "executes_network_probe": False,
-            "uses_static_sample_evidence": True,
+            "uses_static_sample_evidence": False,
             "safe_for_public_evidence": True,
         },
     }
@@ -464,7 +505,7 @@ def sample_candidate_artifacts() -> list[dict[str, Any]]:
 
 
 def build_sample_run_diff() -> dict[str, Any]:
-    return build_run_diff_evidence(
+    state = build_run_diff_evidence(
         baseline_bundle=sample_baseline_bundle(),
         candidate_bundle=sample_candidate_bundle(),
         baseline_manifest=sample_baseline_manifest(),
@@ -472,6 +513,8 @@ def build_sample_run_diff() -> dict[str, Any]:
         baseline_artifacts=sample_baseline_artifacts(),
         candidate_artifacts=sample_candidate_artifacts(),
     )
+    state["provenance"]["uses_static_sample_evidence"] = True
+    return state
 
 
 def write_run_diff_evidence(path: Path, state: Mapping[str, Any]) -> Path:
@@ -496,12 +539,43 @@ def persist_run_diff_evidence(
     candidate_artifacts: Sequence[Mapping[str, Any]] | Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     state = build_run_diff_evidence(
-        baseline_bundle=baseline_bundle or sample_baseline_bundle(),
-        candidate_bundle=candidate_bundle or sample_candidate_bundle(),
-        baseline_manifest=baseline_manifest or sample_baseline_manifest(),
-        candidate_manifest=candidate_manifest or sample_candidate_manifest(),
-        baseline_artifacts=baseline_artifacts or sample_baseline_artifacts(),
-        candidate_artifacts=candidate_artifacts or sample_candidate_artifacts(),
+        baseline_bundle=(
+            sample_baseline_bundle() if baseline_bundle is None else baseline_bundle
+        ),
+        candidate_bundle=(
+            sample_candidate_bundle() if candidate_bundle is None else candidate_bundle
+        ),
+        baseline_manifest=(
+            sample_baseline_manifest()
+            if baseline_manifest is None
+            else baseline_manifest
+        ),
+        candidate_manifest=(
+            sample_candidate_manifest()
+            if candidate_manifest is None
+            else candidate_manifest
+        ),
+        baseline_artifacts=(
+            sample_baseline_artifacts()
+            if baseline_artifacts is None
+            else baseline_artifacts
+        ),
+        candidate_artifacts=(
+            sample_candidate_artifacts()
+            if candidate_artifacts is None
+            else candidate_artifacts
+        ),
+    )
+    state["provenance"]["uses_static_sample_evidence"] = any(
+        evidence is None
+        for evidence in (
+            baseline_bundle,
+            candidate_bundle,
+            baseline_manifest,
+            candidate_manifest,
+            baseline_artifacts,
+            candidate_artifacts,
+        )
     )
     path = write_run_diff_evidence(output_path, state)
     reloaded = load_run_diff_evidence(path)
