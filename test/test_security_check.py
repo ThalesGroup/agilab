@@ -130,10 +130,12 @@ def test_defensive_parsers_handle_malformed_git_secret_and_native_config(tmp_pat
     native_config = tmp_path / ".agilab" / "config.toml"
     native_config.parent.mkdir()
     native_config.write_text("[server\n", encoding="utf-8")
-    assert security_check._native_config_address(tmp_path) is None
+    with pytest.raises(security_check.tomllib.TOMLDecodeError):
+        security_check._native_config_address(tmp_path)
 
     native_config.write_text("server = 'not-a-table'\n", encoding="utf-8")
-    assert security_check._native_config_address(tmp_path) is None
+    with pytest.raises(security_check._NativeConfigSchemaError):
+        security_check._native_config_address(tmp_path)
 
 
 def test_apps_repository_check_reports_missing_file_nongit_and_pinned_checkout(tmp_path: Path):
@@ -429,18 +431,139 @@ def test_shared_profile_requires_origin_url_for_pinned_apps_repository(tmp_path:
         ({"AGILAB_UI_HOST": "ui.example"}, "ui.example", "fail"),
         ({"AGILAB_UI_HOST": "::1"}, "::1", "pass"),
         ({"AGILAB_UI_HOST": "localhost"}, "localhost", "pass"),
-        ({"AGILAB_UI_HOST": "127.0.0.1", "AGILAB_UI_ADDRESS": "0.0.0.0"}, "127.0.0.1", "pass"),
+        (
+            {"AGILAB_UI_HOST": "127.0.0.1", "AGILAB_UI_ADDRESS": "0.0.0.0"},
+            "127.0.0.1",
+            "pass",
+        ),
         ({"AGILAB_UI_HOST": "  ", "AGILAB_UI_ADDRESS": "0.0.0.0"}, "0.0.0.0", "fail"),
     ],
 )
-def test_native_ui_address_report_matches_launch_guard(tmp_path: Path, settings, host, status):
+def test_native_ui_address_report_matches_launch_guard(
+    tmp_path: Path, monkeypatch, settings, host, status
+):
     from agilab.security.ui_public_bind_guard import configured_ui_host
 
+    def unexpected_config_read(_home):
+        raise AssertionError(
+            "Explicit address overrides must not read native configuration"
+        )
+
+    monkeypatch.setattr(
+        security_check, "_native_config_address", unexpected_config_read
+    )
     check = security_check._check_ui_exposure(settings, home=tmp_path, profile="shared")
 
     assert configured_ui_host(settings) == host
     assert check.details["host"] == host
     assert check.status == status
+
+
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+@pytest.mark.parametrize("env_name", ["AGILAB_UI_HOST", "AGILAB_UI_ADDRESS"])
+@pytest.mark.parametrize("case", ["malformed", "unreadable"])
+@pytest.mark.parametrize("host", ["127.0.0.1", "0.0.0.0"])
+def test_native_ui_explicit_address_overrides_invalid_config(
+    tmp_path: Path, monkeypatch, profile, env_name, case, host
+):
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    native.write_text(
+        "[server\n" if case == "malformed" else "[server]\naddress = '127.0.0.1'\n",
+        encoding="utf-8",
+    )
+    original_read = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if case == "unreadable" and path.resolve() == native.resolve():
+            raise PermissionError("CONFIG_SECRET")
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    error = (
+        PermissionError
+        if case == "unreadable"
+        else security_check.tomllib.TOMLDecodeError
+    )
+    with pytest.raises(error):
+        security_check._native_config_address(tmp_path)
+
+    check = security_check._check_ui_exposure(
+        {env_name: host}, home=tmp_path, profile=profile
+    )
+    expected = (
+        "pass" if host == "127.0.0.1" else "warn" if profile == "local" else "fail"
+    )
+    assert check.status == expected
+    assert check.details["host"] == host
+    assert "CONFIG_SECRET" not in json.dumps(check.as_dict())
+
+
+@pytest.mark.skipif(
+    os.name != "posix" or not hasattr(os, "mkfifo"),
+    reason="POSIX FIFO support required",
+)
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+def test_native_ui_fifo_config_is_rejected_without_reading(
+    tmp_path: Path, monkeypatch, profile
+):
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    os.mkfifo(native)
+
+    def unexpected_read_text(*_args, **_kwargs):
+        raise AssertionError("Native UI FIFO must be rejected before read_text")
+
+    monkeypatch.setattr(Path, "read_text", unexpected_read_text)
+    with pytest.raises(OSError, match="Native UI configuration is not a regular file"):
+        security_check._native_config_address(tmp_path)
+
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile=profile)
+
+    assert check.status == ("warn" if profile == "local" else "fail")
+    assert check.details == {
+        "host": None,
+        "config_path": "~/.agilab/config.toml",
+        "config_status": "unreadable",
+    }
+    assert "unknown" in check.summary
+    assert "readable regular UTF-8 TOML file" in check.remediation
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX symlink support required")
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+def test_native_ui_symlink_to_regular_config_is_read(tmp_path: Path, profile):
+    target = tmp_path / "native-ui-config.toml"
+    target.write_text("[server]\naddress = '127.0.0.1'\n", encoding="utf-8")
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    native.symlink_to(target)
+
+    assert security_check._native_config_address(tmp_path) == "127.0.0.1"
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile=profile)
+
+    assert check.status == "pass"
+    assert check.details["host"] == "127.0.0.1"
+
+
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+@pytest.mark.parametrize("address", ["", "   "])
+def test_native_ui_blank_config_address_remains_exposed(
+    tmp_path: Path, profile, address
+):
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    native.write_text(f"[server]\naddress = '{address}'\n", encoding="utf-8")
+
+    assert security_check._native_config_address(tmp_path) == ""
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile=profile)
+
+    assert check.status == ("warn" if profile == "local" else "fail")
+    assert check.details == {
+        "host": "0.0.0.0",
+        "public_bind_ok": False,
+        "auth_or_tls_indicator": False,
+    }
 
 
 def test_native_ui_report_reads_agilab_config_and_ignores_retired_streamlit_config(tmp_path: Path):
@@ -461,6 +584,124 @@ def test_native_ui_report_reads_agilab_config_and_ignores_retired_streamlit_conf
     check = security_check._check_ui_exposure({"AGILAB_UI_HOST": "127.0.0.1"}, home=tmp_path, profile="shared")
     assert check.status == "pass"
     assert check.details["host"] == "127.0.0.1"
+
+
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+@pytest.mark.parametrize(
+    "content",
+    [None, "", "title = 'demo'\n", "[server]\n", "[server]\naddress = ' 127.0.0.1 '\n"],
+)
+def test_native_ui_absent_or_valid_config_keeps_local_default(
+    tmp_path: Path, profile, content
+):
+    if content is not None:
+        native = tmp_path / ".agilab/config.toml"
+        native.parent.mkdir()
+        native.write_text(content, encoding="utf-8")
+
+    check = security_check._check_ui_exposure({}, home=tmp_path, profile=profile)
+
+    assert check.status == "pass"
+    assert check.details == {"host": "127.0.0.1"}
+
+
+@pytest.mark.parametrize("profile", security_check.PROFILES)
+@pytest.mark.parametrize(
+    ("case", "content", "config_status"),
+    [
+        ("malformed", b"[server\nsecret = 'CONFIG_SECRET'\n", "invalid"),
+        ("invalid_utf8", b"# CONFIG_SECRET\xff\n", "invalid"),
+        ("server_type", b"server = 'CONFIG_SECRET'\n", "invalid"),
+        ("address_type", b"[server]\naddress = ['CONFIG_SECRET']\n", "invalid"),
+        ("address_boolean", b"[server]\naddress = false\n", "invalid"),
+        ("address_integer", b"[server]\naddress = 443\n", "invalid"),
+        ("unreadable", b"[server]\naddress = '127.0.0.1'\n", "unreadable"),
+        ("directory", None, "unreadable"),
+    ],
+)
+def test_native_ui_config_failures_report_unknown_address(
+    tmp_path: Path, monkeypatch, profile, case, content, config_status
+):
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    if content is None:
+        native.mkdir()
+    else:
+        native.write_bytes(content)
+    original_read = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if case == "unreadable" and path.resolve() == native.resolve():
+            raise PermissionError("CONFIG_SECRET")
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    check = security_check._check_ui_exposure(
+        {"AGILAB_UI_HOST": " ", "AGILAB_UI_ADDRESS": " "},
+        home=tmp_path,
+        profile=profile,
+    )
+
+    assert check.status == ("warn" if profile == "local" else "fail")
+    assert check.details == {
+        "host": None,
+        "config_path": "~/.agilab/config.toml",
+        "config_status": config_status,
+    }
+    assert "unknown" in check.summary
+    assert "~/.agilab/config.toml" in check.remediation
+    assert "AGILAB_UI_HOST/AGILAB_UI_ADDRESS" in check.remediation
+    assert "CONFIG_SECRET" not in json.dumps(check.as_dict())
+
+
+@pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.parametrize(
+    "case", ["absent", "normal", "malformed", "invalid_utf8", "unreadable"]
+)
+def test_native_ui_config_cli_json_and_strict(
+    tmp_path: Path, monkeypatch, capsys, case, strict
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(os, "environ", {})
+    for name in ("pip-audit.json", "sbom-cyclonedx.json"):
+        _touch_now(tmp_path / name)
+    native = tmp_path / ".agilab/config.toml"
+    native.parent.mkdir()
+    if case != "absent":
+        content = {
+            "normal": b"[server]\naddress = '127.0.0.1'\n",
+            "malformed": b"[server\nsecret = 'CONFIG_SECRET'\n",
+            "invalid_utf8": b"# CONFIG_SECRET\xff\n",
+            "unreadable": b"[server]\naddress = '127.0.0.1'\n",
+        }[case]
+        native.write_bytes(content)
+    original_read = Path.read_text
+
+    def read_text(path, *args, **kwargs):
+        if case == "unreadable" and path.resolve() == native.resolve():
+            raise PermissionError("CONFIG_SECRET")
+        return original_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    args = ["--json", "--env-file", str(tmp_path / "missing.env")]
+    if strict:
+        args.append("--strict")
+
+    result = security_check.main(args)
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    failed_config = case not in {"absent", "normal"}
+    check = next(
+        check for check in payload["checks"] if check["id"] == "ui_network_exposure"
+    )
+    assert result == int(strict and failed_config)
+    assert payload["status"] == check["status"] == ("warn" if failed_config else "pass")
+    assert payload["summary"]["warnings"] == int(failed_config)
+    assert payload["summary"]["failures"] == 0
+    assert check["details"]["host"] == (None if failed_config else "127.0.0.1")
+    assert "CONFIG_SECRET" not in captured.out + captured.err
 
 
 def test_cluster_share_and_ui_exposure_pass_boundaries(tmp_path: Path):
