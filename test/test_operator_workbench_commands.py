@@ -38,6 +38,17 @@ def dispatch(data, routes, *, command="project-run", reviewed=None, **overrides)
     return result, navigate, select_project, queue
 
 
+def test_deployment_command_names_the_existing_scheduler_and_worker_action():
+    _, _, data = host_data()
+    command = next(row for row in data["workbench"]["commands"] if row["id"] == "project-install")
+    assert command["label"] == "Deploy scheduler & workers"
+    assert command["description"] == "Deploy the scheduler and workers with the current ORCHESTRATE settings. This can download dependencies."
+    assert command["kind"] == "orchestrate_action"
+    assert command["value"] == "install"
+    assert command["requires_review"] is True
+    assert all(row["label"] != "Install selected app" for row in data["workbench"]["commands"])
+
+
 def test_discovery_is_scoped_to_registered_routes_and_never_queues_execution():
     host, routes, data = host_data(registered=("home", "project", "workflow"))
     workbench = data["workbench"]
