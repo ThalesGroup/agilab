@@ -501,3 +501,45 @@ def test_read_only_sqlite_uri_preserves_posix_drive_and_unc_paths(path, expected
     parsed = urlsplit(uri)
     assert parsed.netloc == ""
     assert parse_qs(parsed.query) == {"mode": ["ro"]}
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        None,
+        False,
+        17,
+        1.5,
+        "password=synthetic-malformed-row-secret",
+        ["synthetic-malformed-row-secret"],
+    ],
+    ids=["none", "boolean", "integer", "float", "secret-scalar", "secret-list"],
+)
+def test_non_table_catalog_rows_prevent_opt_in_endpoint_calls(
+    tmp_path, monkeypatch, row
+):
+    report = _load_module(REPORT_PATH, "data_connector_malformed_row_no_probe_report")
+    core = _load_module(CORE_PATH, "data_connector_malformed_row_no_probe_core")
+    catalog = report._sqlite_smoke_catalog(tmp_path / "existing.sqlite")
+    catalog["connectors"][0]["uri"] = (
+        f"sqlite:///{tmp_path / 'must-not-be-created.sqlite'}"
+    )
+    catalog["connectors"].insert(1, row)
+    calls = []
+
+    def forbidden_probe(*_args, **_kwargs):
+        calls.append("probe")
+        raise AssertionError("malformed catalogs must not reach endpoint probes")
+
+    monkeypatch.setattr(core, "_probe_sqlite", forbidden_probe)
+    monkeypatch.setattr(core, "_probe_opensearch", forbidden_probe)
+    with pytest.raises(ValueError) as error:
+        core.build_data_connector_live_endpoint_smoke(
+            catalog,
+            source_path="malformed-rows.toml",
+            execute=True,
+            allowed_connector_ids=["local_sqlite", "ops_opensearch"],
+        )
+    assert str(error.value) == "connector catalog connectors[1] must be a table"
+    assert not calls
+    assert not (tmp_path / "must-not-be-created.sqlite").exists()

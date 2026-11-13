@@ -765,3 +765,41 @@ def test_connector_malformed_value_does_not_survive_into_evidence(tmp_path):
     assert state["summary"]["raw_secret_count"] >= 1
     assert _CREDENTIAL_SENTINEL not in json.dumps(state)
     assert _CREDENTIAL_SENTINEL not in path.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("index", [0, 2, 5])
+@pytest.mark.parametrize(
+    "row",
+    [
+        None,
+        False,
+        17,
+        1.5,
+        "password=synthetic-malformed-row-secret",
+        ["synthetic-malformed-row-secret"],
+    ],
+    ids=["none", "boolean", "integer", "float", "secret-scalar", "secret-list"],
+)
+def test_connector_catalog_rejects_every_non_table_row_without_echoing_values(
+    index, row
+):
+    from agilab.data_connectors import data_connector_facility as core
+
+    catalog = _credential_test_catalog(core)
+    catalog["connectors"].insert(index, row)
+    with pytest.raises(ValueError) as error:
+        core.build_data_connector_facility(catalog, source_path="malformed-rows.toml")
+    assert str(error.value) == f"connector catalog connectors[{index}] must be a table"
+    assert "synthetic-malformed-row-secret" not in str(error.value)
+
+
+def test_connector_catalog_empty_list_contract_remains_explicit():
+    from agilab.data_connectors import data_connector_facility as core
+
+    assert core._connector_rows({"connectors": []}) == []
+    state = core.build_data_connector_facility(
+        {"connectors": []}, source_path="empty.toml"
+    )
+    assert state["run_status"] == "invalid"
+    assert state["summary"]["connector_count"] == 0
+    assert state["summary"]["missing_kinds"] == list(core.SUPPORTED_KINDS)
