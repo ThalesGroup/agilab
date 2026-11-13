@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import hashlib
 import tomllib
@@ -59,6 +60,22 @@ def public_install_environment(
     return env
 
 
+def _installed_version_matches_release(installed: str, expected: str) -> bool:
+    """Use the manifest installer's existing version-token normalization."""
+    path = ROOT / "tools/install_release_proof_package.py"
+    spec = importlib.util.spec_from_file_location(
+        "agilab_public_release_installer", path
+    )
+    if spec is None or spec.loader is None:
+        raise ValueError(
+            "The public release installer's version policy is unavailable."
+        )
+    installer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(installer)
+    normalize = installer._normalized_version_token
+    return normalize(installed) == normalize(expected)
+
+
 def qualify(output: Path) -> dict:
     output.parent.mkdir(parents=True, exist_ok=True)
     manifest = ROOT / "docs/source/data/release_proof.toml"
@@ -112,7 +129,9 @@ def qualify(output: Path) -> dict:
                 text=True,
             )
             payload["installed"] = json.loads(identity)
-            if payload["installed"]["version"] != release["package_version"]:
+            if not _installed_version_matches_release(
+                payload["installed"]["version"], release["package_version"]
+            ):
                 raise ValueError(
                     "Installed public package differs from the manifest pin."
                 )
