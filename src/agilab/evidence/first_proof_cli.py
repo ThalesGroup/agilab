@@ -1,4 +1,4 @@
-"""Packaged first-proof command for AGILAB adoption."""
+"""First-proof imports and app-path smoke, without scientific or notebook qualification."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ from agilab import run_manifest
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 FIRST_PROOF_PROJECT = "flight_telemetry_project"
 FIRST_PROOF_APP_DISTRIBUTION = "agi-app-flight-telemetry"
-FIRST_PROOF_PATH_ID = "source-checkout-first-proof"
 DEFAULT_MAX_SECONDS = 10 * 60
 IGNORED_OUTPUT_PATTERNS = (
     "missing ScriptRunContext! This warning can be ignored when running in bare mode.",
@@ -67,15 +66,22 @@ class ProofStepResult:
     env: dict[str, str]
 
 
-def _detect_repo_root(start: Path = PACKAGE_ROOT) -> Path | None:
-    for candidate in (start, *start.parents):
-        if (candidate / "pyproject.toml").is_file() and (candidate / "src" / "agilab").is_dir():
+def _detect_repo_root(start: Path | None = None) -> Path | None:
+    """Recognize a checkout only when it owns the executing package directory."""
+    package_root = (PACKAGE_ROOT if start is None else start).resolve()
+    for candidate in package_root.parents:
+        source_package = candidate / "src" / "agilab"
+        if (
+            (candidate / "pyproject.toml").is_file()
+            and source_package.is_dir()
+            and source_package.resolve() == package_root
+        ):
             return candidate
     return None
 
 
 def _runtime_root() -> Path:
-    return _detect_repo_root() or PACKAGE_ROOT
+    return _detect_repo_root() or PACKAGE_ROOT.resolve()
 
 
 def _agilab_package_marker_root() -> Path:
@@ -87,7 +93,13 @@ def _agilab_package_marker_root() -> Path:
     return PACKAGE_ROOT.resolve()
 
 
-def _agilab_path_marker() -> Path:
+def _agilab_path_marker() -> Path | None:
+    """Validate explicit isolation without selecting any activation marker."""
+    if "AGILAB_RESOURCES_DIR" in os.environ:
+        from agi_env.runtime_bootstrap_support import resolve_resources_path
+
+        resolve_resources_path()
+        return None
     return Path.home() / ".local" / "share" / "agilab" / ".agilab-path"
 
 
@@ -119,12 +131,16 @@ def require_core_runtime_for_first_proof() -> None:
 
 
 def runtime_identity() -> dict[str, object]:
-    """Return the installed runtime that this proof actually validates."""
+    """Describe the executing package, independently of cwd, launcher or metadata."""
     launcher = shutil.which("agilab")
+    repo_root = _detect_repo_root()
     return {
+        "runtime_kind": "source-checkout"
+        if repo_root is not None
+        else "installed-package",
         "python_executable": sys.executable,
-        "package_root": str(PACKAGE_ROOT),
-        "runtime_root": str(_runtime_root()),
+        "package_root": str(PACKAGE_ROOT.resolve()),
+        "runtime_root": str(repo_root or PACKAGE_ROOT.resolve()),
         "launcher_path": launcher,
         "distributions": {
             distribution: _distribution_version(distribution)
@@ -133,8 +149,11 @@ def runtime_identity() -> dict[str, object]:
     }
 
 
-def write_agilab_path_marker() -> Path:
+def write_agilab_path_marker() -> Path | None:
+    """Record default activation only when resources were not explicitly isolated."""
     marker_path = _agilab_path_marker()
+    if marker_path is None:
+        return None
     marker_path.parent.mkdir(parents=True, exist_ok=True)
     marker_path.write_text(f"{_agilab_package_marker_root()}\n", encoding="utf-8")
     return marker_path
@@ -639,7 +658,7 @@ def build_run_manifest(
     status = "pass" if all(validation.status == "pass" for validation in validations) else "fail"
     output_dir = manifest_path.expanduser().parent
     return run_manifest.build_run_manifest(
-        path_id=FIRST_PROOF_PATH_ID,
+        path_id=f"{identity['runtime_kind']}-first-proof",
         label="AGILAB first-proof",
         status=status,
         command=run_manifest.RunManifestCommand(
@@ -655,6 +674,11 @@ def build_run_manifest(
             cwd=str(Path.cwd()),
             env_overrides={
                 "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
+                **(
+                    {"AGILAB_RESOURCES_DIR": os.environ["AGILAB_RESOURCES_DIR"]}
+                    if "AGILAB_RESOURCES_DIR" in os.environ
+                    else {}
+                ),
             },
         ),
         environment=run_manifest.RunManifestEnvironment.from_paths(
@@ -718,7 +742,8 @@ def render_human(
     if dry_run:
         lines.append("mode: dry-run (core smoke only)")
     lines.append(
-        "scope: package/core API smoke"
+        "scope: package/core imports"
+        + ("" if dry_run else " and app-path smoke")
         + (" + main/ORCHESTRATE page boot" if with_ui else "")
         + (" + install/seeding" if with_install else "")
     )
@@ -740,7 +765,15 @@ def render_human(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run the fastest AGILAB first-proof smoke and write run_manifest.json."
+        description=(
+            "Run the AGILAB first-proof smoke and write run_manifest.json. "
+            "By default, this imports core packages and checks the active app path; "
+            "scientific execution and notebook qualification are not performed."
+        ),
+        epilog=(
+            "Set AGILAB_RESOURCES_DIR to an absolute directory for isolated proof "
+            "resources. With explicit isolation, activation-marker writes are skipped."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -788,6 +821,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.error("--dry-run cannot be combined with --with-install or --with-ui")
     if not args.print_only:
         require_core_runtime_for_first_proof()
+        _agilab_path_marker()
 
     with_install = False if args.dry_run else args.with_install
     with_ui = False if args.dry_run else args.with_ui

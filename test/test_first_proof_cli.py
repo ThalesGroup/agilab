@@ -182,6 +182,111 @@ def test_runtime_identity_tracks_public_app_payload_distribution() -> None:
     assert "agi-app-uav-relay-queue" in module.RUNTIME_DISTRIBUTIONS
 
 
+@pytest.mark.parametrize(
+    ("layout", "runtime_kind", "path_id"),
+    [
+        ("source", "source-checkout", "source-checkout-first-proof"),
+        ("editable", "source-checkout", "source-checkout-first-proof"),
+        ("installed", "installed-package", "installed-package-first-proof"),
+        ("installed-in-checkout", "installed-package", "installed-package-first-proof"),
+    ],
+)
+def test_runtime_identity_and_manifest_follow_executing_package(
+    monkeypatch, tmp_path: Path, layout: str, runtime_kind: str, path_id: str
+) -> None:
+    checkout = tmp_path / "checkout"
+    source_package = checkout / "src" / "agilab"
+    source_package.mkdir(parents=True)
+    (checkout / "pyproject.toml").write_text(
+        "[project]\nname = 'agilab'\n", encoding="utf-8"
+    )
+    if layout in {"source", "editable"}:
+        package_root = source_package
+    elif layout == "installed-in-checkout":
+        package_root = (
+            checkout / ".venv" / "lib" / "python3.13" / "site-packages" / "agilab"
+        )
+    else:
+        package_root = tmp_path / "installed" / "site-packages" / "agilab"
+    implementation = package_root / "evidence" / "first_proof_cli.py"
+    implementation.parent.mkdir(parents=True, exist_ok=True)
+    implementation.write_bytes(
+        (ROOT / "src/agilab/evidence/first_proof_cli.py").read_bytes()
+    )
+    if layout == "editable":
+        alias = tmp_path / "editable-site-packages" / "agilab"
+        alias.parent.mkdir()
+        try:
+            alias.symlink_to(source_package, target_is_directory=True)
+        except OSError:
+            pytest.skip("Directory symlinks are unavailable on this host")
+        implementation = alias / "evidence" / "first_proof_cli.py"
+    spec = importlib.util.spec_from_file_location(
+        "isolated_first_proof_runtime", implementation
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+
+    # Both a checkout cwd and a checkout launcher must be irrelevant to a wheel.
+    monkeypatch.chdir(tmp_path if layout in {"source", "editable"} else checkout)
+    monkeypatch.setattr(
+        module.shutil, "which", lambda name: str(checkout / "bin" / name)
+    )
+    monkeypatch.setattr(module.importlib_metadata, "version", lambda name: "2026.11.2")
+    active_app = package_root / "apps" / "builtin" / module.FIRST_PROOF_PROJECT
+    active_app.mkdir(parents=True)
+    (active_app / "pyproject.toml").write_text(
+        "[project]\nname = 'flight-telemetry'\n", encoding="utf-8"
+    )
+    commands = module.build_proof_commands(active_app, with_install=False)
+    results = module.run_proof(
+        commands,
+        runner=lambda argv, **kwargs: subprocess.CompletedProcess(argv, 0, "ok"),
+    )
+    summary = module.summarize_kpi(
+        command_count=len(commands), results=results, max_seconds=600.0
+    )
+    manifest = module.build_run_manifest(
+        active_app=active_app,
+        dry_run=False,
+        with_install=False,
+        with_ui=False,
+        commands=commands,
+        results=results,
+        summary=summary,
+        max_seconds=600.0,
+        manifest_path=tmp_path / "proof" / "run_manifest.json",
+    ).as_dict()
+
+    expected_root = checkout if layout in {"source", "editable"} else package_root
+    identity = module.runtime_identity()
+    assert identity["runtime_kind"] == runtime_kind
+    assert identity["package_root"] == str(package_root.resolve())
+    assert identity["runtime_root"] == str(expected_root.resolve())
+    assert module._agilab_package_marker_root() == package_root.resolve()
+    assert manifest["path_id"] == path_id
+    assert manifest["environment"]["repo_root"] == str(expected_root.resolve())
+    assert manifest["validations"][0]["details"]["runtime_identity"] == identity
+
+
+def test_help_describes_default_proof_scope_and_marker_isolation(capsys) -> None:
+    module = _load_module()
+
+    with pytest.raises(SystemExit) as exc:
+        module.main(["--help"])
+
+    assert exc.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "imports" in help_text
+    assert "app path" in help_text
+    assert "scientific execution" in help_text
+    assert "notebook qualification" in help_text
+    assert "AGILAB_RESOURCES_DIR" in help_text
+    assert "activation-marker writes are skipped" in help_text
+
+
 def test_repo_root_and_marker_root_fall_back_outside_source_checkout(monkeypatch, tmp_path: Path) -> None:
     module = _load_module()
 
@@ -320,6 +425,16 @@ def test_main_rejects_dry_run_with_extended_profiles() -> None:
 
 def test_main_rejects_missing_core_runtime_before_subprocess(monkeypatch) -> None:
     module = _load_module()
+
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", "")
+    monkeypatch.setattr(
+        module,
+        "_agilab_path_marker",
+        lambda: pytest.fail("Missing-core error must precede resource validation"),
+    )
+    monkeypatch.setattr(
+        module, "run_proof", lambda commands: pytest.fail("Missing core executed proof")
+    )
 
     monkeypatch.setattr(
         module,
@@ -855,6 +970,128 @@ def test_write_agilab_path_marker_initializes_packaged_examples(monkeypatch, tmp
 
     assert marker == tmp_path / ".local" / "share" / "agilab" / ".agilab-path"
     assert marker.read_text(encoding="utf-8").strip() == str(ROOT / "src" / "agilab")
+
+
+@pytest.mark.parametrize(
+    "resource_layout",
+    ["normal", "normalized", "default-parent", "directory-symlink", "marker-symlink"],
+)
+def test_main_isolated_resources_preserves_existing_default_marker(
+    monkeypatch, tmp_path: Path, capsys, resource_layout: str
+) -> None:
+    module = _load_module()
+    existing_install = tmp_path / "existing-install" / "src" / "agilab"
+    existing_install.mkdir(parents=True)
+    default_marker = Path.home() / ".local" / "share" / "agilab" / ".agilab-path"
+    original_bytes = f"{existing_install}\n".encode("utf-8")
+    default_marker.write_bytes(original_bytes)
+    original_stat = default_marker.stat()
+    resources = tmp_path / "isolated resources" / "proof"
+    selected_path = resources
+    if resource_layout == "normalized":
+        selected_path = resources.parent / "unused" / ".." / resources.name
+    elif resource_layout == "default-parent":
+        selected_path = default_marker.parent
+    elif resource_layout == "directory-symlink":
+        resources.parent.mkdir(parents=True)
+        try:
+            resources.symlink_to(default_marker.parent, target_is_directory=True)
+        except OSError:
+            pytest.skip("Directory symlinks are unavailable on this host")
+    elif resource_layout == "marker-symlink":
+        resources.mkdir(parents=True)
+        try:
+            (resources / ".agilab-path").symlink_to(default_marker)
+        except OSError:
+            pytest.skip("File symlinks are unavailable on this host")
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", str(selected_path))
+    run_proof = module.run_proof
+    monkeypatch.setattr(
+        module,
+        "run_proof",
+        lambda commands: run_proof(
+            commands,
+            runner=lambda argv, **kwargs: subprocess.CompletedProcess(argv, 0, "ok"),
+        ),
+    )
+    manifest_path = tmp_path / "proof-results" / "run_manifest.json"
+
+    exit_code = module.main(["--json", "--manifest-out", str(manifest_path)])
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert default_marker.read_bytes() == original_bytes
+    assert default_marker.stat().st_mtime_ns == original_stat.st_mtime_ns
+    assert "agilab_path_marker" not in payload
+    if resource_layout in {"normal", "normalized"}:
+        assert not (resources / ".agilab-path").exists()
+    elif resource_layout == "marker-symlink":
+        assert (resources / ".agilab-path").is_symlink()
+        assert (resources / ".agilab-path").readlink() == default_marker
+    elif resource_layout == "directory-symlink":
+        assert resources.is_symlink()
+        assert resources.readlink() == default_marker.parent
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["command"]["env_overrides"]["AGILAB_RESOURCES_DIR"] == str(
+        selected_path
+    )
+    assert [step["label"] for step in payload["steps"]] == ["package preinit smoke"]
+
+
+@pytest.mark.parametrize(
+    "resources_value",
+    ["", "relative-resources", "~/proof", "$HOME/proof", ".", "\x00"],
+)
+def test_main_rejects_invalid_resources_before_any_proof_command(
+    monkeypatch, resources_value: str
+) -> None:
+    module = _load_module()
+    default_marker = Path.home() / ".local" / "share" / "agilab" / ".agilab-path"
+    original_bytes = default_marker.read_bytes()
+    original_stat = default_marker.stat()
+    if "\x00" in resources_value:
+        # Exercise the resolver boundary without putting NUL into OS environ.
+        monkeypatch.setattr(
+            module.os,
+            "environ",
+            {**module.os.environ, "AGILAB_RESOURCES_DIR": resources_value},
+        )
+    else:
+        monkeypatch.setenv("AGILAB_RESOURCES_DIR", resources_value)
+
+    def forbidden_runner(commands):
+        pytest.fail("Invalid resources selector reached the proof runner")
+
+    monkeypatch.setattr(module, "run_proof", forbidden_runner)
+
+    with pytest.raises(ValueError, match="AGILAB_RESOURCES_DIR"):
+        module.main(["--json", "--no-manifest"])
+
+    assert default_marker.read_bytes() == original_bytes
+    assert default_marker.stat().st_mtime_ns == original_stat.st_mtime_ns
+
+
+def test_main_print_only_does_not_validate_resources_or_require_core(
+    monkeypatch, capsys
+) -> None:
+    module = _load_module()
+    monkeypatch.setenv("AGILAB_RESOURCES_DIR", "")
+    monkeypatch.setattr(module, "_distribution_version", lambda name: None)
+
+    def forbidden_marker_selection():
+        pytest.fail("Print-only mode attempted resource validation")
+
+    monkeypatch.setattr(module, "_agilab_path_marker", forbidden_marker_selection)
+    monkeypatch.setattr(
+        module, "run_proof", lambda commands: pytest.fail("Print-only executed proof")
+    )
+
+    assert module.main(["--dry-run", "--print-only", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is True
+    assert payload["runtime_identity"]["distributions"]["agi-core"] is None
+    assert "agilab_path_marker" not in payload
 
 
 def test_agi_apps_umbrella_keeps_installer_without_payload_dependencies() -> None:

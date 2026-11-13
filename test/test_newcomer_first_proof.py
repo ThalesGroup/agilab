@@ -312,8 +312,13 @@ def test_run_proof_stops_on_first_failure() -> None:
     assert results[-1].returncode == 7
 
 
-def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None:
+@pytest.mark.parametrize("outside_checkout", [False, True])
+def test_build_run_manifest_records_first_proof_contract(
+    monkeypatch, tmp_path: Path, outside_checkout: bool
+) -> None:
     module = _load_module()
+    if outside_checkout:
+        monkeypatch.chdir(tmp_path)
     commands = module.build_proof_commands(module.DEFAULT_ACTIVE_APP, with_install=False)
     results = [
         module.ProofStepResult(
@@ -349,6 +354,7 @@ def test_build_run_manifest_records_first_proof_contract(tmp_path: Path) -> None
     assert encoded["schema_version"] == 1
     assert encoded["kind"] == "agilab.run_manifest"
     assert encoded["path_id"] == "source-checkout-first-proof"
+    assert encoded["environment"]["repo_root"] == str(MODULE_PATH.parents[1])
     assert encoded["status"] == "pass"
     assert encoded["command"]["argv"] == ["tools/newcomer_first_proof.py", "--json"]
     assert "OPENAI_API_KEY" not in encoded["command"]["env_overrides"]
