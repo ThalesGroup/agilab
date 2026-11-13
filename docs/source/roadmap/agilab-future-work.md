@@ -14,7 +14,7 @@ This page tracks remaining work and the delivered baseline for each theme.
 The goal here is to rank the next acceptance criteria without reopening delivered
 work as a new feature request.
 
-## Delivery checkpoint — reviewed 2026-11-04
+## Delivery checkpoint — reconciled 2026-11-13
 
 The published root release is
 [`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02),
@@ -24,6 +24,15 @@ with the shared React runtime `agi-web 2026.11.02`. Builtin app
 packages keep their own version constraints. See {doc}`../release-proof` for
 the package, hosted demonstration and evidence boundaries. Later source, CI or
 documentation changes do not imply another package release.
+
+Merged source checkpoint on 2026-11-13:
+[first-proof runtime isolation and origin](https://github.com/ThalesGroup/agilab/pull/1218),
+[unreadable native configuration reported as unknown](https://github.com/ThalesGroup/agilab/pull/1219),
+[run-diff caller-input preservation and provenance](https://github.com/ThalesGroup/agilab/pull/1220),
+and [qualified development/UI dependency bounds](https://github.com/ThalesGroup/agilab/pull/1217).
+These changes are merged through `466e8bd0169aac0628ef3940b8e9186f73b7e897`;
+they are not part of the published `2026.11.02` packages. Installed-package,
+UI and deployment qualification remain separate.
 
 | Theme | Baseline and source status | Remaining work |
 | --- | --- | --- |
@@ -48,17 +57,16 @@ with the relevant optional tools and services; see [Audience bridges](audience-b
 Neither public builtin proofs nor scoped private checks certify every private
 scientific app or every deployment environment.
 
-The workbench shipped with the `2026.10.12` UI release and remains in the
-`2026.10.13` root package with its pinned shared React runtime. Backend tests
+The workbench shipped with the `2026.10.12` UI release. The current
+`2026.11.02` root package pins `agi-web 2026.11.02`. Backend tests
 exercise its native install/run queue contract. The browser proof covers
 navigation, palette keyboard behavior, action review/cancellation, reviewed
 project switching and desktop/mobile layout; it did not install or execute
 scientific workloads. Hosted-demo identity and availability remain separately
 bounded by {doc}`../release-proof`.
 
-Current source also supports verified notebook-build recovery without repeating
-generation. That post-release source change is not represented as part of the
-published `2026.10.13` package.
+Notebook-build recovery can reuse verified generation results. Installed-package
+and hosted behavior remain bounded by the routes recorded in release proof.
 
 ## Professional target
 

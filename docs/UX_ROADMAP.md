@@ -4,7 +4,8 @@ This roadmap turns the current AGILAB UX discussion into an execution backlog.
 The objective is not cosmetic polish first. The objective is to make AGILAB feel
 deterministic, explain its own state, and reduce avoidable operator confusion.
 
-Status reviewed on 2026-11-04 against the public `2026.11.02` root release.
+Delivery status reconciled on 2026-11-13; the public release baseline remains
+`2026.11.02`.
 The current interface uses React and the native `agi_web` Python view host;
 the root UI profile pins the shared runtime at `agi-web 2026.11.02`. The
 operator profiles, palette and context panes are shipped. Historical browser
@@ -12,6 +13,10 @@ evidence covers navigation and reviewed actions. The current-release UI matrix,
 actual installation and scientific execution through the palette, and
 responsiveness on a smaller Linux machine still require qualification. See [the roadmap checkpoint](./ROADMAP.md)
 and [release proof](./source/release-proof.rst) for package and hosted-demo bounds.
+
+The [first-proof runtime-isolation fix](https://github.com/ThalesGroup/agilab/pull/1218)
+is merged source, outside the published `2026.11.02` packages. It does not
+establish palette-driven installation or scientific-run qualification.
 
 ## UX Principles
 
