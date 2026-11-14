@@ -244,14 +244,48 @@ def _render_markdown(
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _evaluation_gate(
+    manifest_path: Path,
+    receipt_path: Path,
+    root: Path,
+) -> tuple[dict[str, Any], list[str]]:
+    from agilab.evidence.evaluation import file_reference, verify_evaluation_receipt
+
+    report = verify_evaluation_receipt(root, receipt_path)
+    blockers = []
+    if report["status"] != "pass":
+        blockers.append("evaluation_verification_failed")
+    if report["evaluation_status"] != "pass":
+        blockers.append("evaluation_not_passed")
+    payload = report.get("payload", {})
+    if payload.get("candidate", {}).get("run_manifest", {}).get(
+        "sha256"
+    ) != evidence_contract.sha256_file(manifest_path):
+        blockers.append("evaluation_candidate_manifest_mismatch")
+    try:
+        reference = file_reference(root, receipt_path)
+    except (OSError, ValueError):
+        reference = None
+    return {
+        "verification_status": report["status"],
+        "evaluation_status": report["evaluation_status"],
+        "receipt": reference,
+        "reason": report.get("reason", ""),
+    }, blockers
+
+
 def build_promotion_dossier(
     manifest_path: Path,
     output_dir: Path | None = None,
     *,
     policy_path: Path | None = None,
+    evaluation_receipt_path: Path | None = None,
+    evaluation_root: Path | None = None,
 ) -> dict[str, Any]:
     """Build and write a promotion dossier for one AGILAB run manifest."""
 
+    if evaluation_root is not None and evaluation_receipt_path is None:
+        raise ValueError("An evaluation root requires an evaluation receipt")
     resolved_manifest_path = manifest_path.expanduser().resolve(strict=False)
     frozen_manifest = resolved_manifest_path.read_bytes()
     frozen_manifest_sha256 = hashlib.sha256(frozen_manifest).hexdigest()
@@ -283,6 +317,21 @@ def build_promotion_dossier(
         )
         decision["next_action"] = _next_action("block", decision["blockers"])
     decision["verification_sha256"] = evidence_contract.sha256_payload(verification)
+    if evaluation_receipt_path is not None:
+        gate, evaluation_blockers = _evaluation_gate(
+            resolved_manifest_path,
+            evaluation_receipt_path,
+            evaluation_root.resolve()
+            if evaluation_root is not None
+            else resolved_manifest_path.parent,
+        )
+        decision["evaluation"] = gate
+        if evaluation_blockers:
+            decision.update(decision="block", status="fail", reason="evaluation_failed")
+            decision["blockers"] = sorted(
+                set(decision["blockers"]) | set(evaluation_blockers)
+            )
+            decision["next_action"] = _next_action("block", decision["blockers"])
     lineage = evidence_contract.build_openlineage_event(
         manifest, resolved_manifest_path
     )
@@ -374,6 +423,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", help="Directory for the dossier files.")
     parser.add_argument("--policy", help="Optional JSON/TOML policy file.")
+    parser.add_argument(
+        "--evaluation-receipt",
+        type=Path,
+        help="Optional app-owned evaluation receipt; must pass verification and non-regression.",
+    )
+    parser.add_argument(
+        "--evaluation-root",
+        type=Path,
+        help="App root containing the evaluation inputs and receipt.",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON output.")
     parser.add_argument(
         "--strict",
@@ -395,6 +454,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         manifest_path,
         Path(args.output_dir).expanduser() if args.output_dir else None,
         policy_path=Path(args.policy).expanduser() if args.policy else None,
+        evaluation_receipt_path=args.evaluation_receipt,
+        evaluation_root=args.evaluation_root,
     )
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
