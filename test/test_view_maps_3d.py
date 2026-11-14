@@ -1442,4 +1442,49 @@ def test_view_maps_3d_cli_recovery_preserves_same_app_preferences(monkeypatch, t
     assert env.init_done is True
     assert state["TABLE_MAX_ROWS"] == (7 if saved_preferences else 100)
     assert state["GUI_SAMPLING"] == (3 if saved_preferences else 2)
-    assert state["datadir"] == (str(tmp_path / "selected") if saved_preferences else tmp_path / "export")
+    if saved_preferences:
+        assert state["datadir"] == str(tmp_path / "selected")
+    else:
+        assert "datadir" not in state  # page() owns initialization after saved settings.
+
+
+@pytest.mark.parametrize("entrypoint", ["main", "cold_fallback"])
+def test_saved_dataset_is_loaded_on_actual_startup_and_warm_rerender(monkeypatch, tmp_path, entrypoint):
+    module = _load_view_maps_3d_module()
+    active = tmp_path / "apps/public_demo_project"
+    active.mkdir(parents=True)
+    saved = tmp_path / "saved_public_data"
+    saved.mkdir()
+    export = tmp_path / "empty_export"
+    export.mkdir()
+    (tmp_path / "share" / "public_demo").mkdir(parents=True)
+    frame = pd.DataFrame({"cluster_id": [0, 0, 1, 1], "metric": [2., 3., 4., 5.],
+                          "long": [1., 2., 3., 4.], "lat": [43., 44., 45., 46.], "alt": [100., 200., 300., 400.]})
+    frame.to_csv(saved / "public_points.csv", index=False)
+    settings = tmp_path / "settings.toml"
+    settings.write_text('[view_maps_3d]\ndatadir = "' + saved.as_posix() + '"\n'
+                        'df_files_selected = ["public_points.csv"]\n', encoding="utf-8")
+    fake_st = _FakeStreamlit(widget_values={("multiselect", "Select Layers"): ["Flight Path"],
+        ("slider", "Select the desired number of points:"): 4})
+    env = SimpleNamespace(app_settings_file=settings, AGILAB_EXPORT_ABS=export,
+                          target=active.name, projects=[active.name], TABLE_MAX_ROWS=10,
+                          GUI_SAMPLING=1, is_source_env=True, is_worker_env=False,
+                          share_root_path=lambda: tmp_path / "share")
+    monkeypatch.setattr(module, "st", fake_st)
+    monkeypatch.setattr(module, "AgiEnv", SimpleNamespace(session_for_app=lambda **kwargs: env))
+    monkeypatch.setattr(module.sys, "argv", ["view_maps_3d.py", "--active-app", str(active)])
+    monkeypatch.setattr(module, "render_streamlit_page_header", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "render_dataframe_preview", lambda df, **kwargs: df)
+    fake_st.caption = lambda *args, **kwargs: None
+    run = module.main if entrypoint == "main" else module.page
+    run()
+    assert not fake_st.calls["error"]
+    assert Path(fake_st.session_state["datadir"]) == saved
+    assert fake_st.session_state["df_files_selected"] == ["public_points.csv"]
+    loaded = fake_st.session_state["loaded_df"]
+    assert len(loaded) == 4
+    assert loaded["metric"].tolist() == frame["metric"].tolist()
+    assert loaded["__dataset__"].unique().tolist() == ["public_points.csv"]
+    run()
+    assert Path(fake_st.session_state["datadir"]) == saved
+    assert len(fake_st.session_state["loaded_df"]) == 4

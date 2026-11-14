@@ -441,7 +441,12 @@ def _vega_asset():
 
 
 def pydeck_chart(chart, **kwargs):
-    return _node("html_frame", body=chart.to_html(as_string=True), **kwargs)
+    from .pydeck_support import PydeckRenderError, pydeck_html
+    try:
+        body = pydeck_html(chart)
+    except PydeckRenderError as exc:
+        return error(str(exc))
+    return _node("html_frame", body=body, **kwargs)
 
 
 def graphviz_chart(figure_or_dot, **kwargs):
