@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import errno
 import getpass
-import hashlib
+import hmac
 import logging
 import os
 import shutil
@@ -540,11 +540,10 @@ def _ssh_file_identity(path: Path) -> tuple[Any, ...]:
 
 
 def _ssh_context(settings: _SSHSettings) -> tuple[Any, ...]:
-    # Never retain the password or a reusable unkeyed password hash in the cache.
-    password = hashlib.blake2b(
-        (settings.password or "").encode(), key=_SSH_PASSWORD_CONTEXT_KEY,
-        digest_size=32,
-    ).digest()
+    # Ephemeral keyed cache identity; never retain the password in a binding.
+    # HMAC is a message authentication code, not a password-storage verifier.
+    message = b"\x00" if settings.password is None else b"\x01" + settings.password.encode()
+    password = hmac.digest(_SSH_PASSWORD_CONTEXT_KEY, message, "sha256")
     keys = None if settings.client_keys is None else tuple(
         _ssh_file_identity(Path(key)) for key in settings.client_keys
     )
@@ -652,6 +651,14 @@ async def get_ssh_connection(
                     or agi_cls._ssh_connections is not cache or cache.get(ip) is not expected_slot):
                 await _retire_ssh_connection(conn)
                 raise ConnectionError("SSH cache changed during connection; retry after cleanup.")
+            try:
+                unchanged = _ssh_context(settings) == context
+            except OSError:
+                await _retire_ssh_connection(conn)
+                raise
+            if not unchanged:
+                await _retire_ssh_connection(conn)
+                raise ConnectionError("SSH authentication or host-trust files changed during connection; retry with current settings.")
             binding = _SSHBinding(conn, context, settings.client_keys, settings.discovery_identity)
             cache[ip] = conn
             cache.bindings[ip] = binding
