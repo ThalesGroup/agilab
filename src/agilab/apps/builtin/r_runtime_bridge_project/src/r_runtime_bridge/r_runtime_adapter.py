@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import time
 from typing import Any
 
@@ -77,10 +78,24 @@ def _json_default(value: Any) -> Any:
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, default=_json_default, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+    serialized = (
+        json.dumps(payload, default=_json_default, indent=2, sort_keys=True) + "\n"
     )
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            delete=False,
+        ) as stream:
+            temporary_path = Path(stream.name)
+            stream.write(serialized)
+        temporary_path.replace(path)
+    finally:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
 
 
 def _redact_text(text: object) -> str:
@@ -314,11 +329,11 @@ def run_r_stage(
         "stdout": str(stdout_path),
         "stderr": str(stderr_path),
     }
+    # Persist once: a file cannot contain a digest of its own final bytes.
     _write_json(summary_path, summary)
-    summary["artifacts"]["summary"] = _artifact(
+    artifacts["summary"] = _artifact(
         summary_path, role="worker summary", output_dir=output_root
     )
-    _write_json(summary_path, summary)
 
     return RStageResult(
         output=output,
@@ -343,7 +358,7 @@ def build_r_runtime_bridge_artifacts(
     runner: Runner | None = None,
     app_root: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Run the smoke R stage and return the persisted summary payload."""
+    """Run the smoke R stage and return its summary with final artifact hashes."""
 
     result = run_r_stage(
         script_path,
@@ -354,7 +369,10 @@ def build_r_runtime_bridge_artifacts(
         runner=runner,
         app_root=app_root,
     )
-    return _read_json_object(result.summary_path)
+    summary = _read_json_object(result.summary_path)
+    # The returned envelope can describe the finalized summary file.
+    summary["artifacts"]["summary"] = result.manifest["artifacts"]["summary"]
+    return summary
 
 
 __all__ = [

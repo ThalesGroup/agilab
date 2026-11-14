@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -80,7 +81,122 @@ def test_run_r_stage_writes_json_logs_artifacts_and_manifest(tmp_path):
 
     summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
     assert summary["metrics"] == {"n": 5, "mean": 3.0, "sd": 1.58113883}
-    assert summary["artifacts"]["summary"]["path"] == "r_stage_summary.json"
+    assert "summary" not in summary["artifacts"]
+    assert result.manifest["artifacts"]["summary"]["path"] == "r_stage_summary.json"
+    _assert_r_artifact_bytes(
+        result.summary_path.parent, result.manifest, summary, manifest
+    )
+
+
+def _assert_r_artifact_bytes(output_dir, *envelopes):
+    for envelope in envelopes:
+        for record in envelope["artifacts"].values():
+            data = (output_dir / record["path"]).read_bytes()
+            assert record["bytes"] == len(data), record["path"]
+            assert record["sha256"] == hashlib.sha256(data).hexdigest(), record["path"]
+
+
+@pytest.fixture
+def _r_summary_runner():
+    def runner(cmd, **_kwargs):
+        values = json.loads(Path(cmd[2]).read_text(encoding="utf-8"))["x"]
+        Path(cmd[3]).write_text(
+            json.dumps({"n": len(values), "mean": sum(values) / len(values), "sd": 0}),
+            encoding="utf-8",
+        )
+        (Path(cmd[4]) / "summary.txt").write_text(
+            f"n={len(values)}\n", encoding="utf-8"
+        )
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout=f"n={len(values)}\n", stderr="controlled runner\n"
+        )
+
+    return runner
+
+
+@pytest.mark.parametrize("entrypoint", ["stage", "builder"])
+def test_r_summary_hashes_final_bytes_after_each_invocation(
+    tmp_path, _r_summary_runner, entrypoint
+):
+    from r_runtime_bridge.r_runtime_adapter import (
+        build_r_runtime_bridge_artifacts,
+        run_r_stage,
+    )
+
+    output_dir = tmp_path / "evidence"
+    script = APP_ROOT / "scripts" / "summarize.R"
+    prior_summary = None
+    for values in ([1, 3], [10, 20, 40]):
+        if entrypoint == "stage":
+            result = run_r_stage(
+                script, {"x": values}, output_dir, runner=_r_summary_runner
+            )
+            returned = result.manifest
+        else:
+            returned = build_r_runtime_bridge_artifacts(
+                script_path=script,
+                x=values,
+                output_dir=output_dir,
+                runner=_r_summary_runner,
+            )
+        persisted_summary = json.loads(
+            (output_dir / "r_stage_summary.json").read_text(encoding="utf-8")
+        )
+        persisted_manifest = json.loads(
+            (output_dir / "run_manifest.json").read_text(encoding="utf-8")
+        )
+        _assert_r_artifact_bytes(
+            output_dir, returned, persisted_summary, persisted_manifest
+        )
+        assert persisted_summary["metrics"]["n"] == len(values)
+        assert persisted_summary["metrics"]["mean"] == sum(values) / len(values)
+        assert "summary" not in persisted_summary["artifacts"]
+        summary_record = returned["artifacts"]["summary"]
+        assert summary_record["path"] == "r_stage_summary.json"
+        assert set(returned["artifacts"]) == set(persisted_summary["artifacts"]) | {
+            "summary"
+        }
+        if prior_summary is not None:
+            assert summary_record != prior_summary
+        prior_summary = summary_record.copy()
+
+
+def test_r_summary_replacement_is_atomic_and_cleans_failed_temporary_file(
+    tmp_path, monkeypatch, _r_summary_runner
+):
+    from r_runtime_bridge.r_runtime_adapter import build_r_runtime_bridge_artifacts
+
+    output_dir = tmp_path / "evidence"
+    script = APP_ROOT / "scripts" / "summarize.R"
+    build_r_runtime_bridge_artifacts(
+        script_path=script, x=[1, 3], output_dir=output_dir, runner=_r_summary_runner
+    )
+    summary_path = output_dir / "r_stage_summary.json"
+    previous_bytes = summary_path.read_bytes()
+    replace = Path.replace
+    replacement_attempts = []
+
+    def fail_summary_replace(source, target):
+        if Path(target) == summary_path:
+            candidate = json.loads(source.read_text(encoding="utf-8"))
+            assert candidate["metrics"]["n"] == 3
+            assert summary_path.read_bytes() == previous_bytes
+            replacement_attempts.append(source)
+            raise OSError("controlled summary replacement failure")
+        return replace(source, target)
+
+    monkeypatch.setattr(Path, "replace", fail_summary_replace)
+    with pytest.raises(OSError, match="controlled summary replacement failure"):
+        build_r_runtime_bridge_artifacts(
+            script_path=script,
+            x=[10, 20, 40],
+            output_dir=output_dir,
+            runner=_r_summary_runner,
+        )
+    assert len(replacement_attempts) == 1
+    assert summary_path.read_bytes() == previous_bytes
+    assert all(not path.exists() for path in replacement_attempts)
+    assert not list(output_dir.glob(".r_stage_summary.json.*"))
 
 
 def test_run_r_stage_failure_keeps_captured_logs(tmp_path):
@@ -402,6 +518,13 @@ def test_r_runtime_bridge_actual_rscript_contract_when_available(tmp_path):
     assert summary["metrics"]["mean"] == 3.0
     assert round(summary["metrics"]["sd"], 4) == 1.5811
     assert (tmp_path / "evidence" / "artifacts" / "summary.txt").is_file()
+    output_dir = tmp_path / "evidence"
+    _assert_r_artifact_bytes(
+        output_dir,
+        summary,
+        json.loads((output_dir / "run_manifest.json").read_text(encoding="utf-8")),
+        json.loads((output_dir / "r_stage_summary.json").read_text(encoding="utf-8")),
+    )
 
 
 @pytest.mark.parametrize("plan,worker_id,expected", [
