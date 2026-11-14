@@ -1,0 +1,8 @@
+@import "./node_modules/mapbox-gl/dist/mapbox-gl.css";
+@import "./node_modules/maplibre-gl/dist/maplibre-gl.css";
+@import "./node_modules/@deck.gl/widgets/src/stylesheet.css";
+html, body, #deck-container { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { font-family: system-ui, sans-serif; background: transparent; }
+#agilab-pydeck-status { position: absolute; z-index: 10; padding: 1rem; color: #18283d; background: #fff; }
+#agilab-pydeck-status[hidden] { display: none; }
+.deck-tooltip { font-family: system-ui, sans-serif; }

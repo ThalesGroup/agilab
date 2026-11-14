@@ -366,8 +366,8 @@ def test_optional_plot_adapters_preserve_library_assets_and_figure_arguments(ses
     assert ui.altair_chart(SimpleNamespace(to_dict=lambda: {"mark": "bar"}))["props"]["spec"] == {"mark": "bar"}
     assert ui.graphviz_chart("digraph{a->b}")["props"]["source"] == "digraph{a->b}"
     assert ui.graphviz_chart(SimpleNamespace(source="graph{a--b}"))["props"]["source"] == "graph{a--b}"
-    deck = SimpleNamespace(to_html=lambda **kwargs: "deck" if kwargs == {"as_string": True} else "wrong")
-    assert ui.pydeck_chart(deck)["props"]["body"] == "deck"
+    deck = SimpleNamespace(to_json=lambda: '{"layers": []}')
+    assert "/assets/pydeck/" in ui.pydeck_chart(deck)["props"]["body"]
 
 
 def test_plot_and_image_adapters_encode_provider_results_as_private_png_assets(session, monkeypatch):

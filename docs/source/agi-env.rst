@@ -5,6 +5,13 @@ agi-env API
 used by both AGILab and the core runtime packages. Native React UI/page dependencies
 live in the separate ``agi-web`` package under ``src/agilab/lib/agi-web``.
 
+.. note::
+
+   This reference describes the current source checkout and the next
+   published software development kit (SDK). PyPI release ``2026.11.2``
+   does not include the local worker-root selector or the installed-SDK
+   source-origin and default ``uv`` corrections described here.
+
 Usage Example
 -------------
 
@@ -44,14 +51,54 @@ explicit ``--apps-path`` selects the application directory before installation
 marker discovery, so this selection does not read the user installation marker.
 
 Use a separate process for concurrent contexts. Configure run data through the
-existing ``AGILAB_WORKFLOW_DATA_ROOT`` contract below, and provision worker
-environments through the normal deployment settings. A resources directory
+existing ``AGILAB_WORKFLOW_DATA_ROOT`` contract below. Select local worker
+installation separately with ``AGILAB_WORKER_ROOT`` and provision workers
+through the normal explicit deployment action. A resources directory
 must also be valid on the host that uses it.
 
 When the selector is unset, the existing default resource location and
 configuration behavior apply. Provide a fully expanded path: an empty value,
 a relative path and a literal ``~`` are invalid and fail before resource
 initialization. See :doc:`environment` for the configuration reference.
+
+Isolated local worker installation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``AGILAB_WORKER_ROOT`` in the process environment before constructing
+``AgiEnv`` to select a dedicated local installation directory:
+
+.. code-block:: python
+
+   import os
+
+   os.environ["AGILAB_WORKER_ROOT"] = "/absolute/path/run-workers"
+   from agi_env import AgiEnv
+
+The worker environment and distribution artifacts use
+``<selected-root>/<target>_worker`` and its ``dist`` directory. This selector
+does not deploy workers: use the normal explicit deployment action or
+``AGI.install`` before ``AGI.run``. With the selector unset, the existing
+``home_abs/wenv`` layout remains, including managed-PC home handling.
+
+Selection happens before dotenv loading. The expanded path must be absolute
+and usable; blank values, parent traversal, symbolic links, filesystem roots,
+the environment home and the current directory are rejected before
+initialization writes. The environment freezes the selection for app
+reinitialization and local child processes. A changed process selector cannot
+redirect an existing environment's children; select a different context in a
+new process or reset the environment first.
+
+The selector concerns local installation only. Remote paths remain
+``wenv/<worker>``, and manager-local installation paths are not added to SSH
+settings. Run data still uses ``AGILAB_WORKFLOW_DATA_ROOT``. Cleanup remains
+confined to the selected installation root and retains process ownership,
+protected-directory and lifecycle-token checks.
+
+For standalone notebook replay, configure the selector in the fresh kernel's
+environment or a first cell before environment initialization. Verify the
+kernel interpreter and the imported SDK before deployment. Notebook exports
+do not embed a host-specific worker installation path as a portable plan;
+each replay host must select its own valid local context.
 
 Share directory resolution
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

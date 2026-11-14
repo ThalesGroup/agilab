@@ -236,8 +236,6 @@ def _bootstrap_env_from_active_app() -> bool:
             st.session_state["TABLE_MAX_ROWS"] = env.TABLE_MAX_ROWS
         if "GUI_SAMPLING" not in st.session_state:
             st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
-        if "datadir" not in st.session_state:
-            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
         return True
     return False
 
@@ -1418,10 +1416,7 @@ def main():
         if "GUI_SAMPLING" not in st.session_state:
             st.session_state["GUI_SAMPLING"] = env.GUI_SAMPLING
 
-        # Initialize session state
-        if "datadir" not in st.session_state:
-            st.session_state["datadir"] = env.AGILAB_EXPORT_ABS
-
+        # page() restores saved dataset settings before initializing datadir.
         page()
 
     except Exception as e:

@@ -78,7 +78,7 @@ class ReactPythonRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
-    def _reply(self, status, data: bytes, mime="application/json", *, cookie=None, filename=None):
+    def _reply(self, status, data: bytes, mime="application/json", *, cookie=None, filename=None, public_asset=False):
         self.send_response(status)
         self.send_header("Content-Type", mime)
         self.send_header("Content-Length", str(len(data)))
@@ -87,6 +87,8 @@ class ReactPythonRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "same-origin")
         if mime == "image/svg+xml":
             self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+        if public_asset:
+            self.send_header("Access-Control-Allow-Origin", "*")
         if cookie: self.send_header("Set-Cookie", f"{_COOKIE}={cookie}; Path=/; HttpOnly; SameSite=Strict")
         if filename: self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + quote(filename, safe=""))
         self.end_headers()
@@ -144,6 +146,13 @@ class ReactPythonRequestHandler(BaseHTTPRequestHandler):
                 return self._json(404, {"error": "Asset unavailable."})
             content, mime, filename = record
             return self._reply(200, content, mime, filename=filename or None)
+        if path.startswith("/assets/pydeck/"):
+            from .pydeck_support import PydeckRenderError, read_public_asset
+            try:
+                content, mime = read_public_asset(path)
+            except PydeckRenderError:
+                return self._json(404, {"error": "Packaged asset unavailable."})
+            return self._reply(200, content, mime, public_asset=True)
         if path in {"/assets/agilab_react_python_host.js", "/assets/agilab_react_python_host.css"}:
             asset = files("agi_web").joinpath("react_python_host_assets", path.rsplit("/", 1)[-1])
             if not asset.is_file(): return self._json(503, {"error": "The React host assets have not been built."})

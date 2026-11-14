@@ -37,8 +37,9 @@ publication, or other risky surfaces, read [AGENTS.md](AGENTS.md) too.
 - When corrected, update `AGENT_LEARNINGS.md` only if the correction is reusable
   and not already covered by an existing rule.
 - Do not edit `docs/html/**`.
-- Canonical editable docs live in the sibling private docs repo; `docs/source`
-  here is a managed mirror.
+- Canonical public docs live in this public checkout's `docs/source`.
+  Keep public docs and builds independent of private or external documentation.
+  Never discover, copy, or sync private sources.
 - Keep `AGENTS.md`, `AGENT_CONVENTIONS.md`, `AGENT_LEARNINGS.md`,
   `tools/agent_workflows.md`, and public agent docs aligned; validate with
   `python3 tools/agent_instruction_contract.py --check`.

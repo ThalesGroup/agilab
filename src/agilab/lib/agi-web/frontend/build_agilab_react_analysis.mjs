@@ -1,4 +1,10 @@
 import { build } from "esbuild";
+import { buildPydeckAssets } from "./agilab_pydeck_build.mjs";
+
+if (process.argv.includes("--pydeck-only")) {
+  await buildPydeckAssets();
+  process.exit(0);
+}
 import { mkdir, copyFile, readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 // Keep the packaged standard-library policy byte-identical to its canonical source.
@@ -76,3 +82,5 @@ for (const library of ["marked", "dompurify", "katex"]) {
   await copyFile(new URL(`node_modules/${library}/LICENSE`, import.meta.url),
                  new URL(`agilab_react_python_host_${library}.LICENSE.txt`, pythonAssets));
 }
+
+await buildPydeckAssets();
