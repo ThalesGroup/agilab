@@ -2193,3 +2193,13 @@ def test_security_hf_structured_credential_fields_remain_refused(tmp_path, field
     data = tmp_path / "settings.json"
     data.write_text(json.dumps({field: "synthetic-secret-value"}))
     assert bridge_cli._secret_findings(data)
+
+
+
+@pytest.mark.parametrize("wrapper", ["{}", '{{"nested": {}}}'])
+def test_security_hf_duplicate_json_keys_do_not_hide_secret_bytes(tmp_path, wrapper):
+    data = tmp_path / "settings.json"
+    data.write_text(wrapper.format('{"password":"synthetic-credential-value","password":"example"}'))
+    findings = bridge_cli._secret_findings(data)
+    assert findings
+    assert "synthetic-credential-value" not in json.dumps(findings)

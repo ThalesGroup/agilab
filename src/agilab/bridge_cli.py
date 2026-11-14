@@ -656,6 +656,15 @@ def _real_secret_text(value: object) -> bool:
     )
 
 
+def _json_object_without_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON object key")
+        result[key] = value
+    return result
+
+
 def _json_secret_field_found(value: object) -> bool:
     pending = [value]
     while pending:
@@ -688,8 +697,8 @@ def _secret_findings(root: Path) -> list[dict[str, str]]:
             continue
         if path.suffix.lower() == ".json":
             try:
-                payload = json.loads(text)
-            except (json.JSONDecodeError, RecursionError):
+                payload = json.loads(text, object_pairs_hook=_json_object_without_duplicates)
+            except (ValueError, RecursionError):
                 findings.append({"path": str(path), "reason": "invalid JSON input"})
                 continue
             if _json_secret_field_found(payload):
