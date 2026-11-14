@@ -79,7 +79,10 @@ def _connector_rows(catalog: Mapping[str, Any]) -> list[dict[str, Any]]:
     rows = catalog.get("connectors", [])
     if not isinstance(rows, list):
         raise ValueError("connector catalog must define [[connectors]] entries")
-    return [row for row in rows if isinstance(row, dict)]
+    for index, row in enumerate(rows):
+        if not isinstance(row, dict):
+            raise ValueError(f"connector catalog connectors[{index}] must be a table")
+    return rows
 
 
 def _has_raw_secret(value: Any) -> bool:

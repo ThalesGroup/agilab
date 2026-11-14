@@ -3,17 +3,30 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Sequence
 
 
 def _repo_root_from_file() -> Path | None:
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "src" / "agilab" / "apps" / "builtin").is_dir():
-            return parent
+    module_file = Path(__file__).resolve()
+    if len(module_file.parents) < 6:
+        return None
+    package_path = module_file.parents[5]
+    expected = Path(
+        "apps/builtin/multi_app_dag_project/src/multi_app_dag/preview_multi_app_dag.py"
+    )
+    repo_root = package_path.parent.parent
+    if (
+        module_file.relative_to(package_path) == expected
+        and package_path == repo_root / "src/agilab"
+        and (package_path / "apps/builtin").is_dir()
+    ):
+        return repo_root
     return None
 
 
@@ -47,35 +60,155 @@ def agilab_package_path() -> Path:
 
 
 def _source_checkout_root_from_package(package_path: Path) -> Path | None:
+    package_path = package_path.resolve()
     parents = package_path.parents
     if len(parents) < 2:
         return None
     repo_root = parents[1]
-    if (repo_root / "src" / "agilab" / "apps" / "builtin").is_dir():
+    if (repo_root / "src" / "agilab").resolve() == package_path and (
+        package_path / "apps" / "builtin"
+    ).is_dir():
         return repo_root
     return None
 
 
+def _apps_content_hash(apps_path: Path) -> str:
+    digest = hashlib.sha256()
+
+    def visit(directory: Path, ancestors: set[Path]) -> None:
+        resolved = directory.resolve()
+        if resolved in ancestors:
+            raise OSError(f"Cyclic app assets under {apps_path}")
+        for entry in sorted(directory.iterdir()):
+            relative = entry.relative_to(apps_path).as_posix()
+            if entry.is_dir():
+                record = ("directory", relative)
+                visit(entry, ancestors | {resolved})
+            else:
+                if not entry.is_file():
+                    raise OSError(
+                        f"Unsupported app asset under {apps_path}: {relative}"
+                    )
+                with entry.open("rb") as stream:
+                    record = (
+                        "file",
+                        relative,
+                        hashlib.file_digest(stream, "sha256").hexdigest(),
+                    )
+            digest.update(json.dumps(record).encode("utf-8"))
+
+    visit(apps_path, set())
+    return digest.hexdigest()
+
+
+def _path_identity(path: Path) -> tuple[int, int] | None:
+    try:
+        status = path.lstat()
+    except FileNotFoundError:
+        return None
+    return status.st_dev, status.st_ino
+
+
 def _ensure_packaged_layout_adapter(package_path: Path) -> Path:
-    apps_path = package_path / "apps"
+    apps_path = (package_path / "apps").resolve()
     if not (apps_path / "builtin").is_dir():
         raise SystemExit(f"AGILAB built-in apps are not available under {apps_path}")
 
-    repo_root = Path.home() / ".cache" / "agilab" / "multi_app_dag_layout"
-    adapter_package = repo_root / "src" / "agilab"
-    adapter_apps = adapter_package / "apps"
-    adapter_package.mkdir(parents=True, exist_ok=True)
+    cache_root = Path.home() / ".cache" / "agilab" / "multi_app_dag_layout"
+    if cache_root.is_symlink() or (cache_root.exists() and not cache_root.is_dir()):
+        raise SystemExit(
+            f"Could not prepare a planning layout under {cache_root}: unrecognized cache root"
+        )
 
-    if adapter_apps.is_symlink() and adapter_apps.resolve() != apps_path.resolve():
-        adapter_apps.unlink()
-    if not adapter_apps.exists():
+    adapter_package = cache_root / "src" / "agilab"
+    adapter_apps = adapter_package / "apps"
+    copy_source = adapter_package / ".apps-copy-source"
+    parents = (cache_root / "src", adapter_package)
+    if not any(
+        path.is_symlink() or (path.exists() and not path.is_dir()) for path in parents
+    ):
+        if not copy_source.exists() and not copy_source.is_symlink():
+            if adapter_apps.is_symlink():
+                if adapter_apps.resolve() == apps_path:
+                    return cache_root
+            elif not adapter_apps.exists():
+                adapter_package.mkdir(parents=True, exist_ok=True)
+                try:
+                    adapter_apps.symlink_to(apps_path, target_is_directory=True)
+                except OSError:
+                    pass
+                else:
+                    return cache_root
+
+    # Preserve legacy copies and occupied layouts. A returned copy is never redirected.
+    content_hash = _apps_content_hash(apps_path)
+    provenance = json.dumps(
+        {"source": str(apps_path), "sha256": content_hash}, sort_keys=True
+    )
+    copy_key = hashlib.sha256(provenance.encode("utf-8")).hexdigest()
+    index = 0
+    while True:
+        copies = cache_root / ("copies" if index == 0 else f"copies-{index}")
+        if not copies.is_symlink() and not (copies.exists() and not copies.is_dir()):
+            copies.mkdir(parents=True, exist_ok=True)
+            break
+        index += 1
+
+    index = 0
+    while True:
+        repo_root = copies / (copy_key if index == 0 else f"{copy_key}-{index}")
+        index += 1
+        if repo_root.exists() or repo_root.is_symlink():
+            package = repo_root / "src/agilab"
+            cached_apps = package / "apps"
+            marker = package / ".apps-copy-source"
+            if not any(
+                path.is_symlink()
+                for path in (repo_root, repo_root / "src", package, cached_apps, marker)
+            ):
+                try:
+                    if (
+                        marker.is_file()
+                        and marker.read_bytes() == provenance.encode("utf-8")
+                        and cached_apps.is_dir()
+                        and _apps_content_hash(cached_apps) == content_hash
+                    ):
+                        return repo_root
+                except OSError:
+                    pass
+            continue
+
         try:
-            adapter_apps.symlink_to(apps_path, target_is_directory=True)
-        except OSError:
-            shutil.copytree(apps_path, adapter_apps, dirs_exist_ok=True)
-    if not (repo_root / "src" / "agilab" / "apps" / "builtin").is_dir():
-        raise SystemExit(f"Could not prepare a planning layout under {repo_root}")
-    return repo_root
+            repo_root.mkdir()
+        except FileExistsError:
+            continue
+        slot_identity = _path_identity(repo_root)
+        staging = None
+        staging_identity = None
+        try:
+            staging = Path(tempfile.mkdtemp(prefix=".apps-copy-", dir=copies))
+            staging_identity = _path_identity(staging)
+            staged_package = staging / "src/agilab"
+            staged_package.mkdir(parents=True)
+            shutil.copytree(apps_path, staged_package / "apps")
+            if _apps_content_hash(staged_package / "apps") != content_hash:
+                raise OSError(
+                    "AGILAB app assets changed while copying; retry the preview"
+                )
+            (staged_package / ".apps-copy-source").write_text(
+                provenance, encoding="utf-8"
+            )
+            (staging / "src").rename(repo_root / "src")
+            return repo_root
+        finally:
+            # These identity checks cover cooperative recovery, not adversarial TOCTOU.
+            if staging is not None and _path_identity(staging) == staging_identity:
+                shutil.rmtree(staging)
+            if _path_identity(repo_root) == slot_identity:
+                try:
+                    repo_root.rmdir()
+                except OSError:
+                    pass
 
 
 def planning_repo_root(explicit_repo_root: Path | None = None) -> Path:
