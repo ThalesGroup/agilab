@@ -2,7 +2,7 @@ import asyncio
 import contextlib
 import errno
 import getpass
-import hmac
+import hashlib
 import logging
 import os
 import shutil
@@ -482,6 +482,7 @@ class _SSHSettings:
     known_hosts: Path
     policy: str
     discovery_identity: tuple[Any, ...] | None
+    password_identity: bytes
 
 
 @dataclass(repr=False)
@@ -506,12 +507,19 @@ class _SSHConnectionCache(dict):
         self.bindings.clear()
 
 
+def _ssh_password_context(password: str | None) -> bytes:
+    message = b"\x00" if password is None else b"\x01" + password.encode()
+    return hashlib.scrypt(message, salt=_SSH_PASSWORD_CONTEXT_KEY,
+                          n=2**14, r=8, p=1, dklen=32, maxmem=32 * 1024 * 1024)
+
+
 def _ssh_settings(env, discover_private_keys_fn, binding=None) -> _SSHSettings:
+    user, password = env.user, env.password
     policy = _cluster_ssh_host_key_policy(env)
     discovery_identity = None
     if env.ssh_key_path:
         keys = (str(Path(env.ssh_key_path).expanduser().absolute()),)
-    elif env.password:
+    elif password:
         keys = ()
     else:
         directory = Path("~/.ssh").expanduser()
@@ -526,8 +534,9 @@ def _ssh_settings(env, discover_private_keys_fn, binding=None) -> _SSHSettings:
         else:
             discovered = discover_private_keys_fn(directory)
             keys = tuple(str(Path(key).expanduser().absolute()) for key in discovered) if discovered else None
-    return _SSHSettings(env.user, env.password, keys,
-                        _cluster_ssh_known_hosts_path(env).absolute(), policy, discovery_identity)
+    return _SSHSettings(user, password, keys,
+                        _cluster_ssh_known_hosts_path(env).absolute(), policy, discovery_identity,
+                        _ssh_password_context(password))
 
 
 def _ssh_file_identity(path: Path) -> tuple[Any, ...]:
@@ -540,10 +549,9 @@ def _ssh_file_identity(path: Path) -> tuple[Any, ...]:
 
 
 def _ssh_context(settings: _SSHSettings) -> tuple[Any, ...]:
-    # Ephemeral keyed cache identity; never retain the password in a binding.
-    # HMAC is a message authentication code, not a password-storage verifier.
-    message = b"\x00" if settings.password is None else b"\x01" + settings.password.encode()
-    password = hmac.digest(_SSH_PASSWORD_CONTEXT_KEY, message, "sha256")
+    # The expensive derivation is done once per acquisition, not on file rechecks.
+    # Only the derived identity is retained in a cached binding.
+    password = settings.password_identity
     keys = None if settings.client_keys is None else tuple(
         _ssh_file_identity(Path(key)) for key in settings.client_keys
     )
