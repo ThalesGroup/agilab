@@ -14,6 +14,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
+import zlib
+
+try:
+    import lzma
+except ImportError:  # Optional in CPython, as in zipfile itself.
+    lzma = None
+
 from dataclasses import asdict, dataclass, field
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -34,9 +41,12 @@ except ModuleNotFoundError:  # pragma: no cover - packaging is supplied by AGILA
     parse_wheel_filename = None  # type: ignore[assignment]
 
 
+_LZMA_ERRORS = (lzma.LZMAError,) if lzma is not None else ()
+
 PYPI_APP_INSTALL_TIMEOUT_SECONDS = 15 * 60
 PYPI_APP_METADATA_TIMEOUT_SECONDS = 15
 MAX_WHEEL_METADATA_BYTES = 80 * 1024 * 1024
+MAX_ENTRY_POINTS_BYTES = 1024 * 1024
 PYPI_APP_REQUIREMENT_RE = re.compile(
     r"^(?P<name>agi-app-[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)"
     r"(?P<specifier>(?:(?:==|~=|>=|<=|!=|>|<)[A-Za-z0-9][A-Za-z0-9.*+!_-]*)"
@@ -550,15 +560,27 @@ def _selected_release_version(
 
 
 def _wheel_entry_points_from_bytes(data: bytes) -> tuple[str, ...]:
-    with zipfile.ZipFile(io.BytesIO(data)) as wheel:
-        entry_points_name = next(
-            (name for name in wheel.namelist() if name.endswith(".dist-info/entry_points.txt")),
-            "",
-        )
-        if not entry_points_name:
-            return ()
-        parser = configparser.ConfigParser()
-        parser.read_string(wheel.read(entry_points_name).decode("utf-8"))
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as wheel:
+            entry = next(
+                (item for item in wheel.infolist()
+                 if item.filename.endswith(".dist-info/entry_points.txt") and not item.is_dir()),
+                None,
+            )
+            if entry is None:
+                return ()
+            if sum(item.filename == entry.filename for item in wheel.infolist()) != 1:
+                raise ValueError("Selected package contains ambiguous wheel entry-point metadata.")
+            if entry.file_size > MAX_ENTRY_POINTS_BYTES:
+                raise ValueError("Selected wheel entry-point metadata exceeds its inspection limit.")
+            with wheel.open(entry) as stream:
+                metadata = stream.read(MAX_ENTRY_POINTS_BYTES + 1)
+            if len(metadata) > MAX_ENTRY_POINTS_BYTES:
+                raise ValueError("Selected wheel entry-point metadata exceeds its inspection limit.")
+            parser = configparser.ConfigParser()
+            parser.read_string(metadata.decode("utf-8"))
+    except (zipfile.BadZipFile, UnicodeError, configparser.Error, RuntimeError, OSError, zlib.error) + _LZMA_ERRORS:
+        raise ValueError("Selected package contains invalid wheel metadata; rebuild the wheel before installing.") from None
     if not parser.has_section("agilab.apps"):
         return ()
     return tuple(f"{name}={value}" for name, value in sorted(parser.items("agilab.apps")))
