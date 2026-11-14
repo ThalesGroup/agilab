@@ -2,13 +2,15 @@ import asyncio
 import contextlib
 import errno
 import getpass
+import hashlib
 import logging
 import os
 import shutil
 import subprocess
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path, PurePath
-from typing import Any, AsyncIterator, Callable, Iterable, List, Optional, cast
+from typing import Any, AsyncIterator, Callable, List, Optional, cast
 
 import asyncssh
 from asyncssh.process import ProcessError
@@ -468,6 +470,105 @@ async def send_files(
     await _send_remote_paths(env, ip, list(files), remote_dir, user=user, log=logger)
 
 
+
+_SSH_PASSWORD_CONTEXT_KEY = os.urandom(32)
+
+
+@dataclass(frozen=True, repr=False)
+class _SSHSettings:
+    user: str
+    password: str | None
+    client_keys: tuple[str, ...] | None
+    known_hosts: Path
+    policy: str
+    discovery_identity: tuple[Any, ...] | None
+    password_identity: bytes
+
+
+@dataclass(repr=False)
+class _SSHBinding:
+    connection: Any
+    context: tuple[Any, ...]
+    client_keys: tuple[str, ...] | None
+    discovery_identity: tuple[Any, ...] | None
+    borrowers: int = 0
+
+
+class _SSHConnectionCache(dict):
+    """Keep raw connection values compatible with existing callers."""
+
+    def __init__(self, connections=()):
+        super().__init__(connections)
+        self.bindings: dict[str, _SSHBinding] = {}
+        self.closing = False
+
+    def clear(self):
+        super().clear()
+        self.bindings.clear()
+
+
+def _ssh_password_context(password: str | None) -> bytes:
+    message = b"\x00" if password is None else b"\x01" + password.encode()
+    return hashlib.scrypt(message, salt=_SSH_PASSWORD_CONTEXT_KEY,
+                          n=2**14, r=8, p=1, dklen=32, maxmem=32 * 1024 * 1024)
+
+
+def _ssh_settings(env, discover_private_keys_fn, binding=None) -> _SSHSettings:
+    user, password = env.user, env.password
+    policy = _cluster_ssh_host_key_policy(env)
+    discovery_identity = None
+    if env.ssh_key_path:
+        keys = (str(Path(env.ssh_key_path).expanduser().absolute()),)
+    elif password:
+        keys = ()
+    else:
+        directory = Path("~/.ssh").expanduser()
+        try:
+            candidates = tuple(sorted(directory.iterdir()))
+        except FileNotFoundError:
+            candidates = ()
+        discovery_identity = (_ssh_file_identity(directory),
+                              tuple(_ssh_file_identity(path) for path in candidates))
+        if binding is not None and binding.discovery_identity == discovery_identity:
+            keys = binding.client_keys
+        else:
+            discovered = discover_private_keys_fn(directory)
+            keys = tuple(str(Path(key).expanduser().absolute()) for key in discovered) if discovered else None
+    return _SSHSettings(user, password, keys,
+                        _cluster_ssh_known_hosts_path(env).absolute(), policy, discovery_identity,
+                        _ssh_password_context(password))
+
+
+def _ssh_file_identity(path: Path) -> tuple[Any, ...]:
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        return (str(path), None)
+    return (str(path), info.st_dev, info.st_ino, info.st_size,
+            info.st_mtime_ns, info.st_ctime_ns, info.st_uid, info.st_gid, info.st_mode)
+
+
+def _ssh_context(settings: _SSHSettings) -> tuple[Any, ...]:
+    # The expensive derivation is done once per acquisition, not on file rechecks.
+    # Only the derived identity is retained in a cached binding.
+    password = settings.password_identity
+    keys = None if settings.client_keys is None else tuple(
+        _ssh_file_identity(Path(key)) for key in settings.client_keys
+    )
+    return (id(asyncio.get_running_loop()), settings.user, password, keys,
+            settings.policy, _ssh_file_identity(settings.known_hosts), settings.discovery_identity)
+
+
+async def _retire_ssh_connection(conn) -> None:
+    conn.close()
+    task = asyncio.create_task(conn.wait_closed())
+    try:
+        await asyncio.shield(task)
+    except asyncio.CancelledError:
+        await _await_task_uninterruptibly(task)
+        raise
+
+
 _SSH_CONNECT_LOCKS: dict[tuple[int, str], asyncio.Lock] = {}
 
 
@@ -493,33 +594,89 @@ async def get_ssh_connection(
     env = agi_cls.env
     if _is_local_ip(ip) and not env.user:
         env.user = getpass.getuser()
-
     if not env.user:
         raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
 
-    conn = agi_cls._ssh_connections.get(ip)
-    if conn and not conn.is_closed():
+    cache = agi_cls._ssh_connections
+    if not isinstance(cache, _SSHConnectionCache):
+        # Existing unbound entries must be retired, never assigned today's identity.
+        cache = _SSHConnectionCache(cache)
+        agi_cls._ssh_connections = cache
+
+    lock = _ssh_connect_lock(ip)
+    async with lock:
+        if lock is not _ssh_connect_lock(ip) or cache.closing or agi_cls._ssh_connections is not cache:
+            raise ConnectionError("SSH cache changed during acquisition; retry after cleanup.")
+        env = agi_cls.env
+        if not env.user:
+            raise ValueError("SSH username is not configured. Please set 'user' in your .env file.")
+        conn = cache.get(ip)
+        binding = cache.bindings.get(ip)
+        settings = _ssh_settings(env, discover_private_keys_fn,
+                                 binding if binding is not None and binding.connection is conn else None)
+        context = _ssh_context(settings)
+        reusable = (conn is not None and binding is not None
+                    and binding.connection is conn and binding.context == context
+                    and not conn.is_closed())
+        if not reusable:
+            if binding is not None and binding.borrowers:
+                raise ConnectionError("SSH context changed while a connection is active; finish that operation before retrying.")
+            cache.bindings.pop(ip, None)
+            if conn is not None:
+                # Retain an unbound entry until close is confirmed, including on failure.
+                await _retire_ssh_connection(conn)
+                if cache.get(ip) is not conn:
+                    raise ConnectionError("SSH cache changed during retirement; retry after cleanup.")
+                cache.pop(ip, None)
+            expected_slot = cache.get(ip)
+            if expected_slot is not None:
+                raise ConnectionError("SSH cache changed before connection; retry after cleanup.")
+            prepare = asyncio.create_task(asyncio.to_thread(
+                _prepare_known_hosts_for_policy, ip, settings.known_hosts, settings.policy, log=log))
+            try:
+                await asyncio.shield(prepare)
+            except asyncio.CancelledError:
+                await _await_task_uninterruptibly(prepare)
+                raise
+            if (lock is not _ssh_connect_lock(ip) or cache.closing
+                    or agi_cls._ssh_connections is not cache or cache.get(ip) is not expected_slot):
+                raise ConnectionError("SSH cache changed during preparation; retry after cleanup.")
+            context = _ssh_context(settings)
+            opening = asyncio.create_task(_open_ssh_connection(agi_cls, ip, settings,
+                timeout_sec=timeout_sec, discover_private_keys_fn=discover_private_keys_fn, log=log))
+            try:
+                conn = await asyncio.shield(opening)
+            except asyncio.CancelledError:
+                opening.cancel()
+                try:
+                    await _await_task_uninterruptibly(opening)
+                except (asyncio.CancelledError, ConnectionError):
+                    pass
+                if not opening.cancelled() and opening.exception() is None:
+                    await _retire_ssh_connection(opening.result())
+                raise
+            if (lock is not _ssh_connect_lock(ip) or cache.closing
+                    or agi_cls._ssh_connections is not cache or cache.get(ip) is not expected_slot):
+                await _retire_ssh_connection(conn)
+                raise ConnectionError("SSH cache changed during connection; retry after cleanup.")
+            try:
+                unchanged = _ssh_context(settings) == context
+            except OSError:
+                await _retire_ssh_connection(conn)
+                raise
+            if not unchanged:
+                await _retire_ssh_connection(conn)
+                raise ConnectionError("SSH authentication or host-trust files changed during connection; retry with current settings.")
+            binding = _SSHBinding(conn, context, settings.client_keys, settings.discovery_identity)
+            cache[ip] = conn
+            cache.bindings[ip] = binding
+        binding.borrowers += 1
+
+    # No await in release: repeated cancellation cannot leak a borrower count.
+    try:
         yield conn
-        return
-
-    # Serialize creation per IP so concurrent callers share one connection
-    # instead of racing and leaking all-but-the-last one.
-    async with _ssh_connect_lock(ip):
-        conn = agi_cls._ssh_connections.get(ip)
-        if not (conn and not conn.is_closed()):
-            conn = await _open_ssh_connection(
-                agi_cls,
-                ip,
-                env,
-                timeout_sec=timeout_sec,
-                discover_private_keys_fn=discover_private_keys_fn,
-                log=log,
-            )
-
-    # The yield lives outside the connect try/except so with-body errors
-    # (e.g. asyncssh ProcessError) propagate unchanged instead of being
-    # rewritten into ConnectionError.
-    yield conn
+    finally:
+        binding.borrowers -= 1
 
 
 async def _open_ssh_connection(
@@ -531,48 +688,21 @@ async def _open_ssh_connection(
     discover_private_keys_fn: Callable[[Path], List[str]],
     log: Any,
 ) -> Any:
-    agent_path = None
     try:
-        client_keys: Optional[Iterable[str]] = None
-        ssh_key_override = env.ssh_key_path
-        if ssh_key_override:
-            client_keys = [str(Path(ssh_key_override).expanduser())]
-        else:
-            if env.password:
-                client_keys = []
-                agent_path = None
-            else:
-                ssh_dir = Path("~/.ssh").expanduser()
-                keys = discover_private_keys_fn(ssh_dir)
-                client_keys = keys if keys else None
-
-        host_key_policy = _cluster_ssh_host_key_policy(env)
-        known_hosts_path = _cluster_ssh_known_hosts_path(env)
-        # ssh-keygen/ssh-keyscan are blocking subprocesses; keep them off the
-        # event loop so concurrent first connections do not freeze everything.
-        await asyncio.to_thread(
-            _prepare_known_hosts_for_policy,
-            ip,
-            known_hosts_path,
-            host_key_policy,
-            log=log,
-        )
-
         conn = await asyncio.wait_for(
             asyncssh.connect(
                 ip,
                 username=env.user,
                 password=env.password,
-                known_hosts=str(known_hosts_path),
-                client_keys=client_keys,
-                agent_path=agent_path,
+                known_hosts=str(env.known_hosts),
+                client_keys=None if env.client_keys is None else list(env.client_keys),
+                agent_path=None,
                 keepalive_interval=15,
                 keepalive_count_max=3,
             ),
             timeout=timeout_sec,
         )
 
-        agi_cls._ssh_connections[ip] = conn
         return conn
 
     except asyncio.TimeoutError:
@@ -780,25 +910,27 @@ async def exec_ssh_async(agi_cls: Any, ip: str, cmd: str, *, log: Any = logger) 
 
 
 async def close_all_connections(agi_cls: Any) -> None:
-    """Close and drop every cached SSH connection."""
-
+    """Close cached connections; retain uncertain closures without reusable bindings."""
+    cache = agi_cls._ssh_connections
+    if not isinstance(cache, _SSHConnectionCache):
+        cache = _SSHConnectionCache(cache)
+        agi_cls._ssh_connections = cache
+    if cache.closing:
+        raise ConnectionError("SSH cleanup is already active; retry after it completes.")
+    cache.closing = True
     try:
-        for conn in list(agi_cls._ssh_connections.values()):
-            conn.close()
+        for ip, conn in list(cache.items()):
+            cache.bindings.pop(ip, None)
             try:
-                await conn.wait_closed()
+                await _retire_ssh_connection(conn)
             except (asyncssh.Error, OSError, RuntimeError):
                 logger.warning("SSH connection did not close cleanly", exc_info=True)
+            else:
+                if cache.get(ip) is conn:
+                    cache.pop(ip, None)
     finally:
-        agi_cls._ssh_connections.clear()
-
-    # Evict the per-(loop, ip) connect locks for the current event loop so the
-    # cache does not grow without bound and cannot collide with a future loop
-    # that reuses the same id() after this one is closed.
-    try:
+        cache.closing = False
+        # Old queued acquisitions must reacquire the current lock before effects.
         loop_id = id(asyncio.get_running_loop())
-    except RuntimeError:
-        return
-    stale_keys = [key for key in _SSH_CONNECT_LOCKS if key[0] == loop_id]
-    for key in stale_keys:
-        _SSH_CONNECT_LOCKS.pop(key, None)
+        for key in [key for key in _SSH_CONNECT_LOCKS if key[0] == loop_id]:
+            _SSH_CONNECT_LOCKS.pop(key, None)

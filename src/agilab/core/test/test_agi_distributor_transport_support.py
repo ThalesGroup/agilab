@@ -562,18 +562,23 @@ async def test_send_files_delegates_to_send_file_for_local_and_single_file(tmp_p
 
 @pytest.mark.asyncio
 async def test_get_ssh_connection_reuses_cached_connection(monkeypatch):
-    class _Conn:
-        def is_closed(self):
-            return False
+    conn = SimpleNamespace(is_closed=lambda: False)
+    calls = []
+
+    async def connect(*args, **kwargs):
+        calls.append(kwargs)
+        return conn
 
     agi_cls = SimpleNamespace(
-        env=SimpleNamespace(user="alice", password=None, ssh_key_path=None),
-        _ssh_connections={"10.0.0.2": _Conn()},
+        env=SimpleNamespace(user="alice", password="synthetic", ssh_key_path=None),
+        _ssh_connections={},
     )
     monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
-
-    async with transport_support.get_ssh_connection(agi_cls, "10.0.0.2") as conn:
-        assert conn is agi_cls._ssh_connections["10.0.0.2"]
+    monkeypatch.setattr(transport_support.asyncssh, "connect", connect)
+    for _ in range(2):
+        async with transport_support.get_ssh_connection(agi_cls, "10.0.0.2") as current:
+            assert current is conn
+    assert len(calls) == 1
 
 
 @pytest.mark.asyncio
@@ -1149,6 +1154,13 @@ async def test_close_all_connections_clears_cache_when_wait_closed_raises():
     await transport_support.close_all_connections(agi_cls)
 
     assert conn.closed is True
+    assert agi_cls._ssh_connections == {"10.0.0.2": conn}
+    assert agi_cls._ssh_connections.bindings == {}
+    # An uncertain close is retained but never reusable; explicit cleanup can recover.
+    async def recovered_wait():
+        return None
+    conn.wait_closed = recovered_wait
+    await transport_support.close_all_connections(agi_cls)
     assert agi_cls._ssh_connections == {}
 
 
@@ -1328,3 +1340,453 @@ async def test_close_all_connections_evicts_connect_locks_for_current_loop(monke
     await transport_support.close_all_connections(agi_cls)
 
     assert not any(key[0] == loop_id for key in transport_support._SSH_CONNECT_LOCKS)
+
+
+
+class _SecuritySSHConnection:
+    def __init__(self):
+        self.closed = False
+        self.close_calls = 0
+        self.wait_calls = 0
+        self.wait_error = False
+        self.wait_gate = None
+
+    def is_closed(self):
+        return self.closed
+
+    def close(self):
+        self.closed = True
+        self.close_calls += 1
+
+    async def wait_closed(self):
+        self.wait_calls += 1
+        if self.wait_gate is not None:
+            await self.wait_gate.wait()
+        if self.wait_error:
+            raise RuntimeError("synthetic close failure")
+
+
+@pytest.fixture
+def security_ssh_context(monkeypatch, tmp_path):
+    env = SimpleNamespace(user="alice", password="first-password", ssh_key_path=None,
+                          envars={"AGILAB_CLUSTER_SSH_KNOWN_HOSTS": str(tmp_path / "known_hosts")})
+    host = "192.0.2.4"
+    owner = SimpleNamespace(env=env, _ssh_connections={})
+    opened = []
+
+    async def connect(*args, **kwargs):
+        conn = _SecuritySSHConnection()
+        opened.append((conn, args, kwargs))
+        return conn
+
+    monkeypatch.setattr(transport_support.AgiEnv, "is_local", staticmethod(lambda _ip: False))
+    monkeypatch.setattr(transport_support.asyncssh, "connect", connect)
+    monkeypatch.setattr(transport_support, "_prepare_known_hosts_for_policy", lambda *_a, **_kw: None)
+    return owner, host, opened
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["user", "password", "key_path", "key_bytes", "known_hosts_path", "known_hosts_bytes", "policy"])
+async def test_security_ssh_changed_context_retires_before_reconnect(security_ssh_context, tmp_path, change):
+    owner, host, opened = security_ssh_context
+    key = tmp_path / "key"
+    key.write_text("synthetic key identity")
+    known = tmp_path / "known_hosts"
+    known.write_text("synthetic public host identity")
+    if change == "key_bytes":
+        owner.env.ssh_key_path = str(key)
+    async with transport_support.get_ssh_connection(owner, host) as first:
+        pass
+    if change in {"user", "password"}:
+        setattr(owner.env, change, "changed")
+    elif change == "key_path":
+        owner.env.ssh_key_path = str(key)
+    elif change == "key_bytes":
+        key.write_text("rotated synthetic key identity")
+    elif change == "known_hosts_path":
+        owner.env.envars["AGILAB_CLUSTER_SSH_KNOWN_HOSTS"] = str(tmp_path / "other_hosts")
+    elif change == "known_hosts_bytes":
+        known.write_text("rotated public host identity")
+    else:
+        owner.env.envars["AGILAB_CLUSTER_SSH_HOST_KEY_POLICY"] = "accept-new"
+        # Keep this hermetic: this test changes policy, not host-key learning.
+        known.write_text("already pinned public host identity")
+    async with transport_support.get_ssh_connection(owner, host) as second:
+        assert second is not first
+        assert first.close_calls == first.wait_calls == 1
+    assert len(opened) == 2
+    assert owner._ssh_connections[host] is second
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_invalid_policy_is_checked_on_cache_hit(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    async with transport_support.get_ssh_connection(owner, host):
+        pass
+    owner.env.envars["AGILAB_CLUSTER_SSH_HOST_KEY_POLICY"] = "invalid-policy"
+    with pytest.raises(ValueError, match="Invalid cluster SSH"):
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+    assert len(opened) == 1
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_active_context_change_refuses_then_continues(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    async with transport_support.get_ssh_connection(owner, host) as first:
+        owner.env.password = "second-password"
+        with pytest.raises(ConnectionError, match="active"):
+            async with transport_support.get_ssh_connection(owner, host):
+                pass
+        assert first.close_calls == 0
+    async with transport_support.get_ssh_connection(owner, host) as second:
+        assert second is not first
+    assert len(opened) == 2
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_legacy_unbound_cache_is_not_blessed(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    unknown = _SecuritySSHConnection()
+    owner._ssh_connections[host] = unknown
+    async with transport_support.get_ssh_connection(owner, host) as current:
+        assert current is not unknown
+    assert unknown.close_calls == unknown.wait_calls == 1
+    assert len(opened) == 1
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_settings_are_frozen_during_connect(security_ssh_context, monkeypatch):
+    owner, host, opened = security_ssh_context
+    started, release = asyncio.Event(), asyncio.Event()
+    connect = transport_support.asyncssh.connect
+
+    async def paused_connect(*args, **kwargs):
+        started.set()
+        await release.wait()
+        return await connect(*args, **kwargs)
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", paused_connect)
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    task = asyncio.create_task(acquire())
+    await started.wait()
+    owner.env.user = "bob"
+    owner.env.password = "second-password"
+    release.set()
+    await task
+    assert opened[0][2]["username"] == "alice"
+    async with transport_support.get_ssh_connection(owner, host):
+        pass
+    assert opened[1][2]["username"] == "bob"
+    assert "first-password" not in repr(owner._ssh_connections.bindings)
+    assert "second-password" not in repr(owner._ssh_connections.bindings)
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_cancelled_retirement_settles_without_replacement(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    async with transport_support.get_ssh_connection(owner, host) as first:
+        pass
+    first.wait_gate = asyncio.Event()
+    owner.env.user = "bob"
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    task = asyncio.create_task(acquire())
+    for _ in range(100):
+        if first.wait_calls:
+            break
+        assert not task.done(), 'Context change bypassed retirement'
+        await asyncio.sleep(0)
+    assert first.wait_calls, 'Retirement did not begin'
+    task.cancel()
+    await asyncio.sleep(0)
+    task.cancel()
+    first.wait_gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert len(opened) == 1
+    async with transport_support.get_ssh_connection(owner, host) as replacement:
+        assert replacement is not first
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_failed_retirement_refuses_and_recovers(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    async with transport_support.get_ssh_connection(owner, host) as first:
+        pass
+    first.wait_error = True
+    owner.env.user = "bob"
+    with pytest.raises(RuntimeError, match="synthetic close failure"):
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+    assert len(opened) == 1
+    first.wait_error = False
+    async with transport_support.get_ssh_connection(owner, host) as replacement:
+        assert replacement is not first
+    assert len(opened) == 2
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_cleanup_during_connect_retires_new_connection(security_ssh_context, monkeypatch):
+    owner, host, opened = security_ssh_context
+    started, release = asyncio.Event(), asyncio.Event()
+    connect = transport_support.asyncssh.connect
+
+    async def paused_connect(*args, **kwargs):
+        started.set()
+        await release.wait()
+        return await connect(*args, **kwargs)
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", paused_connect)
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    task = asyncio.create_task(acquire())
+    await started.wait()
+    await transport_support.close_all_connections(owner)
+    release.set()
+    with pytest.raises(ConnectionError, match="cache changed"):
+        await task
+    assert opened[0][0].closed
+    assert opened[0][0].wait_calls == 1
+    assert owner._ssh_connections == {}
+    async with transport_support.get_ssh_connection(owner, host):
+        pass
+    assert len(opened) == 2
+
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_old_queued_lock_cannot_publish_after_cleanup(security_ssh_context):
+    owner, host, opened = security_ssh_context
+    async with transport_support.get_ssh_connection(owner, host):
+        pass
+    old_lock = transport_support._ssh_connect_lock(host)
+    await old_lock.acquire()
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    queued = asyncio.create_task(acquire())
+    await asyncio.sleep(0)
+    await transport_support.close_all_connections(owner)
+    await acquire()
+    old_lock.release()
+    with pytest.raises(ConnectionError, match="cache changed"):
+        await queued
+    assert len(opened) == 2
+    assert owner._ssh_connections[host] is opened[1][0]
+    assert opened[0][0].closed
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("during", ["retirement", "opening"])
+async def test_security_ssh_manual_slot_replacement_is_preserved(security_ssh_context, monkeypatch, during):
+    owner, host, opened = security_ssh_context
+    replacement = _SecuritySSHConnection()
+    async with transport_support.get_ssh_connection(owner, host) as first:
+        pass
+    owner.env.user = "bob"
+    connect = transport_support.asyncssh.connect
+    if during == "retirement":
+        async def wait_closed():
+            owner._ssh_connections[host] = replacement
+        first.wait_closed = wait_closed
+    else:
+        async def connect_replacing(*args, **kwargs):
+            owner._ssh_connections[host] = replacement
+            return await connect(*args, **kwargs)
+        monkeypatch.setattr(transport_support.asyncssh, "connect", connect_replacing)
+    with pytest.raises(ConnectionError, match="cache changed"):
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+    assert owner._ssh_connections[host] is replacement
+    if during == "opening":
+        assert opened[-1][0].closed
+        assert opened[-1][0].wait_calls == 1
+    monkeypatch.setattr(transport_support.asyncssh, "connect", connect)
+    async with transport_support.get_ssh_connection(owner, host) as current:
+        assert current is not replacement
+    assert replacement.closed
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_cancelled_preparation_keeps_lock_until_thread_finishes(security_ssh_context, monkeypatch):
+    import threading
+
+    owner, host, opened = security_ssh_context
+    started, release = threading.Event(), threading.Event()
+
+    def prepare(*args, **kwargs):
+        started.set()
+        assert release.wait(3), "Task-owned preparation fixture timed out"
+
+    monkeypatch.setattr(transport_support, "_prepare_known_hosts_for_policy", prepare)
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    task = asyncio.create_task(acquire())
+    try:
+        for _ in range(500):
+            if started.is_set():
+                break
+            await asyncio.sleep(.001)
+        assert started.is_set()
+        task.cancel()
+        await asyncio.sleep(0)
+        following = asyncio.create_task(acquire())
+        await asyncio.sleep(.01)
+        assert not opened
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await asyncio.wait_for(following, 3)
+        assert len(opened) == 1
+    finally:
+        release.set()
+        if not task.done():
+            task.cancel()
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_cancelled_open_closes_returned_connection(security_ssh_context, monkeypatch):
+    owner, host, opened = security_ssh_context
+    started = asyncio.Event()
+    connect = transport_support.asyncssh.connect
+
+    async def delayed_connect(*args, **kwargs):
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            # Model completion winning the cancellation race.
+            return await connect(*args, **kwargs)
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", delayed_connect)
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host):
+            pass
+
+    task = asyncio.create_task(acquire())
+    await asyncio.wait_for(started.wait(), 3)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, 3)
+    assert len(opened) == 1
+    assert opened[0][0].closed
+    assert opened[0][0].wait_calls == 1
+    assert owner._ssh_connections == {}
+
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_discovery_reuse_only_reads_file_metadata(security_ssh_context, monkeypatch, tmp_path):
+    owner, host, opened = security_ssh_context
+    directory = tmp_path / "home" / ".ssh"
+    directory.mkdir(parents=True)
+    key = directory / "synthetic_key"
+    key.write_text("first synthetic identity")
+    monkeypatch.setenv("HOME", str(directory.parent))
+    owner.env.password = None
+    calls = []
+    allow_read = True
+
+    def discover(path):
+        assert allow_read, "An unchanged cached connection re-read private-key contents"
+        calls.append(path)
+        return [str(key)]
+
+    async with transport_support.get_ssh_connection(owner, host, discover_private_keys_fn=discover) as first:
+        pass
+    allow_read = False
+    async with transport_support.get_ssh_connection(owner, host, discover_private_keys_fn=discover) as same:
+        assert same is first
+    assert len(calls) == 1
+    key.write_text("rotated synthetic identity with different metadata")
+    allow_read = True
+    async with transport_support.get_ssh_connection(owner, host, discover_private_keys_fn=discover) as current:
+        assert current is not first
+    assert len(calls) == len(opened) == 2
+    assert first.closed
+
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("change", ["key", "known_hosts", "stat_error"])
+async def test_security_ssh_file_change_during_open_refuses_then_recovers(security_ssh_context, monkeypatch, tmp_path, change):
+    owner, host, opened = security_ssh_context
+    key = tmp_path / "synthetic_key"
+    key.write_text("first synthetic key identity")
+    known = tmp_path / "known_hosts"
+    known.write_text("first public host identity")
+    if change == "key":
+        owner.env.ssh_key_path = str(key)
+    started, release = asyncio.Event(), asyncio.Event()
+    connect = transport_support.asyncssh.connect
+    original_stat = Path.stat
+    fail_stat = False
+
+    async def delayed_connect(*args, **kwargs):
+        started.set()
+        await release.wait()
+        return await connect(*args, **kwargs)
+
+    def stat(path, *args, **kwargs):
+        if fail_stat and path == known:
+            raise PermissionError("synthetic metadata unavailable")
+        return original_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(transport_support.asyncssh, "connect", delayed_connect)
+    monkeypatch.setattr(Path, "stat", stat)
+
+    async def acquire():
+        async with transport_support.get_ssh_connection(owner, host) as conn:
+            return conn
+
+    task = asyncio.create_task(acquire())
+    await asyncio.wait_for(started.wait(), 3)
+    if change == "stat_error":
+        fail_stat = True
+    else:
+        (key if change == "key" else known).write_text("rotated file identity with different bytes")
+    release.set()
+    try:
+        with pytest.raises((ConnectionError, PermissionError), match="changed|metadata unavailable"):
+            await asyncio.wait_for(task, 3)
+    finally:
+        fail_stat = False
+    assert opened[0][0].closed
+    assert opened[0][0].wait_calls == 1
+    assert owner._ssh_connections == {}
+    assert owner._ssh_connections.bindings == {}
+    monkeypatch.setattr(transport_support.asyncssh, "connect", connect)
+    async with transport_support.get_ssh_connection(owner, host) as recovered:
+        assert recovered is not opened[0][0]
+    assert len(opened) == 2
+
+
+@pytest.mark.asyncio
+async def test_security_ssh_missing_and_empty_password_have_distinct_contexts(security_ssh_context, monkeypatch, tmp_path):
+    owner, host, opened = security_ssh_context
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    owner.env.password = None
+    async with transport_support.get_ssh_connection(owner, host, discover_private_keys_fn=lambda _p: []) as first:
+        pass
+    owner.env.password = ""
+    async with transport_support.get_ssh_connection(owner, host, discover_private_keys_fn=lambda _p: []) as current:
+        assert current is not first
+    assert len(opened) == 2
+    assert first.closed
