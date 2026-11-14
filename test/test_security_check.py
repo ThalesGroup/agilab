@@ -1059,3 +1059,39 @@ def test_script_entrypoint_exits_with_main_status(tmp_path: Path, monkeypatch, c
     payload = json.loads(capsys.readouterr().out)
     assert payload["kind"] == "agilab.security_check"
     assert payload["status"] == "pass"
+
+
+
+@pytest.mark.parametrize(
+    ("age_seconds", "fresh"),
+    [(-1, False), (0, True), (30 * 86400, True), (30 * 86400 + 1, False)],
+)
+def test_security_artifact_age_boundaries(tmp_path, age_seconds, fresh):
+    now = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    artifact = tmp_path / "scan.json"
+    artifact.write_text("{}", encoding="utf-8")
+    timestamp = now.timestamp() - age_seconds
+    os.utime(artifact, (timestamp, timestamp))
+
+    state = security_check._artifact_state(artifact, now=now, max_age_days=30)
+
+    assert state["fresh"] is fresh
+
+
+def test_security_future_supply_chain_artifact_refuses_shared_check(tmp_path):
+    now = datetime(2026, 11, 14, tzinfo=timezone.utc)
+    audit = tmp_path / "pip-audit.json"
+    sbom = tmp_path / "sbom-cyclonedx.json"
+    for artifact, offset in [(audit, 1), (sbom, 0)]:
+        artifact.write_text("{}", encoding="utf-8")
+        timestamp = now.timestamp() + offset
+        os.utime(artifact, (timestamp, timestamp))
+
+    check = security_check._check_supply_chain_artifacts(
+        cwd=tmp_path, now=now, pip_audit_json=audit, sbom_json=sbom,
+        max_age_days=30, profile="shared",
+    )
+
+    assert check.status == "fail"
+    assert check.details["pip_audit"]["fresh"] is False
+    assert check.details["sbom"]["fresh"] is True
