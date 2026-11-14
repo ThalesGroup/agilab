@@ -123,10 +123,19 @@ def collect_skill_drift(source: Path, destination_root: Path) -> list[str]:
     return drift
 
 
-def verify_tokki_skill_visibility(claude_root: Path | None = None) -> bool:
-    """Confirm the Tokki agent sees every canonical skill; skip when absent."""
+def verify_tokki_skill_visibility(
+    claude_root: Path | None = None, *, tokki_binary: str | Path | None = None
+) -> bool:
+    """Confirm all canonical skills are visible; skip only an absent PATH tool."""
     root = claude_root if claude_root is not None else CLAUDE_ROOT
-    executable = shutil.which("tokki")
+    selected = tokki_binary if tokki_binary is not None else os.environ.get("AGILAB_TOKKI_BINARY")
+    if selected is not None:
+        binary = Path(selected).absolute()
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise SystemExit(f"Tokki binary must be an executable file: {selected!s}")
+        executable = str(binary)
+    else:
+        executable = shutil.which("tokki")
     if executable is None:
         print("tokki not on PATH; skipped tokki skill visibility check")
         return False
@@ -142,6 +151,8 @@ def verify_tokki_skill_visibility(claude_root: Path | None = None) -> bool:
         raise SystemExit(
             f"tokki skills list timed out after {TOKKI_LIST_TIMEOUT_SECONDS}s"
         )
+    except OSError as error:
+        raise SystemExit(f"Cannot execute tokki binary {executable}: {error}")
     if result.returncode != 0:
         raise SystemExit(
             f"tokki skills list failed ({result.returncode}): {result.stderr.strip()}"
@@ -258,6 +269,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "verify Tokki skill visibility without syncing anything."
         ),
     )
+    parser.add_argument(
+        "--tokki-binary",
+        help=(
+            "Use this executable file instead of PATH lookup; defaults to "
+            "AGILAB_TOKKI_BINARY when set."
+        ),
+    )
     args = parser.parse_args(argv)
     if not args.check and not args.all and not args.skills:
         parser.error("one of --all or --skills is required unless --check is used")
@@ -301,7 +319,7 @@ def main(argv: list[str]) -> int:
             )
         for line in drift:
             print(f"- {line}")
-        verify_tokki_skill_visibility()
+        verify_tokki_skill_visibility(tokki_binary=args.tokki_binary)
         if drift:
             print(
                 f"{len(drift)} drift issue(s) between {CLAUDE_ROOT} and {CODEX_ROOT}"
@@ -325,7 +343,7 @@ def main(argv: list[str]) -> int:
     refresh_skill_badges()
     refresh_agent_skill_catalog()
     refresh_capability_manifest()
-    verify_tokki_skill_visibility()
+    verify_tokki_skill_visibility(tokki_binary=args.tokki_binary)
 
     print(f"Synced {len(synced)} skill(s) from {CLAUDE_ROOT} to {CODEX_ROOT}")
     for path in synced:

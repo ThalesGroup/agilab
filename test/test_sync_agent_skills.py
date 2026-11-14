@@ -189,6 +189,160 @@ def test_tokki_visibility_fails_on_tokki_error(tmp_path, monkeypatch) -> None:
         module.main(["--check"])
 
 
+@pytest.fixture(autouse=True)
+def _isolate_tokki_binary_selector(monkeypatch) -> None:
+    monkeypatch.delenv("AGILAB_TOKKI_BINARY", raising=False)
+
+
+def _explicit_tokki_file(tmp_path: Path) -> Path:
+    executable = tmp_path / "qualified runtime" / "tokki"
+    executable.parent.mkdir()
+    executable.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    executable.chmod(0o755)
+    return executable
+
+
+@pytest.mark.parametrize("selection", ["cli", "environment", "api"])
+def test_explicit_tokki_selection_overrides_ambient_path(
+    tmp_path, monkeypatch, selection
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _write_skill(claude_root, "alpha")
+    _write_skill(codex_root, "alpha")
+    executable = _explicit_tokki_file(tmp_path)
+    calls = _tokki_reports(module, monkeypatch, ["alpha"])
+    monkeypatch.setattr(
+        module.shutil, "which",
+        lambda _command: pytest.fail("explicit selection must not consult PATH"),
+    )
+    monkeypatch.setenv("AGILAB_TOKKI_BINARY", str(tmp_path / "invalid environment default"))
+    if selection == "api":
+        assert module.verify_tokki_skill_visibility(
+            claude_root, tokki_binary=executable
+        ) is True
+    elif selection == "cli":
+        assert module.main(["--check", "--tokki-binary", str(executable)]) == 0
+    else:
+        monkeypatch.setenv("AGILAB_TOKKI_BINARY", str(executable))
+        assert module.main(["--check"]) == 0
+    assert calls == [
+        [str(executable), "skills", "list", "--skills-dir", str(claude_root), "--json"]
+    ]
+
+
+@pytest.mark.parametrize("selection", ["cli", "environment"])
+@pytest.mark.parametrize("invalid", ["missing", "directory", "nonexecutable", "empty"])
+def test_explicit_invalid_tokki_fails_without_skip_or_fallback(
+    tmp_path, monkeypatch, capsys, selection, invalid
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    _write_skill(claude_root, "alpha")
+    _write_skill(codex_root, "alpha")
+    executable = tmp_path / "unusable tokki"
+    if invalid == "directory":
+        executable.mkdir()
+    elif invalid == "nonexecutable":
+        executable.write_text("not executable", encoding="utf-8")
+        monkeypatch.setattr(module.os, "access", lambda *_args: False)
+    selected = "" if invalid == "empty" else str(executable)
+    calls = _tokki_reports(module, monkeypatch, ["alpha"])
+    monkeypatch.setattr(
+        module.shutil, "which",
+        lambda _command: pytest.fail("invalid explicit selection must not consult PATH"),
+    )
+    args = ["--check"]
+    if selection == "cli":
+        args += ["--tokki-binary", selected]
+    else:
+        monkeypatch.setenv("AGILAB_TOKKI_BINARY", selected)
+    with pytest.raises(SystemExit, match="Tokki binary.*executable file"):
+        module.main(args)
+    assert not calls
+    assert "skipped" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("selection", ["cli", "environment"])
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        ("exit78", "failed \\(78\\)"),
+        ("bad_json", "invalid JSON"),
+        ("missing_skill", "beta"),
+        ("timeout", "timed out"),
+        ("cannot_execute", "Cannot execute tokki binary"),
+    ],
+)
+def test_explicit_tokki_preserves_visibility_failures(
+    tmp_path, monkeypatch, selection, failure, message
+) -> None:
+    module = _load_module()
+    claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
+    for root in (claude_root, codex_root):
+        _write_skill(root, "alpha")
+        _write_skill(root, "beta")
+    executable = _explicit_tokki_file(tmp_path)
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(list(command))
+        assert kwargs["timeout"] == module.TOKKI_LIST_TIMEOUT_SECONDS
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+        if failure == "cannot_execute":
+            raise OSError("invalid executable format")
+        payload = json.dumps({"skills": [{"name": "alpha"}, {"name": "beta"}]})
+        if failure == "bad_json":
+            payload = "not JSON"
+        elif failure == "missing_skill":
+            payload = json.dumps({"skills": [{"name": "alpha"}]})
+        return subprocess.CompletedProcess(
+            command, 78 if failure == "exit78" else 0, payload, "selected tool refused"
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        module.shutil, "which",
+        lambda _command: pytest.fail("selected tool failure must not fall back to PATH"),
+    )
+    args = ["--check"]
+    if selection == "cli":
+        args += ["--tokki-binary", str(executable)]
+    else:
+        monkeypatch.setenv("AGILAB_TOKKI_BINARY", str(executable))
+    with pytest.raises(SystemExit, match=message):
+        module.main(args)
+    assert len(calls) == 1
+    assert calls[0][0] == str(executable)
+
+
+def test_explicit_relative_tokki_path_stays_relative_to_working_directory(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_module()
+    claude_root, _ = _fake_repo(module, monkeypatch, tmp_path)
+    _write_skill(claude_root, "alpha")
+    executable = _explicit_tokki_file(tmp_path)
+    monkeypatch.chdir(executable.parent)
+    calls = _tokki_reports(module, monkeypatch, ["alpha"])
+    assert module.verify_tokki_skill_visibility(
+        claude_root, tokki_binary=Path("tokki")
+    ) is True
+    assert calls[0][0] == str(executable)
+
+
+def test_unset_tokki_selector_preserves_function_api_and_path_lookup(
+    tmp_path, monkeypatch
+) -> None:
+    module = _load_module()
+    claude_root, _ = _fake_repo(module, monkeypatch, tmp_path)
+    _write_skill(claude_root, "alpha")
+    calls = _tokki_reports(module, monkeypatch, ["alpha"])
+    assert module.verify_tokki_skill_visibility(claude_root) is True
+    assert calls[0][0] == "/usr/bin/tokki"
+
+
 def test_sync_copies_skill_and_checks_tokki_visibility(tmp_path, monkeypatch, capsys) -> None:
     module = _load_module()
     claude_root, codex_root = _fake_repo(module, monkeypatch, tmp_path)
