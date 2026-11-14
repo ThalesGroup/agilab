@@ -10,6 +10,13 @@ persisted ``$HOME/.agilab/.env`` values and choose the global runtime
 diagnostics level. Settings is intentionally reachable as a utility route
 rather than shown as one of the workflow pages.
 
+.. note::
+
+   This reference describes the current source checkout and the next
+   published software development kit (SDK). PyPI release ``2026.11.2``
+   does not include the local worker-root selector or the installed-SDK
+   source-origin and default ``uv`` corrections described here.
+
 .. list-table:: Runtime configuration
    :header-rows: 1
 
@@ -22,8 +29,16 @@ rather than shown as one of the workflow pages.
        and its ``.env`` configuration. Read from the process environment
        before any ``.env`` is loaded. Set it before constructing the
        environment; local child processes inherit that context. Use
-       ``AGILAB_WORKFLOW_DATA_ROOT`` for run data and the normal deployment
-       settings for worker environments. See :doc:`agi-env`.
+       ``AGILAB_WORKFLOW_DATA_ROOT`` for run data and ``AGILAB_WORKER_ROOT``
+       for local worker installation. See :doc:`agi-env`.
+   * - ``AGILAB_WORKER_ROOT``
+     - unset (``home_abs/wenv``, including managed-PC homes)
+     - Selects a dedicated usable absolute local worker installation root
+       before environment initialization and dotenv loading. Frozen for the
+       environment, app reinitialization and local children; remote relative
+       paths and SSH settings stay unchanged. Deployment remains explicit.
+       Fresh notebook kernels must select their own local context before
+       initialization. See :doc:`agi-env`.
    * - ``APPS_PATH``
      - ``$AGILAB_CHECKOUT/src/agilab/apps`` in source checkouts
      - Root directory containing app projects; used when selecting the active app.
