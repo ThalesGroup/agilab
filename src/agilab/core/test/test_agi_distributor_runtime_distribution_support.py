@@ -432,13 +432,17 @@ async def test_start_acquires_remote_target_leases_before_scheduler_bootstrap():
 
 
 @pytest.mark.asyncio
-async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
+@pytest.mark.parametrize("explicit_root", [False, True])
+async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path, explicit_root):
     wenv_abs = tmp_path / "worker_env"
     (wenv_abs / "dist").mkdir(parents=True, exist_ok=True)
     (wenv_abs / "dist" / "z-demo.egg").write_text("x", encoding="utf-8")
     (wenv_abs / "dist" / "a-demo.egg").write_text("x", encoding="utf-8")
 
+    monkeypatch.setenv("AGILAB_WORKER_ROOT", str(tmp_path / "ambient-root"))
+    selected_root = tmp_path / "selected-root" if explicit_root else None
     AGI.env = SimpleNamespace(
+        _agilab_worker_root_context=selected_root,
         is_local=lambda ip: ip == "127.0.0.1",
         envars={},
         uv="uv",
@@ -498,6 +502,12 @@ async def test_start_launches_workers_and_uploads_eggs(monkeypatch, tmp_path):
     assert calls["bg"][0][2]["env"]["PATH"].startswith(str(Path.home() / ".local" / "bin"))
 
     assert calls["bg"]
+    assert calls["bg"][0][2]["env"].get("AGILAB_WORKER_ROOT") == (
+        str(selected_root) if explicit_root else None
+    )
+    assert all("AGILAB_WORKER_ROOT" not in cmd for _, cmd in calls["remote"])
+    if explicit_root:
+        assert all(str(selected_root) not in cmd for _, cmd in calls["remote"])
     assert any(ip == "10.0.0.2" for ip, _ in calls["remote"])
     assert [Path(path).name for path in calls["uploaded"]] == ["a-demo.egg", "z-demo.egg"]
 
@@ -2955,3 +2965,38 @@ async def test_start_transports_local_worker_workflow_root_without_global_or_rem
     assert "REMOTE_SENTINEL=preserved" in remote_command
     assert env.envars == envars
     assert dotenv.read_bytes() == dotenv_before
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("explicit_root", [False, True])
+async def test_local_worker_script_restores_context_before_sdk_import(
+    tmp_path, monkeypatch, explicit_root,
+):
+    root = tmp_path / "selected"
+    env = SimpleNamespace(
+        debug=False, uv="uv", pyvers_worker="3.13", verbose=0,
+        wenv_abs=root / "demo_worker", app="demo_project", apps_path=tmp_path / "apps",
+        _agilab_worker_root_context=root if explicit_root else None,
+    )
+
+    async def kill(**_kwargs):
+        return None
+
+    agi = SimpleNamespace(
+        env=env, _kill=kill, _mode=0, _workers={"127.0.0.1": 1}, _args={},
+    )
+    monkeypatch.setenv("AGILAB_WORKER_ROOT", str(tmp_path / "polluted"))
+
+    async def run(cmd, cwd):
+        script = shlex.split(cmd)[-1]
+        prefix = script.split("from agi_env import AgiEnv", 1)[0]
+        exec(compile(prefix, "<worker-context-bootstrap>", "exec"), {})
+        assert os.environ.get("AGILAB_WORKER_ROOT") == (
+            str(root) if explicit_root else None
+        )
+        assert cwd == env.wenv_abs
+        return "done"
+
+    assert await runtime_distribution_support._run_local_worker(
+        agi, env, base_worker_cls=None, run_async_fn=run,
+    ) == "done"

@@ -277,14 +277,33 @@ def _stage_uv_source_dependency(
     seen: set[tuple[str, str]] | None = None,
 ) -> Path:
     """Stage one local uv source and recursively stage its nested local sources."""
-    staged_target = stage_root / name
+    if not name or name in {".", ".."} or Path(name).name != name or "\\" in name:
+        raise ValueError(f"Invalid uv source name: {name!r}")
+    package_target = stage_root / name
+    # uv identifies wheel files by their complete distribution filename.
+    staged_target = (
+        package_target / src_path.name if src_path.is_file() else package_target
+    )
     stage_key = (name, str(src_path.resolve(strict=False)))
     if seen is None:
         seen = set()
+    if any(
+        key_name == name and key_source != stage_key[1] for key_name, key_source in seen
+    ):
+        raise ValueError(f"uv source conflict for {name!r}")
     if stage_key in seen:
         return staged_target
     seen.add(stage_key)
 
+    if _is_link_like(stage_root) or (
+        src_path.is_file() and _is_link_like(package_target)
+    ):
+        raise ValueError(
+            f"uv source staging parent contains symlinks or junctions: {package_target}"
+        )
+    if src_path.is_file() and package_target.is_file():
+        # Recover a previous extensionless file staged by an older SDK.
+        package_target.unlink()
     copy_uv_source_tree(src_path, staged_target)
 
     source_pyproject = src_path / "pyproject.toml"

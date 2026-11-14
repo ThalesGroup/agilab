@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import zipfile
 import platform
+import runpy
 import threading
 import time
 import faulthandler
@@ -677,6 +678,28 @@ def recover_remote_target_lease(
     return acquire_remote_target_lease(target, token, operation)
 
 
+
+
+def _worker_cleanup_roots(home: Path, cwd: Path) -> tuple[Path, ...]:
+    """Accept only the explicitly selected local root when configured."""
+    if "AGILAB_WORKER_ROOT" not in os.environ:
+        return home / "wenv", cwd / "wenv"
+    helper = Path(__file__).with_name("agilab_runtime_bootstrap_support.py")
+    if helper.is_symlink():
+        raise ValueError("Worker-root bootstrap helper must not be a symbolic link")
+    if helper.is_file():
+        resolve_root = runpy.run_path(str(helper))["resolve_worker_root"]
+    else:
+        try:
+            from agi_env.runtime.runtime_bootstrap_support import resolve_worker_root
+        except ImportError as exc:
+            raise ValueError(
+                "Selected worker root requires the bundled bootstrap helper; "
+                "prepare the local worker CLI again before cleanup"
+            ) from exc
+        resolve_root = resolve_worker_root
+    return (resolve_root(home_path=home),)
+
 def clean(
     wenv=None,
     *,
@@ -695,7 +718,7 @@ def clean(
                 raw_target = cwd / raw_target
             target_path = safe_worker_runtime_cleanup_path(
                 raw_target,
-                roots=(home / "wenv", cwd / "wenv"),
+                roots=_worker_cleanup_roots(home, cwd),
                 home_path=home,
                 cwd_path=cwd,
             )
@@ -1335,7 +1358,7 @@ def kill(
             raw_target = cwd / raw_target
         target_path = safe_worker_runtime_cleanup_path(
             raw_target,
-            roots=(home / "wenv", cwd / "wenv"),
+            roots=_worker_cleanup_roots(home, cwd),
             home_path=home,
             # Ordinary ``kill`` only signals identity-proven processes; it
             # never deletes the runtime directory.  Local cleanup launches

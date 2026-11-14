@@ -204,13 +204,17 @@ def resolve_active_app_selection(
     home_abs: Path,
     is_worker_env: bool,
     default_app: str,
+    worker_root: Path | None = None,
     path_cls=Path,
 ) -> ActiveAppSelection:
     """Resolve the selected app name and filesystem root."""
     if is_worker_env:
         if not app:
             raise ValueError("app is required when self.is_worker_env")
-        return ActiveAppSelection(app=app, active_app=home_abs / "wenv" / app)
+        return ActiveAppSelection(
+            app=app,
+            active_app=(worker_root if worker_root is not None else home_abs / "wenv") / app,
+        )
 
     if app is None:
         app = str(default_app or "").strip() or "flight_telemetry_project"

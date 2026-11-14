@@ -13,10 +13,31 @@ def resolve_core_source_root(*, source_file: str | Path | None = None) -> Path |
         source_path = Path(source_file or __file__).resolve()
     except (OSError, RuntimeError):
         return None
-    for parent in source_path.parents:
-        if parent.name == "core" and parent.parent.name == "agilab":
-            return parent
+    # A wheel may live anywhere inside a checkout, including beneath core/.
+    # Only the executing SDK package's own source layout selects that checkout.
+    if {"site-packages", "dist-packages"}.intersection(source_path.parts):
+        return None
+    for package_root in source_path.parents:
+        core_root = package_root.parent
+        if (
+            package_root.name in {"agi-env", "agi-node", "agi-cluster"}
+            and core_root.name == "core"
+            and core_root.parent.name == "agilab"
+            and source_path.relative_to(package_root).parts[:2]
+            == ("src", package_root.name.replace("-", "_"))
+        ):
+            return core_root
     return None
+
+
+def _source_environment_selection(selected: bool | None) -> bool | None:
+    """Use the established explicit selector without consulting global markers."""
+    if selected is not None:
+        return selected
+    raw = os.environ.get("IS_SOURCE_ENV")
+    if raw is None:
+        return None
+    return raw.strip().lower() not in {"", "0", "false", "no"}
 
 
 def package_source_path_candidates(
@@ -24,13 +45,23 @@ def package_source_path_candidates(
     *,
     sys_prefix: str | os.PathLike[str] | None = None,
     source_file: str | os.PathLike[str] | None = None,
+    is_source_env: bool | None = None,
 ) -> tuple[Path, ...]:
-    """Return likely source roots for an AGILAB core package directory."""
+    """Return SDK source roots only for source execution or explicit source mode."""
+    selected = _source_environment_selection(is_source_env)
+    if selected is False:
+        return ()
+    core_root = resolve_core_source_root(source_file=source_file)
+    if core_root is not None:
+        return (core_root / package_dir_name / "src",)
+    if selected is not True:
+        return ()
+
     prefix_root = Path(sys_prefix or sys.prefix)
     try:
         source_root = Path(source_file or __file__).resolve()
     except (OSError, RuntimeError):
-        source_root = Path(source_file or __file__)
+        return ()
     candidates: list[Path] = []
     for root in (prefix_root, *prefix_root.parents, source_root, *source_root.parents):
         candidates.extend(
@@ -47,22 +78,26 @@ def resolve_node_source_path(
     *,
     sys_prefix: str | os.PathLike[str] | None = None,
     source_file: str | os.PathLike[str] | None = None,
+    is_source_env: bool | None = None,
 ) -> Path | None:
-    """Return the best repo-local ``agi-node/src`` path for the runtime layout."""
+    """Return the selected source environment's ``agi-node/src`` path."""
     for candidate in package_source_path_candidates(
         "agi-node",
         sys_prefix=sys_prefix,
         source_file=source_file,
+        is_source_env=is_source_env,
     ):
         if candidate.is_dir():
             return candidate
     return None
 
 
-def bootstrap_core_source_paths(*, source_file: str | Path | None = None) -> tuple[Path, ...]:
+def bootstrap_core_source_paths(
+    *, source_file: str | Path | None = None
+) -> tuple[Path, ...]:
     """Insert repo-local ``agi-node`` source roots and declared source deps."""
     core_root = resolve_core_source_root(source_file=source_file)
-    if core_root is None:
+    if core_root is None or _source_environment_selection(None) is False:
         return ()
 
     candidates = (

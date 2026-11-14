@@ -826,3 +826,357 @@ def test_clone_directory_skips_entries_that_are_neither_files_nor_directories(tm
     )
 
     assert not (dest_root / "odd.bin").exists()
+
+@pytest.mark.parametrize(
+    ("source", "destination"),
+    [
+        ("flight_roundtrip", "flight_roundtrip_01a1d57c"),
+        ("flight_01a1d57c", "mission_02b7x"),
+        ("flight_01a1d57c", "mission"),
+    ],
+)
+def test_clone_numeric_segments_preserve_dynamically_loaded_references(
+    tmp_path, monkeypatch, source, destination,
+):
+    import importlib
+    import sys
+
+    from agi_env.content_renamer_support import ContentRenamer
+
+    source_class = "".join(part.title() for part in source.split("_"))
+    destination_class = "".join(part.title() for part in destination.split("_"))
+    source_root = tmp_path / (source + "_project")
+    destination_root = tmp_path / (destination + "_project")
+    manager = source_root / "src" / source
+    worker = source_root / "src" / (source + "_worker")
+    manager.mkdir(parents=True)
+    worker.mkdir(parents=True)
+    (manager / "__init__.py").write_text("", encoding="utf-8")
+    (worker / "__init__.py").write_text("", encoding="utf-8")
+    (manager / (source + "_args.py")).write_text(
+        f"class {source_class}Args:\n    value = 7\n"
+        f"class {source_class}ArgsTD:\n    pass\n",
+        encoding="utf-8",
+    )
+    (manager / (source + ".py")).write_text(
+        f"from .{source}_args import {source_class}Args, {source_class}ArgsTD\n"
+        f"class {source_class}:\n    args_type = {source_class}Args\n"
+        f"    typed_args = {source_class}ArgsTD\n",
+        encoding="utf-8",
+    )
+    (worker / (source + "_worker.py")).write_text(
+        f"from {source}.{source} import {source_class}\n"
+        f"class {source_class}Worker:\n    manager_type = {source_class}\n",
+        encoding="utf-8",
+    )
+    (source_root / "pyproject.toml").write_text(
+        f'[project]\nname = "{source}_project"\n'
+        f'[project.scripts]\nrun = "{source}.{source}:{source_class}"\n',
+        encoding="utf-8",
+    )
+    mapping = create_rename_map(source_root, destination_root)
+    for suffix in ("", "Worker", "Args", "ArgsTD"):
+        assert mapping[source_class + suffix] == destination_class + suffix
+
+    clone_directory(
+        source_root, destination_root, mapping, GitIgnoreSpec.from_lines([]),
+        source_root,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        content_renamer_cls=ContentRenamer,
+        replace_content_fn=replace_text_content,
+    )
+    cleanup_rename(destination_root, mapping, replace_content_fn=replace_text_content)
+    monkeypatch.syspath_prepend(str(destination_root / "src"))
+    module_names = [
+        destination, destination + "." + destination,
+        destination + "." + destination + "_args",
+        destination + "_worker", destination + "_worker." + destination + "_worker",
+    ]
+    for name in module_names:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    importlib.invalidate_caches()
+    try:
+        worker_module = importlib.import_module(
+            f"{destination}_worker.{destination}_worker"
+        )
+        loaded = getattr(worker_module, destination_class + "Worker")
+        assert loaded.manager_type.__name__ == destination_class
+        assert loaded.manager_type.args_type.__name__ == destination_class + "Args"
+        assert loaded.manager_type.typed_args.__name__ == destination_class + "ArgsTD"
+        assert loaded.manager_type.args_type.value == 7
+        for path in sorted(destination_root.rglob("*")):
+            if path.is_file() and path.suffix in {".py", ".toml"}:
+                text = path.read_text(encoding="utf-8")
+                remaining = text.replace(destination_class, "").replace(destination, "")
+                assert source_class not in remaining
+                assert source not in remaining
+    finally:
+        for name in module_names:
+            sys.modules.pop(name, None)
+
+
+def _clone_ignore_probe(source, destination, tmp_path):
+    clone_project(
+        source,
+        destination,
+        apps_path=tmp_path / "workspace",
+        home_abs=tmp_path / "home",
+        projects=[],
+        logger=mock.Mock(),
+        create_rename_map_fn=create_rename_map,
+        clone_directory_fn=lambda src, dst, renames, spec, root: clone_directory(
+            src,
+            dst,
+            renames,
+            spec,
+            root,
+            ensure_dir_fn=lambda p: Path(p).mkdir(parents=True, exist_ok=True),
+            content_renamer_cls=ContentRenamer,
+            replace_content_fn=replace_text_content,
+        ),
+        cleanup_rename_fn=lambda root, renames: cleanup_rename(
+            root,
+            renames,
+            replace_content_fn=replace_text_content,
+        ),
+    )
+
+
+def test_clone_packaged_project_under_standard_uv_venv_keeps_payload(tmp_path):
+    import subprocess
+    import sys
+
+    venv = tmp_path / "standard-uv-env"
+    result = subprocess.run(
+        ["uv", "venv", "--python", sys.executable, str(venv)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    ignore = venv / ".gitignore"
+    original_ignore = ignore.read_bytes()
+    assert b"*" in original_ignore
+    source = venv / "lib" / "python3.13" / "site-packages" / "alpha_project"
+    (source / "src" / "alpha").mkdir(parents=True)
+    (source / "pyproject.toml").write_text('[project]\nname="alpha"\n')
+    (source / "src" / "alpha" / "__init__.py").write_text("class Alpha: pass\n")
+    (source / "data").mkdir()
+    (source / "data" / "input.csv").write_text("value\n1\n")
+    (source / ".gitignore").write_text("discard.txt\n")
+    (source / "discard.txt").write_text("project-owned ignore")
+    destination = tmp_path / "workspace" / "mission_2026_project"
+    _clone_ignore_probe(source, destination, tmp_path)
+    assert (destination / "pyproject.toml").is_file()
+    assert (destination / "src" / "mission_2026" / "__init__.py").is_file()
+    assert (destination / "data" / "input.csv").read_text() == "value\n1\n"
+    assert not (destination / "discard.txt").exists()
+    assert ignore.read_bytes() == original_ignore
+
+
+def test_clone_uses_only_owning_repository_ignores_with_scoped_paths(tmp_path):
+    (tmp_path / ".gitignore").write_text("*\n")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".git").mkdir()
+    (repo / ".gitignore").write_text("/unrelated.txt\napps/alpha_project/drop.txt\n")
+    source = repo / "apps" / "alpha_project"
+    source.mkdir(parents=True)
+    for name in ["keep.txt", "unrelated.txt", "drop.txt", "own.txt"]:
+        (source / name).write_text(name)
+    (source / ".gitignore").write_text("own.txt\n")
+    destination = tmp_path / "workspace" / "beta_project"
+    _clone_ignore_probe(source, destination, tmp_path)
+    assert (destination / "keep.txt").is_file()
+    assert (destination / "unrelated.txt").is_file()
+    assert not (destination / "drop.txt").exists()
+    assert not (destination / "own.txt").exists()
+
+
+def _scoped_ignore_project(tmp_path):
+    (tmp_path / ".gitignore").write_text("*\n")
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".gitignore").write_text(
+        "apps/alpha_project/repo.txt\napps/alpha_project/*.shared\n"
+    )
+    source = repo / "apps/alpha_project"
+    (source / "data/nested").mkdir(parents=True)
+    (source / ".gitignore").write_text(
+        "own.txt\n!kept.shared\n/anchored.txt\n*.secret\nblocked/\n"
+        "!blocked/keep.txt\ndata/*.drop\n"
+    )
+    (source / "data/.gitignore").write_text(
+        "*.secret\n!keep.secret\n/anchored.txt\n!keep.drop\nclosed/\n"
+    )
+    (source / "data/nested/.gitignore").write_text(
+        "!allowed.secret\n*.nested\n/local.txt\n"
+    )
+    decisions = {
+        "keep.txt": None,
+        "repo.txt": True,
+        "own.txt": True,
+        "lost.shared": True,
+        "kept.shared": False,
+        "anchored.txt": True,
+        "data/token.secret": True,
+        "data/keep.secret": False,
+        "data/anchored.txt": True,
+        "data/inner/anchored.txt": None,
+        "data/drop.drop": True,
+        "data/keep.drop": False,
+        "data/nested/allowed.secret": False,
+        "data/nested/token.secret": True,
+        "data/nested/drop.nested": True,
+        "data/nested/local.txt": True,
+        "other/allowed.secret": True,
+        "other/keep.txt": None,
+        "blocked/keep.txt": True,
+        "data/closed/token.txt": True,
+        "build/output.txt": True,
+        "dist/output.txt": True,
+        "__pycache__/cached.pyc": True,
+    }
+    for name in decisions:
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("payload\n")
+    return source, decisions
+
+
+def test_clone_ignore_public_file_apis_share_scopes_and_tristate(tmp_path):
+    source, expected = _scoped_ignore_project(tmp_path)
+    spec = project_clone_support._ProjectCloneIgnoreSpec(source, mock.Mock())
+    paths = [Path(name) for name in expected]
+    checked = list(spec.check_files(paths))
+    assert [result.file for result in checked] == paths
+    assert [result.include for result in checked] == list(expected.values())
+    for path, result in zip(paths, checked):
+        single = spec.check_file(path)
+        assert (single.include, single.index) == (result.include, result.index)
+        assert spec.match_file(path) is bool(result.include)
+        if result.index is not None:
+            assert 0 <= result.index < len(spec.patterns)
+    ignored = [path for path, include in zip(paths, expected.values()) if include]
+    kept = [path for path, include in zip(paths, expected.values()) if not include]
+    assert list(spec.match_files(iter(paths))) == ignored
+    assert list(spec.match_files(iter(paths), negate=True)) == kept
+    windows = [name.replace("/", "\\") for name in expected]
+    assert [r.include for r in spec.check_files(windows, separators=("\\",))] == list(
+        expected.values()
+    )
+    assert [spec.match_file(p, separators=("\\",)) for p in windows] == [
+        bool(v) for v in expected.values()
+    ]
+    assert list(spec.match_files(windows, separators=("\\",))) == [
+        name for name, include in zip(windows, expected.values()) if include
+    ]
+    assert spec.check_file("./data/keep.secret").include is False
+    assert spec.check_file("data/closed/").include is True
+
+
+@pytest.mark.parametrize(
+    "api",
+    [
+        "match_files",
+        "check_files",
+        "match_tree_files",
+        "check_tree_files",
+        "match_entries",
+        "match_tree_entries",
+        "match_tree",
+    ],
+)
+def test_clone_callback_bulk_and_tree_apis_obey_all_owned_ignores(tmp_path, api):
+    import shutil
+    from pathspec.util import iter_tree_entries
+
+    source, expected = _scoped_ignore_project(tmp_path)
+    destination = tmp_path / "workspace/beta_project"
+
+    def callback(src, dst, renames, spec, root):
+        files = sorted(
+            p.relative_to(src).as_posix() for p in src.rglob("*") if p.is_file()
+        )
+        if api == "match_files":
+            ignored = set(spec.match_files(iter(files)))
+        elif api == "check_files":
+            ignored = {r.file for r in spec.check_files(iter(files)) if r.include}
+        elif api == "check_tree_files":
+            ignored = {r.file for r in spec.check_tree_files(src) if r.include}
+        elif api == "match_entries":
+            ignored = {e.path for e in spec.match_entries(iter_tree_entries(src))}
+        elif api == "match_tree_entries":
+            ignored = {e.path for e in spec.match_tree_entries(src)}
+        elif api == "match_tree":
+            with pytest.warns(DeprecationWarning, match="match_tree"):
+                ignored = set(spec.match_tree(src))
+        else:
+            ignored = set(getattr(spec, api)(src))
+        for name in files:
+            if name not in ignored:
+                target = dst / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src / name, target)
+
+    clone_project(
+        source,
+        destination,
+        apps_path=tmp_path / "workspace",
+        home_abs=tmp_path / "home",
+        projects=[],
+        logger=mock.Mock(),
+        create_rename_map_fn=create_rename_map,
+        clone_directory_fn=callback,
+        cleanup_rename_fn=lambda *_: None,
+    )
+    for name, ignored in expected.items():
+        assert (destination / name).is_file() is not bool(ignored), (api, name)
+
+
+def test_recursive_clone_obeys_nested_rules_without_crossing_excluded_directories(
+    tmp_path,
+):
+    source, expected = _scoped_ignore_project(tmp_path)
+    destination = tmp_path / "workspace/beta_project"
+    _clone_ignore_probe(source, destination, tmp_path)
+    for name, ignored in expected.items():
+        assert (destination / name).is_file() is not bool(ignored), name
+
+
+def test_nested_ignore_exclusion_boundary_and_invalid_input_recovery(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "project"
+    (source / "data").mkdir(parents=True)
+    (source / ".gitignore").write_text("root.txt\n")
+    (source / "data/.gitignore").write_text("*.secret\n!keep.secret\n")
+    spec = project_clone_support._ProjectCloneIgnoreSpec(source, mock.Mock())
+    assert spec.check_file("data/token.secret").include is True
+    assert spec.check_file("data/keep.secret").include is False
+    for api in (spec.match_files, spec.check_files, spec.match_entries):
+        with pytest.raises(TypeError):
+            list(api("data/token.secret"))
+    with pytest.raises(ValueError, match="within the source project"):
+        spec.match_file("../external/secret.txt")
+    assert spec.check_file("data/keep.secret").include is False
+    assert spec.check_file("other/token.secret").include is None
+
+    # An ignore file behind a symlink is outside the project's ignore authority.
+    linked = source / "linked"
+    linked.mkdir()
+    (linked / ".gitignore").write_text("*\n")
+    original = Path.is_symlink
+    monkeypatch.setattr(Path, "is_symlink", lambda p: p == linked or original(p))
+    assert spec.check_file("linked/keep.txt").include is None
+
+
+def test_project_rule_cannot_reinclude_a_repository_excluded_parent(tmp_path):
+    repo = tmp_path / "repo"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".gitignore").write_text("apps/\n")
+    source = repo / "apps/alpha_project"
+    source.mkdir(parents=True)
+    (source / ".gitignore").write_text("!keep.txt\n")
+    spec = project_clone_support._ProjectCloneIgnoreSpec(source, mock.Mock())
+    assert spec.check_file("keep.txt").include is True

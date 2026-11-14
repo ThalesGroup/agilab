@@ -683,3 +683,38 @@ def test_agi_logger_configure_keeps_existing_base_name_when_none_provided():
         root.setLevel(original_level)
         AgiLogger._configured = original_configured
         AgiLogger._base_name = original_base_name
+
+
+@pytest.mark.parametrize("name", ["worker", "agi_cluster.runtime", "agilab.child"])
+def test_get_logger_keeps_named_descendants_without_duplicate_handlers(
+    monkeypatch, name
+):
+    monkeypatch.setattr(AgiLogger, "_base_name", "agilab")
+    base = AgiLogger.get_logger()
+    handlers = tuple(logging.getLogger().handlers)
+    named = AgiLogger.get_logger(name)
+    expected = name if name.startswith("agilab.") else f"agilab.{name}"
+    assert named.name == expected
+    assert named is AgiLogger.get_logger(name)
+    assert AgiLogger.get_logger("") is base
+    assert AgiLogger.get_logger("agilab") is base
+    assert not named.handlers
+    assert named.propagate
+    assert tuple(logging.getLogger().handlers) == handlers
+    records = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    capture = Capture()
+    base.addHandler(capture)
+    previous_level = base.level
+    base.setLevel(logging.INFO)
+    try:
+        named.info("one record")
+        assert len(records) == 1
+        assert records[0].name == expected
+    finally:
+        base.removeHandler(capture)
+        base.setLevel(previous_level)

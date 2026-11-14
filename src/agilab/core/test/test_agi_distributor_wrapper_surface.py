@@ -38,17 +38,18 @@ def test_resolve_node_src_returns_none_for_shallow_prefix(tmp_path):
     )
 
 
-def test_resolve_node_src_prefers_existing_repo_layout(tmp_path):
+def test_resolve_node_src_uses_explicit_source_prefix_layout(tmp_path):
     node_src = tmp_path / "env" / "agi-node" / "src"
     node_src.mkdir(parents=True)
 
     assert agi_distributor_module._resolve_node_src(
         sys_prefix=tmp_path / "env",
         source_file=tmp_path / "pkg" / "agi_distributor.py",
+        is_source_env=True,
     ) == str(node_src)
 
 
-def test_bootstrap_node_src_prepends_repo_layout_ahead_of_existing_paths(tmp_path):
+def test_bootstrap_node_src_prepends_explicit_source_layout(tmp_path):
     node_src = tmp_path / "env" / "agi-node" / "src"
     node_src.mkdir(parents=True)
     sys_path = ["site-packages/agi-node", "other"]
@@ -57,6 +58,7 @@ def test_bootstrap_node_src_prepends_repo_layout_ahead_of_existing_paths(tmp_pat
         sys_path=sys_path,
         sys_prefix=tmp_path / "env",
         source_file=tmp_path / "pkg" / "agi_distributor.py",
+        is_source_env=True,
     )
 
     assert added == str(node_src)
@@ -70,12 +72,16 @@ def test_agi_sync_wrapper_surface_delegates(monkeypatch, tmp_path):
     monkeypatch.setattr(
         agi_distributor_module.service_runtime_support,
         "service_queue_paths",
-        lambda queue_root: calls.append(("service_queue_paths", queue_root)) or {"root": queue_root},
+        lambda queue_root: (
+            calls.append(("service_queue_paths", queue_root)) or {"root": queue_root}
+        ),
     )
     monkeypatch.setattr(
         agi_distributor_module.capacity_support,
         "train_capacity",
-        lambda agi_cls, train_home, log=None: calls.append(("train_capacity", agi_cls, train_home, log)),
+        lambda agi_cls, train_home, log=None: calls.append(
+            ("train_capacity", agi_cls, train_home, log)
+        ),
     )
     monkeypatch.setattr(
         agi_distributor_module.capacity_support,

@@ -87,7 +87,9 @@ def test_bootstrap_core_source_paths_prefers_repo_layout(tmp_path, monkeypatch):
     assert bootstrap_mod.sys.path == [str(env_src), str(node_src)]
 
 
-def test_bootstrap_source_root_handles_unresolvable_and_foreign_paths(monkeypatch, tmp_path):
+def test_bootstrap_source_root_handles_unresolvable_and_foreign_paths(
+    monkeypatch, tmp_path
+):
     original_resolve = bootstrap_mod.Path.resolve
 
     def _raise_for_broken(self, *args, **kwargs):
@@ -97,13 +99,26 @@ def test_bootstrap_source_root_handles_unresolvable_and_foreign_paths(monkeypatc
 
     monkeypatch.setattr(bootstrap_mod.Path, "resolve", _raise_for_broken, raising=False)
 
-    assert bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "broken.py") is None
-    assert bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "standalone.py") is None
-    assert bootstrap_mod.bootstrap_core_source_paths(source_file=tmp_path / "standalone.py") == ()
+    assert (
+        bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "broken.py")
+        is None
+    )
+    assert (
+        bootstrap_mod.resolve_core_source_root(source_file=tmp_path / "standalone.py")
+        is None
+    )
+    assert (
+        bootstrap_mod.bootstrap_core_source_paths(
+            source_file=tmp_path / "standalone.py"
+        )
+        == ()
+    )
     assert bootstrap_mod.resolve_source_checkout_root(tmp_path / "broken.py") is None
 
 
-def test_package_source_path_candidates_handles_unresolvable_source(monkeypatch, tmp_path):
+def test_package_source_path_candidates_handles_unresolvable_source(
+    monkeypatch, tmp_path
+):
     original_resolve = bootstrap_mod.Path.resolve
 
     def _raise_for_source(self, *args, **kwargs):
@@ -119,7 +134,7 @@ def test_package_source_path_candidates_handles_unresolvable_source(monkeypatch,
         source_file=tmp_path / "source.py",
     )
 
-    assert tmp_path / "source.py" / "agi-node" / "src" in candidates
+    assert candidates == ()
 
 
 def test_resolve_checkout_root_for_site_packages_handles_unresolvable_and_non_venv(
@@ -189,10 +204,14 @@ def test_resolve_node_source_path_prefers_runtime_prefix_layout(tmp_path):
     node_src = tmp_path / "env" / "agi-node" / "src"
     node_src.mkdir(parents=True)
 
-    assert bootstrap_mod.resolve_node_source_path(
-        sys_prefix=tmp_path / "env",
-        source_file=tmp_path / "pkg" / "build.py",
-    ) == node_src
+    assert (
+        bootstrap_mod.resolve_node_source_path(
+            sys_prefix=tmp_path / "env",
+            source_file=tmp_path / "pkg" / "build.py",
+            is_source_env=True,
+        )
+        == node_src
+    )
 
 
 def test_resolve_node_source_path_finds_source_checkout_layout(tmp_path):
@@ -213,10 +232,13 @@ def test_resolve_node_source_path_finds_source_checkout_layout(tmp_path):
     source_file.parent.mkdir(parents=True)
     source_file.write_text("", encoding="utf-8")
 
-    assert bootstrap_mod.resolve_node_source_path(
-        sys_prefix=tmp_path / "venv",
-        source_file=source_file,
-    ) == node_src
+    assert (
+        bootstrap_mod.resolve_node_source_path(
+            sys_prefix=tmp_path / "venv",
+            source_file=source_file,
+        )
+        == node_src
+    )
 
 
 def test_append_shared_site_packages_appends_legacy_candidates_once(tmp_path):

@@ -7,6 +7,9 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable, cast
 
+from agi_env import AgiEnv
+from agi_env.runtime.runtime_bootstrap_support import resolve_worker_root
+
 from . import worker_tracking_support
 
 BUILD_ARTIFACT_EXCEPTIONS = (
@@ -564,6 +567,7 @@ def _resolve_worker_egg_install_paths(
     target_worker: str,
     dask_home: str,
     path_cls: type[Path] = Path,
+    worker_root: Path | None = None,
 ) -> tuple[str, Path]:
     dask_home_path = path_cls(dask_home)
     eggs = sorted(dask_home_path.glob(f"*{target_worker}*.egg")) or sorted(
@@ -574,7 +578,8 @@ def _resolve_worker_egg_install_paths(
             f"no egg file found in {dask_home} for target {target_worker}"
         )
     egg_src = str(eggs[0])
-    extract_path = path_cls(home_dir) / "wenv" / target_worker
+    root = worker_root if worker_root is not None else resolve_worker_root(home_path=home_dir)
+    extract_path = path_cls(root) / target_worker
     return egg_src, extract_path
 
 
@@ -653,11 +658,20 @@ def build_worker_artifacts(
             path_cls=path_cls,
         )
 
+        # A serialized worker class can retain a different host's manager env.
+        # Only this process's initialized environment can freeze its local root.
+        current_env = AgiEnv._instance
+        worker_root = (
+            current_env.worker_root
+            if current_env is not None and getattr(current_env, "_agilab_initialized", False)
+            else None
+        )
         egg_src, extract_path = _resolve_worker_egg_install_paths(
             home_dir=home_dir,
             target_worker=target_worker,
             dask_home=dask_home,
             path_cls=path_cls,
+            worker_root=worker_root,
         )
 
         if not mode & 2:

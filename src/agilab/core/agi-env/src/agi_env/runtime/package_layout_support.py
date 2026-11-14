@@ -77,9 +77,16 @@ def resolve_agilab_source_root_from_module_file(
     """Return the source checkout's ``src/agilab`` directory when discoverable."""
 
     module_path = path_cls(module_file).resolve()
-    for parent in module_path.parents:
-        if (parent / "core" / "agi-env").exists() and (parent / "apps").exists():
-            return parent
+    if {"site-packages", "dist-packages"}.intersection(module_path.parts):
+        return None
+    for package_root in module_path.parents:
+        if (
+            package_root.name == "agi-env"
+            and package_root.parent.name == "core"
+            and package_root.parent.parent.name == "agilab"
+            and module_path.relative_to(package_root).parts[:2] == ("src", "agi_env")
+        ):
+            return package_root.parent.parent
     if legacy_parent_index is not None:
         try:
             return module_path.parents[legacy_parent_index]
