@@ -3125,7 +3125,10 @@ async def test_deploy_local_worker_reuses_cached_uv_stages(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(tmp_path):
+@pytest.mark.parametrize("lock_owner", ["app", "worker"])
+async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(
+    tmp_path, monkeypatch, lock_owner
+):
     app_path = tmp_path / "app"
     app_path.mkdir(parents=True, exist_ok=True)
     (app_path / "pyproject.toml").write_text(
@@ -3176,10 +3179,18 @@ async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(tmp_pat
         cluster_pck=cluster_pck,
         logger=SimpleNamespace(warn=lambda *_a, **_k: None),
     )
+    _write_venv_python(app_path, python_version="3.13.3")
     commands = []
 
     async def _fake_run(cmd, cwd):
         commands.append((cmd, str(cwd)))
+        if Path(cwd) == wenv_abs and " sync " in cmd:
+            selected = next(
+                token.partition("=")[2]
+                for token in shlex.split(cmd)
+                if token.startswith("UV_PROJECT_ENVIRONMENT=")
+            )
+            _write_venv_python(Path(selected).parent, python_version="3.13.3")
         return ""
 
     async def _fake_build():
@@ -3223,6 +3234,68 @@ async def test_deploy_local_worker_shared_worker_venv_uses_runtime_cache(tmp_pat
     )
     assert any(f'pip install --python "{cache_root}' in cmd for cmd in worker_commands)
     assert not any("UV_PROJECT_ENVIRONMENT=" in cmd for cmd in manager_commands)
+
+    def selected_cache():
+        return deployment_local_support._shared_worker_venv_project(
+            env.envars,
+            active_app=app_path,
+            wenv_abs=wenv_abs,
+            python_version="3.13",
+            run_type="sync",
+            options_worker=" --extra pandas-worker",
+            worker_core_add_specs=[],
+            hw_rapids_capable=False,
+        )
+
+    async def deploy_again():
+        commands.clear()
+        agi_cls._install_done_local = False
+        await _call_deploy_local_worker(
+            agi_cls,
+            app_path,
+            Path("worker_env"),
+            " --extra pandas-worker",
+            agi_version_missing_on_pypi_fn=lambda _p: False,
+            run_fn=_fake_run,
+            set_env_var_fn=lambda *_a, **_k: None,
+            log=mock.Mock(),
+        )
+
+    first_cache = selected_cache()
+    assert _venv_python(first_cache).is_file()
+    await deploy_again()
+    assert selected_cache() == first_cache
+    assert not any(" sync " in cmd and cwd == str(wenv_abs) for cmd, cwd in commands)
+
+    lock = (app_path if lock_owner == "app" else wenv_abs) / "uv.lock"
+    lock.write_text("version = 1\nrevision = 2\n", encoding="utf-8")
+    await deploy_again()
+    changed_cache = selected_cache()
+    assert changed_cache != first_cache
+    assert _venv_python(changed_cache).is_file()
+    assert any(
+        " sync " in cmd and cwd == str(wenv_abs) and str(changed_cache) in cmd
+        for cmd, cwd in commands
+    )
+    original_read = Path.read_bytes
+
+    def unreadable(path):
+        if path == lock:
+            raise PermissionError("authoritative lock unavailable")
+        return original_read(path)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "read_bytes", unreadable)
+        with pytest.raises(PermissionError, match="authoritative lock"):
+            await deploy_again()
+
+    import shutil
+
+    shutil.rmtree(changed_cache / ".venv")
+    await deploy_again()
+    assert selected_cache() == changed_cache
+    assert _venv_python(changed_cache).is_file()
+    assert any(" sync " in cmd and cwd == str(wenv_abs) for cmd, cwd in commands)
 
 
 @pytest.mark.asyncio

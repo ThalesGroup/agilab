@@ -223,3 +223,22 @@ def test_configure_worker_runtime_warns_when_project_worker_copy_fails(tmp_path:
     )
 
     assert logger.warning.called
+
+
+def test_configure_worker_runtime_uses_frozen_local_root_and_remote_relatives(tmp_path):
+    env = _dummy_env(tmp_path)
+    env.worker_root = tmp_path / "isolated-workers"
+    configure_worker_runtime(
+        env, target="flight_01a1d57c", home_abs=tmp_path / "home",
+        apps_path=tmp_path / "apps", apps_root=tmp_path / "apps", envars={},
+        requested_active_app=env.active_app,
+        ensure_dir_fn=lambda path: Path(path).mkdir(parents=True, exist_ok=True) or Path(path),
+        normalize_path_fn=str, parse_int_env_value_fn=lambda *_a, **_k: 0,
+        python_supports_free_threading_fn=lambda: False, logger=mock.Mock(), sys_path=[],
+    )
+    assert env.wenv_abs == env.worker_root / "flight_01a1d57c_worker"
+    assert env.dist_abs == env.wenv_abs / "dist"
+    assert env.wenv_rel == Path("wenv/flight_01a1d57c_worker")
+    assert env.dist_rel == Path("wenv/flight_01a1d57c_worker/dist")
+    assert env.target_worker_class == "Flight01A1D57CWorker"
+    assert not (tmp_path / "home/wenv").exists()

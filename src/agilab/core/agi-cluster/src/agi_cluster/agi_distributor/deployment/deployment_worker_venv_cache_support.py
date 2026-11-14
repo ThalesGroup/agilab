@@ -22,7 +22,7 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
             "path": path.name,
             "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         }
-    except OSError:
+    except FileNotFoundError:
         return {"path": path.name, "missing": True}
 
 
@@ -37,7 +37,7 @@ def _shared_worker_venv_cache_key(
     hw_rapids_capable: bool,
 ) -> str:
     payload = {
-        "schema": "agilab-worker-venv-v1",
+        "schema": "agilab-worker-venv-v2",
         "os_name": os.name,
         "platform": platform.system(),
         "machine": platform.machine(),
@@ -48,6 +48,8 @@ def _shared_worker_venv_cache_key(
         "active_app": str(active_app.resolve(strict=False)),
         "worker_pyproject": _file_fingerprint(wenv_abs / "pyproject.toml"),
         "worker_uv_config": _file_fingerprint(wenv_abs / "uv_config.toml"),
+        "worker_uv_lock": _file_fingerprint(wenv_abs / "uv.lock"),
+        "app_uv_lock": _file_fingerprint(active_app / "uv.lock"),
         "app_pyproject": _file_fingerprint(active_app / "pyproject.toml"),
         "app_uv_config": _file_fingerprint(active_app / "uv_config.toml"),
         "worker_core_add_specs": sorted(str(spec) for spec in worker_core_add_specs),

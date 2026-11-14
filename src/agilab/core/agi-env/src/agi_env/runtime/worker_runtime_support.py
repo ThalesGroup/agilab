@@ -254,7 +254,7 @@ def configure_worker_runtime(
     env_obj.target_worker_class = target_class + "Worker"
 
     env_obj.dist_rel = env_obj.wenv_rel / "dist"
-    env_obj.wenv_abs = home_abs / env_obj.wenv_rel
+    env_obj.wenv_abs = getattr(env_obj, "worker_root", home_abs / wenv_root) / target_worker
     ensure_dir_fn(env_obj.wenv_abs)
 
     env_obj.pre_install = getattr(env_obj, "worker_pre_install", None)
