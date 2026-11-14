@@ -570,7 +570,7 @@ def _artifact_state(path: Path, *, now: datetime, max_age_days: int) -> dict[str
         "path": str(path),
         "exists": True,
         "age_days": round(age_days, 3),
-        "fresh": age_days <= max_age_days,
+        "fresh": 0 <= age_days <= max_age_days,
     }
 
 
