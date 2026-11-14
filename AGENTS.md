@@ -692,10 +692,15 @@ Use this runbook whenever you:
 - **Isolated resources**: Set `AGILAB_RESOURCES_DIR` to a fully expanded absolute
   directory before environment initialization to isolate resource files and their
   `.env`. It is selected before dotenv loading and frozen for local child
-  processes. Use a separate process for concurrent contexts; use the existing
-  workflow-data and worker-deployment settings for data and worker environments.
-  Do not propagate a manager's local resources path into remote worker settings.
-  With the selector unset, preserve the historical default behavior.
+  processes. Use a separate process for concurrent contexts and the existing
+  workflow-data settings for data. Set `AGILAB_WORKER_ROOT` before initialization
+  to isolate local worker installations; it is validated before dotenv and frozen
+  for the environment, app reinitialization and local children. Unset selection
+  preserves `home_abs/wenv`, including managed-PC homes. Deployment remains an
+  explicit action; remote `wenv/<worker>` paths stay unchanged. Do not propagate
+  either manager-local selector into remote worker settings. Standalone notebook
+  replay selects its own valid local context before initialization.
+  With the resources selector unset, preserve its historical default behavior.
 - **Source builtin qualification**: Reproduce the complete PROJECT clone lifecycle,
   including `_repair_cloned_builtin_source_paths` and environment finalization.
   The lower-level SDK clone helper only copies and renames the project; omitted
