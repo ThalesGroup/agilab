@@ -13,6 +13,208 @@ REPORT_PATH = Path("tools/repository_knowledge_report.py").resolve()
 CORE_PATH = Path("src/agilab/repository_knowledge.py").resolve()
 
 
+def test_repository_knowledge_default_temp_alias_cli(tmp_path: Path) -> None:
+    import json
+    import subprocess
+    import tempfile
+
+    repo = tmp_path / "public-temp-repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Public temporary-output fixture\n")
+    physical_base = Path(
+        os.environ.get("AGILAB_KEX_TEST_TEMP_ROOT", tempfile.gettempdir())
+    ).resolve(strict=True)
+    system_alias = Path("/tmp")
+    with tempfile.TemporaryDirectory(
+        prefix="agilab-knowledge-owned-", dir=physical_base
+    ) as owned:
+        physical = Path(owned)
+        try:
+            relative = physical.relative_to(system_alias.resolve(strict=True))
+        except ValueError:
+            relative = None
+        if system_alias.is_symlink() and relative is not None:
+            alias = system_alias / relative
+        else:
+            alias = tmp_path / "selected-temp-alias"
+            alias.symlink_to(physical, target_is_directory=True)
+        before = sorted(path.name for path in physical.iterdir())
+        results = []
+        for selected in (physical, alias):
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-B",
+                    str(REPORT_PATH),
+                    "--repo-root",
+                    str(repo),
+                    "--compact",
+                    "--no-cache",
+                ],
+                env={
+                    **os.environ,
+                    "TMPDIR": str(selected),
+                    "TEMP": str(selected),
+                    "TMP": str(selected),
+                    "PYTHONPATH": str(REPORT_PATH.parents[1] / "src"),
+                },
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            results.append(completed)
+            assert "Traceback" not in completed.stderr
+            assert len(completed.stdout.encode("utf-8")) < 65536
+            assert sorted(path.name for path in physical.iterdir()) == before
+        assert [result.returncode for result in results] == [1, 1], [
+            (result.returncode, result.stdout, result.stderr) for result in results
+        ]
+        normalized = []
+        for result in results:
+            report = json.loads(result.stdout)
+            assert report["report"] == "Repository knowledge index report"
+            assert report["summary"]["round_trip_ok"] is True
+            output = report["summary"]["path"]
+            assert Path(output).parent.parent == physical
+            assert not Path(output).parent.exists()
+            normalized.append(
+                json.loads(result.stdout.replace(output, "<internal-temporary-index>"))
+            )
+        assert normalized[0] == normalized[1]
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "directory"])
+def test_internal_temp_root_replacement_refuses_and_recovers(
+    tmp_path: Path, monkeypatch, replacement
+) -> None:
+    module = _load_module(REPORT_PATH, "knowledge_internal_temp_root_test")
+    repo = tmp_path / "public-repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Public fixture\n")
+    selected = tmp_path / "selected-temp-root"
+    selected.mkdir()
+    held = tmp_path / "held-temp-root"
+    outside = tmp_path / "outside-temp-root"
+    outside.mkdir()
+    sentinel = outside / "sentinel.json"
+    sentinel.write_bytes(b"PUBLIC OUTSIDE SENTINEL\n")
+    monkeypatch.setattr(module.tempfile, "gettempdir", lambda: str(selected))
+    open_directory = module._open_directory
+    descriptors = []
+
+    def replace_after_pin(path, **kwargs):
+        descriptor = open_directory(path, **kwargs)
+        descriptors.append(descriptor)
+        selected.rename(held)
+        if replacement == "symlink":
+            selected.symlink_to(outside, target_is_directory=True)
+        else:
+            selected.mkdir()
+        return descriptor
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "_open_directory", replace_after_pin)
+        with pytest.raises((module.RepositoryKnowledgeError, OSError)):
+            module.build_report(repo_root=repo, use_record_cache=False)
+    assert sorted(path.name for path in outside.iterdir()) == ["sentinel.json"]
+    assert sentinel.read_bytes() == b"PUBLIC OUTSIDE SENTINEL\n"
+    assert not list(held.iterdir())
+    if replacement == "symlink":
+        assert selected.is_symlink()
+        selected.unlink()
+    else:
+        assert not list(selected.iterdir())
+        selected.rmdir()
+    held.rename(selected)
+    for descriptor in descriptors:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert module.build_report(repo_root=repo, use_record_cache=False)["summary"][
+        "round_trip_ok"
+    ]
+    assert not list(selected.iterdir())
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "directory"])
+def test_internal_temp_output_parent_identity_refusal_and_recovery(
+    tmp_path: Path, monkeypatch, replacement
+) -> None:
+    module = _load_module(REPORT_PATH, "knowledge_internal_temp_output_test")
+    repo = tmp_path / "public-repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Public fixture\n")
+    selected = tmp_path / "selected-temp-root"
+    selected.mkdir()
+    outside = tmp_path / "outside-temp-output"
+    outside.mkdir()
+    sentinel = outside / "repository_knowledge_index.json"
+    sentinel.write_bytes(b"PUBLIC OUTSIDE SENTINEL\n")
+    monkeypatch.setattr(module.tempfile, "gettempdir", lambda: str(selected))
+    with module._temporary_report_output() as (output, identity):
+        owned = output.parent
+        held = selected / "held-owned-directory"
+        owned.rename(held)
+        if replacement == "symlink":
+            owned.symlink_to(outside, target_is_directory=True)
+        else:
+            owned.mkdir()
+            (owned / output.name).write_bytes(b"REPLACEMENT SENTINEL\n")
+        try:
+            with pytest.raises((module.RepositoryKnowledgeError, OSError)):
+                module._build_report_with_path(
+                    repo_root=repo,
+                    output_path=output,
+                    record_cache_path=None,
+                    _expected_parent=identity,
+                )
+            assert sentinel.read_bytes() == b"PUBLIC OUTSIDE SENTINEL\n"
+            assert not list(held.iterdir())
+            if replacement == "directory":
+                assert (owned / output.name).read_bytes() == b"REPLACEMENT SENTINEL\n"
+        finally:
+            if replacement == "symlink":
+                owned.unlink()
+            else:
+                owned.rename(tmp_path / "preserved-replacement")
+            held.rename(owned)
+    assert not owned.exists()
+    assert module.build_report(repo_root=repo, use_record_cache=False)["summary"][
+        "round_trip_ok"
+    ]
+    assert not list(selected.iterdir())
+
+
+def test_internal_temp_open_failure_cleans_and_recovers(
+    tmp_path: Path, monkeypatch
+) -> None:
+    module = _load_module(REPORT_PATH, "knowledge_internal_temp_open_test")
+    repo = tmp_path / "public-repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Public fixture\n")
+    selected = tmp_path / "selected-temp-root"
+    selected.mkdir()
+    monkeypatch.setattr(module.tempfile, "gettempdir", lambda: str(selected))
+    open_file = os.open
+
+    def fail_owned_open(path, flags, *args, **kwargs):
+        if str(path).startswith("agilab-repository-knowledge-"):
+            raise OSError("controlled owned-directory open failure")
+        return open_file(path, flags, *args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(module.os, "open", fail_owned_open)
+        patch.setattr(
+            module.os, "supports_dir_fd", {*os.supports_dir_fd, fail_owned_open}
+        )
+        with pytest.raises(OSError, match="controlled"):
+            module.build_report(repo_root=repo, use_record_cache=False)
+    assert not list(selected.iterdir())
+    assert module.build_report(repo_root=repo, use_record_cache=False)["summary"][
+        "round_trip_ok"
+    ]
+    assert not list(selected.iterdir())
+
+
 def _load_module(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
@@ -130,7 +332,9 @@ def test_repository_knowledge_report_docs_failure_and_temporary_output(
     assert docs_check["status"] == "fail"
     assert "error" in docs_check["details"]
 
-    def _fake_persist_repository_knowledge_index(*, repo_root, output_path, record_cache_path):
+    def _fake_persist_repository_knowledge_index(
+        *, repo_root, output_path, record_cache_path, _expected_parent=None
+    ):
         del repo_root, record_cache_path
         state = {
             "schema": module.SCHEMA,
@@ -382,16 +586,17 @@ def test_repository_knowledge_records_skip_duplicate_scan_hits(
     module = _load_module(CORE_PATH, "repository_knowledge_duplicate_scan_module")
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
-    shared = repo_root / "shared.py"
+    shared = repo_root / "src" / "agilab" / "shared.py"
+    shared.parent.mkdir(parents=True)
     shared.write_text("VALUE = 1\n", encoding="utf-8")
 
-    monkeypatch.setattr(module, "_iter_files", lambda _root: [shared])
+    monkeypatch.setattr(module, "_iter_files", lambda _root: [shared, shared])
     monkeypatch.setattr(module, "_iter_named_files", lambda _root, _filename: [shared])
 
     records = module._records(repo_root)
 
     assert len(records) == 1
-    assert records[0]["path"] == "shared.py"
+    assert records[0]["path"] == "src/agilab/shared.py"
     assert records[0]["kind"] == "package_source"
 
 
@@ -605,6 +810,8 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
         "kind": "package_source",
         "suffix": ".py",
         "size": 12,
+        "mtime_ns": 1,
+        "source_identity": {"device": 1, "inode": 2},
         "sha256": "abc",
     }
     valid_record = {
@@ -614,6 +821,8 @@ def test_repository_knowledge_record_cache_rejects_invalid_entries(tmp_path: Pat
         "suffix": ".py",
         "size_bytes": 12,
         "line_count": 1,
+        **module._python_outline_text("VALUE = 1\n"),
+        "source_identity": {"device": 1, "inode": 2},
         "sha256": "abc",
     }
     assert module._cached_record({"entries": []}, signature) is None
@@ -654,3 +863,40 @@ def test_repository_knowledge_excluded_existing_handles_unreadable_root(tmp_path
             return tmp_path / child
 
     assert module._excluded_existing(_UnreadableRoot()) == []
+
+
+@pytest.mark.parametrize("flag", ["--index", "--build-index"])
+def test_final_three_cli_validates_query_utf8_before_source_access(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, flag: str
+) -> None:
+    import json
+
+    module = _load_module(REPORT_PATH, "repository_knowledge_final_three_query_module")
+
+    def unexpected_source_access(*_args, **_kwargs):
+        pytest.fail("invalid query accessed source or created output")
+
+    monkeypatch.setattr(
+        module, "load_repository_knowledge_index", unexpected_source_access
+    )
+    monkeypatch.setattr(
+        module, "persist_repository_knowledge_index", unexpected_source_access
+    )
+    result = module.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            flag,
+            str(tmp_path / "absent" / "index.json"),
+            "--query",
+            os.fsdecode(bytes([255])),
+            "--compact",
+        ]
+    )
+    captured = capsys.readouterr()
+    assert result == 2 and not captured.err
+    assert len(captured.out.encode("utf-8")) <= 1024
+    payload = json.loads(captured.out)
+    assert payload["status"] == "fail" and "UTF-8" in payload["error"]
+    assert set(payload) == {"status", "error"}
+    assert not (tmp_path / "absent").exists()

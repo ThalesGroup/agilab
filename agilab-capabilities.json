@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-13T20:54:01Z",
+  "generated_at_utc": "2026-11-13T21:47:14Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 325,
+    "evidence_schema_count": 327,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2766,6 +2766,12 @@
       ]
     },
     {
+      "schema": "agilab.repository_knowledge_confined_source.v1",
+      "sources": [
+        "src/agilab/reports/repository_knowledge.py"
+      ]
+    },
+    {
       "schema": "agilab.repository_knowledge_index.v1",
       "sources": [
         "docs/source/features.rst",
@@ -2777,6 +2783,12 @@
     },
     {
       "schema": "agilab.repository_knowledge_record_cache.v1",
+      "sources": [
+        "src/agilab/reports/repository_knowledge.py"
+      ]
+    },
+    {
+      "schema": "agilab.repository_knowledge_search.v1",
       "sources": [
         "src/agilab/reports/repository_knowledge.py"
       ]
