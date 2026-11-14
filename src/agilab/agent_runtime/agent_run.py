@@ -953,8 +953,13 @@ def run_agent_command(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     perf_counter: Callable[[], float] = time.perf_counter,
     cancelled: Callable[[], bool] | None = None,
+    prepare_environment: Callable[[dict[str, str]], Mapping[str, str]] | None = None,
 ) -> AgentRunResult:
-    """Execute an agent command and write a local trace manifest."""
+    """Execute an agent command and write a local trace manifest.
+
+    prepare_environment runs after permission approval and command_start, so an
+    explicit observer can inject child context without replacing native capture.
+    """
 
     transaction = _AgentRunTransaction(started_at=_utc_now(), started=0.0)
     _claim_agent_run_output(config)
@@ -966,6 +971,7 @@ def run_agent_command(
             runner=runner,
             perf_counter=perf_counter,
             cancelled=cancelled,
+            prepare_environment=prepare_environment,
         )
     except BaseException as exc:
         if isinstance(exc, Exception):
@@ -996,6 +1002,7 @@ def _run_claimed_agent_command(
     runner: Callable[..., subprocess.CompletedProcess[str]],
     perf_counter: Callable[[], float],
     cancelled: Callable[[], bool] | None = None,
+    prepare_environment: Callable[[dict[str, str]], Mapping[str, str]] | None = None,
 ) -> AgentRunResult:
     """Execute a command after its output directory has been claimed."""
 
@@ -1150,6 +1157,8 @@ def _run_claimed_agent_command(
         return AgentRunResult(manifest=manifest, returncode=returncode)
 
     transaction.phase = "command launch"
+    if prepare_environment is not None:
+        env = dict(prepare_environment(env))
     capture = None
     if runner is subprocess.run:
         transaction.streamed_outputs = True

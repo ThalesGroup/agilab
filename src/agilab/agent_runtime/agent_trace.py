@@ -5,19 +5,23 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import base64
 import hashlib
 from collections import deque
 from datetime import datetime, timezone
 from contextlib import contextmanager
+from contextvars import ContextVar
 import json
 import os
 from pathlib import Path
 import socket
 import tempfile
+import threading
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
+import warnings
+import weakref
 
 from agilab.security.secret_uri import redact_mapping, redact_text
 
@@ -28,6 +32,7 @@ EVENTS_FILENAME = "agent_events.ndjson"
 TOOL_OUTPUT_DIRNAME = "tool-output"
 LOCK_TIMEOUT_SECONDS = 5.0
 LOCK_STALE_SECONDS = 30.0
+MAX_OBSERVER_QUEUE = 256
 VALID_EVENT_TYPES = frozenset(
     {
         "session_start",
@@ -63,6 +68,24 @@ class AgentTraceEvent:
     metadata: dict[str, Any]
 
 
+_TRACE_OBSERVERS: ContextVar[tuple[Callable[[AgentTraceEvent], None], ...]] = (
+    ContextVar("agilab_trace_observers", default=())
+)
+_OBSERVER_ACTIVE: ContextVar[bool] = ContextVar(
+    "agilab_trace_observer_active", default=False
+)
+
+
+@contextmanager
+def observe_trace_events(*observers: Callable[[AgentTraceEvent], None]):
+    """Opt in for stores created in this context; no process-wide/network default."""
+    token = _TRACE_OBSERVERS.set((*_TRACE_OBSERVERS.get(), *observers))
+    try:
+        yield
+    finally:
+        _TRACE_OBSERVERS.reset(token)
+
+
 @dataclass(frozen=True)
 class AgentTraceSummary:
     """Compact read-side summary for an agent trace directory."""
@@ -81,7 +104,7 @@ class AgentTraceSummary:
 def utc_now() -> str:
     """Return an RFC3339-ish UTC timestamp used across trace records."""
 
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -554,6 +577,66 @@ def trace_page(path: Path | str, *, cursor: str = "", limit: int = 50,
             "truncated": any(e.get("truncated", False) for e in events)}
 
 
+@dataclass(eq=False)
+class _ObserverWork:
+    origin: AgentTraceStore
+    record: AgentTraceEvent
+    ready: threading.Event = field(default_factory=threading.Event)
+    error_type: str = ""
+    reporting_failure: bool = False
+    timeout_reported: bool = False
+
+
+class _ObserverDispatch:
+    """Live handles for one canonical trace share bounded, ordered delivery."""
+
+    def __init__(self, key: tuple[str, str]) -> None:
+        self.key = key
+        self.queue: deque[_ObserverWork] = deque()
+        self.queue_lock = threading.Lock()
+        self.dispatch_lock = threading.Lock()
+        self.idle = threading.Event()
+        self.idle.set()
+        self.current: _ObserverWork | None = None
+        self.unfinished: set[_ObserverWork] = set()
+        self.rejecting = False
+        self.timeout_notification: _ObserverWork | None = None
+        self.timeout_thread: threading.Thread | None = None
+        self.handles: weakref.WeakSet[AgentTraceStore] = weakref.WeakSet()
+
+    def retire(self) -> None:
+        # Keep an in-flight drain discoverable even after its last handle closes.
+        with _OBSERVER_DISPATCHES_LOCK, self.queue_lock:
+            if self.timeout_notification is not None:
+                _OBSERVER_TIMEOUT_DISPATCHES[self.key] = self
+            elif _OBSERVER_TIMEOUT_DISPATCHES.get(self.key) is self:
+                del _OBSERVER_TIMEOUT_DISPATCHES[self.key]
+            if not self.handles and self.idle.is_set():
+                if _OBSERVER_DISPATCHES.get(self.key) is self:
+                    del _OBSERVER_DISPATCHES[self.key]
+
+
+_OBSERVER_DISPATCHES_LOCK = threading.Lock()
+_OBSERVER_DISPATCHES: weakref.WeakValueDictionary[
+    tuple[str, str], _ObserverDispatch
+] = weakref.WeakValueDictionary()
+# Pending notifications own their dispatcher even if thread creation must retry.
+_OBSERVER_TIMEOUT_DISPATCHES: dict[tuple[str, str], _ObserverDispatch] = {}
+
+
+def _trace_observer_dispatch(store: AgentTraceStore) -> _ObserverDispatch:
+    key = (os.path.normcase(str(store.events_path.resolve())), store.run_id)
+    if not store.observers:
+        return _ObserverDispatch(key)
+    with _OBSERVER_DISPATCHES_LOCK:
+        dispatch = _OBSERVER_DISPATCHES.get(key)
+        if dispatch is None:
+            dispatch = _ObserverDispatch(key)
+            _OBSERVER_DISPATCHES[key] = dispatch
+        dispatch.handles.add(store)
+        return dispatch
+
+
 class AgentTraceStore:
     """Directory-backed append-only event store for one AGILAB agent run."""
 
@@ -566,6 +649,7 @@ class AgentTraceStore:
         label: str = "",
         provider: str = "",
         model: str = "",
+        observers: Sequence[Callable[[AgentTraceEvent], None]] | None = None,
     ) -> None:
         self.root = Path(root).expanduser()
         self.run_id = run_id
@@ -573,6 +657,16 @@ class AgentTraceStore:
         self.label = label
         self.provider = provider
         self.model = model
+        self.observers = tuple(
+            _TRACE_OBSERVERS.get() if observers is None else observers
+        )
+        self.observer_errors: deque[dict[str, Any]] = deque(maxlen=100)
+        self._observer_dispatch = _trace_observer_dispatch(self)
+        self._observer_queue = self._observer_dispatch.queue
+        self._observer_queue_lock = self._observer_dispatch.queue_lock
+        self._observer_dispatch_lock = self._observer_dispatch.dispatch_lock
+        self._observer_idle = self._observer_dispatch.idle
+        self._observers_closed = False
 
     @property
     def meta_path(self) -> Path:
@@ -640,29 +734,260 @@ class AgentTraceStore:
         if not self.meta_path.exists():
             self.initialize()
 
-        with _event_file_lock(self.events_path):
-            _validate_trace_run_identity(
-                _read_json(self.meta_path),
-                expected_run_id=self.run_id,
-                meta_path=self.meta_path,
-            )
-            repair_jsonl_tail(self.events_path)
-            sequence = _last_event_sequence(self.events_path) + 1
-            record = AgentTraceEvent(
-                schema=TRACE_SCHEMA,
-                event=event,
-                run_id=self.run_id,
-                sequence=sequence,
-                created_at=utc_now(),
-                status=status,
-                message=redact_text(message),
-                metadata=redact_mapping(metadata or {}),
-            )
-            with self.events_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
+        work = None
+        try:
+            with _event_file_lock(self.events_path):
+                _validate_trace_run_identity(
+                    _read_json(self.meta_path),
+                    expected_run_id=self.run_id,
+                    meta_path=self.meta_path,
+                )
+                repair_jsonl_tail(self.events_path)
+                sequence = _last_event_sequence(self.events_path) + 1
+                record = AgentTraceEvent(
+                    schema=TRACE_SCHEMA,
+                    event=event,
+                    run_id=self.run_id,
+                    sequence=sequence,
+                    created_at=utc_now(),
+                    status=status,
+                    message=redact_text(message),
+                    metadata=redact_mapping(metadata or {}),
+                )
+                with self.events_path.open("a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(asdict(record), sort_keys=True) + "\n")
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                # Reserve FIFO order here; the originating lock still holds.
+                work = self._queue_observer(record)
+        finally:
+            if work is not None:
+                # Publish readiness only after this append's lock context exits.
+                with self._observer_queue_lock:
+                    work.ready.set()
+                if work.error_type:
+                    try:
+                        self._observer_failure(work.record, work.error_type)
+                    finally:
+                        self._complete_observer_work(work)
+                self._drain_observers()
         return record
+
+    def _queue_observer(self, record: AgentTraceEvent) -> _ObserverWork | None:
+        if not self.observers or _OBSERVER_ACTIVE.get():
+            return None
+        work = _ObserverWork(self, record)
+        with self._observer_queue_lock:
+            self._observer_dispatch.unfinished.add(work)
+            self._observer_idle.clear()
+            if self._observers_closed:
+                work.error_type = "ObserverDispatchClosed"
+            elif self._observer_dispatch.rejecting:
+                work.error_type = "ObserverDrainBudgetExceeded"
+            elif len(self._observer_queue) >= MAX_OBSERVER_QUEUE:
+                work.error_type = "ObserverQueueFull"
+            else:
+                self._observer_queue.append(work)
+            work.reporting_failure = bool(work.error_type)
+        return work
+
+    def _complete_observer_work(self, work: _ObserverWork) -> None:
+        with self._observer_queue_lock:
+            self._observer_dispatch.unfinished.discard(work)
+            if self._observer_dispatch.timeout_notification is work:
+                self._observer_dispatch.timeout_notification = None
+                self._observer_dispatch.timeout_thread = None
+            if self._observer_dispatch.current is work:
+                self._observer_dispatch.current = None
+            if (
+                not self._observer_dispatch.unfinished
+                and not self._observer_dispatch_lock.locked()
+            ):
+                self._observer_idle.set()
+        self._observer_dispatch.retire()
+
+    def _notify_observer_failure(
+        self, record: AgentTraceEvent, error_type: str, observer=None
+    ) -> None:
+        # Arbitrary sink code runs outside trace/queue locks, recursion guarded.
+        token = _OBSERVER_ACTIVE.set(True)
+        try:
+            for target in self.observers if observer is None else (observer,):
+                try:
+                    failure = getattr(target, "observation_failed", None)
+                    if failure:
+                        failure(sequence=record.sequence, error_type=error_type)
+                except Exception:
+                    pass
+        finally:
+            _OBSERVER_ACTIVE.reset(token)
+
+    def _observer_failure(
+        self, record: AgentTraceEvent, error_type: str, observer=None, *, notify=True
+    ) -> None:
+        self.observer_errors.append(
+            {"sequence": record.sequence, "error_type": error_type}
+        )
+        if notify:
+            self._notify_observer_failure(record, error_type, observer)
+        token = _OBSERVER_ACTIVE.set(True)
+        try:
+            try:
+                warnings.warn(
+                    f"Trace observer failed after durable event {record.sequence} "
+                    f"({error_type}); execution status is unchanged.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            except RuntimeWarning:
+                pass
+        finally:
+            _OBSERVER_ACTIVE.reset(token)
+
+    def _deliver_timeout_notification(self, work: _ObserverWork) -> None:
+        try:
+            work.origin._notify_observer_failure(work.record, work.error_type)
+        finally:
+            self._complete_observer_work(work)
+            work.ready.set()  # This notification never enters the record queue.
+
+    def _drain_observers(self) -> None:
+        """One consumer; bounded pending records and scheduling per append."""
+        if not self._observer_dispatch_lock.acquire(blocking=False):
+            return
+        owned = True
+        token = _OBSERVER_ACTIVE.set(True)
+        deadline = time.monotonic() + LOCK_TIMEOUT_SECONDS
+        processed = 0
+        notification = None
+        try:
+            while True:
+                with self._observer_queue_lock:
+                    if not self._observer_queue:
+                        if self._observer_dispatch.timeout_thread is not None:
+                            notification = self._observer_dispatch.timeout_notification
+                        self._observer_dispatch.current = None
+                        self._observer_dispatch.rejecting = False
+                        self._observer_dispatch_lock.release()
+                        owned = False
+                        if not self._observer_dispatch.unfinished:
+                            self._observer_idle.set()
+                        break
+                    if processed >= MAX_OBSERVER_QUEUE or time.monotonic() >= deadline:
+                        # Bound the batch; new appends report rejection separately.
+                        self._observer_dispatch.rejecting = True
+                    work = self._observer_queue[0]
+                    self._observer_dispatch.current = work
+                work.ready.wait(max(0, deadline - time.monotonic()))
+                with self._observer_queue_lock:
+                    if not work.ready.is_set():
+                        # Release atomically with readiness publication, so its
+                        # writer can take ownership without a lost wakeup.
+                        self._observer_dispatch.current = None
+                        self._observer_dispatch_lock.release()
+                        owned = False
+                        break
+                    self._observer_queue.popleft()
+                    work.reporting_failure = self._observer_dispatch.rejecting
+                origin, record = work.origin, work.record
+                try:
+                    if work.reporting_failure:
+                        origin._observer_failure(record, "ObserverDrainBudgetExceeded")
+                    else:
+                        for observer in origin.observers:
+                            try:
+                                observer(record)
+                            except Exception as exc:
+                                with self._observer_queue_lock:
+                                    work.reporting_failure = True
+                                origin._observer_failure(
+                                    record, type(exc).__name__, observer
+                                )
+                finally:
+                    self._complete_observer_work(work)
+                processed += 1
+        finally:
+            _OBSERVER_ACTIVE.reset(token)
+            if owned:
+                with self._observer_queue_lock:
+                    self._observer_dispatch.current = None
+                    self._observer_dispatch_lock.release()
+                    if not self._observer_dispatch.unfinished:
+                        self._observer_idle.set()
+            self._observer_dispatch.retire()
+        if notification is not None:
+            # Join owned delivery within this drain's existing budget, after
+            # releasing dispatch, queue and origin locks. Flush never joins.
+            notification.ready.wait(max(0, deadline - time.monotonic()))
+
+    def flush_observers(self, timeout: float = LOCK_TIMEOUT_SECONDS) -> bool:
+        """Bounded wait for an active drain, without running callbacks here."""
+        if not 0 <= timeout <= LOCK_TIMEOUT_SECONDS:
+            raise ValueError(
+                "Observer flush timeout must be between zero and five seconds."
+            )
+        if _OBSERVER_ACTIVE.get():
+            return False  # A callback must never wait for its own completion.
+        if self._observer_idle.wait(timeout):
+            return not self.observer_errors
+        notification = None
+        worker = None
+        with self._observer_queue_lock:
+            dispatch = self._observer_dispatch
+            pending = dispatch.current or next(iter(self._observer_queue), None)
+            # One owned notification slot coalesces timeouts while its sink is
+            # pending. A delivered timeout is not repeated for the same record.
+            if (
+                dispatch.timeout_notification is None
+                and pending is not None
+                and pending.ready.is_set()
+                and not pending.reporting_failure
+                and not pending.timeout_reported
+            ):
+                pending.timeout_reported = True
+                notification = _ObserverWork(
+                    pending.origin,
+                    pending.record,
+                    error_type="ObserverDrainTimeout",
+                    reporting_failure=True,
+                )
+                dispatch.timeout_notification = notification
+                dispatch.unfinished.add(notification)
+                self._observer_idle.clear()
+            queued = dispatch.timeout_notification
+            if queued is not None and dispatch.timeout_thread is None:
+                worker = threading.Thread(
+                    target=self._deliver_timeout_notification,
+                    args=(queued,),
+                    name="agilab-trace-timeout",
+                    daemon=True,
+                )
+                dispatch.timeout_thread = worker
+        dispatch.retire()
+        if notification is not None:
+            # Keep the origin's sticky error and prompt warning synchronous;
+            # user-supplied sinks run only on the owned notification worker.
+            notification.origin._observer_failure(
+                notification.record, notification.error_type, notify=False
+            )
+        if worker is not None:
+            try:
+                worker.start()
+            except RuntimeError:
+                # Retain the reserved notification for a later flush retry.
+                with self._observer_queue_lock:
+                    if dispatch.timeout_thread is worker:
+                        dispatch.timeout_thread = None
+        return False
+
+    def close_observers(self, timeout: float = LOCK_TIMEOUT_SECONDS) -> bool:
+        """Stop accepting observation work and wait a bounded time for its drain."""
+        with self._observer_queue_lock:
+            self._observers_closed = True
+        with _OBSERVER_DISPATCHES_LOCK:
+            self._observer_dispatch.handles.discard(self)
+        self._observer_dispatch.retire()
+        return self.flush_observers(timeout)
 
 
 def summarize_trace(path: Path | str) -> AgentTraceSummary:

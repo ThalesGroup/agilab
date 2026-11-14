@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+from dataclasses import replace
 import json
 from pathlib import Path
 import sys
@@ -30,7 +31,14 @@ print(json.dumps({
 """
 
 
-def build_public_case(tmp_path: Path, *, candidate=(10, 20, 30), source: str = SCORER):
+def build_public_case(
+    tmp_path: Path,
+    *,
+    candidate=(10, 20, 30),
+    source: str = SCORER,
+    candidate_artifacts=(),
+    candidate_directory="",
+):
     root = tmp_path / "minimal_public_project"
     root.mkdir()
     (root / "fixture.json").write_text(
@@ -61,8 +69,13 @@ def build_public_case(tmp_path: Path, *, candidate=(10, 20, 30), source: str = S
     )
     (root / "scorer.py").write_text(source)
     for name, predictions in (("baseline", (11, 22, 33)), ("candidate", candidate)):
-        artifact = root / f"{name}-predictions.json"
+        run_directory = root / candidate_directory if name == "candidate" else root
+        run_directory.mkdir(parents=True, exist_ok=True)
+        artifact = run_directory / f"{name}-predictions.json"
         artifact.write_text(json.dumps({"predictions": predictions}))
+        declared = run_manifest.RunManifestArtifact.from_path(artifact)
+        if name == "candidate" and candidate_directory:
+            declared = replace(declared, path=artifact.name)
         manifest = run_manifest.build_run_manifest(
             path_id="app-owned-evaluation",
             label="Public deterministic local fixture",
@@ -87,7 +100,8 @@ def build_public_case(tmp_path: Path, *, candidate=(10, 20, 30), source: str = S
                 duration_seconds=1.0,
                 target_seconds=30.0,
             ),
-            artifacts=[run_manifest.RunManifestArtifact.from_path(artifact)],
+            artifacts=[declared]
+            + (list(candidate_artifacts) if name == "candidate" else []),
             validations=[
                 run_manifest.RunManifestValidation(
                     label="fixture-produced",
@@ -98,7 +112,7 @@ def build_public_case(tmp_path: Path, *, candidate=(10, 20, 30), source: str = S
             run_id=f"public-{name}",
             created_at="2026-11-13T00:00:01Z",
         )
-        run_manifest.write_run_manifest(manifest, root / f"{name}-run.json")
+        run_manifest.write_run_manifest(manifest, run_directory / f"{name}-run.json")
     plan = evaluation.build_eval_manifest(
         root,
         fixture="fixture.json",
@@ -107,8 +121,10 @@ def build_public_case(tmp_path: Path, *, candidate=(10, 20, 30), source: str = S
         baseline_run="baseline-run.json",
         baseline_artifact="baseline-predictions.json",
         baseline_reference="minimal-public:baseline-v1",
-        candidate_run="candidate-run.json",
-        candidate_artifact="candidate-predictions.json",
+        candidate_run=(Path(candidate_directory) / "candidate-run.json").as_posix(),
+        candidate_artifact=(
+            Path(candidate_directory) / "candidate-predictions.json"
+        ).as_posix(),
         candidate_reference="minimal-public:candidate-v1",
         metric=metric,
     )
@@ -718,3 +734,199 @@ def test_receipt_reference_never_reopens_to_different_bytes(tmp_path, monkeypatc
     )
     assert report["status"] == "fail"
     assert report["execution_authenticity"] == "untrusted"
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_declared_absent_artifact_is_observed_with_its_original_declaration(
+    tmp_path, present
+):
+    import hashlib
+
+    optional = run_manifest.RunManifestArtifact(
+        "optional", "support/optional.json", "file", False
+    )
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    reference = evaluation.file_reference(root, "candidate-run.json")
+    path = root / optional.path
+    if present:
+        path.parent.mkdir()
+        path.write_bytes(b"present despite declaration")
+    report = evaluation.verify_evaluation_run(root, reference)
+    row = report["artifacts"][1]
+    assert row["declared_exists"] is False
+    assert row["actual_exists"] is present
+    assert row["observed_sha256"] == (
+        hashlib.sha256(path.read_bytes()).hexdigest() if present else ""
+    )
+    if present:
+        assert row["size_bytes"] == path.stat().st_size
+    else:
+        assert "size_bytes" not in row
+    assert report["status"] == "pass"
+    assert evaluation.check_file_reference(root, reference)
+
+
+@pytest.mark.parametrize("required,hashed", [(True, False), (False, True)])
+def test_required_or_hashed_missing_artifact_does_not_become_optional(
+    tmp_path, required, hashed
+):
+    optional = run_manifest.RunManifestArtifact(
+        "missing", "missing.json", "file", required, sha256="a" * 64 if hashed else ""
+    )
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    with pytest.raises(FileNotFoundError):
+        evaluation.verify_evaluation_run(
+            root, evaluation.file_reference(root, "candidate-run.json")
+        )
+
+
+@pytest.mark.parametrize("kind", ["directory", "symlink", "fifo"])
+def test_declared_absent_nonregular_artifact_refuses_in_a_bounded_process(
+    tmp_path, kind
+):
+    import os
+    import subprocess
+
+    optional = run_manifest.RunManifestArtifact("optional", "optional", "file", False)
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    path = root / optional.path
+    if kind == "directory":
+        path.mkdir()
+    elif kind == "symlink":
+        path.symlink_to(root / "candidate-predictions.json")
+    else:
+        os.mkfifo(path)
+    reference = evaluation.file_reference(root, "candidate-run.json")
+    source = """
+import json, sys
+from pathlib import Path
+from agilab.evidence.evaluation import verify_evaluation_run
+try:
+    verify_evaluation_run(Path(sys.argv[1]), json.loads(sys.argv[2]))
+except (OSError, ValueError):
+    print("refused")
+else:
+    raise AssertionError("Nonregular optional artifact was accepted")
+"""
+    result = subprocess.run(
+        [sys.executable, "-B", "-c", source, str(root), json.dumps(reference)],
+        env={
+            **os.environ,
+            "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "refused"
+
+
+def test_optional_artifact_permission_error_is_not_absence(tmp_path, monkeypatch):
+    optional = run_manifest.RunManifestArtifact(
+        "optional", "optional.json", "file", False
+    )
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    (root / optional.path).write_bytes(b"current")
+    reference = evaluation.file_reference(root, "candidate-run.json")
+    original = evaluation.os.open
+
+    def denied(name, *args, **kwargs):
+        if name == optional.path and kwargs.get("dir_fd") is not None:
+            raise PermissionError("optional descriptor permission denied")
+        return original(name, *args, **kwargs)
+
+    with monkeypatch.context() as scoped:
+        scoped.setattr(evaluation.os, "open", denied)
+        with pytest.raises(PermissionError, match="permission denied"):
+            evaluation.verify_evaluation_run(root, reference)
+    assert evaluation.verify_evaluation_run(root, reference)["artifacts"][1][
+        "actual_exists"
+    ]
+
+
+@pytest.mark.parametrize(
+    "race", ["removed_after_read", "appeared_during_absence", "parent_replaced"]
+)
+def test_optional_artifact_races_are_not_absence_and_close_descriptors(
+    tmp_path, monkeypatch, race
+):
+    import os
+
+    optional = run_manifest.RunManifestArtifact(
+        "optional", "support/optional.json", "file", False
+    )
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    path = root / optional.path
+    path.parent.mkdir()
+    if race == "removed_after_read":
+        path.write_bytes(b"current")
+    reference = evaluation.file_reference(root, "candidate-run.json")
+    original_open = os.open
+    original_read = os.read
+    fired = False
+
+    def opened(name, *args, **kwargs):
+        nonlocal fired
+        try:
+            return original_open(name, *args, **kwargs)
+        except FileNotFoundError:
+            if name == path.name and not fired:
+                fired = True
+                if race == "appeared_during_absence":
+                    path.write_bytes(b"appeared")
+                elif race == "parent_replaced":
+                    path.parent.rename(root / "parked")
+                    path.parent.mkdir()
+            raise
+
+    def read(descriptor, count):
+        nonlocal fired
+        data = original_read(descriptor, count)
+        if (
+            race == "removed_after_read"
+            and not fired
+            and os.fstat(descriptor).st_ino == path.stat().st_ino
+        ):
+            fired = True
+            path.unlink()
+        return data
+
+    before = len(list(Path("/dev/fd").iterdir()))
+    with monkeypatch.context() as scoped:
+        scoped.setattr(evaluation.os, "open", opened)
+        scoped.setattr(evaluation.os, "read", read)
+        with pytest.raises((OSError, ValueError)):
+            evaluation.verify_evaluation_run(root, reference)
+    assert fired
+    assert len(list(Path("/dev/fd").iterdir())) == before
+
+
+@pytest.mark.parametrize("limit", ["count", "file_size", "snapshot_size"])
+def test_declared_absent_present_artifacts_cannot_bypass_snapshot_limits(
+    tmp_path, limit
+):
+    if limit == "count":
+        extras = [
+            run_manifest.RunManifestArtifact(
+                f"optional-{i}", f"optional-{i}", "file", False
+            )
+            for i in range(256)
+        ]
+    else:
+        extras = [
+            run_manifest.RunManifestArtifact(
+                f"optional-{i}", "large.bin", "file", False
+            )
+            for i in range(4 if limit == "snapshot_size" else 1)
+        ]
+    root, _ = build_public_case(tmp_path, candidate_artifacts=extras)
+    if limit != "count":
+        with (root / "large.bin").open("wb") as output:
+            output.truncate(evaluation.MAX_FILE_BYTES + (limit == "file_size"))
+    expected = {"count": "256", "file_size": "16 MiB", "snapshot_size": "64 MiB"}[limit]
+    with pytest.raises(ValueError, match=expected):
+        evaluation.verify_evaluation_run(
+            root, evaluation.file_reference(root, "candidate-run.json")
+        )

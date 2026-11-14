@@ -7,6 +7,7 @@ import pytest
 
 from agilab.evidence import evaluation, promotion_dossier, serving_handoff
 from test.test_evaluation import (
+    SCORER,
     build_public_case,
     run_public_case,
     trusted_public_execution as trusted_public_execution,
@@ -25,20 +26,38 @@ ROLLBACK = {
 }
 
 
-def build_public_handoff(tmp_path: Path, *, candidate=(10, 20, 30)):
-    root, _ = build_public_case(tmp_path, candidate=candidate)
+def build_public_handoff(
+    tmp_path: Path,
+    *,
+    candidate=(10, 20, 30),
+    candidate_artifacts=(),
+    artifact_bytes=None,
+    candidate_directory="",
+    source=SCORER,
+):
+    root, _ = build_public_case(
+        tmp_path,
+        candidate=candidate,
+        candidate_artifacts=candidate_artifacts,
+        candidate_directory=candidate_directory,
+        source=source,
+    )
+    for path, data in (artifact_bytes or {}).items():
+        target = root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
     receipt = run_public_case(root)
     (root / "serving-environment.json").write_text(
         json.dumps({"python": "3.13", "dependencies": [], "status": "declared"})
     )
     dossier = promotion_dossier.build_promotion_dossier(
-        root / "candidate-run.json",
+        root / receipt["candidate"]["run_manifest"]["path"],
         root / "promotion",
         evaluation_receipt_path=Path("public-evaluation-receipt.json"),
         evaluation_root=root,
     )
     spec = dict(
-        model_artifact="candidate-predictions.json",
+        model_artifact=receipt["candidate"]["artifact"]["path"],
         model_reference="minimal-public:candidate-v1",
         environment="serving-environment.json",
         evaluation_receipt="public-evaluation-receipt.json",
@@ -387,3 +406,262 @@ def test_serving_spec_cannot_supply_its_own_execution_trust(tmp_path, capsys):
     assert result == 1
     assert "outside the serving spec" in capsys.readouterr().out
     assert not (root / "untrusted-handoff.json").exists()
+
+
+def test_optional_artifact_appearance_invalidates_unchanged_promotion_and_recovers(
+    tmp_path,
+):
+    import hashlib
+
+    marker = tmp_path / "scorer-executions"
+    source = SCORER + f"\nPath({str(marker)!r}).open('ab').write(b'executed\\n')\n"
+    optional = evaluation.run_manifest.RunManifestArtifact(
+        "optional", "optional.json", "file", False
+    )
+    root, receipt, _, spec = build_public_handoff(
+        tmp_path, candidate_artifacts=[optional], source=source
+    )
+    execution_count = marker.read_bytes()
+    assert execution_count == b"executed\nexecuted\n"
+    handoff = serving_handoff.build_serving_handoff(root, **spec)
+    evaluation.persist_evaluation(root, "optional-handoff.json", handoff)
+    bound_paths = [
+        "public-eval-manifest.json",
+        "public-evaluation-receipt.json",
+        "candidate-run.json",
+        "candidate-predictions.json",
+        "promotion/promotion_decision.json",
+        "promotion/policy_results.json",
+    ]
+    frozen = {
+        p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in bound_paths
+    }
+    pin = receipt["sha256"]
+
+    def verify():
+        return serving_handoff.verify_serving_handoff(
+            root, "optional-handoff.json", trusted_receipt_sha256=pin
+        )
+
+    assert verify()["status"] == "pass"
+    optional_path = root / optional.path
+    optional_path.write_bytes(b"new current artifact")
+    result = verify()
+    assert result["status"] == "fail"
+    assert "Promotion verification no longer matches" in result["reason"]
+    with pytest.raises(ValueError, match="Promotion verification no longer matches"):
+        serving_handoff.build_serving_handoff(root, **spec, trusted_receipt_sha256=pin)
+    assert frozen == {
+        p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in bound_paths
+    }
+    optional_path.unlink()
+    assert verify()["status"] == "pass"
+    assert marker.read_bytes() == execution_count
+
+
+@pytest.mark.parametrize("hashed", [False, True])
+@pytest.mark.parametrize("mutation", ["same_size", "different_size", "removed"])
+def test_preexisting_declared_absent_artifact_remains_bound_and_restorable(
+    tmp_path, hashed, mutation
+):
+    import hashlib
+
+    original = b"current-sidecar"
+    optional = evaluation.run_manifest.RunManifestArtifact(
+        "sidecar",
+        "support/sidecar.bin",
+        "file",
+        False,
+        sha256=hashlib.sha256(original).hexdigest() if hashed else "",
+    )
+    root, receipt, _, spec = build_public_handoff(
+        tmp_path,
+        candidate_artifacts=[optional],
+        artifact_bytes={optional.path: original},
+    )
+    evaluation.persist_evaluation(
+        root,
+        "sidecar-handoff.json",
+        serving_handoff.build_serving_handoff(root, **spec),
+    )
+    path = root / optional.path
+    if mutation == "removed":
+        path.unlink()
+    else:
+        path.write_bytes(
+            b"mutated-sidecar" if mutation == "same_size" else b"longer sidecar bytes"
+        )
+    result = serving_handoff.verify_serving_handoff(
+        root, "sidecar-handoff.json", trusted_receipt_sha256=receipt["sha256"]
+    )
+    assert result["status"] == "fail", result
+    path.write_bytes(original)
+    assert (
+        serving_handoff.verify_serving_handoff(
+            root, "sidecar-handoff.json", trusted_receipt_sha256=receipt["sha256"]
+        )["status"]
+        == "pass"
+    )
+
+
+@pytest.mark.parametrize("directory", ["", "nested/runs"])
+def test_multifile_relocated_handoff_restores_only_source_locations(
+    tmp_path, directory
+):
+    import hashlib
+    import shutil
+
+    artifacts = [
+        evaluation.run_manifest.RunManifestArtifact(
+            "hashed-sidecar",
+            "hashed.bin",
+            "file",
+            False,
+            sha256=hashlib.sha256(b"hashed").hexdigest(),
+        ),
+        evaluation.run_manifest.RunManifestArtifact(
+            "unhashed-sidecar", "unhashed.bin", "file", False
+        ),
+    ]
+    root, receipt, _, spec = build_public_handoff(
+        tmp_path,
+        candidate_artifacts=artifacts,
+        candidate_directory=directory,
+        artifact_bytes={
+            (Path(directory) / "hashed.bin").as_posix(): b"hashed",
+            (Path(directory) / "unhashed.bin").as_posix(): b"unhashed",
+        },
+    )
+    reference = receipt["candidate"]["run_manifest"]
+    manifest_path = root / reference["path"]
+    manifest = evaluation.run_manifest.load_run_manifest(manifest_path)
+    direct = evaluation.evidence_contract.verify_manifest(manifest_path)
+    for _ in range(2):
+        current = evaluation.verify_evaluation_run(root, reference)
+        assert (
+            serving_handoff._source_verification(current, manifest, str(manifest_path))
+            == direct
+        )
+    evaluation.persist_evaluation(
+        root, "multi-handoff.json", serving_handoff.build_serving_handoff(root, **spec)
+    )
+    frozen = {
+        p.relative_to(root).as_posix(): p.read_bytes()
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+    moved_parent = tmp_path / "relocated"
+    moved_parent.mkdir()
+    moved = moved_parent / root.name
+    shutil.copytree(root, moved)
+    root.rename(tmp_path / "original-unavailable")
+    result = serving_handoff.verify_serving_handoff(
+        moved, "multi-handoff.json", trusted_receipt_sha256=receipt["sha256"]
+    )
+    assert result["status"] == "pass", result
+    assert (
+        serving_handoff.verify_serving_handoff(moved, "multi-handoff.json")["status"]
+        == "fail"
+    )
+    assert (
+        serving_handoff.verify_serving_handoff(
+            moved, "multi-handoff.json", trusted_receipt_sha256="0" * 64
+        )["status"]
+        == "fail"
+    )
+    assert frozen == {p: (moved / p).read_bytes() for p in frozen}
+
+
+@pytest.mark.parametrize(
+    "fault", ["missing", "not_list", "count", "not_dict", "id", "order"]
+)
+def test_current_artifact_inventory_and_identity_are_checked(tmp_path, fault):
+    import copy
+
+    optional = evaluation.run_manifest.RunManifestArtifact(
+        "optional", "optional.json", "file", False
+    )
+    root, _ = build_public_case(tmp_path, candidate_artifacts=[optional])
+    manifest_path = root / "candidate-run.json"
+    manifest = evaluation.run_manifest.load_run_manifest(manifest_path)
+    current = evaluation.verify_evaluation_run(
+        root, evaluation.file_reference(root, manifest_path)
+    )
+    broken = copy.deepcopy(current)
+    if fault == "missing":
+        del broken["artifacts"]
+    elif fault == "not_list":
+        broken["artifacts"] = {}
+    elif fault == "count":
+        broken["artifacts"].pop()
+    elif fault == "not_dict":
+        broken["artifacts"][0] = None
+    elif fault == "id":
+        broken["artifacts"][0]["id"] = "another-artifact"
+    else:
+        broken["artifacts"].reverse()
+    with pytest.raises(ValueError, match="artifact (inventory|identity)"):
+        serving_handoff._source_verification(broken, manifest, str(manifest_path))
+
+
+def test_source_location_restoration_preserves_all_nonlocation_fields_and_order(
+    tmp_path,
+):
+    import copy
+
+    artifacts = [
+        evaluation.run_manifest.RunManifestArtifact("same-id", "a.bin", "file", False),
+        evaluation.run_manifest.RunManifestArtifact("same-id", "b.bin", "file", False),
+    ]
+    root, _ = build_public_case(tmp_path, candidate_artifacts=artifacts)
+    (root / "a.bin").write_bytes(b"first")
+    (root / "b.bin").write_bytes(b"other")
+    manifest_path = root / "candidate-run.json"
+    manifest = evaluation.run_manifest.load_run_manifest(manifest_path)
+    current = evaluation.verify_evaluation_run(
+        root, evaluation.file_reference(root, manifest_path)
+    )
+
+    def normalize(value):
+        return serving_handoff._source_verification(value, manifest, str(manifest_path))
+
+    restored = normalize(current)
+    assert restored == evaluation.evidence_contract.verify_manifest(manifest_path)
+    observed = copy.deepcopy(current)
+    observed["future_check"] = {"status": "fail"}
+    observed["artifacts"][1]["future_observation"] = {"status": "fail"}
+    normalized = normalize(observed)
+    assert normalized["future_check"] == {"status": "fail"}
+    assert normalized["artifacts"][1]["future_observation"] == {"status": "fail"}
+    assert evaluation.evidence_contract.sha256_payload(
+        normalized
+    ) != evaluation.evidence_contract.sha256_payload(restored)
+    swapped = copy.deepcopy(current)
+    swapped["artifacts"][1], swapped["artifacts"][2] = (
+        swapped["artifacts"][2],
+        swapped["artifacts"][1],
+    )
+    assert evaluation.evidence_contract.sha256_payload(
+        normalize(swapped)
+    ) != evaluation.evidence_contract.sha256_payload(restored)
+    assert current["artifacts"][1]["path"] != restored["artifacts"][1]["path"]
+
+
+def test_tilde_artifact_keeps_safe_refusal_without_home_path_rebasing(
+    tmp_path, monkeypatch
+):
+    home = tmp_path / "fixture-home"
+    home.mkdir()
+    outside = home / "sidecar.json"
+    outside.write_bytes(b"outside the app root")
+    monkeypatch.setenv("HOME", str(home))
+    optional = evaluation.run_manifest.RunManifestArtifact(
+        "home-sidecar", "~/sidecar.json", "file", False
+    )
+    root, _, dossier, spec = build_public_handoff(
+        tmp_path, candidate_artifacts=[optional]
+    )
+    assert dossier["decision"] == "promote"
+    with pytest.raises(ValueError, match="Promotion verification no longer matches"):
+        serving_handoff.build_serving_handoff(root, **spec)
+    assert outside.read_bytes() == b"outside the app root"

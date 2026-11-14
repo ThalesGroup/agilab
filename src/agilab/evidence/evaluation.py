@@ -141,6 +141,21 @@ def _identity(info: os.stat_result) -> tuple[int, ...]:
     )
 
 
+class _EvidencePathAbsent(FileNotFoundError):
+    """An absent entry observed through stable no-follow parent descriptors."""
+
+
+def _raise_observed_absence(parent, name, unchanged, error):
+    try:
+        os.stat(name, dir_fd=parent, follow_symlinks=False)
+    except FileNotFoundError:
+        unchanged()
+        raise _EvidencePathAbsent(
+            error.errno, error.strerror, error.filename
+        ) from error
+    raise ValueError("Evidence path changed during absence observation") from error
+
+
 @contextmanager
 def _evidence_parent(root: Path, value: str | Path, *, create: bool = False):
     """Hold root/parent descriptors, refusing aliases and renamed directory entries."""
@@ -160,31 +175,38 @@ def _evidence_parent(root: Path, value: str | Path, *, create: bool = False):
     flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK
     descriptors = []
     chain = []
+
+    def unchanged():
+        for directory, name, child in chain:
+            named = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            opened = os.fstat(child)
+            if not stat.S_ISDIR(named.st_mode) or (named.st_dev, named.st_ino) != (
+                opened.st_dev,
+                opened.st_ino,
+            ):
+                raise ValueError("Evidence parent directory changed during I/O")
+
     try:
         parent = os.open(root.anchor, flags)
         descriptors.append(parent)
         components = [(part, False) for part in root.parts[1:]]
         components += [(part, create) for part in parts[:-1]]
-        for name, may_create in components:
+        for index, (name, may_create) in enumerate(components):
             if may_create:
                 try:
                     os.mkdir(name, mode=0o700, dir_fd=parent)
                 except FileExistsError:
                     pass
-            child = os.open(name, flags, dir_fd=parent)
+            try:
+                child = os.open(name, flags, dir_fd=parent)
+            except FileNotFoundError as exc:
+                # A missing root is a failed trust context, not an absent artifact.
+                if index < len(root.parts) - 1:
+                    raise
+                _raise_observed_absence(parent, name, unchanged, exc)
             descriptors.append(child)
             chain.append((parent, name, child))
             parent = child
-
-        def unchanged():
-            for directory, name, child in chain:
-                named = os.stat(name, dir_fd=directory, follow_symlinks=False)
-                opened = os.fstat(child)
-                if not stat.S_ISDIR(named.st_mode) or (named.st_dev, named.st_ino) != (
-                    opened.st_dev,
-                    opened.st_ino,
-                ):
-                    raise ValueError("Evidence parent directory changed during I/O")
 
         unchanged()
         yield parent, parts[-1], unchanged
@@ -197,9 +219,12 @@ def _evidence_parent(root: Path, value: str | Path, *, create: bool = False):
 def read_evidence_file(root: Path, value: str | Path) -> bytes:
     """Read bounded regular bytes through held no-follow directory descriptors."""
     with _evidence_parent(root, value) as (parent, name, unchanged):
-        descriptor = os.open(
-            name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent
-        )
+        try:
+            descriptor = os.open(
+                name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent
+            )
+        except FileNotFoundError as exc:
+            _raise_observed_absence(parent, name, unchanged, exc)
         try:
             before = os.fstat(descriptor)
             if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_FILE_BYTES:
@@ -635,8 +660,12 @@ def verify_evaluation_run(root: Path, reference: Mapping[str, Any]) -> dict[str,
             declared = _run_artifact_path(root, manifest, reference, artifact.path)
             row = artifact.as_dict()
             destination = snapshot / f"artifact-{index}"
-            if artifact.exists:
+            try:
                 data = read_evidence_file(root, declared)
+            except _EvidencePathAbsent:
+                if artifact.exists or artifact.sha256:
+                    raise
+            else:
                 total += len(data)
                 if total > 64 * 1024 * 1024:
                     raise ValueError("Evaluation run snapshot exceeds 64 MiB")

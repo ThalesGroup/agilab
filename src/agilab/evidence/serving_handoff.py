@@ -141,6 +141,26 @@ def _checked_policy(
         )
 
 
+def _source_verification(
+    verification: Mapping[str, Any],
+    manifest: run_manifest.RunManifest,
+    manifest_path: str,
+) -> dict[str, Any]:
+    """Restore source locations while retaining every fresh observation."""
+    rows = verification.get("artifacts")
+    if not isinstance(rows, list) or len(rows) != len(manifest.artifacts):
+        raise ValueError("Unexpected run verification artifact inventory")
+    artifacts = []
+    for row, artifact in zip(rows, manifest.artifacts, strict=True):
+        if not isinstance(row, dict) or row.get("id") != artifact.name:
+            raise ValueError("Run verification artifact identity mismatch")
+        recorded_path = Path(artifact.path).expanduser()
+        if not recorded_path.is_absolute():
+            recorded_path = Path(manifest_path).parent / recorded_path
+        artifacts.append({**row, "path": str(recorded_path)})
+    return {**verification, "manifest_path": manifest_path, "artifacts": artifacts}
+
+
 def _promotion(
     root: Path,
     path: str | Path,
@@ -202,7 +222,9 @@ def _promotion(
     if current["decision"] != "promote":
         raise ValueError("Current run verification and policy do not permit promotion")
     # Absolute source-root metadata is retained when a verified bundle moves.
-    recorded_verification = {**verification, "manifest_path": policy["manifest_path"]}
+    recorded_verification = _source_verification(
+        verification, manifest, policy["manifest_path"]
+    )
     if decision.get("verification_sha256") != evidence_contract.sha256_payload(
         recorded_verification
     ):
