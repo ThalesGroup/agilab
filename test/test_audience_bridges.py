@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 import agilab_mcp  # noqa: E402
 from agilab import agent_run, bridge_cli, run_manifest  # noqa: E402
 from agilab_mcp import manifest_tools  # noqa: E402
-from agilab_mcp import server as mcp_server
+from agilab_mcp import server as mcp_server  # noqa: E402
 
 
 def _write_manifest(
@@ -2120,3 +2120,76 @@ def test_mcp_server_main_cli_modes(
     monkeypatch.setattr(mcp_server, "_build_parser", lambda: parser)
     with pytest.raises(SystemExit, match="Unsupported command: unsupported"):
         mcp_server.main(["unsupported"])
+
+
+
+@pytest.mark.parametrize("placement", ["project", "evidence-file", "evidence-directory"])
+@pytest.mark.parametrize("field", ["oPeNaI_aPi_KeY", "password", "api_key"])
+def test_security_hf_json_secret_refused_before_mutation(tmp_path, placement, field):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "README.md").write_text("# Safe project\n", encoding="utf-8")
+    evidence = None
+    if placement == "project":
+        config = project / "settings.json"
+    elif placement == "evidence-file":
+        config = tmp_path / "settings.json"
+        evidence = config
+    else:
+        evidence = tmp_path / "evidence"
+        evidence.mkdir()
+        config = evidence / "settings.json"
+    config.write_text(json.dumps([{"nested": {field: "PRIVATE_AUDIT_SENTINEL"}}]), encoding="utf-8")
+    output = tmp_path / "output"
+    output.mkdir()
+    marker = output / "existing.txt"
+    marker.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="secret-like") as caught:
+        bridge_cli.export_hf_space(project, output, evidence_path=evidence, force=True)
+
+    assert marker.read_text() == "keep"
+    assert list(output.iterdir()) == [marker]
+    assert "PRIVATE_AUDIT_SENTINEL" not in str(caught.value)
+    assert field not in str(caught.value)
+
+
+@pytest.mark.parametrize("payload", [b'{"password":', b'\xff'])
+def test_security_hf_invalid_json_is_refused_without_content_echo(tmp_path, payload):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "config.json").write_bytes(payload)
+    output = tmp_path / "output"
+    with pytest.raises(RuntimeError, match="invalid.*JSON") as caught:
+        bridge_cli.export_hf_space(project, output)
+    assert not output.exists()
+    assert "password" not in str(caught.value)
+
+
+def test_security_hf_safe_json_and_placeholders_still_export(tmp_path):
+    project = tmp_path / "project"
+    project.mkdir()
+    safe = {"token_count": 10, "secret_metadata": {}, "password_enabled": False,
+            "auth": None, "password": "", "nested": [
+                {"api_key": " <REDACTED> "}, {"HF_TOKEN": "example"},
+                {"password": "changeme"}, {"secret": "redacted"}]}
+    (project / "config.json").write_text(json.dumps(safe), encoding="utf-8")
+    output = tmp_path / "output"
+    result = bridge_cli.export_hf_space(project, output)
+    assert result["status"] == "pass"
+    assert json.loads((output / "agilab_project/config.json").read_text()) == safe
+
+
+
+def test_security_hf_benign_model_string_fields_are_not_credentials(tmp_path):
+    data = tmp_path / "model.json"
+    data.write_text(json.dumps({"tokenizer": "whitespace", "tokenizer_class": "BertTokenizer",
+                               "bos_token": "<s>", "eos_token": "</s>"}))
+    assert bridge_cli._secret_findings(data) == []
+
+
+@pytest.mark.parametrize("field", ["access_token", "refresh_token", "client_secret", "apiKey", "password", "api_key"])
+def test_security_hf_structured_credential_fields_remain_refused(tmp_path, field):
+    data = tmp_path / "settings.json"
+    data.write_text(json.dumps({field: "synthetic-secret-value"}))
+    assert bridge_cli._secret_findings(data)

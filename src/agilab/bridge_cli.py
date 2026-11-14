@@ -53,13 +53,22 @@ _TEXT_EXTENSIONS = {
     ".yaml",
     ".yml",
 }
-_SECRET_ASSIGNMENT_RE = re.compile(
-    r"(?i)\b("
-    r"OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN|HUGGINGFACE_TOKEN|"
+_SECRET_NAME_PATTERN = (
+    r"OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN|HUGGINGFACE_TOKEN|API_KEY|"
     r"AGILAB_[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|KEY)|"
     r"[A-Z0-9_]*(?:SECRET|TOKEN|PASSWORD|CREDENTIAL)[A-Z0-9_]*"
-    r")\s*=\s*['\"]?([^'\"\s]+)"
 )
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"\b(" + _SECRET_NAME_PATTERN + r")\s*=\s*['\"]?([^'\"\s]+)",
+    re.IGNORECASE,
+)
+_SECRET_FIELD_RE = re.compile(
+    r"(?:[A-Z0-9]+_)*(?:SECRET|PASSWORD|CREDENTIALS?|API_?KEY)(?:_[A-Z0-9]+)*|"
+    r"TOKEN|(?:ACCESS|REFRESH|AUTH|BEARER|API|HF|HUGGINGFACE|GITHUB|GITLAB)_?TOKEN|"
+    r"AGILAB_[A-Z0-9_]*TOKEN|CLIENT_?SECRET",
+    re.IGNORECASE,
+)
+_SECRET_PLACEHOLDERS = frozenset({"<redacted>", "redacted", "example", "changeme"})
 _IDENTIFIER_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\Z")
 
 
@@ -639,6 +648,29 @@ def _copy_project_tree(project_path: Path, destination: Path) -> None:
     _require_no_linked_inputs(destination, label="staged project")
 
 
+def _real_secret_text(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and value.strip().lower() not in _SECRET_PLACEHOLDERS
+    )
+
+
+def _json_secret_field_found(value: object) -> bool:
+    pending = [value]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, Mapping):
+            for key, item in current.items():
+                if _SECRET_FIELD_RE.fullmatch(str(key)) and _real_secret_text(item):
+                    return True
+                if isinstance(item, (Mapping, list)):
+                    pending.append(item)
+        elif isinstance(current, list):
+            pending.extend(current)
+    return False
+
+
 def _secret_findings(root: Path) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     paths = [root] if root.is_file() else sorted(root.rglob("*"))
@@ -651,21 +683,26 @@ def _secret_findings(root: Path) -> list[dict[str, str]]:
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
+            if path.suffix.lower() == ".json":
+                findings.append({"path": str(path), "reason": "invalid UTF-8 JSON input"})
             continue
+        if path.suffix.lower() == ".json":
+            try:
+                payload = json.loads(text)
+            except (json.JSONDecodeError, RecursionError):
+                findings.append({"path": str(path), "reason": "invalid JSON input"})
+                continue
+            if _json_secret_field_found(payload):
+                findings.append({"path": str(path), "reason": "secret-like JSON field"})
         if "secret://" in text or "vault://" in text:
             findings.append({"path": str(path), "reason": "secret reference URI"})
         for match in _SECRET_ASSIGNMENT_RE.finditer(text):
-            if match.group(2).lower() in {
-                "<redacted>",
-                "redacted",
-                "example",
-                "changeme",
-            }:
+            if not _real_secret_text(match.group(2)):
                 continue
             findings.append(
                 {
                     "path": str(path),
-                    "reason": f"secret-like assignment {match.group(1)}",
+                    "reason": "secret-like assignment",
                 }
             )
     return findings
