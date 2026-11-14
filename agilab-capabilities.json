@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-13T20:54:01Z",
+  "generated_at_utc": "2026-11-13T21:45:38Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 325,
+    "evidence_schema_count": 328,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1968,6 +1968,12 @@
       ]
     },
     {
+      "schema": "agilab.local_agent_observation.v1",
+      "sources": [
+        "src/agilab/evidence/observability.py"
+      ]
+    },
+    {
       "schema": "agilab.local_validation.v1",
       "sources": [
         "tools/testing/local_validation_receipt.py"
@@ -2437,6 +2443,12 @@
         "src/agilab/demos/resources/milp_energy_demo/result.json",
         "src/agilab/demos/resources/notebook_agent_local_demo/result.json",
         "src/agilab/demos/resources/text_notebook_demo/result.json"
+      ]
+    },
+    {
+      "schema": "agilab.observability_delivery.v1",
+      "sources": [
+        "src/agilab/evidence/observability.py"
       ]
     },
     {
@@ -2950,6 +2962,12 @@
       "schema": "agilab.snippet_registry.v1",
       "sources": [
         "src/agilab/workflow/snippet_registry.py"
+      ]
+    },
+    {
+      "schema": "agilab.sqlite_metadata_store.v1",
+      "sources": [
+        "src/agilab/evidence/metadata_store.py"
       ]
     },
     {

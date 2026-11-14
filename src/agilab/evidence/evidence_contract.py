@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 from typing import Any, Iterator, Mapping, Sequence
@@ -203,9 +204,9 @@ def verify_manifest(manifest_path: Path, *, check_artifacts: bool = True) -> dic
             _check(
                 "declared_artifacts_present",
                 not missing,
-                "All artifacts declared present still exist."
+                "Declared artifacts are present and recorded hashes match."
                 if not missing
-                else "One or more artifacts declared present are missing.",
+                else "One or more declared artifacts are missing or have a recorded hash mismatch.",
                 artifact_count=len(artifact_checks),
                 missing=[check["path"] for check in missing],
             )
@@ -230,6 +231,8 @@ def verify_manifest(manifest_path: Path, *, check_artifacts: bool = True) -> dic
         "status": manifest.status,
         "created_at": manifest.created_at,
     }
+    if check_artifacts:
+        report["artifacts"] = artifact_checks
     report["manifest_payload_sha256"] = sha256_payload(manifest_payload or {})
     return report
 
@@ -375,6 +378,8 @@ def build_otel_trace_export(
 def build_metadata_store_entry(
     manifest: run_manifest.RunManifest,
     manifest_path: Path,
+    *,
+    manifest_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     return {
         "schema": "agilab.metadata_entry.v1",
@@ -385,7 +390,13 @@ def build_metadata_store_entry(
         "status": manifest.status,
         "created_at": manifest.created_at,
         "manifest_path": str(manifest_path.expanduser()),
-        "manifest_sha256": sha256_file(manifest_path) if manifest_path.expanduser().is_file() else "",
+        "manifest_sha256": (
+            hashlib.sha256(manifest_bytes).hexdigest()
+            if manifest_bytes is not None
+            else sha256_file(manifest_path)
+            if manifest_path.expanduser().is_file()
+            else ""
+        ),
         "command": {
             "label": manifest.command.label,
             "argv": list(manifest.command.argv),
@@ -393,10 +404,14 @@ def build_metadata_store_entry(
         },
         "environment": manifest.environment.as_dict(),
         "timing": manifest.timing.as_dict(),
+        "artifacts": [
+            _artifact_check(artifact, manifest_path, manifest_bytes=manifest_bytes)
+            for artifact in manifest.artifacts
+        ],
+        "validations": [validation.as_dict() for validation in manifest.validations],
         "artifact_count": len(manifest.artifacts),
         "validation_statuses": {
-            validation.label: validation.status
-            for validation in manifest.validations
+            validation.label: validation.status for validation in manifest.validations
         },
     }
 
@@ -1146,6 +1161,49 @@ def run_replay(
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
+    if args.command == "observe-agent":
+        from agilab.agent_runtime.agent_run import create_agent_run_config
+        from agilab.evidence.observability import (
+            AgentLifecycleObserver,
+            run_observed_agent_command,
+        )
+
+        command = args.argv[1:] if args.argv[:1] == ["--"] else args.argv
+        if not command:
+            parser.error("observe-agent requires a command after --.")
+        try:
+            config = create_agent_run_config(
+                command,
+                run_id=args.run_id,
+                output_dir=args.output_dir,
+                cwd=args.cwd,
+                timeout_seconds=args.timeout,
+                permission_level=args.permission_level,
+                confirmation=args.confirmation,
+                trace_enabled=True,
+            )
+            receipt_path = Path(args.receipt).expanduser().resolve()
+            if receipt_path.is_relative_to(config.output_dir.resolve()):
+                parser.error(
+                    "--receipt must be outside the agent execution output directory."
+                )
+            observer = AgentLifecycleObserver(
+                run_id=config.run_id,
+                job_name=args.job_name,
+                receipt_path=receipt_path,
+                otlp_endpoint=args.otlp_endpoint,
+                lineage_endpoint=args.lineage_endpoint,
+                timeout=args.delivery_timeout,
+                parent_run_id=args.parent_run_id,
+                followup_run_id=args.followup_run_id,
+            )
+            payload = run_observed_agent_command(config, observer)
+        except (ValueError, OSError, RuntimeError) as exc:
+            parser.error(str(exc))
+        _emit_report(payload, json_output=args.json, strict=False)
+        return int(payload["returncode"]) or (
+            1 if payload["delivery"]["status"] == "fail" else 0
+        )
     if args.command == "sign":
         result = sign_proof_capsule(
             Path(args.capsule).expanduser(),
@@ -1162,6 +1220,55 @@ def main(argv: Sequence[str] | None = None) -> int:
             "signature_path": str(result.signature_path),
         }
         return _emit_report(payload, json_output=args.json, strict=False)
+
+    if args.command == "metadata-store" and args.sqlite:
+        from agilab.evidence.metadata_store import (
+            ingest_metadata_store,
+            query_metadata_store,
+        )
+
+        try:
+            if args.mode == "query":
+                if args.manifest:
+                    parser.error("SQLite query does not accept a manifest argument.")
+                payload = query_metadata_store(
+                    Path(args.store),
+                    run_id=args.run_id,
+                    status=args.status,
+                    manifest_sha256=args.manifest_sha256,
+                    limit=args.limit,
+                    offset=args.offset,
+                )
+            else:
+                if (
+                    args.run_id
+                    or args.status
+                    or args.manifest_sha256
+                    or args.limit != 50
+                    or args.offset
+                ):
+                    parser.error("Query filters require --mode query.")
+                payload = ingest_metadata_store(
+                    Path(args.manifest) if args.manifest else default_manifest_path(),
+                    Path(args.store),
+                )
+        except sqlite3.Error as exc:
+            parser.error(
+                f"SQLite metadata operation failed ({type(exc).__name__}). "
+                "Check the store path, permissions, schema and concurrent use."
+            )
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+        return _emit_report(payload, json_output=args.json, strict=False)
+    if args.command == "metadata-store" and (
+        args.mode != "ingest"
+        or args.run_id
+        or args.status
+        or args.manifest_sha256
+        or args.limit != 50
+        or args.offset
+    ):
+        parser.error("Metadata query options require --sqlite.")
 
     input_path = Path(args.manifest).expanduser() if args.manifest else default_manifest_path()
 
@@ -1269,6 +1376,60 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    observe = subparsers.add_parser(
+        "observe-agent",
+        help="Observe a real local agent command through explicit loopback collectors.",
+    )
+    observe.add_argument(
+        "--run-id", required=True, help="Unique local agent execution ID."
+    )
+    observe.add_argument(
+        "--output-dir", required=True, help="New agent execution output directory."
+    )
+    observe.add_argument(
+        "--receipt", required=True, help="Separate observability delivery NDJSON file."
+    )
+    observe.add_argument(
+        "--job-name", default="local-agent", help="Stable OpenLineage job name."
+    )
+    observe.add_argument(
+        "--otlp-endpoint", help="Explicit loopback OpenTelemetry HTTP traces endpoint."
+    )
+    observe.add_argument(
+        "--lineage-endpoint", help="Explicit loopback OpenLineage HTTP endpoint."
+    )
+    observe.add_argument("--parent-run-id", default="", help="AGILAB parent run ID.")
+    observe.add_argument(
+        "--followup-run-id", default="", help="AGILAB predecessor run ID."
+    )
+    observe.add_argument(
+        "--timeout", type=float, default=30, help="Command timeout in seconds."
+    )
+    observe.add_argument(
+        "--delivery-timeout",
+        type=float,
+        default=2,
+        help="Delivery timeout, at most 30 seconds.",
+    )
+    observe.add_argument("--cwd", default=".", help="Command working directory.")
+    observe.add_argument(
+        "--permission-level",
+        choices=("readonly", "safe", "standard", "operator"),
+        default="safe",
+        help="Existing agent command permission level.",
+    )
+    observe.add_argument(
+        "--confirmation", help="Existing operator confirmation, when required."
+    )
+    observe.add_argument(
+        "--json",
+        action="store_true",
+        help="Print execution and delivery separately as JSON.",
+    )
+    observe.add_argument(
+        "argv", nargs=argparse.REMAINDER, help="Command argv after --."
+    )
+
     prove = subparsers.add_parser("prove", help="Write a portable AGILAB proof pack.")
     _add_manifest_argument(prove)
     prove.add_argument("--output-dir", help="Directory for the generated proof pack.")
@@ -1333,7 +1494,33 @@ def _build_parser() -> argparse.ArgumentParser:
 
     store = subparsers.add_parser("metadata-store", help="Append a run to a local metadata store.")
     _add_manifest_argument(store)
-    store.add_argument("--store", required=True, help="Metadata store JSON path.")
+    store.add_argument(
+        "--store",
+        required=True,
+        help="Metadata store path (JSON by default, SQLite with --sqlite).",
+    )
+    store.add_argument(
+        "--sqlite",
+        action="store_true",
+        help="Use the durable local SQLite revision store instead of legacy JSON.",
+    )
+    store.add_argument(
+        "--mode",
+        choices=("ingest", "query"),
+        default="ingest",
+        help="SQLite operation; query opens an existing database read-only.",
+    )
+    store.add_argument("--run-id", help="Filter SQLite query by exact run ID.")
+    store.add_argument("--status", help="Filter SQLite query by recorded run status.")
+    store.add_argument(
+        "--manifest-sha256", help="Filter SQLite query by exact manifest revision."
+    )
+    store.add_argument(
+        "--limit", type=int, default=50, help="Query page size, 1 to 1000."
+    )
+    store.add_argument(
+        "--offset", type=int, default=0, help="Query offset, 0 to 1000000."
+    )
     store.add_argument("--json", action="store_true", help="Print JSON output.")
     return parser
 
@@ -1458,6 +1645,8 @@ def _capsule_verification_report(
 def _artifact_check(
     artifact: run_manifest.RunManifestArtifact,
     manifest_path: Path,
+    *,
+    manifest_bytes: bytes | None = None,
 ) -> dict[str, Any]:
     artifact_path = Path(artifact.path).expanduser()
     if not artifact_path.is_absolute():
@@ -1472,10 +1661,28 @@ def _artifact_check(
         "kind": artifact.kind,
         "declared_exists": should_exist,
         "actual_exists": actual_exists,
+        "recorded_sha256": artifact.sha256,
+        "observed_sha256": "",
+        "hash_verification": "not_recorded" if not artifact.sha256 else "unavailable",
     }
     if actual_exists and artifact_path.is_file():
-        payload["sha256"] = sha256_file(artifact_path)
-        payload["size_bytes"] = artifact_path.stat().st_size
+        if (
+            manifest_bytes is not None
+            and artifact_path.resolve() == manifest_path.resolve()
+        ):
+            observed = hashlib.sha256(manifest_bytes).hexdigest()
+            payload["size_bytes"] = len(manifest_bytes)
+        else:
+            observed = sha256_file(artifact_path)
+            payload["size_bytes"] = artifact_path.stat().st_size
+        payload["sha256"] = payload["observed_sha256"] = observed
+        if artifact.sha256:
+            matches = artifact.sha256.lower() == observed
+            payload["hash_verification"] = "match" if matches else "mismatch"
+            if not matches:
+                payload["status"] = "fail"
+    elif artifact.sha256:
+        payload["status"] = "fail"
     return payload
 
 
