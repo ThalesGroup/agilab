@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-14T16:55:09Z",
+  "generated_at_utc": "2026-11-14T17:36:24Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 330,
+    "evidence_schema_count": 331,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -2662,6 +2662,13 @@
       "sources": [
         "docs/source/features.rst",
         "tools/public_proof_scenarios.py"
+      ]
+    },
+    {
+      "schema": "agilab.pydeck_assets.v1",
+      "sources": [
+        "src/agilab/lib/agi-web/src/agi_web/pydeck_assets/agilab_pydeck_manifest.json",
+        "src/agilab/lib/agi-web/src/agi_web/pydeck_support.py"
       ]
     },
     {

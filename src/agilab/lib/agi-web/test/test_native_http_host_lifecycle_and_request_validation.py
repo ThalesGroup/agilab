@@ -217,3 +217,25 @@ def test_cli_preserves_arguments_after_separator_without_opening_browser(tmp_pat
         "address": "::1", "port": 9020, "open_browser": False,
         "argv": ["--active-app", "project", "--option", "value"],
     })]
+
+
+def test_pydeck_public_assets_have_narrow_cors_and_session_assets_stay_private(native_host):
+    from agi_web import pydeck_support as support
+    manifest = support.load_manifest()
+    for name, record in manifest["assets"].items():
+        status, headers, body = request(native_host, "GET", support.asset_url(name, record), headers={"Origin": "null"})
+        assert status == 200 and body
+        assert headers["Access-Control-Allow-Origin"] == "*"
+        assert "Access-Control-Allow-Credentials" not in headers
+        assert "Set-Cookie" not in headers
+        assert headers["Content-Type"] == record["mime"]
+    _, cookie, session = rendered_session(native_host)
+    private_url = session.add_asset(b"private fixture data", "text/plain")
+    assert request(native_host, "GET", private_url, headers={"Origin": "null"})[0] == 404
+    status, headers, body = request(native_host, "GET", private_url, headers={"Cookie": cookie})
+    assert status == 200 and body == b"private fixture data"
+    assert "Access-Control-Allow-Origin" not in headers
+    for path in ("/assets/pydeck/../private", "/assets/pydeck/%2e%2e/private",
+                 "/assets/pydeck/" + "0"*64 + "/agilab_pydeck.js",
+                 "/assets/pydeck/" + "0"*64 + "/unknown.js"):
+        assert request(native_host, "GET", path)[0] == 404

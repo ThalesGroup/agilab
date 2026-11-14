@@ -1656,6 +1656,7 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
     # Preserve row correspondence when concatenated telemetry repeats index labels.
     link_edges[link_column] = parsed_links.loc[valid_links].to_numpy()
     edges_list = []
+    seen_directed_pairs: set[tuple[str, str]] = set()
     label_text = _label_for_link(link_column)
     position_lookup, node_set = _position_lookup(current_positions)
     for _, row in link_edges.iterrows():
@@ -1674,6 +1675,10 @@ def create_edges_geomap(df, link_column, current_positions, *, allowed_edge_pair
                 source_pos = position_lookup.get(source_id)
                 target_pos = position_lookup.get(target_id)
                 if source_pos is not None and target_pos is not None:
+                    directed_pair = (source_id, target_id)
+                    if directed_pair in seen_directed_pairs:
+                        continue
+                    seen_directed_pairs.add(directed_pair)
                     mid_long = (source_pos[0] + target_pos[0]) / 2
                     mid_lat = (source_pos[1] + target_pos[1]) / 2
                     mid_alt = (source_pos[2] + target_pos[2]) / 2
@@ -4518,7 +4523,8 @@ def page():
             )
             st.pydeck_chart(
                 pdk.Deck(
-                    map_style="mapbox://styles/mapbox/light-v9",
+                    map_style=None,
+                    map_provider=None,
                     initial_view_state=view_state_live,
                     layers=layers_live,
                 )

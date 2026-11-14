@@ -3623,3 +3623,55 @@ def test_view_maps_network_unrecognized_allocation_bearer_still_renders_route(
     assert layers
     assert layers[0].data[0]["source"] == [2.0, 48.0, 1000.0]
     assert layers[0].data[0]["target"] == [3.0, 49.0, 1100.0]
+
+
+def test_dense_repeated_topology_has_one_geometry_per_directed_node_pair(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    pairs = [(str(i), str((i + j) % 8)) for i in range(8) for j in (1, 2, 3)]
+    frame = pd.DataFrame({"flight_id": list(map(str, range(8))), "satcom_link": [pairs] * 8}, index=[0] * 8)
+    positions = pd.DataFrame({"flight_id": list(map(str, range(8))), "long": range(8), "lat": range(8), "alt": range(8)})
+    original = frame.copy(deep=True)
+    edges = module.create_edges_geomap(frame, "satcom_link", positions)
+    assert len(edges) == 24
+    assert edges["source"].tolist() == [[float(s)] * 3 for s, _ in pairs]
+    assert edges["target"].tolist() == [[float(t)] * 3 for _, t in pairs]
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_geomap_deduplication_is_directed_normalized_and_scoped_to_bearer(monkeypatch, tmp_path):
+    module = _load_view_maps_network_module(monkeypatch, tmp_path)
+    positions = pd.DataFrame({"flight_id": ["1", "2", "3"], "long": [4., 4., 4.], "lat": [5., 5., 5.], "alt": [6., 6., 6.]})
+    links = [(1, 2), ("1", "2"), (2, 1), (1, 3), (1, 99)]
+    frame = pd.DataFrame({"flight_id": ["1", "2"], "satcom_link": [links, links], "vhf_link": [links, links]}, index=[7, 7])
+    original = frame.copy(deep=True)
+    sat = module.create_edges_geomap(frame, "satcom_link", positions)
+    vhf = module.create_edges_geomap(frame, "vhf_link", positions)
+    assert len(sat) == len(vhf) == 3
+    assert sat["label"].tolist() == ["SAT"] * 3
+    assert vhf["label"].tolist() == ["VHF"] * 3
+    filtered = module.create_edges_geomap(frame, "satcom_link", positions, allowed_edge_pairs={("1", "2")})
+    assert len(filtered) == 2  # Both directed edges survive an undirected pair filter.
+    assert module.create_edges_geomap(frame, "satcom_link", positions.iloc[:1]).empty
+    pd.testing.assert_frame_equal(frame, original)
+
+
+def test_live_allocation_deck_explicitly_disables_basemap_provider():
+    import ast
+    import pydeck as pdk
+
+    tree = ast.parse(MODULE_PATH.read_text())
+    expression = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "Deck"
+        and any(item.arg == "initial_view_state" and isinstance(item.value, ast.Name)
+                and item.value.id == "view_state_live" for item in node.keywords)
+    )
+    layers = [pdk.Layer("ScatterplotLayer", data=[{"position": [1, 2]}], get_position="position")]
+    view = pdk.ViewState(longitude=1, latitude=2, zoom=3, pitch=45, bearing=0)
+    deck = eval(compile(ast.Expression(expression), str(MODULE_PATH), "eval"),
+                {"pdk": pdk, "view_state_live": view, "layers_live": layers})
+    assert deck.map_style is None
+    assert deck.map_provider is None
+    assert deck.layers == layers
+    assert deck.initial_view_state == view

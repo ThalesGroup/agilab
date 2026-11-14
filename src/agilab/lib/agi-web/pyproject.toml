@@ -64,7 +64,7 @@ package-dir = {"" = "src"}
 packages = ["agi_web"]
 
 [tool.setuptools.package-data]
-agi_web = ["react_analysis_assets/*.js", "react_analysis_assets/*.css", "react_analysis_assets/*.LICENSE.txt", "react_main_interface_assets/*.js", "react_main_interface_assets/*.css", "react_main_interface_assets/*.LICENSE.txt", "react_python_host_assets/*.js", "react_python_host_assets/*.css", "react_python_host_assets/*.LICENSE.txt"]
+agi_web = ["pydeck_assets/*.json", "pydeck_assets/*.js", "pydeck_assets/*.css", "pydeck_assets/*.LICENSE.txt", "react_analysis_assets/*.js", "react_analysis_assets/*.css", "react_analysis_assets/*.LICENSE.txt", "react_main_interface_assets/*.js", "react_main_interface_assets/*.css", "react_main_interface_assets/*.LICENSE.txt", "react_python_host_assets/*.js", "react_python_host_assets/*.css", "react_python_host_assets/*.LICENSE.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
