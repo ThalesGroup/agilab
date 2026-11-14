@@ -14,59 +14,65 @@ This page tracks remaining work and the delivered baseline for each theme.
 The goal here is to rank the next acceptance criteria without reopening delivered
 work as a new feature request.
 
-## Delivery checkpoint — reconciled 2026-11-13
+## Delivery checkpoint — reconciled 2026-11-14
 
-The published root release is
-[`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02),
-from source commit `d13af54e2d41fbf70bae7cddf0fb270388dceaaf`.
-Its UI profile pins `agi-apps`, `agi-pages` and `agi-gui 2026.11.02`,
-with the shared React runtime `agi-web 2026.11.02`. Builtin app
-packages keep their own version constraints. See {doc}`../release-proof` for
-the package, hosted demonstration and evidence boundaries. Later source, CI or
-documentation changes do not imply another package release.
+The source checkpoint is `f1710f981b57a079c48fdac6898e4c9dc8f9e505`.
+The published root release remains
+[`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02)
+(PyPI `2026.11.2`), from `d13af54e2d41fbf70bae7cddf0fb270388dceaaf`.
+Its UI profile pins `agi-apps`, `agi-pages`, `agi-gui` and `agi-web`
+at `2026.11.02`; builtin packages retain their own constraints.
+See {doc}`../release-proof` for publication and hosted-demo evidence.
 
-Merged source checkpoint on 2026-11-13:
-[first-proof runtime isolation and origin](https://github.com/ThalesGroup/agilab/pull/1218),
-[unreadable native configuration reported as unknown](https://github.com/ThalesGroup/agilab/pull/1219),
-[run-diff caller-input preservation and provenance](https://github.com/ThalesGroup/agilab/pull/1220),
-and [qualified development/UI dependency bounds](https://github.com/ThalesGroup/agilab/pull/1217).
-These changes are merged through `466e8bd0169aac0628ef3940b8e9186f73b7e897`;
-they are not part of the published `2026.11.02` packages. Installed-package,
-UI and deployment qualification remain separate.
+Merged source now includes [installed SDK origin and local worker-root fixes](https://github.com/ThalesGroup/agilab/pull/1237),
+[SQLite metadata and local trace/lineage adapters](https://github.com/ThalesGroup/agilab/pull/1236),
+and [offline map rendering and saved-data restoration](https://github.com/ThalesGroup/agilab/pull/1238).
+[App-owned evaluation, serving handoffs and optional Sigstore verification](https://github.com/ThalesGroup/agilab/pull/1240)
+are also merged source. These additions are not in the November 2 packages. Public docs deployment,
+source availability and environment qualification remain separate checkpoints.
 
-| Theme | Baseline and source status | Remaining work |
+| Theme | Available baseline or bounded qualification | Remaining acceptance |
 | --- | --- | --- |
-| [P0 release integrity](https://github.com/ThalesGroup/agilab/issues/560) | Published release and explicit release-proof/approval contracts | Keep each subsequent release, package scope, coverage and hosted proof aligned |
-| [P1 first-run UX](https://github.com/ThalesGroup/agilab/issues/561) | Native React entry points and local first-proof route | Qualify newcomer flows and responsiveness on smaller Linux machines |
-| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, fresh-kernel execution, the 1,000-row GUI-to-notebook macOS round trip and interactive Jupyter map/curve rendering from public packages | Published-package qualification of deployed-worker notebook runs, smaller Linux machines, additional apps and larger inputs |
-| [P3 security](https://github.com/ThalesGroup/agilab/issues/563) | Documented boundaries and supply-chain/release guardrails | Environment-specific shared-deployment and dependency qualification |
-| [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing cluster controls and dynamic `agi-core` worker-loading guards | Real platform, degraded-network and team-operation qualification |
-| [Pinned private apps](https://github.com/ThalesGroup/agilab/issues/565) | Pinned validation contracts and scoped private app checks | Broader scientific workload qualification without publishing private source |
+| [P0 release integrity](https://github.com/ThalesGroup/agilab/issues/560) | Published release and explicit proof/approval contracts | Keep later package scope, clean-install, coverage, docs and hosted evidence aligned |
+| [P1 first-run UX](https://github.com/ThalesGroup/agilab/issues/561) | Native React entry points, local first proof and actual published-package Linux workbench execution | Broader newcomer flows, smaller-machine responsiveness and overall environment health |
+| [P2 notebook interop](https://github.com/ThalesGroup/agilab/issues/562) | Editable export, deployed local workers, actual fresh-kernel notebook execution, verification and four-stage reimport in the cohorts below | Additional apps, larger scientific inputs, current candidate SDK on Linux and two-host execution |
+| [P3 security](https://github.com/ThalesGroup/agilab/issues/563) | Documented boundaries and source/release guardrails | Environment-specific shared deployment, dependency and external attestation qualification |
+| [P4 team/cluster operation](https://github.com/ThalesGroup/agilab/issues/564) | Existing controls, dynamic worker loading, source runtime-isolation fixes and qualified premounted native filesystem share consumption | Two-host SDK compute, degraded-network and team-operation qualification |
+| [Revision-pinned app validation](https://github.com/ThalesGroup/agilab/issues/565) | App-specific, exact-revision validation contracts | Broader workload coverage without implying framework-wide scientific qualification |
 | [Multi-app DAG](https://github.com/ThalesGroup/agilab/issues/566) | Two-app artifact handoff, retry, partial rerun, durable state and WORKFLOW controls | Larger graphs, more apps, placement and operator consolidation |
-| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Published MVP in `agilab 2026.11.02` with `agi-web 2026.11.02`: seven profiles, a server command registry and four snapshot panes; navigation, reviewed switching and layout evidence | Actual palette install/scientific-run qualification, broader discovery/actions, hosted-demo qualification, cluster scenarios and smaller-machine measurements |
-| [Data connectors](https://github.com/ThalesGroup/agilab/issues/568) | Catalog, resolution, health-action, adapter and view contracts | Prepared live endpoints: IAM, network, quota, latency and provider behavior |
+| [Operator workbench](https://github.com/ThalesGroup/agilab/issues/567) | Published seven-profile MVP; one reviewed deployment and one scientific run through the published Linux workbench, with two rerenders and no extra operations | Overall health, richer discovery/actions, hosted qualification, clusters and responsiveness |
+| [Data connectors](https://github.com/ThalesGroup/agilab/issues/568) | Catalog, resolution, health-action, adapter and view contracts | Prepared live endpoints, identity/access policy, network behavior, quotas, latency and provider behavior |
 
-These nine issues were opened as roadmap themes in June 2026. They and the
-[central discussion](https://github.com/ThalesGroup/agilab/issues/2) remain an
-index for voting and acceptance criteria, rather than a count of absent features.
-Update their remaining scope from verified deliveries; do not close a broad theme
-solely because one contract report passes.
+All nine themes remain open. They and the
+[central discussion](https://github.com/ThalesGroup/agilab/issues/2) track broader
+acceptance criteria; a passing bounded cohort does not close a theme.
 
-Audience bridge command MVPs are also delivered. The next step is qualification
-with the relevant optional tools and services; see [Audience bridges](audience-bridges.md).
-Neither public builtin proofs nor scoped private checks certify every private
-scientific app or every deployment environment.
+### Qualified cohorts and limits
 
-The workbench shipped with the `2026.10.12` UI release. The current
-`2026.11.02` root package pins `agi-web 2026.11.02`. Backend tests
-exercise its native install/run queue contract. The browser proof covers
-navigation, palette keyboard behavior, action review/cancellation, reviewed
-project switching and desktop/mobile layout; it did not install or execute
-scientific workloads. Hosted-demo identity and availability remain separately
-bounded by {doc}`../release-proof`.
+| Cohort | What passed | Limit |
+| --- | --- | --- |
+| macOS ARM, Python 3.13.14, installed candidate SDK | Normal packaged clone, explicit local worker deployment, mode 0, editable export, actual installed notebook CLI, native verifier and four-stage reimport | Three SDK candidate wheels from reviewed source; other components are November 2 packages. Host-local, not latest-PyPI or two-host qualification |
+| Linux ARM, Python 3.13.18, published November 2 packages | Mode 0, fresh-kernel notebook run, native/export verification, four-stage authorship/reimport and actual workbench scientific execution | Overall environment health still reports absent MLflow; current candidate SDK and two-host compute are separate gates |
+| Current candidate SDK on Linux | Normal fresh-environment clone, export and reimport | Full scientific run pending capacity and tracking-backend prerequisites |
+| Premounted native filesystem share on macOS | Official scheduler-read and mounted-writeback checks over WebDAV through an existing strict SSH tunnel | Two-host SDK compute, degraded-network and team-operation qualification remain open |
+| macOS ARM, Chromium 159, software rendering, current analytical source | Offline maps, provider selection, 24 unique directed allocation links and both 3D saved-data cold starts | Candidate runtime plus source page providers; not a complete wheel-only cohort or hardware-performance result |
 
-Notebook-build recovery can reuse verified generation results. Installed-package
-and hosted behavior remain bounded by the routes recorded in release proof.
+Each notebook cohort used 10 synthetic rows for two aircraft and established
+semantic and byte equality within its own run. The browser cohort used a
+19,208-row saved dataset, retaining caps of 120,000 heatmap points, 600 points
+per trajectory and 1,200 points per selected node. No scientific throughput or
+optimization-gain baseline is available.
+
+Actual local R, Quarto, read-only MCP stdio, MLflow SQLite, DuckDB, Airflow and
+Dagster tool qualification is complete for the declared local cohorts. Hosted
+services and additional platforms remain separate; see
+[Audience bridges](audience-bridges.md).
+
+The earlier workbench browser proof covered navigation, palette controls,
+review/cancellation and project switching. The newer Linux cohort adds actual
+deployment and scientific execution; it does not establish hosted availability,
+overall environment health or cluster operation. Those retain their own
+{doc}`../release-proof` and deployment boundaries.
 
 ## Professional target
 
@@ -192,10 +198,13 @@ Done means:
 
 ### P2. Notebook interop and no-lock-in
 
-Resource-isolated source qualification is tracked in
-[PR #1164](https://github.com/ThalesGroup/agilab/pull/1164). Its real worker,
-browser export, fresh-kernel and reimport checkpoints are recorded separately
-from published-package evidence.
+Earlier resource-isolated source qualification is tracked in
+[PR #1164](https://github.com/ThalesGroup/agilab/pull/1164). The November 14
+cohorts above add a normally deployed local worker, actual notebook execution,
+native verification and four-stage reimport. Keep the installed macOS SDK
+candidate separate from the published-package Linux cohort. The current Linux
+SDK candidate separately passed normal clone, export and reimport; its full
+scientific run awaits capacity and tracking-backend prerequisites.
 
 Goal:
 
@@ -214,12 +223,11 @@ Concrete items:
   convenience download
 - round-trip the stage order, code, runtime hints, artifacts, and provenance
   enough for review and reuse outside the AGILab UI
-- qualify a public builtin such as `flight_telemetry_project` through explicit
-  worker deployment, an SDK-dispatched run, exported notebook execution in a
-  fresh kernel, artifact comparison and reimport; preserve dynamic `agi-core`
-  worker loading and the authored deployment stages
-- keep smaller-machine Linux qualification separate from macOS UI and kernel
-  proofs; a manager-only fixture or rendered widget does not prove a worker job
+- extend the qualified public builtin deployment/run/notebook/reimport route
+  to more apps and larger scientific inputs; preserve dynamic `agi-core`
+  worker loading and authored deployment stages
+- keep published-package Linux and macOS candidate results separate; qualify
+  the current Linux SDK candidate and two-host execution independently
 
 Done means:
 
@@ -395,19 +403,37 @@ Context-engineering gaps to close:
   worker backlog, artifact volume, token/cost metrics when an LLM is involved,
   and service-health state when a long-running service is used
 
+Source availability as of November 14:
+
+[Durable metadata and local observability](https://github.com/ThalesGroup/agilab/pull/1236)
+adds transactional SQLite ingestion/query of runs, artifacts and validations,
+durable JSONL agent events, and opt-in loopback OpenTelemetry Protocol (OTLP)
+and OpenLineage delivery. Recorded artifact identities remain distinct from
+current-file observations. This is source availability, absent from the
+November 2 packages. Source tests qualify local optional-dependency composition
+with the normal OpenTelemetry SDK and schema-validation dependencies. External
+collector deployment, remote runtime acceptance and correlation across UI and
+workers remain open.
+
+[Evaluation, serving handoffs and optional Sigstore verification](https://github.com/ThalesGroup/agilab/pull/1240)
+are also available in source. App-owned finite evaluations can gate promotion,
+and portable serving handoffs retain selected model, policy, manifest and
+execution-receipt bindings. Four official Sigstore fixture cases exercised the
+opt-in adapter. A positive external attestation of a real user capsule,
+including Supply-chain Levels for Software Artifacts (SLSA) provenance, remains
+unavailable; no serving deployment or external certification is implied.
+
 Remaining state-of-the-art scope:
 
-- external Sigstore/SLSA attestation for signed `.agipack` archives and a
-  third-party verifier path that validates provenance without a local trust root
-  or source checkout
-- OpenLineage transport integration to emit events to an external lineage
-  backend, not only write an interoperable JSON payload
-- native OpenTelemetry SDK/OTLP instrumentation across React and native Python UI actions,
-  worker build, distributed execution, notebook export, MLflow handoff, and
-  agent runs
-- durable ML metadata backend, for example SQLite/Postgres/MLMD-compatible
-  storage, with query APIs for datasets, models, prompts, runs, artifacts, and
-  lineage
+- external Sigstore/SLSA attestation for a real user capsule, with independently
+  verified provenance and issuer/identity policy
+- externally deployed OpenLineage services and operational acceptance beyond
+  the opt-in loopback adapter
+- correlated OpenTelemetry instrumentation across React/Python UI actions,
+  worker build, distributed execution, notebook export and MLflow handoff,
+  beyond the source local agent-event integration
+- richer dataset/model/prompt/lineage queries, retention and optional
+  Postgres-compatible storage beyond the source SQLite run metadata backend
 - app-declared model cards, data cards, prompt cards, and evaluation cards with
   domain metadata rather than evidence-only placeholders
 - richer policy-as-code, potentially OPA/Rego-compatible, for adoption gates,
@@ -424,14 +450,14 @@ Remaining state-of-the-art scope:
 
 State-of-the-art upgrade backlog:
 
-| Priority | Missing capability | First shippable AGILAB contract | Done when |
+| Priority | Area | Source baseline or next contract | Remaining acceptance |
 | --- | --- | --- | --- |
-| P0 | External proof-capsule attestation | Sigstore / SLSA provenance sidecars bound to the signed `.agipack` signature and trust-policy verification path | A reviewer can verify archive integrity, signer identity, build provenance, and allowed issuer without the original source checkout or a local-only trust root. |
-| P0 | Native OpenTelemetry and GenAI traces | `agilab export-traces --otlp-endpoint ...` plus SDK spans for UI actions, worker build, distributed execution, notebook export, MLflow handoff, and agent runs | A run has correlated trace IDs across manager, worker, notebook, and agent events, and an OTLP collector can ingest them without a custom converter. |
-| P0 | OpenLineage transport | `agilab emit-lineage --backend openlineage --url ...` using `START`, `RUNNING`, `COMPLETE`, and `FAIL` events with stable job, run, dataset, and parent-run facets | Marquez/OpenLineage-compatible backends can show AGILAB datasets, artifacts, and job hierarchy from emitted events, not only from local JSON files. |
-| P1 | Continuous eval and LLMOps loop | `eval_manifest.json`, app-declared scorer contracts, baseline/candidate comparisons, optional MLflow GenAI evaluation handoff, and promotion gates | A prompt, model, agent, or notebook change can fail promotion because quality, cost, latency, safety, or regression scores moved outside policy. |
-| P1 | Durable evidence metadata backend | Local SQLite first, then Postgres-compatible storage for runs, artifacts, datasets, models, prompts, cards, lineage, and policy reports | `agilab metadata-store query ...` can answer reviewer questions across runs without scanning ad hoc proof folders. |
-| P1 | Production serving handoff | KServe/Ray Serve/Seldon-style manifest export with model URI, environment, health checks, canary/rollback hints, and prediction-log evidence contract | AGILAB can hand a reproducible candidate to a serving platform while staying out of production traffic control. |
+| P0 | External proof-capsule attestation | Source opt-in Sigstore verification adapter exercised by four official signed fixtures | Obtain positive external verification of a real user capsule and SLSA provenance with explicit issuer/identity policy; fixture success does not certify user capsules. |
+| P0 | Native OpenTelemetry and GenAI traces | Source JSONL agent events and opt-in loopback OTLP adapter with qualified local optional-dependency composition | Qualify external collector deployment, remote runtime acceptance and end-to-end correlation across UI, workers, notebooks and tracking. |
+| P0 | OpenLineage transport | Source opt-in loopback event delivery with local receipts | Qualify external backend ingestion, operational failures and broader dataset/job hierarchy; source adapter availability is not external service certification. |
+| P1 | Continuous eval and LLMOps loop | Source app-owned finite evaluation receipts and evaluation-gated promotion | Extend to continuous prompt/model/agent comparisons and prepared tracking services with declared quality, cost, latency and safety policies. |
+| P1 | Durable evidence metadata backend | Source transactional SQLite ingestion/query for runs, artifacts and validations | Extend scientific entity coverage, migration/retention and optional Postgres-compatible deployment while preserving recorded/current identity distinctions. |
+| P1 | Production serving handoff | Source portable serving handoff and verification with selected model, policy, manifest and execution-receipt bindings | Qualify an actual prepared serving deployment, health, operations and rollback; a verified handoff does not deploy a serving engine. |
 | P2 | App-authored cards | App-owned model, data, prompt, and eval card schemas with required domain fields and evidence links | Cards are no longer placeholders inferred from run manifests; apps declare meaningful review metadata. |
 | P2 | Policy-as-code and capability sandboxing | OPA/Rego-compatible gates plus filesystem, network, secret, subprocess, and package capability declarations for generated code, notebooks, and agents | Unsafe execution paths are blocked before run, and the proof bundle records the policy decision and granted capabilities. |
 | P2 | Enterprise shared-deployment controls | Secrets-backend integration, authentication, RBAC, audit logs, and tenant-isolation hooks | Shared deployments can be evaluated with explicit platform controls instead of relying on local-workbench assumptions. |
@@ -784,6 +810,13 @@ Why later:
 Integrate with observability and MLOps platforms without claiming to replace
 them.
 
+Source SQLite metadata, durable JSONL agent events and opt-in loopback
+OTLP/OpenLineage adapters are available; see the source checkpoint above.
+Local MLflow SQLite handoff qualification is complete for its declared cohort.
+Local optional-dependency composition passed source tests with the normal
+OpenTelemetry SDK and schema-validation dependencies. External services, remote
+runtime acceptance and broader correlation across UI and workers remain open.
+
 Acceptance gate:
 
 - MLflow remains the tracking and registry handoff path
@@ -891,10 +924,12 @@ use this order after the P0-P2 professionalization gates are under control:
      switch commands reuse the current native lifecycle and AGI SDK
    - browser proof covers keyboard palette behavior, navigation, action
      review/cancellation, reviewed project switching and desktop/mobile layout
-   - backend tests cover the install/run queue contract; real installation and
-     scientific execution through the palette remain a qualification task
-   - this MVP ships in the `agilab 2026.10.13` root package with
-     `agi-web 2026.10.12`; live hosted-demo scope needs separate evidence
+   - backend tests cover the install/run queue contract; the published-package
+     Linux cohort now adds one reviewed worker deployment and one scientific
+     run, with two rerenders causing no extra operations
+   - the MVP first shipped with the October UI release; the current root
+     release is `2026.11.02` with `agi-web 2026.11.02`. Overall environment
+     health, hosted behavior and cluster execution need separate evidence
    - the deeper discovery, workspace and action criteria below remain the
      productization scope beyond these compact snapshots
    - draw inspiration from Windows Terminal 1.0's product pattern: one stable
@@ -1008,6 +1043,15 @@ Why it matters:
 - good fit with existing AGILab map/network views
 
 ### 4. Realtime Analytical and Geospatial Views
+
+The November 14 current-source macOS ARM browser cohort passed all four map
+gates with Chromium 159 and software rendering: bundled offline rendering,
+provider selection, 24 unique directed allocation links, and saved-directory
+cold starts in both 3D views on 19,208 rows. Opaque iframe/private-route
+protections and sampling caps remain effective: 120,000 heatmap points,
+600 per trajectory and 1,200 per selected node. The cohort combines candidate
+runtime packages and exact source page providers; complete wheel-only,
+hardware and performance qualification remain open.
 
 Purpose:
 
@@ -1318,8 +1362,8 @@ Recommended direction:
 
 - keep Python stdlib `logging` plus `AgiLogger` as the canonical runtime logging
   contract
-- add real child logger support, structured JSON output, and stable context
-  fields such as app id, host, worker, and run id
+- retain the source SDK child-logger correction and extend structured JSON
+  output and stable context such as app id, host, worker and run id
 - keep the current colorized human console output as the default local
   developer mode
 - treat `loguru` as an optional choice only for isolated helper scripts or
@@ -1331,8 +1375,8 @@ Why it matters:
 
 - AGILAB already spans third-party libraries and multi-process surfaces that
   integrate naturally with stdlib logging
-- the real missing capability is structured context and better logger
-  hierarchy, not a new logging syntax
+- broader structured context and cross-runtime correlation remain useful
+  extensions to the corrected child-logger hierarchy
 - this keeps the logging contract stable while still making observability
   stronger
 ## Backend observability and audit architecture
@@ -1804,6 +1848,12 @@ Current shipped baseline:
   truth
 - the KPI evidence bundle includes this as
   `repository_knowledge_report_contract`
+
+The November 14 source checkpoint also includes
+[bounded local source-linked exploration](https://github.com/ThalesGroup/agilab/pull/1234):
+explicit index build/verification, source-line queries, outlines and crosslinks
+bound to source hashes. Stale or unsafe inputs are refused. This is local
+source tooling, absent from the November 2 packages.
 
 Remaining scope:
 

@@ -1,10 +1,37 @@
 # Audience bridges
 
-Status reviewed on 2026-10-11: dependency-light bridge MVPs are shipped for the
-commands listed below. Remaining work is qualification and deeper integration.
-They are adoption and evidence handoff surfaces, not a production R-native worker
-rewrite and not replacements for Quarto, MLflow, Hugging Face, DuckDB, Airflow,
-Dagster, VS Code, or MCP-native tooling.
+Status reconciled on 2026-11-14 against source checkpoint
+`f1710f981b57a079c48fdac6898e4c9dc8f9e505`. The published root release remains
+[`2026.11.02`](https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02)
+(PyPI `2026.11.2`). The bridge command MVPs exist, and actual local execution
+is now qualified for the tool cohorts below. Source changes, package publication,
+local execution and hosted deployment retain separate evidence boundaries.
+
+| Bridge | Qualified local behavior | Remaining qualification |
+| --- | --- | --- |
+| R | Native R execution, repeat success, empty-input handling and finalized artifact digests; [source summary correction](https://github.com/ThalesGroup/agilab/pull/1233) | Additional platforms and workloads; the correction is not in November 2 packages |
+| Quarto | Actual rendering of an AGILAB evidence report with the installed tool | More report formats, publishing targets and platforms |
+| Read-only MCP | Actual stdio server/client evidence access | Hosted transports, authentication and other client environments |
+| MLflow | Actual handoff/import against local SQLite-backed tracking | Prepared remote tracking services, identity/access policy and deployment operations |
+| DuckDB | Actual DuckDB 2.0.0 engine execution and CLI handoffs | More data/SQL workloads and platform coverage; full dbt integration is separate |
+| Airflow and Dagster | Actual local import and execution of generated handoffs | Hosted schedulers, production operations and additional versions/platforms |
+| Hugging Face | Export contract and separately recorded public demo evidence | Each new exported project's deployment and health; see {doc}`../release-proof` |
+| VS Code / devcontainer | Generated onboarding/task/debug configuration contract | Fresh container startup, editor attachment and additional host platforms |
+
+These local results do not certify hosted services or all platforms and do not
+establish scientific scores, throughput or optimization gains. The remaining
+work deepens the qualified bridges; it does not reopen their local tool
+execution as wholly untested.
+
+Source tests also qualify local optional telemetry-dependency composition with
+the normal OpenTelemetry SDK and schema-validation dependencies. External
+collector deployment, remote runtime acceptance and correlation across UI and
+workers remain open.
+
+The current Linux SDK candidate separately passed normal clone, export and
+reimport; its full scientific run awaits capacity and tracking-backend
+prerequisites. The installed macOS candidate and published Linux results
+retain their original scope.
 
 ## Executive recommendation
 
@@ -48,9 +75,10 @@ agilab export airflow-dag --run run_manifest.json --output agilab_dag.py
 agilab export dagster-job --run run_manifest.json --output agilab_job.py
 ```
 
-The app-local `r_runtime_bridge_project` remains the proof that AGILAB can execute
-an external R payload through the `Rscript` + JSON + artifact contract. Live
-Rscript tests are skipped when R is not installed.
+The app-local `r_runtime_bridge_project` exercises the external `Rscript` +
+JSON + artifact contract. Actual native R positive, repeat and empty-input
+cases passed in the declared local cohort. Optional-tool tests may still skip
+when R is absent; that is a different environment from the qualified run.
 
 ## Bridge priority ranking
 
@@ -380,42 +408,20 @@ AGILAB validates and proves the workflow.
 Airflow or Dagster schedules it in production.
 ```
 
-## Recommended qualification order
+## Remaining qualification order
 
-Keep these audiences in order while deepening the shipped MVPs. Separate
-successful artifact generation from execution by an installed external tool or
-deployment to an external service.
-
-Phase 1: reproducible reporting audience
-
-1. `agilab export quarto`
-2. Quarto smoke report from an existing run manifest
-3. `docs/source/quarto-users.rst`
-
-Phase 2: R users
-
-4. Keep `r_runtime_bridge_project` as the app-local proof
-5. Reuse the Rscript JSON/artifact adapter contract
-6. Add an optional small R client only after the app-local proof is useful
-
-Phase 3: AI-agent audience
-
-7. Read-only `agilab-mcp`
-8. Manifest and artifact summary tools
-9. Compare-runs
-10. Export-Quarto-report tool
-
-Phase 4: public demo audience
-
-11. Hugging Face Docker Space exporter
-12. Sample evidence bundle
-13. Public demo docs
-
-Phase 5: MLOps and analytics audiences
-
-14. MLflow export/import
-15. DuckDB SQL run bridge
-16. Airflow/Dagster export only after the above are stable
+1. Extend the qualified Quarto/R reporting route to more workloads and publishing
+   targets while preserving the narrow external-stage artifact contract.
+2. Qualify additional MCP clients/transports without granting execution
+   authority to the read-only evidence server. Quarto export remains an
+   explicit writing CLI action.
+3. Validate each new Hugging Face export's actual deployment and health against
+   its selected public inputs; an existing demo does not qualify every export.
+4. Prepare remote MLflow and scheduler environments before testing service
+   identity, network, quota and operations. Keep local SQLite/import/run results
+   separate from those service claims.
+5. Qualify fresh VS Code/devcontainer startup and additional platforms. Extend
+   DuckDB workloads before treating a full dbt bridge as implemented.
 
 ## Implementation baseline
 
@@ -449,12 +455,12 @@ pytest -q test/test_audience_bridges.py
 pytest -q test/test_r_runtime_bridge_project.py
 ```
 
-Live Rscript cases require R and can be skipped when it is absent. Quarto
-rendering, optional DuckDB execution, live MLflow import and deployment of an
-exported Hugging Face Space each need their own prepared environment and result.
-An exported Airflow DAG or Dagster job is a handoff artifact until that tool has
-actually imported and run it. Record those outcomes separately from command
-contract tests; do not infer production qualification from an MVP export.
+The local cohorts above have actual R, Quarto, read-only MCP stdio, MLflow
+SQLite, DuckDB and Airflow/Dagster execution evidence, separate from command
+contract tests. Reuse a result only for its bound inputs, tool version and
+configuration. A different optional-tool environment, exported Space deployment
+or hosted scheduler needs its own prepared run; local success does not establish
+production qualification.
 
 ## Product story
 
