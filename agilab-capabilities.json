@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-11-14T17:36:24Z",
+  "generated_at_utc": "2026-11-14T20:22:52Z",
   "schema": "agilab.capabilities.v1",
   "schema_version": 1,
   "generated_by": {
@@ -22,7 +22,7 @@
     "package_count": 39,
     "public_app_count": 14,
     "agent_skill_count": 33,
-    "evidence_schema_count": 331,
+    "evidence_schema_count": 336,
     "catalog_file_count": 12
   },
   "cli_commands": [
@@ -1625,6 +1625,24 @@
       ]
     },
     {
+      "schema": "agilab.eval_manifest.v1",
+      "sources": [
+        "src/agilab/evidence/evaluation.py"
+      ]
+    },
+    {
+      "schema": "agilab.eval_score.v1",
+      "sources": [
+        "src/agilab/evidence/evaluation.py"
+      ]
+    },
+    {
+      "schema": "agilab.evaluation_receipt.v1",
+      "sources": [
+        "src/agilab/evidence/evaluation.py"
+      ]
+    },
+    {
       "schema": "agilab.evidence_card.v1",
       "sources": [
         "src/agilab/evidence/evidence_contract.py"
@@ -1764,6 +1782,12 @@
       "sources": [
         "docs/source/data/extension_contracts.toml",
         "tools/maintenance_dashboard.py"
+      ]
+    },
+    {
+      "schema": "agilab.external_attestation_verification.v1",
+      "sources": [
+        "src/agilab/evidence/capsule_attestation.py"
       ]
     },
     {
@@ -2562,7 +2586,8 @@
     {
       "schema": "agilab.policy.v1",
       "sources": [
-        "src/agilab/evidence/evidence_contract.py"
+        "src/agilab/evidence/evidence_contract.py",
+        "src/agilab/evidence/serving_handoff.py"
       ]
     },
     {
@@ -2926,6 +2951,12 @@
       "schema": "agilab.service.operator_snapshot.v1",
       "sources": [
         "src/agilab/orchestrate/orchestrate_services.py"
+      ]
+    },
+    {
+      "schema": "agilab.serving_handoff.v1",
+      "sources": [
+        "src/agilab/evidence/serving_handoff.py"
       ]
     },
     {

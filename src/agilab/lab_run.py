@@ -215,7 +215,75 @@ def _run_storyboard(argv: list[str]) -> int:
 def _run_promotion_dossier(argv: list[str]) -> int:
     from agilab import promotion_dossier
 
-    return promotion_dossier.main(argv)
+    pin_option = "--evaluation-receipt-sha256"
+    if not _has_cli_option(argv, pin_option) and not any(
+        arg in ("-h", "--help") for arg in argv
+    ):
+        return promotion_dossier.main(argv)
+
+    # Reuse the frozen backend's argument contract; trust is a caller-only option.
+    parser = promotion_dossier._build_parser()
+    parser.add_argument(
+        pin_option,
+        action="append",
+        metavar="SHA256",
+        help=(
+            "External canonical receipt pin from a trusted execution observer; "
+            "never copy it from untrusted evidence. Requires --evaluation-receipt "
+            "and an explicit --evaluation-root."
+        ),
+    )
+    args = parser.parse_args(argv)
+    pins = args.evaluation_receipt_sha256
+    if pins is None:
+        return promotion_dossier.main(argv)
+    if len(pins) != 1:
+        parser.error(f"{pin_option} must be supplied exactly once")
+    if args.evaluation_receipt is None or args.evaluation_root is None:
+        parser.error(f"{pin_option} requires --evaluation-receipt and --evaluation-root")
+
+    # Strip only the exact caller option before the positional-argument delimiter.
+    forwarded: list[str] = []
+    tokens = iter(argv)
+    for token in tokens:
+        if token == "--":
+            forwarded.extend([token, *tokens])
+            break
+        if token == pin_option:
+            next(tokens)  # parse_args already checked the value.
+        elif not token.startswith(f"{pin_option}="):
+            forwarded.append(token)
+
+    from contextlib import ExitStack
+
+    from agilab.evidence.evaluation import trusted_evaluation_receipt
+
+    with ExitStack() as stack:
+        try:
+            if not args.evaluation_root.is_dir():
+                parser.error("--evaluation-root must name an existing app directory")
+            stack.enter_context(trusted_evaluation_receipt(args.evaluation_root, pins[0]))
+        except (OSError, ValueError, RuntimeError) as exc:
+            parser.error(f"Invalid evaluation trust context: {str(exc)[:240]}")
+        return promotion_dossier.main(forwarded)
+
+
+def _run_evaluation(argv: list[str]) -> int:
+    from agilab.evidence import evaluation
+
+    return evaluation.main(argv)
+
+
+def _run_serving_handoff(argv: list[str]) -> int:
+    from agilab.evidence import serving_handoff
+
+    return serving_handoff.main(argv)
+
+
+def _run_capsule_attestation(argv: list[str]) -> int:
+    from agilab.evidence import capsule_attestation
+
+    return capsule_attestation.main(argv)
 
 
 def _run_evidence_contract(argv: list[str]) -> int:
@@ -1141,6 +1209,9 @@ _SUBCOMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
             ("adoption-report", "Summarize adoption/compatibility posture."),
             ("story", "Render the storyboard walkthrough."),
             ("promotion-dossier", "Assemble the promotion dossier."),
+            ("evaluation", "Run or verify an app-owned evaluation receipt."),
+            ("serving-handoff", "Export or verify a declarative serving handoff."),
+            ("capsule-attestation", "Verify an optional external Sigstore bundle."),
             ("publish", "Run the publish path."),
             ("release", "Run the release path."),
         ),
@@ -1225,6 +1296,12 @@ def main(argv: list[str] | None = None) -> int:
     ):
         command = raw_argv[0].replace("_", "-")
         return _run_evidence_contract([command, *raw_argv[1:]])
+    if raw_argv[:1] == ["evaluation"]:
+        return _run_evaluation(raw_argv[1:])
+    if raw_argv[:1] == ["serving-handoff"]:
+        return _run_serving_handoff(raw_argv[1:])
+    if raw_argv[:1] == ["capsule-attestation"]:
+        return _run_capsule_attestation(raw_argv[1:])
     if raw_argv[:1] == ["workflow"]:
         return _run_workflow(raw_argv[1:])
     if raw_argv[:1] == ["publish"]:
