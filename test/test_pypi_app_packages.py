@@ -917,3 +917,127 @@ def test_version_resolution_requires_packaging_before_inspecting_payload(monkeyp
     monkeypatch.setattr(implementation, "Requirement", None)
     with pytest.raises(ValueError, match="packaging dependency"):
         module._selected_release_version({}, "agi-app-demo")
+
+
+
+def test_security_wheel_metadata_limit_refuses_before_open(monkeypatch):
+    module = _load_module()
+    monkeypatch.setattr(module, "MAX_ENTRY_POINTS_BYTES", 64, raising=False)
+    data = _wheel_bytes("[agilab.apps]\ndemo = demo:root\n#" + "x" * 128)
+
+    def unexpected_open(*args, **kwargs):
+        raise AssertionError("Oversized metadata must be rejected before opening it")
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", unexpected_open)
+    with pytest.raises(ValueError, match="metadata.*limit"):
+        module._wheel_entry_points_from_bytes(data)
+
+
+def test_security_wheel_metadata_reads_selected_member_with_bound(monkeypatch):
+    module = _load_module()
+    monkeypatch.setattr(module, "MAX_ENTRY_POINTS_BYTES", 64, raising=False)
+    entry = SimpleNamespace(filename="demo.dist-info/entry_points.txt", file_size=32, is_dir=lambda: False)
+    observed = []
+
+    class Stream:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def read(self, size):
+            observed.append(size)
+            return b"x" * size
+
+    class Wheel:
+        def __init__(self, *_args):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def infolist(self):
+            return [entry]
+
+        def open(self, selected):
+            assert selected is entry
+            return Stream()
+
+        def namelist(self):
+            return [entry.filename]
+
+        def read(self, _name):
+            return b"[agilab.apps]\ndemo = demo:root\n"
+
+    monkeypatch.setattr(zipfile, "ZipFile", Wheel)
+    with pytest.raises(ValueError, match="metadata.*limit"):
+        module._wheel_entry_points_from_bytes(b"fixture")
+    assert observed == [65]
+
+
+@pytest.mark.parametrize("kind", ["zip", "utf8", "ini"])
+def test_security_wheel_invalid_metadata_is_classified(kind):
+    module = _load_module()
+    if kind == "zip":
+        data = b"not a ZIP archive"
+    else:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as wheel:
+            payload = b"\xff" if kind == "utf8" else b"PRIVATE_SENTINEL_WITHOUT_INI_SECTION"
+            wheel.writestr("demo.dist-info/entry_points.txt", payload)
+        data = buffer.getvalue()
+    with pytest.raises(ValueError, match="invalid.*metadata") as caught:
+        module._wheel_entry_points_from_bytes(data)
+    assert "PRIVATE_SENTINEL" not in str(caught.value)
+
+
+def test_security_wheel_duplicate_names_are_rejected(monkeypatch):
+    module = _load_module()
+    monkeypatch.setattr(module, "MAX_ENTRY_POINTS_BYTES", 64, raising=False)
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as wheel:
+        wheel.writestr("demo.dist-info/entry_points.txt", "[agilab.apps]\ndemo = demo:root\n")
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            wheel.writestr("demo.dist-info/entry_points.txt", "[agilab.apps]\nother = other:root\n#" + "x" * 128)
+    with pytest.raises(ValueError, match="ambiguous"):
+        module._wheel_entry_points_from_bytes(buffer.getvalue())
+
+
+def test_security_wheel_preflight_classifies_invalid_archive():
+    module = _load_module()
+    payload = {
+        "info": {"version": "1.0", "requires_python": ">=3.12"},
+        "urls": [{"packagetype": "bdist_wheel", "filename": "agi_app_demo-1.0-py3-none-any.whl",
+                  "url": "https://files.pythonhosted.org/demo.whl", "digests": {"sha256": "a" * 64}}],
+    }
+
+    def opener(request, **_kwargs):
+        url = getattr(request, "full_url", str(request))
+        return _Response(b"invalid ZIP" if url.endswith(".whl") else json.dumps(payload).encode())
+
+    result = module.preflight_pypi_app_install("agi-app-demo", opener=opener)
+    assert result.status == "fail"
+    assert "invalid wheel metadata" in " ".join(result.issues).lower()
+
+
+
+def test_security_wheel_corrupt_lzma_metadata_is_classified():
+    import struct
+
+    pytest.importorskip("lzma")
+    module = _load_module()
+
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_LZMA) as wheel:
+        wheel.writestr("demo.dist-info/entry_points.txt", "[agilab.apps]\nexample=demo:main\n")
+    data = bytearray(payload.getvalue())
+    name_size, extra_size = struct.unpack_from("<HH", data, 26)
+    start = 30 + name_size + extra_size
+    # Invalid LZMA properties, a tiny deterministic archive, no decompression bomb.
+    data[start + 4] = 255
+    with pytest.raises(ValueError, match="invalid wheel metadata"):
+        module._wheel_entry_points_from_bytes(bytes(data))
