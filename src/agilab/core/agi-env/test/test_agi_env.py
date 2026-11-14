@@ -100,6 +100,7 @@ def test_local_child_environment_freezes_instance_resources_context(tmp_path, mo
     selected = (tmp_path / "selected").resolve()
     other = tmp_path / "other-process-context"
     state = object.__new__(AgiEnv)
+    state._agilab_initialized = True
     state._agilab_resources_context = selected
     state.resources_path = selected
     state._pythonpath_entries = []
@@ -1837,14 +1838,17 @@ def test_init_worker_install_type_detects_wenv_apps_path(tmp_path: Path, monkeyp
     assert env.active_app == (fake_home / "wenv" / "demo_worker")
 
 
-def test_init_resolve_install_type_falls_back_when_apps_path_resolution_breaks(
-    tmp_path: Path, monkeypatch
+@pytest.mark.parametrize("source_sdk", [False, True])
+def test_init_keeps_sdk_kind_when_apps_path_resolution_breaks(
+    tmp_path: Path, monkeypatch, source_sdk
 ):
     fake_home = tmp_path / "home"
     fake_home.mkdir()
     share_root = fake_home / ".local" / "share" / "agilab"
     share_root.mkdir(parents=True, exist_ok=True)
-    (share_root / ".agilab-path").write_text(str(tmp_path / "ignored"), encoding="utf-8")
+    (share_root / ".agilab-path").write_text(
+        str(tmp_path / "ignored"), encoding="utf-8"
+    )
     (fake_home / "clustershare").mkdir()
     (fake_home / "localshare").mkdir()
     env_dir = fake_home / ".agilab"
@@ -1857,15 +1861,28 @@ def test_init_resolve_install_type_falls_back_when_apps_path_resolution_breaks(
     app_root = repo_apps / "demo_project"
     (app_root / "src" / "demo").mkdir(parents=True, exist_ok=True)
     (app_root / "src" / "demo_worker").mkdir(parents=True, exist_ok=True)
-    (app_root / "src" / "demo" / "demo.py").write_text("class Demo:\n    pass\n", encoding="utf-8")
+    (app_root / "src" / "demo" / "demo.py").write_text(
+        "class Demo:\n    pass\n", encoding="utf-8"
+    )
     (app_root / "src" / "demo_worker" / "demo_worker.py").write_text(
         "class BaseWorker:\n    pass\n\nclass DemoWorker(BaseWorker):\n    pass\n",
         encoding="utf-8",
     )
-    (app_root / "pyproject.toml").write_text("[project]\nname='demo-project'\n", encoding="utf-8")
+    (app_root / "pyproject.toml").write_text(
+        "[project]\nname='demo-project'\n", encoding="utf-8"
+    )
 
     site_root = tmp_path / "site-packages"
     _configure_fake_installed_specs(monkeypatch, site_root)
+
+    if not source_sdk:
+        from agi_env.runtime import agi_env_instance_initialization
+
+        monkeypatch.setattr(
+            agi_env_instance_initialization,
+            "__file__",
+            str(site_root / "agi_env/runtime/agi_env_instance_initialization.py"),
+        )
 
     original_resolve = Path.resolve
     resolve_calls = {"repo_apps": 0}
@@ -1880,15 +1897,22 @@ def test_init_resolve_install_type_falls_back_when_apps_path_resolution_breaks(
     monkeypatch.setattr(Path, "resolve", _patched_resolve, raising=False)
     mock_logger = mock.Mock()
     AgiEnv.reset()
-    with mock.patch.object(AgiLogger, "configure", return_value=mock_logger), \
-         mock.patch.object(AgiEnv, "_init_apps", lambda self: None), \
-         mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None), \
-         mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps), \
-         mock.patch.object(AgiEnv, "resolve_user_app_settings_file", lambda self, ensure_exists=False: None), \
-         mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None):
+    with (
+        mock.patch.object(AgiLogger, "configure", return_value=mock_logger),
+        mock.patch.object(AgiEnv, "_init_apps", lambda self: None),
+        mock.patch.object(AgiEnv, "_init_resources", lambda self, _path: None),
+        mock.patch.object(AgiEnv, "_get_apps_repository_root", lambda self: repo_apps),
+        mock.patch.object(
+            AgiEnv,
+            "resolve_user_app_settings_file",
+            lambda self, ensure_exists=False: None,
+        ),
+        mock.patch.object(AgiEnv, "find_source_app_settings_file", lambda self: None),
+    ):
         env = AgiEnv(apps_path=repo_apps, app="demo_project", verbose=0)
 
-    assert env.install_type == 0
+    assert env.install_type == (1 if source_sdk else 0)
+    assert env.is_source_env is source_sdk
     assert env.is_worker_env is False
     assert env.active_app == app_root.resolve()
     assert resolve_calls["repo_apps"] >= 2

@@ -25,8 +25,17 @@ import shutil
 import socket
 import sys
 import time
+import runpy
 from pathlib import Path
 from tempfile import gettempdir, mkdtemp
+
+
+from agi_cluster.agi_distributor.api.node_source_bootstrap import (
+    _bootstrap_node_src as _bootstrap_node_src,
+    _resolve_node_src as _resolve_node_src,
+    _node_src as _node_src,
+    resolve_node_source_path as resolve_node_source_path,
+)
 
 from agi_cluster.agi_distributor import cli as distributor_cli
 from agi_cluster.agi_distributor import (
@@ -65,7 +74,6 @@ runtime_misc_support.ensure_asyncio_run_signature(
 from asyncssh.process import ProcessError
 from contextlib import asynccontextmanager
 import psutil
-import runpy
 
 if TYPE_CHECKING:
     from dask.distributed import Client
@@ -83,36 +91,6 @@ def wait(*args: Any, **kwargs: Any) -> Any:
 
 # Project Libraries:
 from agi_env import AgiEnv
-from agi_node.agi_dispatcher.bootstrap_source_paths import resolve_node_source_path
-
-def _resolve_node_src(
-    sys_prefix: str | os.PathLike[str] | None = None,
-    source_file: str | os.PathLike[str] | None = None,
-) -> str | None:
-    """Return the best ``agi-node/src`` path for the current runtime layout."""
-    node_src = resolve_node_source_path(
-        sys_prefix=sys_prefix,
-        source_file=source_file or __file__,
-    )
-    return str(node_src) if node_src is not None else None
-
-
-def _bootstrap_node_src(
-    *,
-    sys_path: list[str] | None = None,
-    sys_prefix: str | os.PathLike[str] | None = None,
-    source_file: str | os.PathLike[str] | None = None,
-) -> str | None:
-    """Prepend the best repo-local ``agi-node/src`` path to ``sys.path``."""
-
-    target_sys_path = sys.path if sys_path is None else sys_path
-    node_src = _resolve_node_src(sys_prefix=sys_prefix, source_file=source_file)
-    if node_src and node_src not in target_sys_path:
-        target_sys_path.insert(0, node_src)
-    return node_src
-
-
-_node_src = _bootstrap_node_src()
 from agi_node.agi_dispatcher import WorkDispatcher, BaseWorker
 
 # os.environ["DASK_DISTRIBUTED__LOGGING__DISTRIBUTED__LEVEL"] = "INFO"

@@ -269,7 +269,11 @@ class AgiLogger:
         """Return a child logger of the AGILab base logger."""
 
         base = logging.getLogger(cls._base_name)
-        return base
+        if not name or name == base.name:
+            return base
+        if name.startswith(base.name + "."):
+            return logging.getLogger(name)
+        return base.getChild(name)
 
     @classmethod
     def set_level(cls, level: int) -> None:

@@ -35,7 +35,7 @@ from agi_cluster.agi_distributor import deployment_dask_support
 from agi_cluster.agi_distributor.deployment.deployment_build_support import (
     _latest_glob_match as _latest_glob_match,
 )
-from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
+from agi_cluster.agi_distributor.api.worker_cli_support import prepare_local_worker_cli
 from agi_cluster.agi_distributor.deployment_editable_install_support import (
     EDITABLE_INSTALL_CACHE_SCHEMA as EDITABLE_INSTALL_CACHE_SCHEMA,
     EDITABLE_SHADOW_IMPORTS as EDITABLE_SHADOW_IMPORTS,
@@ -1921,13 +1921,11 @@ async def deploy_local_worker(
     await agi_cls._uninstall_modules()
     agi_cls._install_done_local = True
 
-    cli = wenv_abs.parent / "cli.py"
-    if not cli.exists():
-        try:
-            shutil.copy(resolve_worker_cli_path(env), cli)
-        except FileNotFoundError as exc:
-            log.error("Missing cli.py for local worker: %s", exc)
-            raise
+    try:
+        cli = prepare_local_worker_cli(env)
+    except FileNotFoundError as exc:
+        log.error("Missing cli.py for local worker: %s", exc)
+        raise
     cmd = (
         f"{uv_worker} run --no-sync --project {_shell_arg(wenv_abs)} "
         f"python {_shell_arg(cli)} threaded"

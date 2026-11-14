@@ -92,6 +92,9 @@ from agi_env.runtime.runtime_bootstrap_support import (
     RESOURCES_DIR_ENV,
     parse_int_env_value,
     resolve_resources_path,
+    WORKER_ROOT_ENV,
+    apply_worker_root_context,
+    resolve_worker_root,
 )
 from agi_env.runtime.optional_path_provider import resolve_optional_path
 from agi_env.runtime.worker_runtime_support import configure_worker_runtime
@@ -369,6 +372,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                 raise RuntimeError(
                     "AgiEnv resources context changed; use AgiEnv.reset() or a new session."
                 )
+            requested_worker_context = (
+                resolve_worker_root() if WORKER_ROOT_ENV in os.environ else None
+            )
+            if requested_worker_context != getattr(env, "_agilab_worker_root_context", None):
+                raise RuntimeError(
+                    "AgiEnv worker root context changed; use AgiEnv.reset() or a new session."
+                )
             current_apps_path = Path(getattr(env, "apps_path", "") or "").expanduser().resolve(strict=False)
             current_app = Path(str(getattr(env, "app", "") or "")).name
             current_active_app = Path(getattr(env, "active_app", "") or "").expanduser().resolve(strict=False)
@@ -410,6 +420,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             type.__setattr__(cls, "envars", {})
             type.__setattr__(cls, "resources_path", None)
             type.__setattr__(cls, "_agilab_resources_context", None)
+            type.__setattr__(cls, "_agilab_worker_root_context", None)
             type.__setattr__(cls, "logger", None)
     install_type: int | None = None  # deprecated: derived from flags for backward compatibility
     apps_path: Path | None = None
@@ -433,6 +444,8 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     # Minimal class-level fallbacks to support limited static usage pre-init
     resources_path: Path = Path.home() / ".agilab"
     _agilab_resources_context: Path | None = None
+    _agilab_worker_root_context: Path | None = None
+    worker_root: Path
     envars: dict[str, str] = {}
     home_abs: Path
     active_app: Path
@@ -485,6 +498,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
                     )),
                 }
             )
+        if allow_reinitialize and getattr(self, "_agilab_initialized", False):
+            worker_context = getattr(self, "_agilab_worker_root_context", None)
+            worker_root_environ = (
+                {} if worker_context is None else {WORKER_ROOT_ENV: str(worker_context)}
+            )
+        else:
+            worker_root_environ = (
+                {WORKER_ROOT_ENV: str(resolve_worker_root())}
+                if WORKER_ROOT_ENV in os.environ else {}
+            )
         verbose = 0 if verbose is None else verbose
         app, active_app_override = coerce_active_app_request(app, kwargs, path_cls=Path)
         init_signature = self._init_signature(
@@ -496,6 +519,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             python_variante=python_variante,
             kwargs=kwargs,
             resources_environ=resources_environ,
+            worker_root_environ=worker_root_environ,
         )
 
         if getattr(self, "_agilab_initialized", False) and not allow_reinitialize:
@@ -523,6 +547,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             ensure_dir_fn=_ensure_dir,
             module_logger=logger,
             resources_environ=resources_environ,
+            worker_root_environ=worker_root_environ,
         )
 
     @staticmethod
@@ -536,11 +561,16 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         python_variante: str,
         kwargs: dict,
         resources_environ: dict[str, str] | None = None,
+        worker_root_environ: dict[str, str] | None = None,
     ) -> tuple:
         selected_env = os.environ if resources_environ is None else resources_environ
         resources_context = (
             resolve_resources_path(environ=selected_env)
             if RESOURCES_DIR_ENV in selected_env else None
+        )
+        worker_env = os.environ if worker_root_environ is None else worker_root_environ
+        worker_context = (
+            resolve_worker_root(environ=worker_env) if WORKER_ROOT_ENV in worker_env else None
         )
         return (
             AgiEnv._signature_value(apps_path),
@@ -549,6 +579,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             str(python_variante),
             tuple(sorted((str(key), AgiEnv._signature_value(value)) for key, value in kwargs.items())),
             AgiEnv._signature_value(resources_context),
+            AgiEnv._signature_value(worker_context),
         )
 
     @staticmethod
@@ -1153,12 +1184,13 @@ class AgiEnv(metaclass=_AgiEnvMeta):
     def _build_env(venv=None):
         """Build environment dict for subprocesses, with activated virtualenv paths."""
         instance = AgiEnv._instance
+        initialized = instance is not None and getattr(instance, "_agilab_initialized", False)
         if instance is not None and getattr(instance, "_pythonpath_entries", None):
             extra_paths = list(instance._pythonpath_entries)
         else:
             extra_paths = list(AgiEnv._pythonpath_entries)
         base_env = os.environ.copy()
-        if instance is not None:
+        if initialized:
             resources_context = getattr(instance, "_agilab_resources_context", None)
         else:
             resources_context = (
@@ -1167,6 +1199,11 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         base_env.pop(RESOURCES_DIR_ENV, None)
         if resources_context is not None:
             base_env[RESOURCES_DIR_ENV] = str(resources_context)
+        if not initialized:
+            if WORKER_ROOT_ENV in base_env:
+                base_env[WORKER_ROOT_ENV] = str(resolve_worker_root(environ=base_env))
+        else:
+            apply_worker_root_context(instance, base_env)
         return build_subprocess_env(
             base_env=base_env,
             venv=venv,
@@ -1189,6 +1226,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         resources_context = getattr(self, "_agilab_resources_context", None)
         if resources_context is not None:
             base_env[RESOURCES_DIR_ENV] = str(resources_context)
+        apply_worker_root_context(self, base_env)
         return build_subprocess_env(
             base_env=base_env,
             venv=venv,

@@ -866,3 +866,113 @@ def test_pyproject_io_round_trips_utf8_content_regardless_of_locale(tmp_path):
     uv_source_support.ensure_optional_extras(pyproject, {"extra1"})
     raw = pyproject.read_bytes()
     assert "Čeněk Dvořák".encode("utf-8") in raw
+
+
+def test_staged_wheel_preserves_filename_bytes_and_normal_uv_source(tmp_path):
+    import tomllib
+
+    source = tmp_path / "source"
+    source.mkdir()
+    wheel = source / "agi_env-2026.11.2-py3-none-any.whl"
+    wheel.write_bytes(b"wheel bytes canary")
+    src = source / "pyproject.toml"
+    src.write_text(
+        '[project]\nname="worker"\nversion="0.0.0"\n'
+        '[tool.uv.sources]\nagi-env={path="' + wheel.name + '"}\n'
+    )
+    dest = tmp_path / "worker/pyproject.toml"
+    dest.parent.mkdir()
+    dest.write_bytes(src.read_bytes())
+    for _ in range(2):
+        uv_source_support.stage_uv_sources_for_copied_pyproject(
+            src_pyproject=src,
+            dest_pyproject=dest,
+            stage_root=dest.parent,
+        )
+        path = tomllib.loads(dest.read_text())["tool"]["uv"]["sources"]["agi-env"][
+            "path"
+        ]
+        staged = dest.parent / path
+        assert staged.name == wheel.name
+        assert staged.suffix == ".whl"
+        assert staged.read_bytes() == wheel.read_bytes()
+
+
+def test_stage_rejects_conflicting_nested_source_names(tmp_path):
+    source = tmp_path / "app"
+    for name, dependency in [("left", "one"), ("right", "two")]:
+        package = source / name
+        package.mkdir(parents=True)
+        shared = source / dependency
+        shared.mkdir()
+        (shared / "pyproject.toml").write_text('[project]\nname="shared"\n')
+        (package / "pyproject.toml").write_text(
+            '[tool.uv.sources]\nshared={path="../' + dependency + '"}\n'
+        )
+    src = source / "pyproject.toml"
+    src.write_text('[tool.uv.sources]\nleft={path="left"}\nright={path="right"}\n')
+    dest = tmp_path / "worker/pyproject.toml"
+    dest.parent.mkdir()
+    dest.write_bytes(src.read_bytes())
+    with pytest.raises(ValueError, match="conflict"):
+        uv_source_support.stage_uv_sources_for_copied_pyproject(
+            src_pyproject=src,
+            dest_pyproject=dest,
+            stage_root=dest.parent,
+        )
+    assert dest.read_bytes() == src.read_bytes()
+
+    (source / "right" / "pyproject.toml").write_bytes(
+        (source / "left" / "pyproject.toml").read_bytes()
+    )
+    staged = uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src,
+        dest_pyproject=dest,
+        stage_root=dest.parent,
+    )
+    assert staged == [dest.parent / "_uv_sources"]
+    assert (staged[0] / "shared" / "pyproject.toml").is_file()
+
+
+@pytest.mark.parametrize("legacy_file", [False, True])
+def test_staged_wheel_recovers_legacy_target_and_refuses_linked_parent(
+    tmp_path, legacy_file
+):
+    source = tmp_path / "source"
+    source.mkdir()
+    wheel = source / "agi_env-2026.11.2-py3-none-any.whl"
+    wheel.write_bytes(b"current wheel content")
+    src = source / "pyproject.toml"
+    src.write_text(
+        '[tool.uv.sources]\nagi-env={path="' + wheel.name + '"}\n',
+        encoding="utf-8",
+    )
+    dest = tmp_path / "worker/pyproject.toml"
+    dest.parent.mkdir()
+    dest.write_bytes(src.read_bytes())
+    target = dest.parent / "_uv_sources" / "agi-env"
+    target.parent.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    canary = outside / wheel.name
+    canary.write_bytes(b"protected outside content")
+    if legacy_file:
+        target.write_bytes(b"obsolete extensionless wheel")
+    else:
+        target.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(ValueError, match="staging parent"):
+            uv_source_support.stage_uv_sources_for_copied_pyproject(
+                src_pyproject=src,
+                dest_pyproject=dest,
+                stage_root=dest.parent,
+            )
+        assert dest.read_bytes() == src.read_bytes()
+        assert canary.read_bytes() == b"protected outside content"
+        target.unlink()
+    uv_source_support.stage_uv_sources_for_copied_pyproject(
+        src_pyproject=src,
+        dest_pyproject=dest,
+        stage_root=dest.parent,
+    )
+    assert (target / wheel.name).read_bytes() == wheel.read_bytes()
+    assert canary.read_bytes() == b"protected outside content"

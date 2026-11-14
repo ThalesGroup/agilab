@@ -18,6 +18,7 @@ from agi_cluster.agi_distributor import background_jobs_support, deployment_remo
 from agi_cluster.agi_distributor.runtime import manager_mlflow_support, scheduler_io_support
 from agi_cluster.agi_distributor.runtime.worker_endpoint_support import worker_host
 from agi_env.process_support import project_virtualenv_script_path
+from agi_env.runtime.runtime_bootstrap_support import WORKER_ROOT_ENV, apply_worker_root_context
 
 
 logger = logging.getLogger(__name__)
@@ -470,6 +471,13 @@ async def _run_local_worker(
         worker_script = "\n".join(
             [
                 "from pathlib import Path",
+                "import os",
+                (
+                    f"os.environ[{WORKER_ROOT_ENV!r}] = "
+                    f"{str(env._agilab_worker_root_context)!r}"
+                    if getattr(env, "_agilab_worker_root_context", None) is not None
+                    else f"os.environ.pop({WORKER_ROOT_ENV!r}, None)"
+                ),
                 "from agi_env import AgiEnv",
                 "from agi_node.agi_dispatcher import  BaseWorker",
                 "import asyncio",
@@ -580,6 +588,7 @@ async def start(
                         worker_port=worker_port,
                     )
                     process_env = background_jobs_support.background_env_from_prefixes(cmd_prefix, dask_env)
+                    apply_worker_root_context(env, process_env)
                     workflow_root = getattr(env, "AGILAB_WORKFLOW_DATA_ROOT", None)
                     if workflow_root:
                         process_env["AGILAB_WORKFLOW_DATA_ROOT"] = str(workflow_root)

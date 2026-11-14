@@ -19,8 +19,9 @@ from typing import Any, Awaitable, Callable, Optional
 import psutil
 from asyncssh.process import ProcessError
 
-from agi_cluster.agi_distributor.api.worker_cli_support import resolve_worker_cli_path
+from agi_cluster.agi_distributor.api.worker_cli_support import prepare_local_worker_cli
 from agi_env import AgiEnv
+from agi_env.runtime.runtime_bootstrap_support import WORKER_ROOT_ENV, resolve_worker_root
 from agi_env.process_support import project_virtualenv_script_path
 from agi_env.runtime.destructive_path_support import (
     safe_destructive_path,
@@ -261,8 +262,7 @@ async def kill_processes(
         detect_export_cmd_fn=detect_export_cmd_fn,
     )
     if env.is_local(ip):
-        if not cli_abs.exists():
-            copy_fn(resolve_worker_cli_path(env), cli_abs)
+        cli_abs = prepare_local_worker_cli(env, copy_fn=copy_fn)
         if not force:
             return None
         kill_command = "kill-force" if force_scan else "kill"
@@ -392,9 +392,14 @@ def _validated_local_worker_runtime_target(
         )
     home_path = path_cls(home_value).expanduser().resolve(strict=False)
     try:
+        context = getattr(env, "_agilab_worker_root_context", None)
+        root = resolve_worker_root(
+            home_path=home_path,
+            environ={} if context is None else {WORKER_ROOT_ENV: str(context)},
+        )
         return safe_worker_runtime_cleanup_path(
             env.wenv_abs,
-            roots=(home_path / "wenv",),
+            roots=(root,),
             home_path=home_path,
             cwd_path=path_cls.cwd(),
         )

@@ -308,7 +308,7 @@ def create_rename_map(target_project: Path, dest_project: Path) -> dict[str, str
     """Create a mapping of old to new names for project clone operations."""
 
     def cap(value: str) -> str:
-        return "".join(part.capitalize() for part in value.split("_"))
+        return "".join(part.title() for part in value.split("_"))
 
     name_tp = target_project.name
     name_dp = dest_project.name
@@ -416,6 +416,140 @@ def copy_existing_projects(
             logger.error(f"Warning: Could not copy {item} → {dst_item}: {exc}")
 
 
+class _ProjectCloneIgnoreSpec(GitIgnoreSpec):
+    """Apply each owned ignore file relative to its directory, in Git order."""
+
+    def __init__(self, source_root: Path, logger: Any) -> None:
+        defaults = GitIgnoreSpec.from_lines(
+            [
+                ".git",
+                ".git/",
+                ".git/**",
+                "__pycache__/",
+                ".pytest_cache/",
+                ".mypy_cache/",
+                ".ruff_cache/",
+                "build/",
+                "dist/",
+                "*.egg-info/",
+            ]
+        )
+        super().__init__(defaults.patterns)
+        self.patterns = list(self.patterns)
+        self._defaults = defaults
+        source_root = _resolve_for_confinement(source_root, label="clone source")
+        self._source_root = source_root
+        self._logger = logger
+        self._spec_cache = {}
+        owned_dirs = [source_root]
+        if not (source_root / ".git").exists():
+            ancestors: list[Path] = []
+            for ancestor in source_root.parents:
+                # Installed payloads do not inherit their enclosing venv or repo.
+                if (
+                    ancestor.name in {"site-packages", "dist-packages"}
+                    or (ancestor / "pyvenv.cfg").is_file()
+                ):
+                    break
+                ancestors.append(ancestor)
+                if (ancestor / ".git").exists():
+                    owned_dirs = [*reversed(ancestors), source_root]
+                    break
+        self._scoped_specs = []
+        self._root_exclusion = None
+        for owner in owned_dirs:
+            # A child ignore cannot reinclude an excluded parent directory.
+            result = self._evaluate(owner, True, self._scoped_specs)
+            if result[0]:
+                self._root_exclusion = result
+                break
+            scoped = self._owned_spec(owner)
+            if scoped is not None:
+                self._scoped_specs.append(scoped)
+
+    def _owned_spec(self, owner):
+        if owner not in self._spec_cache:
+            ignore_file = owner / ".gitignore"
+            spec = None
+            try:
+                # Git does not follow symlinks when reading ignore files.
+                if not ignore_file.is_symlink():
+                    lines = ignore_file.read_text(encoding="utf-8").splitlines()
+                    rules = GitIgnoreSpec.from_lines(lines)
+                    offset = len(self.patterns)
+                    self.patterns.extend(rules.patterns)
+                    spec = (owner, rules, offset)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                self._logger.debug(f"Unable to read {ignore_file}: {exc}")
+            self._spec_cache[owner] = spec
+        return self._spec_cache[owner]
+
+    def _evaluate(self, target, is_dir, scopes):
+        include, index = None, None
+        if target.is_relative_to(self._source_root):
+            relative = target.relative_to(self._source_root).as_posix()
+            result = self._defaults.check_file(
+                relative + ("/" if is_dir else ""), separators=()
+            )
+            include, index = result.include, result.index
+        for owner, rules, offset in scopes:
+            relative = target.relative_to(owner).as_posix()
+            result = rules.check_file(relative + ("/" if is_dir else ""), separators=())
+            if result.include is not None:
+                include = result.include
+                index = offset + result.index if result.index is not None else None
+        return include, index
+
+    def check_file(self, file, separators=None):
+        from pathspec.util import CheckResult, normalize_file
+
+        normalized = normalize_file(file, separators)
+        if self._root_exclusion is not None:
+            return CheckResult(file, *self._root_exclusion)
+        parts = normalized.rstrip("/").split("/")
+        # Out-of-tree spellings must never discover external ignore files.
+        if ".." in parts:
+            raise ValueError("Clone ignore paths must stay within the source project")
+        scopes = list(self._scoped_specs)
+        for depth in range(1, len(parts)):
+            owner = self._source_root.joinpath(*parts[:depth])
+            result = self._evaluate(owner, True, scopes)
+            if result[0]:
+                return CheckResult(file, *result)
+            if owner.is_symlink():
+                break
+            scoped = self._owned_spec(owner)
+            if scoped is not None:
+                scopes.append(scoped)
+        target = self._source_root.joinpath(*parts)
+        return CheckResult(
+            file, *self._evaluate(target, normalized.endswith("/"), scopes)
+        )
+
+    def match_file(self, file, separators=None) -> bool:
+        return bool(self.check_file(file, separators).include)
+
+    def check_files(self, files, separators=None):
+        if isinstance(files, (str, bytes)):
+            raise TypeError(f"files:{files!r} is not an iterable of paths")
+        for file in files:
+            yield self.check_file(file, separators)
+
+    def match_files(self, files, separators=None, *, negate=None):
+        for result in self.check_files(files, separators):
+            if bool(result.include) != bool(negate):
+                yield result.file
+
+    def match_entries(self, entries, separators=None, *, negate=None):
+        if isinstance(entries, (str, bytes)):
+            raise TypeError(f"entries:{entries!r} is not an iterable of entries")
+        for entry in entries:
+            if self.match_file(entry.path, separators) != bool(negate):
+                yield entry
+
+
 def clone_project(
     target_project: Path,
     dest_project: Path,
@@ -470,24 +604,7 @@ def clone_project(
         logger.error(f"{exc}")
         raise
 
-    ignore_patterns = [".git", ".git/", ".git/**"]
-    gitignore_candidates: list[Path] = []
-    seen_gitignore_dirs: set[Path] = set()
-    for ancestor in [source_root, *source_root.parents]:
-        gitignore_path = ancestor / ".gitignore"
-        if gitignore_path.exists() and ancestor not in seen_gitignore_dirs:
-            gitignore_candidates.append(gitignore_path)
-            seen_gitignore_dirs.add(ancestor)
-
-    for gitignore_path in gitignore_candidates:
-        try:
-            lines = gitignore_path.read_text(encoding="utf-8").splitlines()
-        except OSError as exc:
-            logger.debug(f"Unable to read {gitignore_path}: {exc}")
-            continue
-        ignore_patterns.extend(line for line in lines if line.strip())
-
-    spec = GitIgnoreSpec.from_lines(ignore_patterns)
+    spec = _ProjectCloneIgnoreSpec(source_root, logger)
 
     try:
         if not dest_root.exists():
@@ -524,7 +641,7 @@ def clone_directory(
 ) -> None:
     """Recursively clone a directory while applying filename/content renames."""
 
-    for item in source_dir.iterdir():
+    for item in sorted(source_dir.iterdir(), key=lambda path: path.name):
         rel = item.relative_to(source_root).as_posix()
         is_venv_dir = item.is_dir() and item.name == ".venv"
         if not is_venv_dir and spec.match_file(rel + ("/" if item.is_dir() else "")):

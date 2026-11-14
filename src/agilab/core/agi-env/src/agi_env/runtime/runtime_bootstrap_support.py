@@ -37,6 +37,64 @@ def resolve_resources_path(*, home_path: Path | None = None, environ=None) -> Pa
     return selected_path
 
 
+
+WORKER_ROOT_ENV = "AGILAB_WORKER_ROOT"
+
+
+def resolve_worker_root(*, home_path: Path | None = None, environ=None) -> Path:
+    """Select a local installation root before dotenv, without filesystem writes.
+
+    Remote runtimes retain their relative wenv/<worker> contract.
+    """
+    selected_env = os.environ if environ is None else environ
+    home = Path.home() if home_path is None else Path(home_path)
+    if WORKER_ROOT_ENV not in selected_env:
+        return home / "wenv"
+    raw_path = selected_env[WORKER_ROOT_ENV]
+    if not isinstance(raw_path, str) or not raw_path.strip() or "\x00" in raw_path:
+        raise ValueError(f"{WORKER_ROOT_ENV} must name an absolute directory")
+    try:
+        selected = Path(raw_path).expanduser()
+        if not selected.is_absolute() or ".." in selected.parts:
+            raise ValueError("an expanded absolute path without parent traversal is required")
+        for candidate in (selected, *selected.parents):
+            if candidate.is_symlink():
+                raise ValueError("worker root must not contain symbolic links")
+        selected = selected.resolve(strict=False)
+        protected_home = home.resolve(strict=False)
+        protected_cwd = Path.cwd().resolve(strict=False)
+        home_or_ancestor = protected_home.is_relative_to(selected)
+        current_directory = selected == protected_cwd
+        if selected.exists():
+            home_or_ancestor = home_or_ancestor or any(
+                parent.exists() and parent.samefile(selected)
+                for parent in (protected_home, *protected_home.parents)
+            )
+            current_directory = current_directory or protected_cwd.samefile(selected)
+        if (
+            selected == Path(selected.anchor)
+            or home_or_ancestor
+            or current_directory
+        ):
+            raise ValueError("worker root must not be a filesystem root, home, or current directory")
+        for candidate in (selected, *selected.parents):
+            if candidate.exists():
+                if not candidate.is_dir() or not os.access(candidate, os.W_OK | os.X_OK):
+                    raise ValueError("worker root has an unusable directory ancestor")
+                break
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(f"{WORKER_ROOT_ENV} is not a safe usable absolute directory: {exc}") from exc
+    return selected
+
+
+def apply_worker_root_context(env_obj, environ: dict[str, str]) -> None:
+    """Freeze this environment's selector into a local child environment."""
+    environ.pop(WORKER_ROOT_ENV, None)
+    context = getattr(env_obj, "_agilab_worker_root_context", None)
+    if context is not None:
+        environ[WORKER_ROOT_ENV] = str(context)
+
+
 @dataclass(frozen=True)
 class ShareRuntimeConfig:
     local_share: str
