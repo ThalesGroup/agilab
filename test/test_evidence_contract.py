@@ -1052,3 +1052,48 @@ def test_proof_capsule_remaining_cli_and_crypto_edges(
         "many",
         "other",
     ) == ["alpha", "beta", "3", "{'nested': True}"]
+
+
+def test_recorded_artifact_digest_detects_tamper_and_recovers(tmp_path: Path) -> None:
+    module = _load_module()
+    path = _write_run_manifest(tmp_path)
+    payload = json.loads(path.read_bytes())
+    artifact = tmp_path / "metrics.json"
+    original = artifact.read_bytes()
+    recorded = module.sha256_file(artifact)
+    payload["artifacts"][1]["sha256"] = recorded
+    path.write_text(json.dumps(payload))
+    assert module.verify_manifest(path)["status"] == "pass"
+    artifact.write_bytes(b'{"accuracy": 0.0}\n')
+    report = module.verify_manifest(path)
+    assert report["status"] == "fail"
+    checked = report["artifacts"][1]
+    assert checked["recorded_sha256"] == recorded
+    assert checked["observed_sha256"] != recorded
+    assert checked["hash_verification"] == "mismatch"
+    artifact.write_bytes(original)
+    assert module.verify_manifest(path)["status"] == "pass"
+
+
+def test_legacy_artifact_digest_absence_is_not_recorded_verification(
+    tmp_path: Path,
+) -> None:
+    module = _load_module()
+    path = _write_run_manifest(tmp_path)
+    checked = module.verify_manifest(path)["artifacts"][1]
+    assert checked["status"] == "pass"
+    assert checked["hash_verification"] == "not_recorded"
+    assert checked["recorded_sha256"] == ""
+    assert checked["observed_sha256"] == module.sha256_file(tmp_path / "metrics.json")
+
+
+@pytest.mark.parametrize("digest", ["broken", "g" * 64, None, 42])
+def test_malformed_recorded_artifact_digest_cannot_verify(
+    tmp_path: Path, digest
+) -> None:
+    module = _load_module()
+    path = _write_run_manifest(tmp_path)
+    payload = json.loads(path.read_bytes())
+    payload["artifacts"][1]["sha256"] = digest
+    path.write_text(json.dumps(payload))
+    assert module.verify_manifest(path)["status"] == "fail"

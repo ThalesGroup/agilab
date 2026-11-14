@@ -2021,3 +2021,75 @@ def test_unreadable_artifact_does_not_hide_terminal_failure(tmp_path, monkeypatc
     payload = module._safe_file_payload(path)
     assert payload == {"path": str(path), "exists": True, "error": "artifact unreadable"}
     assert path.read_text() == "preserved"
+
+
+@pytest.mark.parametrize("custom", [False, True])
+def test_prepare_environment_preserves_native_and_custom_runner_contracts(
+    tmp_path, custom
+):
+    module = _load_module()
+    calls = []
+
+    def prepare(environment):
+        from agilab.agent_runtime.agent_trace import load_trace_events
+
+        events = load_trace_events(config.output_dir)
+        assert "command_start" in [event.event for event in events]
+        assert events[-1].event == "permission_resolved"
+        assert events[-1].status == "pass"
+        assert environment["EXISTING_CONTEXT"] == "preserved"
+        calls.append("prepared")
+        return dict(environment, OBS_CONTEXT="native-context")
+
+    def runner(command, **kwargs):
+        assert kwargs["env"]["OBS_CONTEXT"] == "native-context"
+        assert kwargs["text"] is True and kwargs["check"] is False
+        assert kwargs["stdout"] == kwargs["stderr"] == subprocess.PIPE
+        calls.append("custom")
+        return subprocess.CompletedProcess(command, 0, "custom output\n", "")
+
+    config = module.create_agent_run_config(
+        (sys.executable, "-c", "import os; print(os.environ['OBS_CONTEXT'])"),
+        cwd=tmp_path,
+        output_dir=tmp_path / "run",
+        run_id="prepared",
+        permission_level="standard",
+        env_overrides={"EXISTING_CONTEXT": "preserved"},
+        trace_enabled=True,
+    )
+    kwargs = {"runner": runner} if custom else {}
+    result = module.run_agent_command(config, prepare_environment=prepare, **kwargs)
+    assert result.returncode == 0 and result.manifest["status"] == "pass", (
+        result.manifest.get("failure")
+    )
+    assert calls == (["prepared", "custom"] if custom else ["prepared"])
+    assert ("output_capture" in result.manifest) is not custom
+    output = Path(result.manifest["artifacts"]["stdout"]["path"]).read_text()
+    assert output == ("custom output\n" if custom else "native-context\n")
+
+
+def test_prepare_environment_is_never_called_before_permission_or_output_claim(
+    tmp_path,
+):
+    module = _load_module()
+    calls = []
+
+    def forbidden(environment):
+        calls.append(environment)
+        raise AssertionError(
+            "A denied/unowned command cannot prepare child environment."
+        )
+
+    config = module.create_agent_run_config(
+        (sys.executable, "-c", "print('denied')"),
+        cwd=tmp_path,
+        output_dir=tmp_path / "denied",
+        run_id="denied",
+        permission_level="safe",
+    )
+    denied = module.run_agent_command(config, prepare_environment=forbidden)
+    assert denied.manifest["status"] == "denied" and denied.returncode == 126
+    assert not calls
+    with pytest.raises(FileExistsError):
+        module.run_agent_command(config, prepare_environment=forbidden)
+    assert not calls
