@@ -159,7 +159,7 @@ class ReactPythonRequestHandler(BaseHTTPRequestHandler):
             return self._reply(200, asset.read_bytes(), "text/javascript" if path.endswith(".js") else "text/css")
         if path.startswith("/api/") or path.startswith("/assets/"):
             return self._json(404, {"error": "Unknown endpoint."})
-        document = b'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AGILAB</title><link rel="stylesheet" href="/assets/agilab_react_python_host.css"></head><body><div id="agilab-python-root"></div><script type="module" src="/assets/agilab_react_python_host.js"></script></body></html>'
+        document = b'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AGILAB</title><link rel="stylesheet" href="/assets/agilab_react_python_host.css"></head><body><div id="agilab-python-root"></div><script type="module" src="/assets/agilab_react_python_host.js"></script></body></html>'
         return self._reply(200, document, "text/html; charset=utf-8")
 
     def do_POST(self):
