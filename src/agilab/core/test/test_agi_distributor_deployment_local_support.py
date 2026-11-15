@@ -4630,9 +4630,15 @@ path = "../sat_trajectory_project"
         logger=SimpleNamespace(warn=lambda *_a, **_k: None),
     )
     commands = []
+    overlay_active = False
 
     async def _fake_run(cmd, cwd):
         commands.append((cmd, str(cwd)))
+        if "--requirements" in cmd and _path_in_cmd(_venv_python(app_path), cmd):
+            parts = shlex.split(cmd)
+            requirements = Path(parts[parts.index("--requirements") + 1])
+            assert requirements == staged_overlay_root / "pyproject.toml"
+            assert overlay_active and requirements.is_file()
         return ""
 
     async def _fake_build():
@@ -4648,10 +4654,14 @@ path = "../sat_trajectory_project"
             del args, kwargs
 
         def __enter__(self):
+            nonlocal overlay_active
+            overlay_active = True
             staged_overlay_root.mkdir(parents=True, exist_ok=True)
             return str(staged_overlay_root)
 
         def __exit__(self, exc_type, exc, tb):
+            nonlocal overlay_active
+            overlay_active = False
             return False
 
     monkeypatch.setattr(
@@ -4708,18 +4718,34 @@ path = "../sat_trajectory_project"
         and _path_in_cmd(staged_overlay_root, cmd)
         for cmd, _ in commands
     )
+    assert not overlay_active
     manager_python = _venv_python(app_path)
-    # Core installs are now batched into one uv invocation per no-deps mode
-    # instead of one subprocess per package.
-    expected_manager_installs = [
-        f'pip install --python "{manager_python}" --upgrade --no-deps -e "{app_path}"',
-        f'pip install --python "{manager_python}" --upgrade "{env_project}" "{node_project}"',
-        f'pip install --python "{manager_python}" --upgrade --no-deps "agilab==0.0.1" "agi-core==0.0.1"',
+    # The staged app remains editable. SDK refreshes resolve the complete role
+    # requirements and all selected SDK identities together, including the root.
+    manager_commands = [
+        shlex.split(cmd) for cmd, _ in commands
+        if "pip install" in cmd and _path_in_cmd(manager_python, cmd)
     ]
-    for expected in expected_manager_installs:
-        assert any(expected in cmd for cmd, _ in commands), "\n".join(
-            cmd for cmd, _ in commands
-        )
+    assert any(
+        "--no-deps" in parts and "-e" in parts and str(app_path) in parts
+        for parts in manager_commands
+    )
+    sdk_refs = {str(env_project), str(node_project), "agilab==0.0.1", "agi-core==0.0.1"}
+    for role_path, is_worker in ((app_path, False), (wenv_abs, True)):
+        coherent = [
+            shlex.split(cmd) for cmd, _ in commands
+            if "pip install" in cmd and "--requirements" in cmd
+            and _path_in_cmd(_venv_python(role_path), cmd)
+        ]
+        assert len(coherent) == 1
+        parts = coherent[0]
+        expected_requirements = (wenv_abs if is_worker else staged_overlay_root) / "pyproject.toml"
+        assert parts[parts.index("--requirements") + 1] == str(expected_requirements)
+        assert sdk_refs.issubset(parts)
+        assert "--no-deps" not in parts
+        assert "--offline" in parts
+        if is_worker:
+            assert parts[parts.index("-e") + 1] == str(app_path)
     assert not any(
         f'pip install --python "{manager_python}" --upgrade "{cluster_project}"' in cmd
         for cmd, _ in commands

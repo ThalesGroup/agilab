@@ -437,6 +437,66 @@ async def _install_into_project_venv(
         )
 
 
+def _requirements_selection_args(requirements_file: Path, options: str) -> str:
+    """Carry the role's effective extras and groups into the combined SDK solve."""
+    with requirements_file.open("rb") as handle:
+        data = tomllib.load(handle)
+    uv_config = data.get("tool", {}).get("uv", {})
+    groups = {canonicalize_name(name) for name in data.get("dependency-groups", {})}
+    if uv_config.get("dev-dependencies"):
+        groups.add("dev")
+    selections: dict[str, set[str]] = {
+        flag: set() for flag in
+        ("--extra", "--no-extra", "--group", "--no-group", "--only-group")
+    }
+    switches: set[str] = set()
+    tokens = iter(shlex.split(options))
+    for token in tokens:
+        flag, equals, value = token.partition("=")
+        if flag in selections:
+            name = value if equals else next(tokens, "")
+            if not name or name.startswith("-"):
+                raise ValueError(f"{flag} requires a dependency extra or group name.")
+            selections[flag].add(canonicalize_name(name))
+        else:
+            switches.add(token)
+    if "--dev" in switches and "dev" in groups:
+        selections["--group"].add("dev")
+    if "--no-dev" in switches:
+        selections["--no-group"].add("dev")
+    if "--only-dev" in switches and "dev" in groups:
+        selections["--only-group"].add("dev")
+
+    extras = selections["--extra"]
+    if "--all-extras" in switches:
+        extras.update(
+            canonicalize_name(name)
+            for name in data.get("project", {}).get("optional-dependencies", {})
+        )
+    extras -= selections["--no-extra"]
+
+    selected_groups = selections["--group"] | selections["--only-group"]
+    if "--all-groups" in switches:
+        selected_groups.update(groups)
+    elif "--no-default-groups" not in switches and not (
+        selections["--only-group"] or "--only-dev" in switches
+    ):
+        defaults = uv_config.get("default-groups", ["dev"] if "dev" in groups else [])
+        selected_groups.update(
+            groups if defaults == "all" else map(canonicalize_name, defaults)
+        )
+    selected_groups -= selections["--no-group"]
+    # Qualify every group by the effective role manifest. uv resolves nested
+    # groups, source declarations, and target markers without copying requirements.
+    return " ".join(
+        [f"--extra {_shell_arg(extra)}" for extra in sorted(extras)]
+        + [
+            f"--group {_shell_arg(f'{requirements_file}:{group}')}"
+            for group in sorted(selected_groups)
+        ]
+    )
+
+
 async def _install_many_into_project_venv(
     uv_cmd: str,
     project: Path,
@@ -449,8 +509,13 @@ async def _install_many_into_project_venv(
     python_version: str | None = None,
     venv_project: Path | None = None,
     install_cache_enabled: bool = True,
+    requirements_file: Path | None = None,
+    requirements_options: str = "",
+    editable_refs: tuple[str | Path, ...] = (),
 ) -> None:
-    if not package_refs:
+    if requirements_file is not None and no_deps:
+        raise ValueError("App dependency requirements require dependency resolution, not --no-deps.")
+    if not package_refs and not editable_refs:
         return
     effective_venv_project = venv_project or project
     await _ensure_project_venv(
@@ -466,10 +531,11 @@ async def _install_many_into_project_venv(
         if editable
         else []
     )
-    if editable and package_projects:
+    extra_editable_projects = [_editable_install_project(ref) for ref in editable_refs]
+    if package_projects or extra_editable_projects:
         _cleanup_editable_shadow_packages(
             effective_venv_project,
-            [package_project for package_project in package_projects if package_project],
+            [project for project in [*package_projects, *extra_editable_projects] if project],
             os_name=os_name,
             python_version=python_version,
         )
@@ -477,6 +543,8 @@ async def _install_many_into_project_venv(
     package_projects_to_record = package_projects
     if (
         install_cache_enabled
+        and requirements_file is None
+        and not editable_refs
         and package_projects
         and all(package_project is not None for package_project in package_projects)
     ):
@@ -504,11 +572,28 @@ async def _install_many_into_project_venv(
     venv_python = _project_venv_python(effective_venv_project, os_name=os_name)
     editable_flag = "-e " if editable else ""
     no_deps_flag = "--no-deps " if no_deps else ""
-    package_specs = " ".join(
-        f'{editable_flag}"{str(package_ref)}"' for package_ref in package_refs_to_install
+    requirements_arg = (
+        f"--requirements {_shell_arg(requirements_file)} "
+        f"{_requirements_selection_args(requirements_file, requirements_options)} "
+        if requirements_file else ""
     )
-    cmd = f'{uv_cmd} pip install --python "{venv_python}" --upgrade {no_deps_flag}{package_specs}'
-    await run_fn(cmd, project)
+    package_specs = " ".join(
+        [f'{editable_flag}"{str(ref)}"' for ref in package_refs_to_install]
+        + [f"-e {_shell_arg(ref)}" for ref in editable_refs]
+    )
+    cmd = (
+        f'{uv_cmd} pip install --python "{venv_python}" --upgrade '
+        f"{no_deps_flag}{requirements_arg}{package_specs}"
+    )
+    try:
+        await run_fn(cmd, project)
+    except (RuntimeError, subprocess.CalledProcessError) as exc:
+        if requirements_file is None:
+            raise
+        raise RuntimeError(
+            f"Could not resolve app and SDK dependencies from {requirements_file} "
+            f"for {venv_python}. Check the preceding uv dependency conflict output."
+        ) from exc
     if install_cache_enabled:
         for package_project in package_projects_to_record:
             if package_project is None:
@@ -1275,6 +1360,50 @@ async def deploy_local_worker(
         except FileNotFoundError:
             pass
 
+    async def refresh_manager_sdk(requirements_file: Path) -> None:
+        if env.is_source_env or env.is_worker_env:
+            return
+        if manager_sync_uses_overlay:
+            await _install_into_project_venv(
+                uv,
+                app_path,
+                app_path,
+                run_fn=run_fn,
+                editable=True,
+                install_cache_enabled=stage_cache_enabled,
+            )
+        install_targets = (
+            (agilab_project, "agilab"),
+            (env_project, "agi-env"),
+            (node_project, "agi-node"),
+            (core_project, "agi-core"),
+        )
+        # Resolve the SDK and the complete authored app requirements together.
+        # Separate upgrades can invalidate packages installed by manager-sync.
+        manager_install_refs: list[str | Path] = []
+        for project_path, package_name in install_targets:
+            if project_path and project_path.exists():
+                if (
+                    repo_agilab_root
+                    and project_path.resolve() == repo_agilab_root.resolve()
+                ):
+                    continue
+            install_spec = _resolve_install_spec(project_path, package_name)
+            if install_spec:
+                manager_install_refs.append(install_spec)
+        await _install_many_into_project_venv(
+            f"{uv} {offline_flag}".strip(),
+            app_path,
+            manager_install_refs,
+            run_fn=run_fn,
+            no_deps=False,
+            python_version=pyvers,
+            requirements_file=requirements_file,
+            requirements_options=str(run_type),
+            install_cache_enabled=stage_cache_enabled,
+        )
+
+
     if manager_sync_uses_overlay:
         with TemporaryDirectory(prefix="agilab-manager-sync-") as staged_root:
             manager_sync_project = _write_manager_sync_overlay(
@@ -1295,6 +1424,7 @@ async def deploy_local_worker(
             if env.verbose > 0:
                 log.info(f"Installing manager via staged overlay: {cmd_manager}")
             await run_fn(cmd_manager, app_path)
+            await refresh_manager_sdk(manager_sync_project / 'pyproject.toml')
     else:
         if hw_rapids_capable:
             cmd_manager = f"{extra_indexes}{uv} {offline_flag}{run_type}{manager_python_arg} --config-file uv_config.toml --project {_shell_arg(app_path)}"
@@ -1323,57 +1453,9 @@ async def deploy_local_worker(
             )
         )
 
-    source_worker_app_installed = False
-    if (not env.is_source_env) and (not env.is_worker_env):
-        if manager_sync_uses_overlay:
-            await _install_into_project_venv(
-                uv,
-                app_path,
-                app_path,
-                run_fn=run_fn,
-                editable=True,
-                install_cache_enabled=stage_cache_enabled,
-            )
-        install_targets = (
-            (agilab_project, "agilab"),
-            (env_project, "agi-env"),
-            (node_project, "agi-node"),
-            (core_project, "agi-core"),
-        )
-        # Batch resolved specs into at most two uv invocations (no-deps vs
-        # with-deps) instead of spawning one ``uv pip install`` per package.
-        manager_no_deps_refs: list[str | Path] = []
-        manager_with_deps_refs: list[str | Path] = []
-        for project_path, package_name in install_targets:
-            if project_path and project_path.exists():
-                if (
-                    repo_agilab_root
-                    and project_path.resolve() == repo_agilab_root.resolve()
-                ):
-                    continue
-            install_spec = _resolve_install_spec(project_path, package_name)
-            if install_spec:
-                if package_name in {"agi-env", "agi-node"}:
-                    manager_with_deps_refs.append(install_spec)
-                else:
-                    manager_no_deps_refs.append(install_spec)
-        await _install_many_into_project_venv(
-            uv,
-            app_path,
-            manager_no_deps_refs,
-            run_fn=run_fn,
-            no_deps=True,
-            install_cache_enabled=stage_cache_enabled,
-        )
-        await _install_many_into_project_venv(
-            uv,
-            app_path,
-            manager_with_deps_refs,
-            run_fn=run_fn,
-            no_deps=False,
-            install_cache_enabled=stage_cache_enabled,
-        )
+        await refresh_manager_sdk(manager_pyproject)
 
+    if (not env.is_source_env) and (not env.is_worker_env):
         resources_src = env_project / "src/agi_env/resources"
         if not resources_src.exists():
             resources_src = env.env_pck / "resources"
@@ -1716,8 +1798,8 @@ async def deploy_local_worker(
             (node_project, "agi-node"),
             (core_project, "agi-core"),
         )
-        # All worker targets use the same flags, so batch them into a single
-        # uv invocation instead of one subprocess per package.
+        # Include root runtime dependencies and both installed app declarations
+        # in the same solve; a later editable upgrade must not replace the SDK.
         worker_install_refs: list[str | Path] = []
         for project_path, package_name in install_targets:
             if project_path and project_path.exists():
@@ -1730,10 +1812,15 @@ async def deploy_local_worker(
             if install_spec:
                 worker_install_refs.append(install_spec)
         await _install_many_into_project_venv(
-            uv_worker,
+            f"{uv_worker} {offline_flag}".strip(),
             wenv_abs,
             worker_install_refs,
             run_fn=run_fn,
+            no_deps=False,
+            python_version=env.pyvers_worker,
+            requirements_file=wenv_abs / "pyproject.toml",
+            requirements_options=f"{run_type} {options_worker}",
+            editable_refs=(env.active_app,),
             venv_project=worker_venv_project,
             install_cache_enabled=stage_cache_enabled,
         )
@@ -1774,44 +1861,21 @@ async def deploy_local_worker(
                 venv_project=worker_venv_project,
                 install_cache_enabled=stage_cache_enabled,
             )
-            source_worker_app_installed = True
         else:
             uv_worker_install = f"{uv_worker} {offline_flag}".rstrip()
-            await _install_into_project_venv(
+            await _install_many_into_project_venv(
                 uv_worker_install,
                 wenv_abs,
-                env.agi_env,
+                [env.agi_env, env.agi_node, env.active_app],
                 run_fn=run_fn,
                 editable=True,
                 no_deps=False,
                 python_version=env.pyvers_worker,
+                requirements_file=wenv_abs / "pyproject.toml",
+                requirements_options=f"{run_type} {options_worker}",
                 venv_project=worker_venv_project,
                 install_cache_enabled=stage_cache_enabled,
             )
-            await _install_into_project_venv(
-                uv_worker_install,
-                wenv_abs,
-                env.agi_node,
-                run_fn=run_fn,
-                editable=True,
-                no_deps=False,
-                python_version=env.pyvers_worker,
-                venv_project=worker_venv_project,
-                install_cache_enabled=stage_cache_enabled,
-            )
-
-    if not source_worker_app_installed:
-        await _install_into_project_venv(
-            uv_worker,
-            wenv_abs,
-            env.active_app,
-            run_fn=run_fn,
-            editable=True,
-            no_deps=False,
-            python_version=env.pyvers_worker,
-            venv_project=worker_venv_project,
-            install_cache_enabled=stage_cache_enabled,
-        )
 
     dest = wenv_abs / "src" / env.target_worker
     os.makedirs(dest, exist_ok=True)
