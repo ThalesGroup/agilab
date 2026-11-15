@@ -7,6 +7,7 @@ import json
 import socket
 import sys
 import threading
+from html.parser import HTMLParser
 from types import SimpleNamespace
 
 import pytest
@@ -74,6 +75,26 @@ def test_http_static_bundles_document_and_unknown_endpoints(native_host):
         assert request(native_host, "GET", path)[0] == 404
     assert request(native_host, "POST", "/api/missing")[0] == 404
     assert request(native_host, "POST", "/api/action")[0] == 403
+
+
+@pytest.mark.parametrize("path", ["/", "/analysis"])
+def test_http_document_declares_english_for_application_routes(native_host, path):
+    html_languages = []
+
+    class DocumentLanguageParser(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            if tag == "html":
+                html_languages.append(dict(attrs).get("lang"))
+
+    status, headers, body = request(native_host, "GET", path)
+    assert status == 200
+    assert headers["Content-Type"] == "text/html; charset=utf-8"
+    assert headers["Cache-Control"] == "no-store"
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    parser = DocumentLanguageParser()
+    parser.feed(body.decode("utf-8"))
+    parser.close()
+    assert html_languages == ["en"]
 
 
 def test_http_missing_bundle_has_actionable_service_error(native_host, tmp_path, monkeypatch):
