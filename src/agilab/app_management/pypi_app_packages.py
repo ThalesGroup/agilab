@@ -563,27 +563,48 @@ def _wheel_entry_points_from_bytes(data: bytes) -> tuple[str, ...]:
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as wheel:
             entry = next(
-                (item for item in wheel.infolist()
-                 if item.filename.endswith(".dist-info/entry_points.txt") and not item.is_dir()),
+                (
+                    item
+                    for item in wheel.infolist()
+                    if item.filename.endswith(".dist-info/entry_points.txt")
+                    and not item.is_dir()
+                ),
                 None,
             )
             if entry is None:
                 return ()
             if sum(item.filename == entry.filename for item in wheel.infolist()) != 1:
-                raise ValueError("Selected package contains ambiguous wheel entry-point metadata.")
+                raise ValueError(
+                    "Selected package contains ambiguous wheel entry-point metadata."
+                )
             if entry.file_size > MAX_ENTRY_POINTS_BYTES:
-                raise ValueError("Selected wheel entry-point metadata exceeds its inspection limit.")
+                raise ValueError(
+                    "Selected wheel entry-point metadata exceeds its inspection limit."
+                )
             with wheel.open(entry) as stream:
                 metadata = stream.read(MAX_ENTRY_POINTS_BYTES + 1)
             if len(metadata) > MAX_ENTRY_POINTS_BYTES:
-                raise ValueError("Selected wheel entry-point metadata exceeds its inspection limit.")
+                raise ValueError(
+                    "Selected wheel entry-point metadata exceeds its inspection limit."
+                )
             parser = configparser.ConfigParser()
             parser.read_string(metadata.decode("utf-8"))
-    except (zipfile.BadZipFile, UnicodeError, configparser.Error, RuntimeError, OSError, zlib.error) + _LZMA_ERRORS:
-        raise ValueError("Selected package contains invalid wheel metadata; rebuild the wheel before installing.") from None
-    if not parser.has_section("agilab.apps"):
-        return ()
-    return tuple(f"{name}={value}" for name, value in sorted(parser.items("agilab.apps")))
+            if not parser.has_section("agilab.apps"):
+                return ()
+            return tuple(
+                f"{name}={value}" for name, value in sorted(parser.items("agilab.apps"))
+            )
+    except (
+        zipfile.BadZipFile,
+        UnicodeError,
+        configparser.Error,
+        RuntimeError,
+        OSError,
+        zlib.error,
+    ) + _LZMA_ERRORS:
+        raise ValueError(
+            "Selected package contains invalid wheel metadata; rebuild the wheel before installing."
+        ) from None
 
 
 def _download_wheel_entry_points(
