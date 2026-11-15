@@ -631,7 +631,8 @@ def _extract_packaged_dataset_if_needed(env, *, env_cls) -> None:
     if env.is_worker_env or not dataset_archive or not Path(dataset_archive).exists():
         return
 
-    dataset_root = (Path(env.app_data_rel) / "dataset").expanduser()
+    app_data_root = env.resolve_share_path(env.share_target_name)
+    dataset_root = (app_data_root / "dataset").expanduser()
     archive_mtime = Path(dataset_archive).stat().st_mtime
     stamp_path = dataset_root / ".agilab_dataset_stamp"
     existing_files = (
@@ -653,7 +654,7 @@ def _extract_packaged_dataset_if_needed(env, *, env_cls) -> None:
     if not needs_extract:
         return
     try:
-        env.unzip_data(Path(dataset_archive), env.app_data_rel, force_extract=True)
+        env.unzip_data(Path(dataset_archive), app_data_root, force_extract=True)
     except (OSError, RuntimeError, ValueError, TypeError) as exc:  # pragma: no cover - defensive guard
         env.logger.warning("Failed to extract packaged dataset %s: %s", dataset_archive, exc)
 

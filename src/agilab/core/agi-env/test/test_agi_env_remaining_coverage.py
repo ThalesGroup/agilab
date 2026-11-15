@@ -183,6 +183,7 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
     env.resources_path = tmp_path / ".agilab"
     env.envars = {"APPS_PATH": str(env.apps_path)}
     env.app_data_rel = tmp_path / "share" / "demo"
+    env.share_target_name = "demo"
     env.agi_share_path_abs = tmp_path / "share"
     env._share_root_cache = env.agi_share_path_abs.resolve()
     env.user = "agi"
@@ -284,7 +285,7 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
     unzip_args, unzip_kwargs = captured["unzip_data"]
     assert unzip_args[0] == tmp_path / "dataset.7z"
     assert unzip_kwargs["extract_to"] == "dataset/demo"
-    assert unzip_kwargs["app_data_rel"] == env.app_data_rel
+    assert unzip_kwargs["app_data_rel"] == env.resolve_share_path(env.share_target_name)
 
 
 def _prepare_fake_home(tmp_path: Path, monkeypatch, *, env_text: str) -> Path:

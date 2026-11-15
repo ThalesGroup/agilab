@@ -1380,6 +1380,7 @@ def test_session_unzip_data_uses_its_own_runtime_context(env, monkeypatch, tmp_p
     session_logger = mock.Mock()
     session = object.__new__(AgiEnv)
     session.app_data_rel = tmp_path / "session-data"
+    session.share_target_name = "session-data"
     session.agi_share_path_abs = tmp_path / "share"
     session.AGILAB_WORKFLOW_DATA_ROOT = tmp_path / "session-workflow"
     session.user = "session-user"
@@ -1404,6 +1405,7 @@ def test_session_unzip_data_uses_its_own_runtime_context(env, monkeypatch, tmp_p
     assert kwargs["force_extract"] is True
     assert kwargs["agi_share_path_abs"] == session.AGILAB_WORKFLOW_DATA_ROOT
     assert kwargs["agi_share_path_abs"] != session.agi_share_path_abs
+    assert kwargs["app_data_rel"] == session.resolve_share_path(session.share_target_name)
 
 
 def test_agienv_for_app_reuses_matching_singleton(env, monkeypatch):
@@ -2399,6 +2401,7 @@ class _SafeSevenZipMetadataMixin:
 def test_unzip_data_handles_missing_archive_existing_dataset_and_force_refresh(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.app_data_rel = "demo"
+    env.share_target_name = "demo"
     env.agi_share_path_abs = tmp_path / "share"
     env._share_root_cache = env.agi_share_path_abs.resolve()
     env.agi_share_path_abs.mkdir(parents=True)
@@ -2471,6 +2474,7 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
 
     env = object.__new__(AgiEnv)
     env.app_data_rel = "demo"
+    env.share_target_name = "demo"
     env.agi_share_path_abs = tmp_path / "share"
     env._share_root_cache = env.agi_share_path_abs.resolve()
     env.agi_share_path_abs.mkdir(parents=True)
@@ -2484,6 +2488,7 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
 
     failing_env = object.__new__(AgiEnv)
     failing_env.app_data_rel = "demo"
+    failing_env.share_target_name = "demo"
     failing_env.agi_share_path_abs = tmp_path / "share-failing"
     failing_env._share_root_cache = failing_env.agi_share_path_abs.resolve()
     failing_env.agi_share_path_abs.mkdir(parents=True)
@@ -2503,6 +2508,7 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
 
     refresh_env = object.__new__(AgiEnv)
     refresh_env.app_data_rel = "demo"
+    refresh_env.share_target_name = "demo"
     refresh_env.agi_share_path_abs = tmp_path / "share-refresh"
     refresh_env._share_root_cache = refresh_env.agi_share_path_abs.resolve()
     refresh_env.agi_share_path_abs.mkdir(parents=True)
@@ -2534,6 +2540,7 @@ def test_unzip_data_skips_for_owner_mismatch_parent_failure_and_refresh_permissi
 def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.app_data_rel = "demo"
+    env.share_target_name = "demo"
     env.agi_share_path_abs = tmp_path / "share"
     env._share_root_cache = env.agi_share_path_abs.resolve()
     env.agi_share_path_abs.mkdir(parents=True)
@@ -2567,6 +2574,7 @@ def test_unzip_data_raises_runtime_error_when_extraction_fails(tmp_path: Path, m
 def test_unzip_data_propagates_unexpected_extraction_bug(tmp_path: Path, monkeypatch):
     env = object.__new__(AgiEnv)
     env.app_data_rel = "demo"
+    env.share_target_name = "demo"
     env.agi_share_path_abs = tmp_path / "share"
     env._share_root_cache = env.agi_share_path_abs.resolve()
     env.agi_share_path_abs.mkdir(parents=True)
