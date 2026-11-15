@@ -757,9 +757,34 @@ change. All workflows are manual-only; repository Actions remains disabled.
 For style tooling, maintainers should run `./dev lint`; it executes Ruff through
 the repo `dev` extra so a fresh checkout provisions the tool instead of relying
 on an already-synced local environment.
-External Sigstore/SLSA attestation binding, native lineage or observability
-transport, durable ML metadata, rich app-authored cards, and enterprise
-governance integrations remain roadmap work. See the
+The published November 2 baseline above provides JSON exports and local metadata
+entries. Source `main` as of 2026-11-14 additionally provides
+[transactional SQLite run metadata, durable JSONL agent events and opt-in local trace/lineage adapters](https://github.com/ThalesGroup/agilab/pull/1236).
+The OpenTelemetry Protocol (OTLP) and OpenLineage adapters target explicit
+loopback endpoints; these additions are absent from PyPI `2026.11.2`.
+Source tests qualify the local optional-dependency composition with the normal
+OpenTelemetry SDK and schema-validation dependencies. External collector
+deployment, remote runtime acceptance and correlation across UI and workers
+remain open. Richer
+app-authored cards and enterprise governance remain further acceptance work.
+
+The current Linux SDK candidate separately passed normal clone, export and
+reimport; its full scientific run awaits capacity and tracking-backend
+prerequisites. The installed macOS candidate and published Linux results
+retain their original scope.
+
+The premounted native filesystem share consumer passed remote scheduler-read
+and mounted-writeback checks over macOS WebDAV through an existing strict SSH
+tunnel. Two-host SDK compute, degraded-network and team-operation qualification
+remain open.
+
+Merged source also adds
+[app-owned evaluation, portable serving handoff verification and an opt-in Sigstore adapter](https://github.com/ThalesGroup/agilab/pull/1240).
+Four official signed fixtures exercised the adapter; positive external attestation
+of a real user capsule, including Supply-chain Levels for Software Artifacts
+(SLSA) provenance, remains unavailable. These source features are absent from
+the November 2 packages and do not establish production serving or external
+certification. See the
 [proof capsule](https://thalesgroup.github.io/agilab/proof-capsule.html)
 contract for the intended boundary.
 
