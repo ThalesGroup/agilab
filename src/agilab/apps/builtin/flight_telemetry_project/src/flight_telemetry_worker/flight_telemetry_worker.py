@@ -11,7 +11,7 @@ import os
 import re
 import traceback
 from datetime import datetime as dt
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import cython
 import numpy as np
@@ -167,6 +167,33 @@ def _add_coordinate_overlay_columns(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def _input_root_file_path(item: dict, data_in: str | Path) -> Path:
+    """Resolve an explicit app input item inside the worker's normalized root."""
+    if (
+        set(item) != {"schema", "path"}
+        or item["schema"] != "flight_telemetry.input_file.v1"
+    ):
+        raise ValueError("Invalid flight input item schema")
+    name = item["path"]
+    if (
+        not isinstance(name, str)
+        or not name
+        or any(char in name for char in ("\\", ":", "\0"))
+    ):
+        raise ValueError("Invalid flight input relative path")
+    relative = PurePosixPath(name)
+    if relative.is_absolute() or ".." in relative.parts or not relative.parts:
+        raise ValueError("Invalid flight input relative path")
+    root = Path(data_in).expanduser()
+    if not root.is_absolute():
+        raise ValueError("Invalid flight input root: data_in must be normalized")
+    root = root.resolve()
+    path = root.joinpath(*relative.parts)
+    if not path.resolve().is_relative_to(root):
+        raise ValueError("Invalid flight input path outside data_in")
+    return path
+
+
 class FlightTelemetryWorker(PolarsWorker):
     """Class derived from AgiDataWorker"""
 
@@ -284,9 +311,13 @@ class FlightTelemetryWorker(PolarsWorker):
             data_source = "file"
 
         if data_source == "file":
-            file_path = Path(os.path.expanduser(str(file)))
-            if not file_path.is_absolute():
-                file_path = Path(os.path.expanduser(f"~/{file}"))
+            if isinstance(file, dict):
+                file_path = _input_root_file_path(file, global_vars["args"].data_in)
+            else:
+                # Legacy strings retain their absolute or HOME-relative meaning.
+                file_path = Path(os.path.expanduser(str(file)))
+                if not file_path.is_absolute():
+                    file_path = Path(os.path.expanduser(f"~/{file}"))
             if os.name != "nt":
                 file = os.path.normpath(str(file_path)).replace("\\", "/")
             else:

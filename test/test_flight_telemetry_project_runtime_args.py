@@ -326,14 +326,209 @@ def test_flight_manager_builds_typed_file_inventory(monkeypatch, tmp_path):
 
     assert work_plan == [
         [
-            ["localshare/flight_cluster_validation/dataset/csv/60_5984.csv"],
-            ["localshare/flight_cluster_validation/dataset/csv/61_6101.csv"],
+            [{"schema": "flight_telemetry.input_file.v1", "path": "60_5984.csv"}],
+            [{"schema": "flight_telemetry.input_file.v1", "path": "61_6101.csv"}],
         ]
     ]
     assert metadata == [[(60, 0.003), (61, 0.002)]]
     assert partition_key == "plane"
     assert weights_key == "files"
     assert weights_unit == "KB"
+
+
+
+@pytest.fixture
+def flight_input_path_case(monkeypatch, tmp_path, request):
+    Flight, FlightWorker = _import_flight_modules(monkeypatch)
+    manager_home = tmp_path / "manager-home"
+    worker_home = tmp_path / "worker-home"
+    manager_root = tmp_path / "manager-backing" / "workflow"
+    worker_root = tmp_path / "worker-mount" / "workflow"
+    relative_file = Path("csv") / "60_crosshost.csv"
+    contents = (
+        "aircraft,date,lat,long,altitude,heading\n"
+        "A1,2021-01-01 00:00:00,48.0000,2.0000,1000,20\n"
+        "A1,2021-01-01 00:01:00,48.0005,2.0005,1100,\n"
+        "A1,2021-01-01 00:02:00,,2.0010,1200,30\n"
+    )
+    for root in (manager_root, worker_root):
+        source = root / "dataset" / relative_file
+        source.parent.mkdir(parents=True)
+        source.write_text(contents, encoding="utf-8")
+    manager_env = _FakeEnv(manager_root)
+    worker_env = _FakeEnv(worker_root)
+    if getattr(request, "param", False):
+        # The actual SDK resolver selects pre-existing physical-share input
+        # when the active workflow directory has no dataset.
+        for env in (manager_env, worker_env):
+            env.AGILAB_WORKFLOW_DATA_ROOT = env.share_root / "runs" / "current"
+            from agi_env import AgiEnv
+
+            env.workflow_data_root_path = lambda _env=env: _env.AGILAB_WORKFLOW_DATA_ROOT
+            env.resolve_share_input_path = lambda value, _env=env: (
+                AgiEnv.resolve_share_input_path(_env, value)
+            )
+            env.resolve_share_path = lambda value, _env=env: (
+                AgiEnv.resolve_share_path(_env, value)
+            )
+    monkeypatch.setenv("HOME", str(manager_home))
+    flight = Flight(
+        manager_env,
+        data_in="dataset",
+        data_out="output",
+        files="*.csv",
+        reset_target=False,
+    )
+    plan, metadata, *labels = flight.build_distribution({"worker": 1})
+    # Transport the manager's actual plan unchanged, rather than rewriting a filename.
+    plan = json.loads(json.dumps(plan))
+    monkeypatch.setenv("HOME", str(worker_home))
+    worker = FlightWorker()
+    worker.env = worker_env
+    worker.args = {
+        "data_in": "dataset",
+        "data_out": "output",
+        "reset_target": False,
+        "output_format": "parquet",
+    }
+    worker._worker_id = 0
+    worker.worker_id = 0
+    worker.verbose = 0
+    worker.start()
+    return SimpleNamespace(
+        flight=flight,
+        worker=worker,
+        plan=plan,
+        metadata=metadata,
+        labels=labels,
+        manager_root=manager_root,
+        worker_root=worker_root,
+        manager_source=manager_root / "dataset" / relative_file,
+        worker_source=worker_root / "dataset" / relative_file,
+        worker_home=worker_home,
+    )
+
+
+@pytest.mark.parametrize("flight_input_path_case", [False, True], indirect=True)
+@pytest.mark.parametrize("execution", ["work_pool", "mono_plan"])
+def test_flight_manager_plan_reads_worker_input_root(
+    flight_input_path_case, monkeypatch, execution
+):
+    case = flight_input_path_case
+    reference = case.worker.work_pool(str(case.worker_source))
+    assert reference.width == 17
+    assert reference.height == 3
+    assert reference["lat"].null_count() == 1
+    assert reference["heading"].null_count() == 1
+    assert reference["speed"][0] == 0.0
+    assert reference["speed"][1] == pytest.approx(66.895819, abs=0.001)
+    # The manager's backing path must be unusable in the worker context.
+    case.manager_source.unlink()
+    if execution == "work_pool":
+        result = case.worker.work_pool(case.plan[0][0][0])
+    else:
+        chunks = []
+        monkeypatch.setattr(case.worker, "work_done", chunks.append)
+        case.worker._exec_mono_process(case.plan, case.metadata)
+        assert len(chunks) == 1
+        result = chunks[0].drop("worker_id")
+    assert result.equals(reference)
+    assert case.labels == ["plane", "files", "KB"]
+
+
+def test_flight_legacy_strings_keep_home_and_absolute_meaning(flight_input_path_case):
+    case = flight_input_path_case
+    expected = case.worker.work_pool(str(case.worker_source))
+    legacy_relative = "60_legacy.csv"
+    legacy_absolute = case.worker_home / legacy_relative
+    legacy_absolute.parent.mkdir(parents=True, exist_ok=True)
+    legacy_absolute.write_bytes(case.worker_source.read_bytes())
+    # A conflicting basename under data_in must not change the legacy HOME binding.
+    (Path(case.worker.args.data_in) / legacy_relative).write_text(
+        "not,the,selected,file\n", encoding="utf-8"
+    )
+    for item in (legacy_relative, str(legacy_absolute)):
+        result = case.worker.work_pool(item)
+        assert result.drop("source_file").equals(expected.drop("source_file"))
+        assert result["source_file"].unique().to_list() == [legacy_relative]
+    with pytest.raises(FileNotFoundError):
+        case.worker.work_pool(str(case.manager_root / "absent" / legacy_relative))
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "../60_escape.csv",
+        "csv/../../60_escape.csv",
+        "/60_absolute.csv",
+        "C:/60_absolute.csv",
+        "C:60_drive_relative.csv",
+        r"csv\..\60_escape.csv",
+        r"\\server\share\60_file.csv",
+        "",
+        None,
+        17,
+    ],
+)
+def test_flight_input_record_rejects_unsafe_paths(flight_input_path_case, relative):
+    item = {"schema": "flight_telemetry.input_file.v1", "path": relative}
+    with pytest.raises(ValueError, match="flight input"):
+        flight_input_path_case.worker.work_pool(item)
+
+
+def test_flight_input_record_confines_symlinks(flight_input_path_case):
+    case = flight_input_path_case
+    root = Path(case.worker.args.data_in)
+    inside = root / "60_inside.csv"
+    outside = root / "60_outside.csv"
+    try:
+        inside.symlink_to(case.worker_source)
+        outside.symlink_to(case.manager_source)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable on this platform")
+    reference = case.worker.work_pool(str(case.worker_source))
+    result = case.worker.work_pool(
+        {"schema": "flight_telemetry.input_file.v1", "path": inside.name}
+    )
+    assert result.drop("source_file").equals(reference.drop("source_file"))
+    assert result["source_file"].unique().to_list() == [inside.name]
+    with pytest.raises(ValueError, match="flight input"):
+        case.worker.work_pool(
+            {"schema": "flight_telemetry.input_file.v1", "path": outside.name}
+        )
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {},
+        {"schema": "flight_telemetry.input_file.v2", "path": "csv/60_crosshost.csv"},
+        {"schema": "flight_telemetry.input_file.v1"},
+        {
+            "schema": "flight_telemetry.input_file.v1",
+            "path": "csv/60_crosshost.csv",
+            "extra": 1,
+        },
+    ],
+)
+def test_flight_input_record_rejects_unknown_schema(flight_input_path_case, item):
+    with pytest.raises(ValueError, match="flight input"):
+        flight_input_path_case.worker.work_pool(item)
+
+
+def test_flight_manager_rejects_input_symlink_escape(flight_input_path_case):
+    case = flight_input_path_case
+    link = case.manager_source.parent / "61_escape.csv"
+    try:
+        link.symlink_to(case.worker_source)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable on this platform")
+    with pytest.raises(
+        RuntimeError, match="Unable to build flight distribution"
+    ) as error:
+        case.flight.build_distribution({"worker": 1})
+    assert isinstance(error.value.__cause__, ValueError)
+    assert "flight input" in str(error.value.__cause__)
 
 
 def test_flight_telemetry_worker_defaults_missing_data_source(monkeypatch, tmp_path):
