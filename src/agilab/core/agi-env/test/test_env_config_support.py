@@ -291,3 +291,37 @@ def test_remote_env_update_script_bounds_lock_wait() -> None:
     assert "deadline = time.monotonic() + 5.0" in script
     assert "Timed out waiting for AGILAB dotenv lock" in script
     assert "if locked:" in script
+
+
+@pytest.mark.parametrize("selection", ["private resources é", "missing/parent/resources"])
+def test_remote_env_transaction_uses_private_resources(tmp_path, selection):
+    home = tmp_path / "login-home"
+    protected = home / ".agilab" / ".env"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("LOGIN_SENTINEL=unchanged\n", encoding="utf-8")
+    selected = tmp_path / selection
+    script = env_config_module.build_remote_env_update_script({"TASK_ONLY": "1"})
+    environment = dict(env_config_module._stdlib_os.environ)
+    environment.update(HOME=str(home), USERPROFILE=str(home), AGILAB_RESOURCES_DIR=str(selected))
+    result = subprocess.run([sys.executable, "-B", "-c", script], env=environment,
+                            text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == selected.resolve() / ".env"
+    assert protected.read_text(encoding="utf-8") == "LOGIN_SENTINEL=unchanged\n"
+    assert env_config_module.load_dotenv_values(selected / ".env") == {"TASK_ONLY": "1"}
+    assert (selected / ".env.lock").is_file()
+    assert sorted(selected.glob("..env.*.tmp")) == []
+
+
+@pytest.mark.parametrize("selection", ["", " ", "relative/resources", "~/.agilab"])
+def test_remote_env_transaction_rejects_bad_selector_before_writes(tmp_path, selection):
+    home = tmp_path / "login-home"
+    home.mkdir()
+    environment = dict(env_config_module._stdlib_os.environ)
+    environment.update(HOME=str(home), USERPROFILE=str(home), AGILAB_RESOURCES_DIR=selection)
+    script = env_config_module.build_remote_env_update_script({"TASK_ONLY": "1"})
+    result = subprocess.run([sys.executable, "-B", "-c", script], env=environment,
+                            text=True, capture_output=True, timeout=10)
+    assert result.returncode != 0
+    assert "AGILAB_RESOURCES_DIR" in result.stderr
+    assert sorted(home.iterdir()) == []

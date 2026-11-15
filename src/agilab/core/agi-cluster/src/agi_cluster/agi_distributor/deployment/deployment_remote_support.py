@@ -460,7 +460,9 @@ def _scheduler_ssh_target(agi_cls: Any, env: Any) -> str:
     return f"{user}@{host}" if user else host
 
 
-def _remote_env_update_command(remote_share: str, workflow_data_root: str | None = None) -> str:
+def _remote_env_update_command(
+    remote_share: str, workflow_data_root: str | None = None, *, cmd_prefix: str = ""
+) -> str:
     # Update only worker cluster-mode lines: the remote ~/.agilab/.env holds other
     # operator-managed settings that must be preserved (merge semantics,
     # matching install.sh/write_env_updates).  Remote workers resolve relative
@@ -476,7 +478,7 @@ def _remote_env_update_command(remote_share: str, workflow_data_root: str | None
             "AGILAB_WORKFLOW_DATA_ROOT": workflow_data_root or remote_share,
         }
     )
-    return "python3 - <<'PY'\n" + script + "PY"
+    return _operator_command_prefix(cmd_prefix) + "python3 - <<'PY'\n" + script + "PY"
 
 
 def _remote_share_mount_command(
@@ -599,7 +601,10 @@ async def _prepare_remote_cluster_share(
 
     await agi_cls.exec_ssh(
         ip,
-        _remote_env_update_command(remote_share_setting, workflow_data_root_setting),
+        _remote_env_update_command(
+            remote_share_setting, workflow_data_root_setting,
+            cmd_prefix=(getattr(env, "envars", {}) or {}).get(f"{ip}_CMD_PREFIX", ""),
+        ),
     )
 
 

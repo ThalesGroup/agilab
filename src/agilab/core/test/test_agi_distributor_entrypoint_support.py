@@ -1481,3 +1481,34 @@ async def test_start_scheduler_reraises_runtime_error_and_worker_init_error(
             create_task_fn=lambda coro: coro,
             sleep_fn=_fake_sleep,
         )
+
+
+@pytest.mark.asyncio
+async def test_detect_export_cmd_preserves_explicit_host_context():
+    prefix = "export AGILAB_RESOURCES_DIR='/srv/task resources'; export UV_CACHE_DIR='/srv/task cache'; "
+    async def unexpected_ssh(*_args):
+        pytest.fail("an explicit host prefix must not be replaced by platform detection")
+    agi = SimpleNamespace(env=SimpleNamespace(envars={"10.0.0.9_CMD_PREFIX": prefix}),
+                          exec_ssh=unexpected_ssh)
+    assert await entrypoint_support.detect_export_cmd(
+        agi, "10.0.0.9", is_local_fn=lambda _ip: False,
+        local_export_bin="LOCAL_PREFIX "
+    ) == prefix
+
+
+@pytest.mark.asyncio
+async def test_detect_export_cmd_reprobes_the_automatic_default_prefix():
+    automatic = 'export PATH="$HOME/.local/bin:$PATH";'
+    probes = []
+    async def fake_ssh(ip, command):
+        probes.append(command)
+        return "Windows_NT"
+    agi = SimpleNamespace(
+        env=SimpleNamespace(envars={"10.0.0.9_CMD_PREFIX": automatic}),
+        exec_ssh=fake_ssh,
+    )
+    assert await entrypoint_support.detect_export_cmd(
+        agi, "10.0.0.9", is_local_fn=lambda _ip: False,
+        local_export_bin="LOCAL_PREFIX "
+    ) == ""
+    assert probes == ["uname -s"]

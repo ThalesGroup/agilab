@@ -821,3 +821,56 @@ def test_missing_dev_group_matches_project_sync(
             deployment._project_venv_python(project),
         ]
     )
+
+
+def test_remote_prefix_selects_reviewed_sdk_index_and_private_cache(resolver_fixture):
+    from agi_cluster.agi_distributor import deployment_remote_support as remote
+    fixture = resolver_fixture
+    project = _role(fixture, "worker", "3.13")
+    manifest = project / "pyproject.toml"
+    authored = manifest.read_text(encoding="utf-8").replace(
+        "'pydantic>=1,<2']",
+        "'pydantic>=1,<2', 'agilab==2.0', 'agi-env==2.0', 'agi-node==2.0']",
+    )
+    manifest.write_text(authored, encoding="utf-8")
+    index = fixture["root"] / "reviewed SDK index"
+    for wheel in sorted(fixture["wheels"].glob("*.whl")):
+        name = wheel.name.split("-", 1)[0].replace("_", "-")
+        page = index / name / "index.html"
+        page.parent.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+        with page.open("a", encoding="utf-8") as handle:
+            handle.write(f'<a href="{wheel.as_uri()}#sha256={digest}">{wheel.name}</a>\n')
+    cache = fixture["root"] / "selected remote cache"
+    selected = {"UV_DEFAULT_INDEX": index.as_uri(), "UV_CACHE_DIR": str(cache)}
+    prefix = shlex.join(["env", *(f"{key}={value}" for key, value in selected.items())])
+    tool = remote._remote_tool(prefix, shlex.join([fixture["uv"], "--offline", "--no-config"]))
+    command = remote._remote_command(tool, "sync", "--project", project, "--no-install-project")
+    environment = dict(fixture["env"])
+    environment.pop("UV_NO_INDEX", None)
+    environment.pop("UV_FIND_LINKS", None)
+    argv = shlex.split(command)
+    if os.name == "nt":
+        # This local harness has no POSIX env executable; the remote command
+        # contract remains POSIX, and its selected values are applied directly.
+        environment.update(selected)
+        argv = argv[1 + len(selected):]
+    result = subprocess.run(argv, cwd=project, env=environment, text=True,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    (fixture["root"] / "agilab-sdk-reviewed-index-command.log").write_text(
+        command + "\n" + result.stdout, encoding="utf-8"
+    )
+    assert result.returncode == 0, result.stdout
+    assert cache.is_dir() and any(cache.iterdir())
+    installed = _installed(project)
+    lock = (project / "uv.lock").read_text(encoding="utf-8")
+    for wheel in fixture["refs"]:
+        name = wheel.name.split("-", 1)[0].replace("_", "-")
+        assert installed[name].version == "2.0"
+        assert "sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest() in lock
+    assert installed["pydantic"].version == "1.0"
+    assert installed["polars"].version == "1.0"
+    assert manifest.read_text(encoding="utf-8") == authored
+    fixture["run"](
+        [fixture["uv"], "pip", "check", "--python", deployment._project_venv_python(project)]
+    )
