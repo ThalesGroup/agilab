@@ -504,7 +504,8 @@ for dist in md.distributions():
     try:
         direct = dist.read_text("direct_url.json")
         if direct is not None:
-            from urllib.parse import unquote, urlsplit
+            from urllib.parse import urlsplit
+            from urllib.request import url2pathname
             direct = json.loads(direct)
             if not isinstance(direct, dict) or not isinstance(direct.get("url"), str):
                 raise ValueError()
@@ -516,7 +517,7 @@ for dist in md.distributions():
                 url = urlsplit(direct["url"])
                 if url.scheme != "file" or url.netloc not in ("", "localhost") or url.query or url.fragment:
                     raise ValueError()
-                editable_path = str(Path(unquote(url.path)).resolve(strict=True))
+                editable_path = str(Path(url2pathname(url.path)).resolve(strict=True))
         if dist.files is None:
             raise ValueError()
         digest = hashlib.sha256()
