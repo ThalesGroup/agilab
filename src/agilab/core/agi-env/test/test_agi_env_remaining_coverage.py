@@ -184,6 +184,7 @@ def test_agi_env_remaining_wrappers_delegate_support_helpers(monkeypatch, tmp_pa
     env.envars = {"APPS_PATH": str(env.apps_path)}
     env.app_data_rel = tmp_path / "share" / "demo"
     env.agi_share_path_abs = tmp_path / "share"
+    env._share_root_cache = env.agi_share_path_abs.resolve()
     env.user = "agi"
     env.projects = ["demo_project"]
 
