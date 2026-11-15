@@ -1202,3 +1202,82 @@ def test_review_registration_request_refuses_and_supported_retry_succeeds(
         actions, states, dry_run=False, inspect_venv_fn=states.__getitem__
     )
     assert (target / ".venv").resolve() == (donor / ".venv").resolve()
+
+
+@pytest.mark.parametrize(
+    "url_path", ["/C:/fixture/app%20source", "/D:/fixture/caf%C3%A9"]
+)
+def test_inspection_decodes_windows_editable_file_urls(tmp_path, monkeypatch, url_path):
+    import contextlib
+    import importlib.metadata as metadata
+    import io
+    import nturl2path
+    from unittest import mock
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\nversion = "0.0.1"\ndependencies = []\n',
+        encoding="utf-8",
+    )
+    selected = project / ".venv"
+    (selected / "bin").mkdir(parents=True)
+    (selected / "bin" / "python").touch()
+    (selected / "Scripts").mkdir()
+    (selected / "Scripts" / "python.exe").touch()
+    dist_root = selected / "payload"
+    dist_root.mkdir()
+    payload_file = dist_root / "payload.py"
+    payload_file.write_bytes(b"pass\n")
+    before = payload_file.read_bytes()
+
+    class Distribution:
+        metadata = {"Name": "demo"}
+        version = "0.0.1"
+        requires = []
+        files = ["payload.py"]
+
+        def read_text(self, name):
+            if name == "direct_url.json":
+                return json.dumps(
+                    {"url": "file://" + url_path, "dir_info": {"editable": True}}
+                )
+            return None
+
+        def locate_file(self, name):
+            return dist_root / name
+
+    original_resolve = Path.resolve
+    native_path = nturl2path.url2pathname(url_path)
+
+    def resolve_native(path, strict=False):
+        if str(path) == native_path:
+            return original_resolve(project, strict=True)
+        return original_resolve(path, strict=strict)
+
+    def inspect_child(command, **_kwargs):
+        assert command[-2] == "-c"
+        output = io.StringIO()
+        with (
+            mock.patch.object(metadata, "distributions", return_value=[Distribution()]),
+            mock.patch(
+                "urllib.request.url2pathname", side_effect=nturl2path.url2pathname
+            ),
+            mock.patch.object(Path, "resolve", resolve_native),
+            mock.patch.object(sys, "prefix", str(selected)),
+            contextlib.redirect_stdout(output),
+        ):
+            exec(
+                compile(command[-1], "<actual-inspection-probe>", "exec"),
+                {"__name__": "__main__"},
+            )
+        return subprocess.CompletedProcess(command, 0, output.getvalue(), "")
+
+    import subprocess
+
+    monkeypatch.setattr(venv_linker.subprocess, "run", inspect_child)
+    state = venv_linker.inspect_venv(selected)
+    distribution = state.distributions["demo"]
+    assert distribution.identity_error == ""
+    assert distribution.editable_path == str(project.resolve())
+    assert payload_file.read_bytes() == before
