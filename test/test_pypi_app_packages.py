@@ -1041,3 +1041,52 @@ def test_security_wheel_corrupt_lzma_metadata_is_classified():
     data[start + 4] = 255
     with pytest.raises(ValueError, match="invalid wheel metadata"):
         module._wheel_entry_points_from_bytes(bytes(data))
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        "[agilab.apps]\ndemo = demo:%(MISSING)s\n",
+        "[agilab.apps]\ndemo = demo:%\n",
+        "[agilab.apps]\ndemo = demo:%(unterminated\n",
+    ],
+)
+def test_lazy_wheel_entry_point_errors_are_normalized(metadata):
+    module = _load_module()
+    with pytest.raises(ValueError, match="invalid wheel metadata") as exc:
+        module._wheel_entry_points_from_bytes(_wheel_bytes(metadata))
+    assert "MISSING" not in str(exc.value)
+    assert "unterminated" not in str(exc.value)
+
+
+def test_preflight_classifies_lazy_entry_point_error_without_traceback():
+    module = _load_module()
+    wheel = _wheel_bytes("[agilab.apps]\ndemo = demo:%(PRIVATE_SENTINEL)s\n")
+
+    import hashlib
+
+    file = {
+        "filename": "agi_app_demo-1.0.0-py3-none-any.whl",
+        "packagetype": "bdist_wheel",
+        "url": "https://files.pythonhosted.org/packages/agi_app_demo.whl",
+        "yanked": False,
+        "digests": {"sha256": hashlib.sha256(wheel).hexdigest()},
+    }
+    payload = {
+        "info": {"name": "agi-app-demo", "version": "1.0.0", "requires_dist": []},
+        "releases": {"1.0.0": [file]},
+        "urls": [file],
+    }
+
+    def opener(request, **_kwargs):
+        url = getattr(request, "full_url", str(request))
+        return _Response(
+            wheel if url.endswith(".whl") else json.dumps(payload).encode()
+        )
+
+    result = module.preflight_pypi_app_install("agi-app-demo==1.0.0", opener=opener)
+    assert result.status == "fail"
+    assert result.checks == {"pypi": "fail"}
+    assert len(result.issues) == 1
+    assert "invalid wheel metadata" in result.issues[0]
+    assert "PRIVATE_SENTINEL" not in result.issues[0]
