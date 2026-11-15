@@ -172,7 +172,25 @@ __MANAGED_KEYS__
 updates = __UPDATES__
 default_comments = __COMMENTS__
 update_keys = {key for key, _value in updates}
-env_path = Path.home() / ".agilab/.env"
+resources_selector = os.environ.get("AGILAB_RESOURCES_DIR")
+if resources_selector is None:
+    env_path = Path.home() / ".agilab/.env"
+else:
+    if not resources_selector.strip() or chr(0) in resources_selector:
+        raise ValueError("AGILAB_RESOURCES_DIR must name an absolute directory")
+    resources_path = Path(resources_selector)
+    if not resources_path.is_absolute():
+        raise ValueError("AGILAB_RESOURCES_DIR must name an absolute directory")
+    try:
+        resources_path = resources_path.resolve(strict=False)
+        for candidate in (resources_path, *resources_path.parents):
+            if candidate.exists():
+                if not candidate.is_dir():
+                    raise ValueError("resource path has a non-directory ancestor")
+                break
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError("AGILAB_RESOURCES_DIR is not a usable absolute directory") from exc
+    env_path = resources_path / ".env"
 env_path.parent.mkdir(parents=True, exist_ok=True)
 
 

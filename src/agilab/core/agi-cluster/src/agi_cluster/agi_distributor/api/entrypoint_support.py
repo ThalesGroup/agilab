@@ -426,13 +426,19 @@ async def detect_export_cmd(
     if is_local_fn(ip):
         return local_export_bin
 
+    envars = getattr(getattr(agi_cls, "env", None), "envars", {}) or {}
+    configured_prefix = str(envars.get(f"{ip}_CMD_PREFIX", "") or "")
+    automatic_prefix = 'export PATH="$HOME/.local/bin:$PATH";'
+    if configured_prefix and configured_prefix.strip() != automatic_prefix:
+        return configured_prefix
+
     try:
         os_id = await agi_cls.exec_ssh(ip, "uname -s")
     except _EXPORT_CMD_LOOKUP_EXCEPTIONS:
         os_id = ""
 
     if any(name in os_id for name in ("Linux", "Darwin", "BSD")):
-        return 'export PATH="$HOME/.local/bin:$PATH";'
+        return automatic_prefix
     return ""
 
 

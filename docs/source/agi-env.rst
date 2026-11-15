@@ -61,6 +61,41 @@ configuration behavior apply. Provide a fully expanded path: an empty value,
 a relative path and a literal ``~`` are invalid and fail before resource
 initialization. See :doc:`environment` for the configuration reference.
 
+Remote resource and resolver contexts
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A remote worker selects its own resources before its dotenv transaction and
+Python worker CLI start. Configure the existing per-host ``<worker-ip>_CMD_PREFIX``
+in the manager's selected environment with a trusted POSIX command prefix:
+
+.. code-block:: python
+
+   from agi_env import AgiEnv
+
+   AgiEnv.set_env_var(
+       "192.0.2.10_CMD_PREFIX",
+       "export AGILAB_RESOURCES_DIR='/srv/agilab/task-resources'; "
+       "export UV_CACHE_DIR='/srv/agilab/task-cache';",
+   )
+
+Use the worker's address and absolute paths valid on that host. The SDK preserves
+an explicit host prefix through deployment. The remote ``.env``, its stable lock,
+and its fsynced temporary files use the selected resource directory. An invalid
+selector fails before these writes. With no remote selector, the normal
+``~/.agilab/.env`` location remains.
+
+Manager-local resource and worker-root paths are not copied automatically to
+another host. ``AGILAB_WORKER_ROOT`` continues to select the manager's local
+installation root; ordinary remote staging retains the existing remote ``wenv``
+layout.
+
+For reviewed SDK artifacts, stage the selected wheels in a controlled remote
+package index and select that index through the host prefix using uv's supported
+``UV_INDEX`` configuration. The same prefix can select the remote cache.
+``UV_OVERRIDE`` applies to uv's pip commands; it does not select wheel identities
+for ``uv sync`` or ``uv add``. Verify the resolved wheel hashes and installed
+dependency health before accepting a qualified run.
+
 Isolated local worker installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

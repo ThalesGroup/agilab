@@ -1998,3 +1998,56 @@ def test_resolve_worker_egg_falls_back_and_raises(tmp_path):
         deployment_remote_support._resolve_worker_egg(env, tmp_path, log)
         == fallback_egg
     )
+
+
+@pytest.mark.asyncio
+async def test_premounted_dotenv_uses_explicit_host_prefix(tmp_path):
+    prefix = "export AGILAB_RESOURCES_DIR='/srv/task resources'; export UV_CACHE_DIR='/srv/task cache'; "
+    commands = []
+    async def fake_ssh(ip, command):
+        commands.append(command)
+        return "ok"
+    env = SimpleNamespace(
+        AGI_CLUSTER_SHARE=str(tmp_path / "scheduler-share"),
+        home_abs=tmp_path, user="operator", verbose=0,
+        envars={"10.0.0.9_CMD_PREFIX": prefix, "AGILAB_REMOTE_CLUSTER_SHARE_PREMOUNTED": "1"},
+    )
+    agi = SimpleNamespace(env=env, exec_ssh=fake_ssh, _scheduler_ip="")
+    await deployment_remote_support._prepare_remote_cluster_share(
+        agi, "10.0.0.9", env, "/srv/task/mount"
+    )
+    updates = [command for command in commands if "managed dotenv key" in command]
+    assert len(updates) == 1
+    assert updates[0].startswith(prefix.rstrip() + " python3 ")
+
+
+def test_remote_dotenv_command_writes_only_selected_resources(tmp_path):
+    import shlex
+    import subprocess
+
+    home = tmp_path / "login-home"
+    protected = home / ".agilab" / ".env"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("LOGIN_SENTINEL=unchanged\n", encoding="utf-8")
+    selected = tmp_path / "remote resources é"
+    prefix = "export AGILAB_RESOURCES_DIR=" + shlex.quote(str(selected)) + ";"
+    command = deployment_remote_support._remote_env_update_command(
+        "/srv/task/mount", cmd_prefix=prefix
+    )
+    environment = dict(os.environ)
+    environment.update(HOME=str(home), USERPROFILE=str(home))
+    environment.pop("AGILAB_RESOURCES_DIR", None)
+    if os.name == "nt":
+        environment["AGILAB_RESOURCES_DIR"] = str(selected)
+        script = command.split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        argv = [sys.executable, "-B", "-c", script]
+    else:
+        argv = ["sh", "-c", command]
+    result = subprocess.run(argv, env=environment, text=True, capture_output=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == selected.resolve() / ".env"
+    assert protected.read_text(encoding="utf-8") == "LOGIN_SENTINEL=unchanged\n"
+    content = (selected / ".env").read_text(encoding="utf-8")
+    assert "IS_WORKER_ENV" in content and "/srv/task/mount" in content
+    assert (selected / ".env.lock").is_file()
+    assert sorted(selected.glob("..env.*.tmp")) == []
