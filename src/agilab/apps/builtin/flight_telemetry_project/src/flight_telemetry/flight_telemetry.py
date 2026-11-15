@@ -33,6 +33,24 @@ from agi_env.agi_logger import AgiLogger
 logger = AgiLogger.get_logger(__name__)
 
 
+def _input_file_item(file_name: str, data_in: Path) -> dict[str, str]:
+    """Address a discovered file relative to this app's bound input directory."""
+    root = Path(data_in)
+    path = Path(file_name)
+    if not path.is_absolute():
+        path = Path.home() / path
+    relative = path.relative_to(root)
+    name = relative.as_posix()
+    if (
+        not relative.parts
+        or ".." in relative.parts
+        or any(char in name for char in ("\\", ":", "\0"))
+        or not path.resolve().is_relative_to(root.resolve())
+    ):
+        raise ValueError(f"Invalid flight input path within data_in: {file_name}")
+    return {"schema": "flight_telemetry.input_file.v1", "path": name}
+
+
 class FlightTelemetry(BaseWorker):
     """FlightTelemetry class provides methods to orchestrate the run."""
 
@@ -164,9 +182,14 @@ class FlightTelemetry(BaseWorker):
                 for planes in workers_chunks:
                     workers_planes_dist.append(
                         [
-                            df.filter(pl.col("id_plane") == plane_id)["files"]
-                            .head(self.args.nfile)
-                            .to_list()
+                            [
+                                _input_file_item(file, self.args.data_in)
+                                for file in df.filter(pl.col("id_plane") == plane_id)[
+                                    "files"
+                                ]
+                                .head(self.args.nfile)
+                                .to_list()
+                            ]
                             for plane_id, _ in planes
                         ]
                     )
