@@ -41,6 +41,7 @@ _TEXT_EXTENSIONS = {
     ".cfg",
     ".env",
     ".ini",
+    ".ipynb",
     ".json",
     ".md",
     ".py",
@@ -689,31 +690,61 @@ def _secret_findings(root: Path) -> list[dict[str, str]]:
             and path.name.lower() not in _TEXT_EXTENSIONS
         ):
             continue
+        json_input = path.suffix.lower() in {".json", ".ipynb"}
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            if path.suffix.lower() == ".json":
-                findings.append({"path": str(path), "reason": "invalid UTF-8 JSON input"})
+            if json_input:
+                findings.append(
+                    {"path": str(path), "reason": "invalid UTF-8 JSON input"}
+                )
             continue
-        if path.suffix.lower() == ".json":
+        texts = [text]
+        if json_input:
             try:
-                payload = json.loads(text, object_pairs_hook=_json_object_without_duplicates)
+                payload = json.loads(
+                    text, object_pairs_hook=_json_object_without_duplicates
+                )
             except (ValueError, RecursionError):
                 findings.append({"path": str(path), "reason": "invalid JSON input"})
                 continue
             if _json_secret_field_found(payload):
                 findings.append({"path": str(path), "reason": "secret-like JSON field"})
-        if "secret://" in text or "vault://" in text:
-            findings.append({"path": str(path), "reason": "secret reference URI"})
-        for match in _SECRET_ASSIGNMENT_RE.finditer(text):
-            if not _real_secret_text(match.group(2)):
-                continue
-            findings.append(
-                {
-                    "path": str(path),
-                    "reason": "secret-like assignment",
-                }
-            )
+            if path.suffix.lower() == ".ipynb":
+                # Inspect decoded notebook text, not JSON escaping. Notebook source
+                # arrays concatenate without separators and may split a credential.
+                texts = []
+                pending = [payload]
+                while pending:
+                    current = pending.pop()
+                    if isinstance(current, Mapping):
+                        for key, value in current.items():
+                            # nbformat splits standard multiline text into arrays.
+                            if (
+                                key in {"source", "text", "application/javascript", "image/svg+xml"}
+                                or key.startswith("text/")
+                            ) and isinstance(value, list) and all(
+                                isinstance(part, str) for part in value
+                            ):
+                                texts.append("".join(value))
+                        pending.extend(current)
+                        pending.extend(current.values())
+                    elif isinstance(current, list):
+                        pending.extend(current)
+                    elif isinstance(current, str):
+                        texts.append(current)
+        for candidate in texts:
+            if "secret://" in candidate or "vault://" in candidate:
+                findings.append({"path": str(path), "reason": "secret reference URI"})
+            for match in _SECRET_ASSIGNMENT_RE.finditer(candidate):
+                if not _real_secret_text(match.group(2)):
+                    continue
+                findings.append(
+                    {
+                        "path": str(path),
+                        "reason": "secret-like assignment",
+                    }
+                )
     return findings
 
 
