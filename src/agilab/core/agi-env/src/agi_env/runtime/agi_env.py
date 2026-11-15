@@ -1384,7 +1384,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
             archive_path,
             extract_to=extract_to,
             app_data_rel=self.app_data_rel,
-            agi_share_path_abs=Path(self.agi_share_path_abs),
+            agi_share_path_abs=self.resolve_share_path(None),
             user=self.user,
             home_abs=Path(self.home_abs),
             verbose=self.verbose or 0,
