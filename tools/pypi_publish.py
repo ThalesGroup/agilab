@@ -35,17 +35,20 @@ import argparse
 import configparser
 import contextlib
 import glob
+import hashlib
 import json
 import os
 import pathlib
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
 import urllib.request
 import zipfile
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email.message import Message
@@ -503,7 +506,7 @@ def save_doc(p: pathlib.Path, doc):
     raw = p.read_text(encoding="utf-8") if p.exists() else ""
     if raw.endswith("\n") and not out.endswith("\n"):
         out += "\n"
-    p.write_text(out, encoding="utf-8")
+    _write_release_text(p, out)
 
 
 _name_pat = re.compile(r'^[A-Za-z0-9_.-]+')
@@ -1444,7 +1447,7 @@ def update_badge(readme_path: pathlib.Path, package_name: str, version: str) -> 
         return False
     if new_text == text:
         return False
-    readme_path.write_text(new_text, encoding="utf-8")
+    _write_release_text(readme_path, new_text)
     rel = readme_path.relative_to(REPO_ROOT)
     print(f"[badge] {rel}: set PyPI badge to {version}")
     return True
@@ -1457,7 +1460,7 @@ def update_static_badge(svg_path: pathlib.Path, version: str) -> bool:
     current = svg_path.read_text(encoding="utf-8")
     if current == rendered:
         return False
-    svg_path.write_text(rendered, encoding="utf-8")
+    _write_release_text(svg_path, rendered)
     rel = svg_path.relative_to(REPO_ROOT)
     print(f"[badge] {rel}: set static PyPI badge to {version}")
     return True
@@ -1496,27 +1499,225 @@ def update_release_badge_for_project(
     )
 
 
-def capture_release_file_state(paths: List[str]) -> Dict[pathlib.Path, bytes | None]:
-    snapshot: Dict[pathlib.Path, bytes | None] = {}
-    for rel_path in paths:
-        path = REPO_ROOT / rel_path
-        if path.is_file():
-            snapshot[path] = path.read_bytes()
-        elif path.exists():
-            snapshot[path] = None
+@dataclass(frozen=True)
+class _ReleaseFileImage:
+    content: bytes | None
+    fingerprint: tuple | None
+    parent_identity: tuple[int, int] | None
+
+
+class ReleaseFileState(dict):
+    """Preimages and ownership established only by controlled release writes."""
+
+    def __init__(self):
+        super().__init__()
+        self.original_images: dict[pathlib.Path, _ReleaseFileImage] = {}
+        self.owned_images: dict[pathlib.Path, _ReleaseFileImage] = {}
+
+
+class ReleaseFileConflictError(RuntimeError):
+    """A release write or rollback refused to replace unowned current state."""
+
+
+_ACTIVE_RELEASE_JOURNAL: ContextVar[ReleaseFileState | None] = ContextVar(
+    "publisher_release_file_journal", default=None
+)
+
+
+def _release_metadata_identity(metadata):
+    # Keep fields stable across our temporary-file rename, including owner/mode.
+    return (
+        metadata.st_dev, metadata.st_ino, metadata.st_size,
+        metadata.st_mtime_ns, metadata.st_mode, metadata.st_uid, metadata.st_gid,
+    )
+
+
+def _release_parent_identity(path: pathlib.Path) -> tuple[int, int]:
+    parent = path.parent
+    metadata = parent.lstat()
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or parent.is_symlink()
+        or getattr(parent, "is_junction", lambda: False)()
+    ):
+        raise ReleaseFileConflictError(f"release parent is not a regular directory: {parent}")
+    return metadata.st_dev, metadata.st_ino
+
+
+def _release_fingerprint(metadata, content: bytes) -> tuple:
+    return (*_release_metadata_identity(metadata), hashlib.sha256(content).hexdigest())
+
+
+def _capture_release_file(path: pathlib.Path) -> _ReleaseFileImage:
+    try:
+        parent_identity = _release_parent_identity(path)
+    except FileNotFoundError:
+        return _ReleaseFileImage(None, None, None)
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        if _release_parent_identity(path) != parent_identity:
+            raise ReleaseFileConflictError(f"release parent changed: {path.parent}")
+        return _ReleaseFileImage(None, None, parent_identity)
+    if not stat.S_ISREG(before.st_mode):
+        raise ReleaseFileConflictError(f"release path is not a regular file: {path}")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0)
+    with os.fdopen(os.open(path, flags), "rb") as handle:
+        opened = os.fstat(handle.fileno())
+        if _release_metadata_identity(opened) != _release_metadata_identity(before):
+            raise ReleaseFileConflictError(f"release file changed while opened: {path}")
+        content = handle.read()
+        finished = os.fstat(handle.fileno())
+    after = path.lstat()
+    if (
+        _release_metadata_identity(after) != _release_metadata_identity(before)
+        or _release_metadata_identity(finished) != _release_metadata_identity(before)
+        or _release_parent_identity(path) != parent_identity
+    ):
+        raise ReleaseFileConflictError(f"release file changed while read: {path}")
+    return _ReleaseFileImage(content, _release_fingerprint(after, content), parent_identity)
+
+
+def _replace_release_bytes(
+    path: pathlib.Path,
+    content: bytes,
+    expected: _ReleaseFileImage,
+    journal: ReleaseFileState | None = None,
+) -> _ReleaseFileImage:
+    # The caller retains source/resource custody across comparison and replace.
+    # These checks detect observed replacement; they are not filesystem CAS.
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.release-", dir=path.parent
+    )
+    temporary = pathlib.Path(temporary_name)
+    temporary_identity = None
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            opened = os.fstat(handle.fileno())
+            temporary_identity = opened.st_dev, opened.st_ino
+            if expected.fingerprint is not None:
+                os.chmod(temporary, stat.S_IMODE(expected.fingerprint[4]))
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+            owned = _ReleaseFileImage(
+                content,
+                _release_fingerprint(os.fstat(handle.fileno()), content),
+                expected.parent_identity,
+            )
+        if _capture_release_file(path) != expected:
+            raise ReleaseFileConflictError(f"release file changed concurrently: {path}")
+        prior_owned = journal.owned_images.get(path) if journal is not None else None
+        if journal is not None:
+            # Record our exact temporary inode before publishing it.
+            journal.owned_images[path] = owned
+        try:
+            os.replace(temporary, path)
+        except OSError:
+            # A known pre-publication failure must retain earlier write custody.
+            # Keep the new evidence if replacement may have occurred.
+            if journal is not None:
+                with contextlib.suppress(OSError, ReleaseFileConflictError):
+                    if _capture_release_file(path) == expected:
+                        if prior_owned is None:
+                            journal.owned_images.pop(path, None)
+                        else:
+                            journal.owned_images[path] = prior_owned
+            raise
+        if _capture_release_file(path) != owned:
+            raise ReleaseFileConflictError(f"release file was replaced during publication: {path}")
+        return owned
+    finally:
+        try:
+            current = temporary.lstat()
+        except FileNotFoundError:
+            pass
         else:
-            snapshot[path] = None
+            if (current.st_dev, current.st_ino) == temporary_identity:
+                temporary.unlink()
+
+
+def _write_release_bytes(path: pathlib.Path, content: bytes) -> None:
+    path = pathlib.Path(path).absolute()
+    current = _capture_release_file(path)
+    journal = _ACTIVE_RELEASE_JOURNAL.get()
+    if journal is not None and path not in journal.original_images:
+        # Do not expand rollback custody after a generator/callback has run.
+        journal = None
+    if journal is not None:
+        expected = journal.owned_images.get(path, journal.original_images[path])
+        if (
+            expected.content is None
+            and expected.parent_identity is None
+            and current.content is None
+        ):
+            # A controlled helper may have created missing parent directories.
+            # The leaf must still be absent; rollback never removes directories.
+            expected = current
+        if current != expected:
+            raise ReleaseFileConflictError(f"release file changed concurrently: {path}")
+    else:
+        expected = current
+    if current.content != content:
+        _replace_release_bytes(path, content, expected, journal)
+
+
+def _write_release_text(path: pathlib.Path, text: str) -> None:
+    _write_release_bytes(path, text.replace("\n", os.linesep).encode("utf-8"))
+
+
+def capture_release_file_state(paths: List[str]) -> Dict[pathlib.Path, bytes | None]:
+    snapshot = ReleaseFileState()
+    for rel_path in paths:
+        path = (REPO_ROOT / rel_path).absolute()
+        image = _capture_release_file(path)
+        snapshot[path] = image.content
+        snapshot.original_images[path] = image
     return snapshot
 
 
 def restore_release_file_state(snapshot: Dict[pathlib.Path, bytes | None]) -> None:
-    for path, data in snapshot.items():
-        if data is None:
-            if path.exists() and path.is_file():
-                path.unlink()
+    conflicts = []
+    for path, content in snapshot.items():
+        path = pathlib.Path(path).absolute()
+        if isinstance(snapshot, ReleaseFileState) and path not in snapshot.owned_images:
             continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(data)
+        try:
+            if not isinstance(snapshot, ReleaseFileState) and content is None:
+                try:
+                    path.lstat()
+                except FileNotFoundError:
+                    continue
+            current = _capture_release_file(path)
+            if not isinstance(snapshot, ReleaseFileState):
+                if current.content != content:
+                    raise ReleaseFileConflictError("plain snapshot has no write ownership")
+                continue
+            original = snapshot.original_images[path]
+            owned = snapshot.owned_images[path]
+            if current == original:
+                snapshot.owned_images[path] = current
+                continue
+            if current != owned:
+                raise ReleaseFileConflictError("release postimage changed concurrently")
+            if content is None:
+                if current.content is not None:
+                    path.unlink()
+                restored = _capture_release_file(path)
+                if restored.content is not None:
+                    raise ReleaseFileConflictError("release path reappeared during rollback")
+            elif current.content == content:
+                restored = current
+            else:
+                restored = _replace_release_bytes(path, content, current)
+            snapshot.owned_images[path] = restored
+        except (OSError, ReleaseFileConflictError):
+            conflicts.append(str(path))
+    if conflicts:
+        raise ReleaseFileConflictError(
+            "release rollback preserved concurrent or unowned paths; inspect and "
+            "recover them explicitly: " + ", ".join(conflicts)
+        )
 
 
 class CanonicalDocsManualRecoveryRequiredError(RuntimeError):
@@ -2231,7 +2432,7 @@ def _write_text_if_changed(path: pathlib.Path, text: str) -> bool:
     if old == text:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    _write_release_text(path, text)
     return True
 
 
@@ -2295,7 +2496,9 @@ def validate_planned_docs_release(tag: str) -> None:
         canonical_index.read_text(encoding="utf-8"),
         github_release_url(tag),
     )
-    if github_release_url(tag) not in planned_index:
+    if _latest_public_github_release_link(planned_index).group("url") not in (
+        github_release_url(tag), LATEST_PUBLIC_GITHUB_RELEASE_URL
+    ):
         raise SystemExit(
             "ERROR: public docs index cannot represent the planned release tag: "
             f"{tag}"
@@ -2779,7 +2982,7 @@ def git_reset_pyprojects():
 
 
 # ---------- Main ----------
-def main():
+def _run_publisher():
     args = parse_args()
     cfg = make_cfg(args)
     if cfg.purge_before or cfg.purge_after or cfg.cleanup_only or cfg.delete_pypi_releases or cfg.clean_delete_project:
@@ -2894,6 +3097,8 @@ def main():
         # sanitization) so failure recovery restores the developer's own
         # uncommitted edits instead of blanket-reverting via git checkout.
         release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
+        if isinstance(release_snapshot, ReleaseFileState):
+            _ACTIVE_RELEASE_JOURNAL.set(release_snapshot)
 
         if not cfg.dry_run and build_umbrella:
             removed_symlinks = remove_symlinks_for_umbrella()
@@ -3191,6 +3396,14 @@ def main():
                 print("[git] restored release metadata files to pre-run snapshot")
             else:
                 git_reset_pyprojects()
+
+
+def main():
+    token = _ACTIVE_RELEASE_JOURNAL.set(None)
+    try:
+        return _run_publisher()
+    finally:
+        _ACTIVE_RELEASE_JOURNAL.reset(token)
 
 
 if __name__ == "__main__":

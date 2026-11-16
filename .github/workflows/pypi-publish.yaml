@@ -1235,8 +1235,8 @@ jobs:
 
           - release proof render and live GitHub-run checks passed in the publishing workflow
           - GitHub verified the server-signed commit ${RELEASE_COMMIT}, its parent and exact evidence blobs
-          - GitHub creates approval-required pull_request runs for this GITHUB_TOKEN-created PR; select "Approve workflows to run" in the PR to start its required checks
-          - workflow_dispatch checks do not satisfy the PR ruleset; required checks must succeed on this exact head before merge
+          - Repository portable checks are manual-only and validated locally before publication
+          - Inspect current branch rules and checks for this exact evidence head before merging
 
           ## Agent Metadata
 
@@ -1257,22 +1257,21 @@ jobs:
             echo
             printf 'Pull request: %s\n\n' "$PR_URL"
             printf 'Reviewed evidence head: `%s`\n\n' "$RELEASE_COMMIT"
-            printf 'Open [PR checks](%s/checks) and select **Approve workflows to run** to start the approval-required pull_request workflows.\n\n' "$PR_URL"
-            echo "Only eligible PR checks on this head satisfy the merge ruleset; workflow_dispatch runs do not."
+            printf 'Inspect [PR checks](%s/checks) and current branch rules for this exact evidence head. Repository workflows are manual-only.\n\n' "$PR_URL"
+            echo "Only checks required by current branch rules on this exact head can gate merge; the workflow links below are informational."
             echo
             if RUN_LINKS="$(gh run list \
               --repo "$GITHUB_REPOSITORY" \
               --branch "$RELEASE_BRANCH" \
               --commit "$RELEASE_COMMIT" \
-              --event pull_request \
               --json workflowName,url,status,conclusion \
               --jq '.[] | select(.workflowName == "repo-guardrails" or .workflowName == "root-test-suite" or .workflowName == "docs-source-guard") | "- [\(.workflowName)](\(.url)): \(.status)\(if (.conclusion // "") == "" then "" else " / " + .conclusion end)"')"; then
               if [[ -n "$RUN_LINKS" ]]; then
                 printf '%s\n' "$RUN_LINKS"
               else
-                echo "The pull-request workflow runs are not visible yet. Use the PR checks link above once GitHub displays them."
+                echo "No workflow runs match this head. Repository workflows are manual-only; do not wait for an automatic run."
               fi
             else
-              echo "Workflow run metadata unavailable. Use the PR checks link above to approve and inspect the required runs."
+              echo "Workflow metadata unavailable. Inspect PR checks, current branch rules and the retained local validation evidence."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
