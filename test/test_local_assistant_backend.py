@@ -199,3 +199,49 @@ def test_real_faiss_index_round_trip_without_model_download(tmp_path):
     restored = vectorstore.load_vector_db(str(tmp_path), embedding)
     assert isinstance(restored, community.FAISS)
     assert restored.similarity_search("cat", k=1)[0].metadata == {"source": "cats.pdf"}
+
+
+def test_real_pdf_reader_preserves_unicode_and_page_after_blank(libraries, tmp_path):
+    """Exercise the actual PDF parser, while keeping unrelated LLM libraries inert."""
+    pdf = pytest.importorskip("pypdf")
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    writer = pdf.PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    page = writer.add_blank_page(width=200, height=200)
+    font = DictionaryObject({
+        NameObject("/Type"): NameObject("/Font"),
+        NameObject("/Subtype"): NameObject("/Type1"),
+        NameObject("/BaseFont"): NameObject("/Helvetica"),
+        NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+    })
+    page[NameObject("/Resources")] = DictionaryObject({
+        NameObject("/Font"): DictionaryObject({NameObject("/F1"): font}),
+    })
+    contents = DecodedStreamObject()
+    contents.set_data("BT /F1 12 Tf 20 100 Td (AGILAB café) Tj ET".encode("latin-1"))
+    page.replace_contents(contents)
+    directory = tmp_path / "nested"
+    directory.mkdir()
+    path = directory / "reader-contract.PDF"
+    writer.write(str(path))
+    libraries[0]["pypdf"] = pdf
+
+    documents = adapters(libraries)[2].load_pdf_files(str(tmp_path))
+
+    assert len(documents) == 1
+    assert documents[0].page_content.strip() == "AGILAB café"
+    assert documents[0].metadata == {"source": str(path), "page": 1}
+    assert "pdf_files" not in libraries[1]  # The mocked reader was never called.
+
+
+def test_real_pdf_reader_ignores_document_with_only_blank_pages(libraries, tmp_path):
+    pdf = pytest.importorskip("pypdf")
+    writer = pdf.PdfWriter()
+    writer.add_blank_page(width=200, height=200)
+    path = tmp_path / "blank-reader-contract.pdf"
+    writer.write(str(path))
+    libraries[0]["pypdf"] = pdf
+
+    assert adapters(libraries)[2].load_pdf_files(str(tmp_path)) == []
+    assert "pdf_files" not in libraries[1]
