@@ -20,6 +20,13 @@ agilab_dev = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agilab_dev)
 
 
+@pytest.fixture(autouse=True)
+def isolate_dev_environment_selection(monkeypatch):
+    """Default-launch tests must not inherit the outer qualification target."""
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("AGILAB_DEV_UV_PROJECT_ENVIRONMENT", raising=False)
+
+
 class _FakeCapturedProcess:
     def __init__(self, output: str, returncode: int = 0):
         self.stdout = io.BytesIO(output.encode())
