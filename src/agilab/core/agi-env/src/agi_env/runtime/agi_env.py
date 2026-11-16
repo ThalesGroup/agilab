@@ -1383,7 +1383,7 @@ class AgiEnv(metaclass=_AgiEnvMeta):
         extract_dataset_archive(
             archive_path,
             extract_to=extract_to,
-            app_data_rel=self.app_data_rel,
+            app_data_rel=self.resolve_share_path(self.share_target_name),
             agi_share_path_abs=self.resolve_share_path(None),
             user=self.user,
             home_abs=Path(self.home_abs),

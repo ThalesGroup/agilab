@@ -31,7 +31,8 @@ def archive_context(tmp_path):
     env.AGILAB_WORKFLOW_DATA_ROOT = str(workflow_root)
     env.agi_workflow_data_root = None
     env.envars = {}
-    env.app_data_rel = "demo"
+    env.share_target_name = "demo"
+    env.app_data_rel = legacy_root / env.share_target_name
     env.home_abs = Path.home()
     env.user = Path.home().name
     env.is_worker_env = False
@@ -220,4 +221,52 @@ def test_workflow_archive_preserves_explicit_owner_mismatch(archive_context):
 
     assert context.env.resolve_share_path("demo").is_dir()
     assert not (context.workflow_root / "demo" / "dataset").exists()
+    assert not (context.legacy_root / "demo").exists()
+
+
+def test_packaged_dataset_seed_uses_active_workflow_despite_physical_data(
+    archive_context,
+):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+
+    context = archive_context
+    env = context.env
+    env.dataset_archive = context.archive
+    legacy_dataset = context.legacy_root / env.share_target_name / "dataset"
+    legacy_dataset.mkdir(parents=True)
+    sentinel = legacy_dataset / "unrelated.csv"
+    sentinel.write_text("preserve physical data\n", encoding="utf-8")
+
+    initialization._extract_packaged_dataset_if_needed(env, env_cls=AgiEnv)
+
+    active_dataset = env.resolve_share_path(env.share_target_name) / "dataset"
+    assert (active_dataset / "payload.txt").read_text(encoding="utf-8") == context.payload
+    assert (active_dataset / ".agilab_dataset_stamp").is_file()
+    assert sentinel.read_text(encoding="utf-8") == "preserve physical data\n"
+
+
+@pytest.mark.parametrize("stamp_present", [False, True])
+def test_packaged_dataset_seed_preserves_current_active_workflow(
+    archive_context, monkeypatch, stamp_present
+):
+    from agi_env.runtime import agi_env_instance_initialization as initialization
+
+    context = archive_context
+    env = context.env
+    env.dataset_archive = context.archive
+    marker = _live_marker(context)
+    if stamp_present:
+        import os
+
+        stamp = marker.parent / ".agilab_dataset_stamp"
+        stamp.write_text(str(context.archive), encoding="utf-8")
+        archive_ns = context.archive.stat().st_mtime_ns
+        os.utime(stamp, ns=(archive_ns + 1_000_000_000, archive_ns + 1_000_000_000))
+    extract = mock.Mock(side_effect=AssertionError("current workflow must not refresh"))
+    monkeypatch.setattr(env, "unzip_data", extract)
+
+    initialization._extract_packaged_dataset_if_needed(env, env_cls=AgiEnv)
+
+    extract.assert_not_called()
+    assert marker.read_text(encoding="utf-8") == "keep"
     assert not (context.legacy_root / "demo").exists()
