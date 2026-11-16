@@ -508,7 +508,7 @@ def test_root_local_llm_profiles_keep_transitive_vulnerability_safe_floors() -> 
     pyproject = REPO_ROOT / "pyproject.toml"
     expected_floors = {
         "langchain": "1.3.9",
-        "pypdf": "6.13.0",
+        "pypdf": "7.0.1",
         "python-multipart": "0.0.31",
         "starlette": "1.3.1",
         "tornado": "6.5.7",
@@ -966,3 +966,22 @@ def test_stale_or_component_ui_dependencies_are_bounded() -> None:
                 violations.append(f"{relative_path}: {requirement} must have lower and upper bounds")
 
     assert violations == []
+
+
+
+def test_root_pdf_profiles_exclude_known_vulnerable_versions() -> None:
+    """Keep both direct and aliased profiles above the published pypdf advisories."""
+    for extra in ("local-llm", "offline"):
+        pdf = next(
+            dependency
+            for dependency in _optional_dependencies(REPO_ROOT / "pyproject.toml", extra)
+            if dependency.name.lower() == "pypdf"
+        )
+        # GHSA-5849-834g-hvw5 and GHSA-fhff-j4m8-439h.
+        for vulnerable_version in ("6.13.0", "6.21.4", "7.0.0"):
+            assert vulnerable_version not in pdf.specifier, (extra, vulnerable_version)
+        assert "7.0.1" in pdf.specifier
+        assert "8.0.0" not in pdf.specifier
+        assert pdf.marker is not None
+        assert pdf.marker.evaluate({"python_version": "3.12"})
+        assert not pdf.marker.evaluate({"python_version": "3.11"})
