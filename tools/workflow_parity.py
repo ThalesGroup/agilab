@@ -695,7 +695,7 @@ def _guardrails_extended_profile() -> list[CommandSpec]:
             "--profile",
             "all",
             "--output",
-            "robustness-matrix.json",
+            "test-results/guardrails-extended/robustness-matrix.json",
             "--compact",
         ),
         CommandSpec(
@@ -711,7 +711,7 @@ def _guardrails_extended_profile() -> list[CommandSpec]:
                 "tools/first_launch_robot.py",
                 "--json",
                 "--output",
-                "first-launch-robot.json",
+                "test-results/guardrails-extended/first-launch-robot.json",
             ],
             env={
                 "AGILAB_DISABLE_BACKGROUND_SERVICES": "1",
@@ -785,7 +785,7 @@ def _guardrails_extended_profile() -> list[CommandSpec]:
             "test-results/supply-chain/base/requirements.txt",
             "--require-scan-artifacts",
             "--output",
-            "security-hygiene.json",
+            "test-results/guardrails-extended/security-hygiene.json",
             "--compact",
         ),
     ]

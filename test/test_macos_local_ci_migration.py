@@ -419,9 +419,9 @@ def test_extended_guardrails_require_their_recovery_install_and_security_reports
     ]
     required = {name for spec in specs for name in spec["artifact_paths"]}
     assert {
-        "robustness-matrix.json",
-        "first-launch-robot.json",
-        "security-hygiene.json",
+        "test-results/guardrails-extended/robustness-matrix.json",
+        "test-results/guardrails-extended/first-launch-robot.json",
+        "test-results/guardrails-extended/security-hygiene.json",
         "test-results/supply-chain/base/requirements.txt",
         "test-results/supply-chain/base/pip-audit.json",
         "test-results/supply-chain/base/sbom-cyclonedx.json",
@@ -434,9 +434,9 @@ def test_extended_guardrails_require_their_recovery_install_and_security_reports
         path.write_text("evidence")
     before = evidence.artifact_inventory({"guardrails-extended": specs}, tmp_path)
     assert all(record.get("status") != "missing" for record in before.values())
-    (tmp_path / "security-hygiene.json").unlink()
+    (tmp_path / "test-results/guardrails-extended/security-hygiene.json").unlink()
     after = evidence.artifact_inventory({"guardrails-extended": specs}, tmp_path)
-    assert before != after and after["security-hygiene.json"]["status"] == "missing"
+    assert before != after and after["test-results/guardrails-extended/security-hygiene.json"]["status"] == "missing"
 
 
 @pytest.mark.parametrize(
@@ -481,3 +481,26 @@ def test_producer_and_cli_do_not_report_unexecuted_tests_as_passed(
     target = root / "cli-receipt.json"
     assert parity.main(["--profile", "docs-guard", "--receipt", str(target)]) == 1
     assert json.loads(target.read_text())["status"] == "failed"
+
+
+@pytest.mark.parametrize("label", ["recovery matrix", "first launch robot", "security hygiene with scan artifacts"])
+def test_extended_guardrail_reports_preserve_source_snapshot(tmp_path, monkeypatch, label):
+    # Use real Git ignore/inventory behavior and the actual profile output.
+    # A fixed HEAD is sufficient for this source-population fixture.
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    (tmp_path / ".gitignore").write_bytes((parity.REPO_ROOT / ".gitignore").read_bytes())
+    (tmp_path / "input.py").write_text("original source\n")
+    real_output = subprocess.check_output
+    def fixture_output(argv, **kwargs):
+        if argv == ["git", "rev-parse", "HEAD"]:
+            return "a" * 40 + "\n"
+        return real_output(argv, **kwargs)
+    monkeypatch.setattr(evidence.subprocess, "check_output", fixture_output)
+    spec = next(c for c in parity._guardrails_extended_profile() if c.label == label)
+    output = tmp_path / spec.argv[spec.argv.index("--output") + 1]
+    before = evidence.source_snapshot(tmp_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps({"observed_duration": 1.234, "timestamp": "first"}))
+    assert evidence.source_snapshot(tmp_path) == before
+    output.write_text(json.dumps({"observed_duration": 2.345, "timestamp": "later"}))
+    assert evidence.source_snapshot(tmp_path) == before
