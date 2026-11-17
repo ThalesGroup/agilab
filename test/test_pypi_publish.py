@@ -1814,6 +1814,9 @@ def test_changelog_release_entry_moves_unreleased_notes_into_new_release(
     assert "- Hardened the runtime boundary." in release
     assert "- Added replay evidence." in release
     assert release.count("### Changed") == 1
+    assert "workflow_dispatch" in release
+    assert "pushing a tag does not trigger" in release
+    assert "after pushing the tag" not in release
     assert "Published AGILAB `2026.07.17` to PyPI for `agi-core` and `agilab`." in release
 
 

@@ -2539,8 +2539,8 @@ def _release_changed_notes(package_names: list[str], chosen_version: str) -> str
         f"- Published AGILAB `{chosen_version}` to PyPI for {packages}.\n"
         "- Updated release metadata so public docs, changelog, PyPI, and GitHub "
         "Releases point to the same source tag.\n"
-        "- Kept release automation active so future PyPI publishes create or "
-        "update the matching GitHub Release after pushing the tag.\n"
+        "- Kept release follow-up available through the explicit "
+        "workflow_dispatch release workflow; pushing a tag does not trigger it.\n"
     )
 
 

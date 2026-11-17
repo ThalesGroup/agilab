@@ -54,5 +54,6 @@ jobs:
           uv --preview-features extra-build-dependencies run \
             --extra ui \
             --extra notebook \
+            --extra observability \
             --group test-ui \
             python -m tools.testing.root_test_runner

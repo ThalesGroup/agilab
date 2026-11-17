@@ -467,6 +467,14 @@ def test_root_test_suite_retains_manual_canonical_isolated_plan() -> None:
     assert "lfs: true" in checkout
     assert "--extra ui" in text
     assert "--extra notebook" in text
+    import shlex
+
+    run_step = next(
+        step for job in workflow["jobs"].values() for step in job["steps"]
+        if step.get("name") == "Run the root test suite"
+    )
+    uv_args = shlex.split(run_step["run"].replace("\\\n", " "))
+    assert ("--extra", "observability") in zip(uv_args, uv_args[1:])
     assert "python -m tools.testing.root_test_runner" in text
     assert "known-failures" not in text
     assert "--deselect" not in text

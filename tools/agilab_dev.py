@@ -64,7 +64,7 @@ DEFAULT_UNDEFINED_NAME_LINT_TARGETS = (
     "src/agilab/core/agi-env/src/agi_env/ui/pagelib.py",
     "src/agilab/core/agi-env/test/test_pagelib.py",
 )
-ROOT_TEST_EXTRAS = ("dev", "ui", "viz", "notebook")
+ROOT_TEST_EXTRAS = ("dev", "ui", "viz", "notebook", "observability")
 PYTEST_PATH_GROUPS: tuple[tuple[tuple[str, ...], str], ...] = (
     ((), "src/agilab/core/test"),
     ((), "src/agilab/core/agi-cluster/test"),
@@ -448,7 +448,7 @@ def planned_commands(argv: Sequence[str]) -> list[list[str]]:
             root_tests_selected = any(
                 item == "test" or item.startswith("test/") for item in args
             )
-            extras = ("ui", "notebook") if root_tests_selected else ()
+            extras = ("ui", "notebook", "observability") if root_tests_selected else ()
             return [_pytest_command(*args, extras=extras)]
         return [
             _root_test_command(),

@@ -506,8 +506,7 @@ def main(argv: list[str] | None = None) -> int:
         for path in stale:
             print(f"stale package map: {path}", file=sys.stderr)
         print(
-            "rerun `python tools/render_package_maps.py --apply` against the canonical "
-            "docs checkout, then sync the public mirror",
+            "rerun `python tools/render_package_maps.py --apply` in this public checkout",
             file=sys.stderr,
         )
         return 1

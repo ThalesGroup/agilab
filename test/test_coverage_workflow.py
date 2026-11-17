@@ -278,6 +278,9 @@ def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None
     assert "--extra=notebook" in uv_args or ("--extra", "notebook") in zip(
         uv_args, uv_args[1:]
     ), "general source tests include notebook workflows and require the notebook extra"
+    assert "--extra=observability" in uv_args or ("--extra", "observability") in zip(
+        uv_args, uv_args[1:]
+    ), "native observability tests require the declared optional exporter extra"
     assert re.search(
         r"\btools\.testing\.root_test_runner\s+--unclassified\b",
         general_branch.group(1),
@@ -827,7 +830,6 @@ def test_aggregate_retains_core_observations_from_gui_suites():
 
 
 def test_free_threaded_coverage_install_uses_versioned_hash_lock():
-    workflow = _workflow_text()
     chunk = _step_block("Run agi-gui coverage chunk")
     assert "--require-hashes --no-build .github/requirements/ci-free-threaded-coverage.txt" in chunk
     assert "uv.lock" not in chunk
