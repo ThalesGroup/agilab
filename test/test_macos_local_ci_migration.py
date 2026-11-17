@@ -170,6 +170,8 @@ def test_native_qualification_requires_sdk_selection_and_worker_hash(tmp_path):
 
 @pytest.fixture
 def local_receipt(tmp_path, monkeypatch):
+    for key in ("PYTEST_ADDOPTS", "PYTEST_PLUGINS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD"):
+        monkeypatch.delenv(key, raising=False)
     source = tmp_path / "input.py"
     source.write_text("print('source')\n")
     verifier = tmp_path / evidence.VERIFIER
@@ -504,3 +506,151 @@ def test_extended_guardrail_reports_preserve_source_snapshot(tmp_path, monkeypat
     assert evidence.source_snapshot(tmp_path) == before
     output.write_text(json.dumps({"observed_duration": 2.345, "timestamp": "later"}))
     assert evidence.source_snapshot(tmp_path) == before
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("PYTEST_ADDOPTS", "-k private_selection_sentinel_7294"),
+        ("PYTEST_PLUGINS", "private_plugin_sentinel_7294"),
+        ("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "private_autoload_sentinel_7294"),
+    ],
+)
+def test_pytest_environment_drift_and_ambient_selection_are_not_complete_proof(
+    local_receipt, monkeypatch, key, value
+):
+    import hashlib
+
+    root, path, _source = local_receipt
+    assert evidence.verify_receipt(path, root=root)["status"] == "passed"
+    original = json.loads(path.read_text())
+    monkeypatch.setenv(key, value)
+    assert evidence.verify_receipt(path, root=root)["status"] == "failed"
+    produced = evidence.write_receipt(
+        path, root=root, before=evidence.source_snapshot(root),
+        profiles=list(original["profiles"]), results=original["results"],
+        specs=original["commands"], started_at=original["started_at"],
+        options=original["options"], runtime_before=evidence.runtime_identity(),
+    )
+    assert produced["runtime_unchanged"] is True
+    junit = [
+        root / name for name in produced["artifacts"]
+        if Path(name).name.startswith("junit-")
+    ]
+    assert junit and all(evidence._junit_has_executed_tests(p) for p in junit)
+    assert produced["status"] == "failed"
+    assert any(f"ambient {key}" in s for s in produced["validation_failures"])
+    assert produced["runtime"]["pytest_environment"][key] == {
+        "present": True,
+        "sha256": hashlib.sha256(value.encode("utf-8", "surrogatepass")).hexdigest(),
+    }
+    assert value not in path.read_text()
+
+
+def test_cache_only_pytest_options_can_certify_but_are_exactly_bound(
+    local_receipt, monkeypatch
+):
+    import shlex
+
+    root, path, _source = local_receipt
+    original = json.loads(path.read_text())
+    cache = root / "private cache sentinel 7294"
+    value = "-o " + shlex.quote("cache_dir=" + str(cache))
+    monkeypatch.setenv("PYTEST_ADDOPTS", value)
+    produced = evidence.write_receipt(
+        path, root=root, before=evidence.source_snapshot(root),
+        profiles=list(original["profiles"]), results=original["results"],
+        specs=original["commands"], started_at=original["started_at"],
+        options=original["options"], runtime_before=evidence.runtime_identity(),
+    )
+    assert produced["status"] == "passed", produced.get("validation_failures")
+    assert evidence.verify_receipt(path, root=root)["status"] == "passed"
+    assert str(cache) not in path.read_text()
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-o cache_dir=another-private-cache")
+    assert evidence.verify_receipt(path, root=root)["status"] == "failed"
+
+
+@pytest.mark.parametrize(
+    "value,safe",
+    [
+        ("", True), ("  ", True), ("-o cache_dir=private", True),
+        ("--override-ini cache_dir=private", True),
+        ("--override-ini=cache_dir=private", True),
+        ("-k one", False), ("-m fast", False), ("--collect-only", False),
+        ("--last-failed", False), ("-o addopts=-k", False),
+        ("-o cache_dir=private --ignore=test", False),
+        ("--override-ini", False), ("'unterminated", False),
+    ],
+)
+def test_complete_receipt_allows_only_cache_pytest_options(value, safe):
+    assert evidence._pytest_addopts_are_cache_only(value) is safe
+
+
+def test_canonical_pytest_override_is_distinct_from_ambient_pollution(monkeypatch):
+    for key in evidence.PYTEST_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "private-sentinel-7294")
+    profiles = parity._profile_commands(parity._build_parser().parse_args([]))
+    trusted_polars = {
+        "polars-2-runtime": [asdict(c) for c in profiles["polars-2-runtime"]]
+    }
+    assert evidence._ambient_pytest_receipt_failures(trusted_polars) == []
+    trusted_docs = {"docs-guard": [asdict(c) for c in profiles["docs-guard"]]}
+    assert evidence._ambient_pytest_receipt_failures(trusted_docs) == [
+        "ambient PYTEST_DISABLE_PLUGIN_AUTOLOAD is diagnostic-only; "
+        "it cannot certify a complete profile"
+    ]
+
+
+def test_one_selected_passing_test_cannot_certify_a_complete_profile(
+    local_receipt, monkeypatch
+):
+    import sys
+    import xml.etree.ElementTree as ET
+
+    root, path, _source = local_receipt
+    test_file = root / "test_receipt_selection_fixture.py"
+    test_file.write_text(
+        "def test_first_only():\n    assert True\n\n"
+        "def test_second_other():\n    assert True\n"
+    )
+    junit = root / "junit-filtered.xml"
+    spec = parity.CommandSpec(
+        "actual filtered diagnostic",
+        [sys.executable, "-m", "pytest", "-q", "-o", "addopts=",
+         str(test_file), "--junitxml=" + str(junit)],
+        env={"PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"},
+        artifact_paths=[junit.name], timeout_seconds=60,
+    )
+    monkeypatch.setattr(parity, "REPO_ROOT", root)
+    monkeypatch.setattr(
+        parity, "_profile_commands", lambda args: {"docs-guard": [spec]}
+    )
+    monkeypatch.setenv("PYTEST_ADDOPTS", "-k first_only")
+    before = evidence.source_snapshot(root)
+    runtime_before = evidence.runtime_identity()
+    actual = parity._run_command(spec)
+    assert actual.returncode == 0 and actual.terminal == "completed"
+    cases = ET.parse(junit).findall(".//testcase")
+    assert len(cases) == 1 and cases[0].get("name") == "test_first_only"
+    result = parity.ProfileResult("docs-guard", "fixture", True, [actual])
+    produced = evidence.write_receipt(
+        path, root=root, before=before, profiles=["docs-guard"],
+        results=[asdict(result)], specs={"docs-guard": [asdict(spec)]},
+        started_at="2026-11-16T00:00:00+00:00", runtime_before=runtime_before,
+    )
+    assert produced["runtime_unchanged"] is True
+    assert produced["status"] == "failed"
+    assert any(
+        "ambient PYTEST_ADDOPTS" in s for s in produced["validation_failures"]
+    )
+    assert evidence.verify_receipt(path, root=root)["status"] == "failed"
+    # Reuse the real terminal result, not a second child invocation.
+    monkeypatch.setattr(parity, "run_profiles", lambda *a, **k: [result])
+    monkeypatch.setattr(
+        parity.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0)
+    )
+    cli_receipt = root / "cli-filtered-receipt.json"
+    assert parity.main(["--profile", "docs-guard", "--receipt", str(cli_receipt)]) == 1
+    assert json.loads(cli_receipt.read_text())["status"] == "failed"
+    assert parity.main(["--profile", "docs-guard"]) == 0
