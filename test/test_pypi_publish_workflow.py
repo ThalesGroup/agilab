@@ -453,10 +453,10 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
     assert report["env"]["GH_TOKEN"] == "${{ secrets.GITHUB_TOKEN }}"
     assert "gh workflow run" not in report["run"]
     assert "GITHUB_STEP_SUMMARY" in report["run"]
-    assert "Approve workflows to run" in report["run"]
+    assert "Approve workflows to run" not in report["run"]
     assert "gh run list" in report["run"]
     assert '--commit "$RELEASE_COMMIT"' in report["run"]
-    assert "--event pull_request" in report["run"]
+    assert "--event pull_request" not in report["run"]
     assert "release-proof-assets/${proof_basename}.toml" in text
     assert "release-proof-assets/${proof_basename}.rst" in text
     assert "${proof_basename}-SHA256SUMS.txt" in text
@@ -465,7 +465,7 @@ def test_pypi_publish_syncs_hf_space_only_for_umbrella_release() -> None:
 
 
 @pytest.mark.parametrize("metadata_mode", ["available", "not_visible", "unavailable"])
-def test_release_proof_pr_reports_actual_approval_required_ci_without_dispatch(
+def test_release_proof_pr_reports_exact_head_metadata_without_auto_ci_assumptions(
     tmp_path: Path, metadata_mode: str
 ) -> None:
     workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
@@ -587,7 +587,7 @@ else:
     assert flag_value(run_arguments, "--repo") == "ThalesGroup/agilab"
     assert flag_value(run_arguments, "--branch") == branch
     assert flag_value(run_arguments, "--commit") == commit
-    assert flag_value(run_arguments, "--event") == "pull_request"
+    assert "--event" not in run_arguments
     assert set(flag_value(run_arguments, "--json").split(",")) == {
         "workflowName",
         "url",
@@ -595,7 +595,9 @@ else:
         "conclusion",
     }
     body = calls[0]["pr_body"]
-    assert "approval" in body.lower()
+    assert "manual-only" in body.lower()
+    assert "current branch rules" in body.lower()
+    assert "approval-required pull_request" not in body
     assert (
         "GITHUB_TOKEN-created PRs do not trigger those workflows automatically"
         not in body
@@ -604,7 +606,9 @@ else:
     assert pr_url in summary
     assert pr_url + "/checks" in summary
     assert commit in summary
-    assert "Approve workflows to run" in summary
+    assert "Approve workflows to run" not in summary
+    assert "current branch rules" in summary
+    assert "manual-only" in summary
     assert "unrelated-workflow" not in summary
     assert runs[-1]["url"] not in summary
     if metadata_mode == "available":
@@ -612,12 +616,14 @@ else:
             assert run["workflowName"] in summary
             assert run["url"] in summary
         assert "action_required" in summary
-        assert "not visible yet" not in summary.lower()
+        assert "no workflow runs match this head" not in summary.lower()
         assert "metadata unavailable" not in summary.lower()
     else:
         assert not any(run["url"] in summary for run in runs)
         expected_notice = (
-            "not visible yet" if metadata_mode == "not_visible" else "metadata unavailable"
+            "no workflow runs match this head"
+            if metadata_mode == "not_visible"
+            else "metadata unavailable"
         )
         assert expected_notice in summary.lower()
 
@@ -872,3 +878,29 @@ def test_release_assets_remain_gated_by_approval_and_provenance_without_cleanup(
     assert "needs.release-approval.result == 'success'" in assets["if"]
     assert "needs.pypi-provenance-evidence.result == 'success'" in assets["if"]
     assert "retention" not in assets["if"]
+
+
+
+def test_release_evidence_instructions_match_manual_workflow_policy() -> None:
+    workflow = yaml.safe_load(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    proof = workflow["jobs"]["publish-release-proof"]
+    report = next(
+        step
+        for step in proof["steps"]
+        if step.get("name")
+        == "Open release evidence pull request and report required CI"
+    )
+    instructions = report["run"]
+    assert "Approve workflows to run" not in instructions
+    assert "approval-required pull_request" not in instructions
+    assert "--event pull_request" not in instructions
+    assert "current branch rules" in instructions
+    assert "manual-only" in instructions
+    assert "gh workflow run" not in instructions
+    assert 'gh run list' in instructions
+    assert '--commit "$RELEASE_COMMIT"' in instructions
+
+    for filename in ("ci.yml", "root-test-suite.yml", "docs-source-guard.yaml"):
+        definition = yaml.safe_load((REPO_ROOT / ".github/workflows" / filename).read_text())
+        triggers = definition.get("on", definition.get(True, {}))
+        assert set(triggers) == {"workflow_dispatch"}, filename

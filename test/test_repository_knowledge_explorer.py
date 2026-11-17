@@ -783,7 +783,9 @@ def test_kex_cache_unsafe_write_targets_are_skipped(tmp_path: Path, case):
 def test_kex_cache_interrupted_replace_preserves_previous_cache_and_recovers(
     tmp_path: Path, monkeypatch
 ):
-    cache = tmp_path / "record-cache.json"
+    cache_dir = tmp_path / "record-cache"
+    cache_dir.mkdir()
+    cache = cache_dir / "record-cache.json"
     old = {"schema": knowledge.RECORD_CACHE_SCHEMA, "entries": {"old": {}}}
     new = {"schema": knowledge.RECORD_CACHE_SCHEMA, "entries": {"new": {}}}
     knowledge._write_record_cache(cache, old)
@@ -801,9 +803,10 @@ def test_kex_cache_interrupted_replace_preserves_previous_cache_and_recovers(
     assert calls[0].get("src_dir_fd") is not None
     assert calls[0].get("dst_dir_fd") is not None
     assert cache.read_bytes() == before
-    assert sorted(p.name for p in tmp_path.iterdir()) == [cache.name]
+    assert sorted(p.name for p in cache_dir.iterdir()) == [cache.name]
     knowledge._write_record_cache(cache, new)
     assert knowledge._load_record_cache(cache) == new
+    assert sorted(p.name for p in cache_dir.iterdir()) == [cache.name]
 
 
 def test_kex_docs_pyprojects_full_persist_reload_and_search_roundtrip(

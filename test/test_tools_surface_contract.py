@@ -15,7 +15,10 @@ import pytest
 # preferred way to make room; this records the real surface in the meantime.
 # Raised 2026-09-30 from 195 for generate_agilab_xcode_project.py, a public
 # IDE entrypoint alongside the existing PyCharm and VS Code generators.
-TOOLS_SURFACE_BUDGET = 196
+# Raised 2026-11-17 from 196 for setup_locked_python_tools.py (PR #1215,
+# 2026-11-06), the shared locked-tool installer used by release and CI entrypoints.
+# Retain the ratchet: any further top-level entrypoint still needs review.
+TOOLS_SURFACE_BUDGET = 197
 
 
 def test_top_level_tools_surface_stays_within_budget() -> None:

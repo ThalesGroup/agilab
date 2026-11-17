@@ -885,7 +885,12 @@ def test_agi_gui_profile_covers_actual_workflow_matrix_and_specialized_lanes() -
     assert len(general_steps) == 1 and timeout == 25 * 60
     assert "--unclassified" in general
     assert _has_with_dependency(general, "tiktoken==0.14.0")
-    assert {"ui", "viz", "notebook"} <= set(_option_values(general, "--extra"))
+    assert {"ui", "viz", "notebook", "observability"} <= set(
+        _option_values(general, "--extra")
+    )
+    assert "observability" in _option_values(
+        module._root_tests_profile()[0].argv, "--extra"
+    )
     builtin_steps = module._agi_gui_specialized_coverage_steps("builtin")
     assert len(builtin_steps) == 1
     assert builtin_steps[0][1] == 16 * 60

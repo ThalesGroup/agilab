@@ -129,6 +129,5 @@ def test_checked_in_figures_match_a_fresh_render() -> None:
     stale = [path.name for path, text in rendered.items() if path.read_text(encoding="utf-8") != text]
     assert not stale, (
         f"stale package maps: {stale}; rerun "
-        "`python tools/render_package_maps.py --apply` against the canonical docs "
-        "checkout and sync the mirror"
+        "`python tools/render_package_maps.py --apply` in this public checkout"
     )

@@ -28,6 +28,65 @@ ENV_KEYS = (
 VERIFIER = "tools/testing/local_validation_receipt.py"
 
 
+PYTEST_ENV_KEYS = (
+    "PYTEST_ADDOPTS", "PYTEST_PLUGINS", "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+)
+
+
+def _pytest_environment_fingerprints() -> dict:
+    result = {}
+    for key in PYTEST_ENV_KEYS:
+        value = os.environ.get(key)
+        result[key] = {
+            "present": value is not None,
+            "sha256": (
+                hashlib.sha256(value.encode("utf-8", "surrogatepass")).hexdigest()
+                if value is not None else None
+            ),
+        }
+    return result
+
+
+def _pytest_addopts_are_cache_only(value: str) -> bool:
+    import shlex
+
+    try:
+        tokens = shlex.split(value)
+    except ValueError:
+        return False
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token in ("-o", "--override-ini"):
+            index += 1
+            if index >= len(tokens) or not tokens[index].startswith("cache_dir="):
+                return False
+        elif not token.startswith("--override-ini=cache_dir="):
+            return False
+        index += 1
+    return True
+
+
+def _ambient_pytest_receipt_failures(trusted_specs: dict) -> list[str]:
+    commands = [spec for specs in trusted_specs.values() for spec in specs]
+    failures = []
+    for key in PYTEST_ENV_KEYS:
+        value = os.environ.get(key)
+        safe = (
+            _pytest_addopts_are_cache_only(value or "")
+            if key == "PYTEST_ADDOPTS" else value in (None, "")
+        )
+        if safe:
+            continue
+        # Only canonical source-declared overrides count, never payload claims.
+        if commands and all(key in (spec.get("env") or {}) for spec in commands):
+            continue
+        failures.append(
+            f"ambient {key} is diagnostic-only; it cannot certify a complete profile"
+        )
+    return failures
+
+
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as stream:
@@ -79,6 +138,7 @@ def runtime_identity() -> dict:
         "platform": platform.system(),
         "machine": platform.machine(),
         "configuration": {key: os.environ.get(key, "") for key in ENV_KEYS},
+        "pytest_environment": _pytest_environment_fingerprints(),
         "dependencies": [
             list(row)
             for row in sorted(
@@ -333,6 +393,7 @@ def _validate_receipt_payload(payload: dict, *, root: Path) -> dict:
                 != (root / (expected.get("cwd") or "")).resolve()
             ):
                 failures.append("command result differs from its plan")
+    failures.extend(_ambient_pytest_receipt_failures(trusted_specs))
     expected_artifacts = artifact_inventory(trusted_specs, root)
     if payload.get("artifacts") != expected_artifacts:
         failures.append("required artifact inventory, size or digest differs")

@@ -20,6 +20,13 @@ agilab_dev = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(agilab_dev)
 
 
+@pytest.fixture(autouse=True)
+def isolate_dev_environment_selection(monkeypatch):
+    """Default-launch tests must not inherit the outer qualification target."""
+    monkeypatch.delenv("UV_PROJECT_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("AGILAB_DEV_UV_PROJECT_ENVIRONMENT", raising=False)
+
+
 class _FakeCapturedProcess:
     def __init__(self, output: str, returncode: int = 0):
         self.stdout = io.BytesIO(output.encode())
@@ -95,6 +102,8 @@ def test_test_shortcut_keeps_pytest_arguments():
             "ui",
             "--extra",
             "notebook",
+            "--extra",
+            "observability",
             "--group",
             "test-ui",
             "python",
@@ -136,17 +145,9 @@ def test_test_shortcut_splits_repository_groups_by_dependency_contract():
     commands = agilab_dev.planned_commands(["test"])
 
     assert len(commands) == len(agilab_dev.PYTEST_PATH_GROUPS) + 1
-    assert commands[0][4:12] == [
-        "--extra",
-        "dev",
-        "--extra",
-        "ui",
-        "--extra",
-        "viz",
-        "--extra",
-        "notebook",
-    ]
-    assert commands[0][12:14] == ["--group", "test-ui"]
+    assert [value for option, value in zip(commands[0], commands[0][1:])
+            if option == "--extra"] == ["dev", "ui", "viz", "notebook", "observability"]
+    assert ("--group", "test-ui") in zip(commands[0], commands[0][1:])
     assert commands[0][-3:] == [
         "python",
         "-m",

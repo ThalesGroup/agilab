@@ -1395,8 +1395,9 @@ def test_planned_docs_release_rejects_missing_public_index(
         module.validate_planned_docs_release("v2026.07.30")
 
 
+@pytest.mark.parametrize("release_path", ["releases/tag/v2026.07.29", "releases/latest"])
 def test_validate_planned_docs_release_is_non_mutating_for_future_tag(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, release_path
 ) -> None:
     module = _load_pypi_publish()
     sync_docs = module._sync_docs_source_module()
@@ -1408,7 +1409,7 @@ def test_validate_planned_docs_release_is_non_mutating_for_future_tag(
     public_source.mkdir(parents=True, exist_ok=True)
     old_index = (
         "For release-level evidence, inspect the `latest public GitHub release\n"
-        "<https://github.com/ThalesGroup/agilab/releases/tag/v2026.07.29>`__.\n"
+        f"<https://github.com/ThalesGroup/agilab/{release_path}>`__.\n"
     )
     (canonical_source / "index.rst").write_text(old_index, encoding="utf-8")
     (public_source / "index.rst").write_text(old_index, encoding="utf-8")
@@ -1813,6 +1814,9 @@ def test_changelog_release_entry_moves_unreleased_notes_into_new_release(
     assert "- Hardened the runtime boundary." in release
     assert "- Added replay evidence." in release
     assert release.count("### Changed") == 1
+    assert "workflow_dispatch" in release
+    assert "pushing a tag does not trigger" in release
+    assert "after pushing the tag" not in release
     assert "Published AGILAB `2026.07.17` to PyPI for `agi-core` and `agilab`." in release
 
 
@@ -4408,3 +4412,271 @@ def test_tagged_release_default_preflight_reuses_coverage_and_rechecks_before_up
     source.write_text("changed after validation")
     with pytest.raises(SystemExit, match="local coverage receipt"):
         gate(cfg)
+
+
+def _prepare_release_rollback_case(module, tmp_path, monkeypatch, mode, after_write):
+    order = []
+    _prepare_minimal_tagged_release_main(module, tmp_path, monkeypatch, order)
+    cfg = module.make_cfg(None)
+    cfg.repo = "testpypi"
+    cfg.git_tag = False
+    cfg.git_commit_version = False
+    cfg.git_reset_on_failure = mode == "early-failure"
+    cfg.dry_run = mode == "dry-run"
+    cfg.build_only = mode == "build-only"
+    pyproject = tmp_path / "agi-env" / "pyproject.toml"
+    pyproject.write_bytes(pyproject.read_bytes() + b"# existing operator edit\n")
+    original = pyproject.read_bytes()
+    original_badges = module.update_release_badge_for_project
+
+    def after_last_controlled_write(*args, **kwargs):
+        result = original_badges(*args, **kwargs)
+        after_write(pyproject)
+        return result
+
+    monkeypatch.setattr(
+        module, "update_release_badge_for_project", after_last_controlled_write
+    )
+    if mode == "early-failure":
+        def fail_before_upload(_files):
+            raise RuntimeError("simulated pre-canonical failure")
+        monkeypatch.setattr(module, "twine_check", fail_before_upload)
+    return pyproject, original, order
+
+
+@pytest.mark.parametrize("mode", ["dry-run", "build-only", "early-failure"])
+def test_release_rollback_preserves_editor_write_after_owned_write(
+    tmp_path, monkeypatch, mode
+):
+    module = _load_pypi_publish()
+    edited = {}
+
+    def editor_write(path):
+        edited["bytes"] = path.read_bytes() + b"# concurrent editor edit\n"
+        path.write_bytes(edited["bytes"])
+
+    pyproject, _, order = _prepare_release_rollback_case(
+        module, tmp_path, monkeypatch, mode, editor_write
+    )
+    failure = None
+    try:
+        module.main()
+    except RuntimeError as exc:
+        failure = exc
+
+    assert pyproject.read_bytes() == edited["bytes"]
+    assert failure is not None and "concurrent" in str(failure)
+    assert str(pyproject) in str(failure)
+    assert order == []
+    assert module._ACTIVE_RELEASE_JOURNAL.get() is None
+
+
+def test_release_snapshot_does_not_own_untouched_or_later_created_files(
+    tmp_path, monkeypatch
+):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    untouched = tmp_path / "untouched.txt"
+    appeared = tmp_path / "appeared.txt"
+    untouched.write_bytes(b"before")
+    snapshot = module.capture_release_file_state(["untouched.txt", "appeared.txt"])
+    untouched.write_bytes(b"editor changed an untouched file")
+    appeared.write_bytes(b"editor created this file")
+
+    module.restore_release_file_state(snapshot)
+
+    assert untouched.read_bytes() == b"editor changed an untouched file"
+    assert appeared.read_bytes() == b"editor created this file"
+
+
+@pytest.mark.parametrize("replacement", ["symlink", "same-byte-replacement"])
+def test_release_rollback_preserves_replaced_owned_file(
+    tmp_path, monkeypatch, replacement
+):
+    module = _load_pypi_publish()
+    outside = tmp_path / "operator-target.txt"
+    outside.write_bytes(b"operator-owned target")
+    if replacement == "symlink":
+        probe = tmp_path / "symlink-probe"
+        try:
+            probe.symlink_to(outside)
+        except (OSError, NotImplementedError):
+            pytest.skip("symlink creation is unavailable on this platform")
+        probe.unlink()
+    expected = {}
+
+    def replace_after_write(path):
+        expected["bytes"] = path.read_bytes()
+        if replacement == "symlink":
+            path.unlink()
+            path.symlink_to(outside)
+        else:
+            candidate = path.with_name("editor-replacement.toml")
+            candidate.write_bytes(expected["bytes"])
+            candidate.replace(path)
+            expected["inode"] = path.stat().st_ino
+
+    pyproject, _, _ = _prepare_release_rollback_case(
+        module, tmp_path, monkeypatch, "dry-run", replace_after_write
+    )
+    failure = None
+    try:
+        module.main()
+    except RuntimeError as exc:
+        failure = exc
+
+    assert outside.read_bytes() == b"operator-owned target"
+    if replacement == "symlink":
+        assert pyproject.is_symlink()
+    else:
+        assert pyproject.read_bytes() == expected["bytes"]
+        assert pyproject.stat().st_ino == expected["inode"]
+    assert failure is not None and str(pyproject) in str(failure)
+    assert module._ACTIVE_RELEASE_JOURNAL.get() is None
+
+
+@pytest.mark.parametrize(
+    "writer", ["save_doc", "update_badge", "update_static_badge", "_write_text_if_changed"]
+)
+def test_controlled_release_writers_restore_their_own_postimage(
+    tmp_path, monkeypatch, writer
+):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    path = tmp_path / "metadata.txt"
+    if writer == "save_doc":
+        original = b"[project]\nname='agi-env'\nversion='2026.03.16'\n# operator edit\n"
+
+        def write():
+            doc = module.load_doc(path)
+            doc["project"]["version"] = "2026.03.23"
+            module.save_doc(path, doc)
+    elif writer == "update_badge":
+        original = (
+            b"[![PyPI version](https://img.shields.io/pypi/v/agi-env.svg)]"
+            b"(https://pypi.org/project/agi-env/)"
+        )
+
+        def write():
+            module.update_badge(path, "agi-env", "2026.03.23")
+    elif writer == "update_static_badge":
+        original = module.render_static_badge_svg("2026.03.16").encode()
+
+        def write():
+            module.update_static_badge(path, "2026.03.23")
+    else:
+        original = b"operator preimage"
+
+        def write():
+            module._write_text_if_changed(path, "release postimage")
+    path.write_bytes(original)
+    snapshot = module.capture_release_file_state(["metadata.txt"])
+    token = module._ACTIVE_RELEASE_JOURNAL.set(snapshot)
+    try:
+        write()
+        assert path.read_bytes() != original
+        module.restore_release_file_state(snapshot)
+        assert path.read_bytes() == original
+        inode = path.stat().st_ino
+        module.restore_release_file_state(snapshot)
+        assert path.read_bytes() == original and path.stat().st_ino == inode
+    finally:
+        module._ACTIVE_RELEASE_JOURNAL.reset(token)
+
+
+def test_main_restores_outer_journal_context_after_uncontended_success(
+    tmp_path, monkeypatch
+):
+    module = _load_pypi_publish()
+    pyproject, original, _ = _prepare_release_rollback_case(
+        module, tmp_path, monkeypatch, "dry-run", lambda _path: None
+    )
+    outer = module.ReleaseFileState()
+    token = module._ACTIVE_RELEASE_JOURNAL.set(outer)
+    try:
+        module.main()
+        assert pyproject.read_bytes() == original
+        assert module._ACTIVE_RELEASE_JOURNAL.get() is outer
+    finally:
+        module._ACTIVE_RELEASE_JOURNAL.reset(token)
+
+
+def test_plain_release_snapshot_cannot_claim_changed_file(tmp_path):
+    module = _load_pypi_publish()
+    path = tmp_path / "metadata.txt"
+    path.write_bytes(b"before")
+    inode = path.stat().st_ino
+    module.restore_release_file_state({path: b"before"})
+    assert path.stat().st_ino == inode
+    path.write_bytes(b"editor write")
+    with pytest.raises(RuntimeError, match="preserved"):
+        module.restore_release_file_state({path: b"before"})
+    assert path.read_bytes() == b"editor write"
+
+
+@pytest.mark.parametrize("relative_path", ["created-by-release.txt", "new/nested/created.txt"])
+def test_owned_new_release_file_is_removed_on_uncontended_rollback(
+    tmp_path, monkeypatch, relative_path
+):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    path = tmp_path / relative_path
+    snapshot = module.capture_release_file_state([relative_path])
+    token = module._ACTIVE_RELEASE_JOURNAL.set(snapshot)
+    try:
+        module._write_text_if_changed(path, "release-owned")
+        assert path.read_text() == "release-owned"
+        module.restore_release_file_state(snapshot)
+        assert not path.exists()
+    finally:
+        module._ACTIVE_RELEASE_JOURNAL.reset(token)
+
+
+
+def test_release_journal_does_not_adopt_generator_paths_outside_snapshot(
+    tmp_path, monkeypatch
+):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    tracked = tmp_path / "tracked.txt"
+    generated = tmp_path / "generator-owned.txt"
+    tracked.write_text("original")
+    snapshot = module.capture_release_file_state([tracked.name])
+    token = module._ACTIVE_RELEASE_JOURNAL.set(snapshot)
+    try:
+        module._write_text_if_changed(generated, "generated outside rollback scope")
+        assert generated not in snapshot
+        module.restore_release_file_state(snapshot)
+        assert generated.read_text() == "generated outside rollback scope"
+        assert tracked.read_text() == "original"
+    finally:
+        module._ACTIVE_RELEASE_JOURNAL.reset(token)
+
+
+@pytest.mark.parametrize("original", [b"operator preimage", None])
+def test_failed_second_controlled_release_write_keeps_prior_rollback_ownership(tmp_path, monkeypatch, original):
+    module = _load_pypi_publish()
+    monkeypatch.setattr(module, "REPO_ROOT", tmp_path)
+    path = tmp_path / "release-metadata.txt"
+    if original is not None:
+        path.write_bytes(original)
+    snapshot = module.capture_release_file_state([path.name])
+    token = module._ACTIVE_RELEASE_JOURNAL.set(snapshot)
+    try:
+        module._write_release_text(path, "first owned postimage")
+        prior = snapshot.owned_images[path]
+        def fail_before_replace(*_args):
+            raise OSError("simulated atomic replacement failure")
+        monkeypatch.setattr(module.os, "replace", fail_before_replace)
+        with pytest.raises(OSError, match="simulated atomic replacement failure"):
+            module._write_release_text(path, "second unpublished postimage")
+        assert path.read_bytes() == b"first owned postimage"
+        assert snapshot.owned_images[path] == prior
+        monkeypatch.undo()
+        module.restore_release_file_state(snapshot)
+        if original is None:
+            assert not path.exists()
+        else:
+            assert path.read_bytes() == original
+    finally:
+        module._ACTIVE_RELEASE_JOURNAL.reset(token)
