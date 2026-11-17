@@ -372,7 +372,7 @@ remain open.
 
 Merged source also adds
 [app-owned evaluation, portable serving handoff verification and an opt-in Sigstore adapter](https://github.com/ThalesGroup/agilab/pull/1240).
-Four official signed fixtures exercised the adapter; positive external attestation
+PR #1240 reports four fixture test cases using official signed material; positive external attestation
 of a real user capsule, including Supply-chain Levels for Software Artifacts
 (SLSA) provenance, remains unavailable. These source features are absent from
 the November 2 packages and do not establish production serving or external

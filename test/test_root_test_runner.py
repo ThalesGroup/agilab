@@ -54,6 +54,15 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
         "reports",
     ]
     assert "test/test_view_training_analysis.py" in by_name["views"].test_files
+    for path in (
+        "test/test_capsule_attestation.py",
+        "test/test_evaluation.py",
+        "test/test_metadata_store.py",
+        "test/test_serving_handoff.py",
+    ):
+        assert path in by_name["support"].test_files
+        assert sum(path in group.test_files for group in groups) == 1
+        assert not any(path in group.test_files for group in general_groups)
     assert not any(
         "test/test_view_training_analysis.py" in group.test_files
         for group in general_groups

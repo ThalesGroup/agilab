@@ -219,6 +219,8 @@ def test_uav_relay_queue_worker_is_installable_supported_worker() -> None:
 
 
 def test_uav_relay_queue_manager_edge_branches(monkeypatch, tmp_path: Path) -> None:
+    # The legacy fallback must never create exports in the real user home.
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     env = _make_env(tmp_path)
 
     with pytest.raises(ValueError, match="Invalid UavRelayQueue arguments"):
@@ -238,7 +240,8 @@ def test_uav_relay_queue_manager_edge_branches(monkeypatch, tmp_path: Path) -> N
         _is_managed_pc=False,
     )
     fallback_manager = UavRelayQueue(fallback_env, args=UavRelayQueueArgs())
-    assert fallback_manager.analysis_artifact_dir == Path.home() / "export" / "uav_relay_queue" / "queue_analysis"
+    assert fallback_manager.analysis_artifact_dir == tmp_path / "export" / "uav_relay_queue" / "queue_analysis"
+    assert fallback_manager.analysis_artifact_dir.is_dir()
     fallback_manager._ensure_dataset(fallback_manager.args.data_in)
 
     monkeypatch.setattr(fallback_manager, "_sample_dataset_source", lambda: tmp_path / "missing.json")
