@@ -267,8 +267,8 @@ def test_agi_gui_general_coverage_installs_source_ui_test_dependencies() -> None
     )
     assert general_branch is not None
     uv_command = re.search(
-        r"(?ms)^\s*timeout\s+\S+\s+uv\s+(.*?)\bpython\s+-m\s+tools\.testing\.root_test_runner\b",
-        general_branch.group(1),
+        r"(?m)^\s*timeout\s+\S+\s+uv\s+([^\n]*?)\bpython\s+-m\s+tools\.testing\.root_test_runner\b",
+        general_branch.group(1).replace("\\\n", " "),
     )
     assert uv_command is not None
     uv_args = shlex.split(uv_command.group(1).replace("\\\n", " "), comments=True)
@@ -301,21 +301,16 @@ def test_agi_gui_general_ci_deadlines_cover_local_parity_budget() -> None:
         _agi_gui_run_block(),
     )
     assert general_branch is not None
-    shell_timeout = re.search(
-        r"\btimeout\s+(\d+)([smh])\s+uv\b", general_branch.group(1)
+    shell_limits = re.findall(
+        r"^\s*timeout\s+(\d+)([smh])\s+uv\b", general_branch.group(1), re.MULTILINE
     )
-    assert shell_timeout is not None
-    shell_seconds = int(shell_timeout.group(1)) * {
-        "s": 1,
-        "m": 60,
-        "h": 3600,
-    }[shell_timeout.group(2)]
-    local_seconds = sum(
-        timeout for _, timeout in parity._agi_gui_specialized_coverage_steps("general")
-    )
-    assert shell_seconds >= local_seconds, (
-        "CI must allow the established local budget for all isolated general tests"
-    )
+    units = {"s": 1, "m": 60, "h": 3600}
+    budgets = [int(amount) * units[unit] for amount, unit in shell_limits]
+    local = [seconds for _, seconds in parity._agi_gui_specialized_coverage_steps("general")]
+    assert len(budgets) == len(local)
+    for hosted, required in zip(budgets, local, strict=True):
+        assert hosted >= required
+    shell_seconds = sum(budgets)
 
     gui_header = _workflow_text().split("\n  agi-gui:\n", 1)[1].split("\n    strategy:", 1)[0]
     job_timeout = re.search(r"(?m)^\s*timeout-minutes:\s*(.+)$", gui_header)
@@ -854,6 +849,26 @@ def test_optional_evidence_suites_use_their_supported_runtimes():
     assert "--with 'tiktoken==0.14.0'" in chunk
     assert "--junitxml=test-results/junit-agi-gui-demos-telemetry.xml" in chunk
     assert "test/test_telemetry_feature_evidence.py" in chunk
+
+
+def test_hosted_root_and_general_coverage_prepare_browser_before_consuming_it():
+    import yaml
+    from tools.workflow_parity import _native_browser_test_prerequisite
+
+    root = yaml.safe_load(Path(".github/workflows/root-test-suite.yml").read_text())
+    steps = root["jobs"]["root-tests"]["steps"]
+    script = next(step["run"] for step in steps if step.get("name") == "Run the root test suite")
+    coverage = _step_block("Run agi-gui coverage chunk")
+    general = coverage.split('if [ "$label" = general ]; then', 1)[1].split("exit 0", 1)[0]
+    prepare, _ = _native_browser_test_prerequisite()
+    for body in (script, general):
+        commands = [shlex.split(line) for line in body.replace("\\\n", " ").splitlines()]
+        commands = [args[2:] if args[:1] == ["timeout"] else args for args in commands]
+        preparation = commands.index(prepare)
+        consumer = next(i for i, cmd in enumerate(commands) if "tools.testing.root_test_runner" in cmd)
+        assert preparation < consumer
+        args = commands[consumer]
+        assert ("--with", "playwright") in zip(args, args[1:])
 
 
 def test_general_coverage_checkout_materializes_lfs_for_fresh_clone_proof():

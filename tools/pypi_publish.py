@@ -103,6 +103,11 @@ from packaging.utils import canonicalize_name  # type: ignore  # noqa: E402
 from packaging.version import Version, InvalidVersion  # type: ignore  # noqa: E402
 
 try:
+    import generate_component_coverage_badges as coverage_badges
+except ModuleNotFoundError:  # Imported as tools.pypi_publish
+    from tools import generate_component_coverage_badges as coverage_badges
+
+try:
     from release_plan import impacted_release_package_names  # noqa: E402
 except ModuleNotFoundError:  # pragma: no cover - used when imported as tools.pypi_publish
     from tools.release_plan import impacted_release_package_names  # noqa: E402
@@ -725,7 +730,9 @@ def run_release_coverage_badge_refresh() -> None:
     """Refresh coverage badges from the release preflight XML before tagging."""
 
     print("[preflight] Refreshing release coverage badges from local coverage XML")
-    run([sys.executable, "tools/generate_component_coverage_badges.py"], cwd=REPO_ROOT)
+    coverage_badges.generate_badges(
+        None, REPO_ROOT / "coverage-agilab.combined.xml", write_badge=_write_release_text
+    )
     run([sys.executable, "tools/coverage_badge_guard.py"], cwd=REPO_ROOT)
 
 
@@ -3096,7 +3103,13 @@ def _run_publisher():
         # Snapshot release metadata before ANY mutation (including name
         # sanitization) so failure recovery restores the developer's own
         # uncommitted edits instead of blanket-reverting via git checkout.
-        release_snapshot = capture_release_file_state(git_paths_to_commit(include_docs=cfg.gen_docs))
+        snapshot_paths = git_paths_to_commit(include_docs=cfg.gen_docs)
+        # A build can generate a badge that was absent at startup.
+        for config in coverage_badges.COMPONENTS.values():
+            badge = str(config["badge"].relative_to(coverage_badges.REPO_ROOT))
+            if badge not in snapshot_paths:
+                snapshot_paths.append(badge)
+        release_snapshot = capture_release_file_state(snapshot_paths)
         if isinstance(release_snapshot, ReleaseFileState):
             _ACTIVE_RELEASE_JOURNAL.set(release_snapshot)
 
@@ -3390,11 +3403,11 @@ def _run_publisher():
                 "[git] release commit/tag finalization started; preserving current "
                 "metadata for explicit recovery instead of restoring stale bytes"
             )
-        elif cfg.git_reset_on_failure and not cfg.dry_run and not release_finalized:
+        elif (cfg.build_only or cfg.git_reset_on_failure) and not cfg.dry_run and not release_finalized:
             if release_snapshot is not None:
                 restore_release_file_state(release_snapshot)
                 print("[git] restored release metadata files to pre-run snapshot")
-            else:
+            elif not cfg.build_only:
                 git_reset_pyprojects()
 
 
