@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -201,10 +202,10 @@ def selected_component_items(requested: list[str] | None) -> list[tuple[str, dic
     return [(name, COMPONENTS[name]) for name in requested]
 
 
-def main() -> int:
-    args = parse_args()
-    combined_xml = Path(args.combined_xml)
-    for name, config in selected_component_items(args.components):
+def generate_badges(
+    components: list[str] | None, combined_xml: Path, *, write_badge: Callable[[Path, str], object]
+) -> None:
+    for name, config in selected_component_items(components):
         percent = None
         if "aggregate" in config:
             policy = str(config.get("aggregate_policy", "weighted"))
@@ -220,8 +221,16 @@ def main() -> int:
         svg = render_badge(config["label"], value, badge_color(percent))
         badge_path = config["badge"]
         badge_path.parent.mkdir(parents=True, exist_ok=True)
-        badge_path.write_text(svg, encoding="utf-8")
+        write_badge(badge_path, svg)
         print(f"{name}: {value} -> {badge_path.relative_to(REPO_ROOT)}")
+
+
+def main() -> int:
+    args = parse_args()
+    generate_badges(
+        args.components, Path(args.combined_xml),
+        write_badge=lambda path, svg: path.write_text(svg, encoding="utf-8"),
+    )
     return 0
 
 

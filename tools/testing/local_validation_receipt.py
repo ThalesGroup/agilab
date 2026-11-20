@@ -61,7 +61,7 @@ def _pytest_addopts_are_cache_only(value: str) -> bool:
             index += 1
             if index >= len(tokens) or not tokens[index].startswith("cache_dir="):
                 return False
-        elif not token.startswith("--override-ini=cache_dir="):
+        elif not token.startswith(("-ocache_dir=", "--override-ini=cache_dir=")):
             return False
         index += 1
     return True
