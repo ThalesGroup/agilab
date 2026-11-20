@@ -41,7 +41,14 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
         group for group in groups if group.name.startswith("general:")
     ]
 
-    assert discovered <= planned
+    assert module.OPT_IN_ROOT_TEST_FILES == {
+        "test/test_agilab_widget_robot_full.py"
+    }
+    assert module.OPT_IN_ROOT_TEST_FILES <= discovered
+    assert discovered <= planned | module.OPT_IN_ROOT_TEST_FILES
+    assert not planned & module.OPT_IN_ROOT_TEST_FILES
+    for path in ['test/test_agi_web_native_columns_layout.py', 'test/test_builtin_zero_parameters_native_robot.py', 'test/test_mission_data_quality_zero_parameters_native_robot.py', 'test/test_native_plotly_shadow_layout.py', 'test/test_project_transfer_progress_native_robot.py', 'test/test_uav_zero_parameters_native_robot.py']:
+        assert path in by_name["general:" + Path(path).stem].test_files
     assert len(general_groups) > 100
     assert all(len(group.test_files) == 1 for group in general_groups)
     assert [group.name for group in groups[-7:]] == [
@@ -54,6 +61,15 @@ def test_root_test_plan_covers_every_root_file_in_stable_groups() -> None:
         "reports",
     ]
     assert "test/test_view_training_analysis.py" in by_name["views"].test_files
+    for path in (
+        "test/test_capsule_attestation.py",
+        "test/test_evaluation.py",
+        "test/test_metadata_store.py",
+        "test/test_serving_handoff.py",
+    ):
+        assert path in by_name["support"].test_files
+        assert sum(path in group.test_files for group in groups) == 1
+        assert not any(path in group.test_files for group in general_groups)
     assert not any(
         "test/test_view_training_analysis.py" in group.test_files
         for group in general_groups

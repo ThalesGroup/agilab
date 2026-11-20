@@ -26,6 +26,24 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
+### Added
+
+- Add app-owned evaluation receipts, optional SQLite metadata history, and declarative serving-handoff export and verification.
+- Add opt-in OpenTelemetry and OpenLineage observers for saved agent traces, with delivery receipts separate from run-validation results.
+- Add confined repository-knowledge search and packaged, checksum-verified pydeck renderer assets.
+
+### Fixed
+
+- Keep installed software development kit (SDK) imports, worker roots and explicit remote configuration bound to the selected runtime; resolve SDK and app dependency constraints together during deployment.
+- Use the active workflow data root for archive extraction and demo seeding, while preserving existing data during later initialization.
+- Make flight input work items portable across manager and worker data roots; correct DAG preview identities and malformed connector-row handling.
+- Preserve concurrent edits during release failure recovery, align release guidance with manual workflows, and keep generated validation reports outside source inventories.
+- Declare English as the native Python web document language.
+
+### Dependencies
+
+- Require pypdf >=7.0.1,<8 for local PDF ingestion and allow HiGHS 1.16 through highspy >=1.15.1,<1.17, retaining the existing one-thread solver setting.
+
 ## [2026.11.02] - 2026-11-02
 
 GitHub Release: https://github.com/ThalesGroup/agilab/releases/tag/v2026.11.02

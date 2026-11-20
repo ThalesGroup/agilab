@@ -8,8 +8,16 @@ artifacts were produced, and how the work can be replayed or handed off.
 AGILAB now ships a first proof-pack layer around ``run_manifest.json``. It can
 write either a directory of plain JSON evidence or a hash-verifiable
 ``.agipack`` archive for portable handoff. The optional ``proof`` extra adds
-detached Ed25519 signatures and local trust-policy verification. External
-Sigstore/SLSA attestation binding remains a separate roadmap layer.
+detached Ed25519 signatures and local trust-policy verification.
+
+Merged source additionally provides an opt-in Sigstore verification adapter
+for existing artifact/capsule bundles, with an explicit trusted issuer, exact
+signing identity and an explicit Supply-chain Levels for Software Artifacts
+(SLSA) provenance mode. It does not create signatures. PR #1240 reports four
+fixture test cases using official signed material; positive external attestation
+of a real user capsule,
+including SLSA provenance, remains unavailable. These source additions are
+absent from the November 2 packages.
 
 Why this matters
 ----------------
@@ -203,16 +211,16 @@ Roadmap boundary
 
 The following items remain planned work, not shipped capability:
 
-* external Sigstore/SLSA references and third-party attestation verification for
-  signed ``.agipack`` archives
-* transport to an external OpenLineage backend
+* positive external attestation of a real user proof capsule and independently
+  verified SLSA provenance under explicit issuer/signing-identity policy
+* external deployment acceptance for the opt-in saved-trace OpenLineage transport
 * native OpenTelemetry SDK/OTLP spans across UI, worker build, distributed
   execution, notebook export, MLflow handoff, and agent runs
-* durable ML metadata storage and query APIs
+* shared metadata-service storage and query APIs beyond app-owned SQLite histories
 * app-authored model/data/prompt/eval cards with domain metadata
 * richer policy-as-code, including potential OPA/Rego-compatible gates
 * capability-based sandboxing for generated code, notebooks, and agent runs
-* first-class agent eval traces and replayable scoring
+* end-to-end agent evaluation and independently replayed scoring beyond app-owned receipts
 * production monitoring, drift, RBAC, secrets-backend, and tenant-isolation
   integrations
 

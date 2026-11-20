@@ -858,7 +858,7 @@ def _complete_specialized_test_manifests(test_results: Path) -> None:
             telemetry = test_results / "junit-agi-gui-demos-telemetry.xml"
             telemetry.write_text("<testsuite tests='1'/>")
             junit_paths.append(telemetry.as_posix())
-        expected_steps = 4 if chunk == "demos" else 1
+        expected_steps = {"general": 2, "demos": 4, "builtin": 1}[chunk]
         manifest.update(
             junit_paths=junit_paths,
             expected_steps=expected_steps,
@@ -881,16 +881,28 @@ def test_agi_gui_profile_covers_actual_workflow_matrix_and_specialized_lanes() -
     assert len(matrix_chunks) == 10
     assert set(module.AGI_GUI_COVERAGE_CHUNKS) == set(matrix_chunks)
     general_steps = module._agi_gui_specialized_coverage_steps("general")
-    general, timeout = general_steps[0]
-    assert len(general_steps) == 1 and timeout == 25 * 60
+    assert len(general_steps) == 2
+    prepare, prepare_timeout = general_steps[0]
+    assert prepare_timeout == 300
+    assert _has_with_dependency(prepare, "playwright")
+    assert "--no-project" not in prepare
+    assert "test-ui" in _option_values(prepare, "--group")
+    assert prepare[-4:] == ["-m", "playwright", "install", "chromium"]
+    general, timeout = general_steps[1]
+    assert timeout == 25 * 60
+    assert _has_with_dependency(general, "playwright")
     assert "--unclassified" in general
     assert _has_with_dependency(general, "tiktoken==0.14.0")
     assert {"ui", "viz", "notebook", "observability"} <= set(
         _option_values(general, "--extra")
     )
     assert "observability" in _option_values(
-        module._root_tests_profile()[0].argv, "--extra"
+        module._root_tests_profile()[-1].argv, "--extra"
     )
+    root_profile = module._root_tests_profile()
+    assert root_profile[0].label == "root native browser prerequisite"
+    assert root_profile[0].argv[-4:] == ["-m", "playwright", "install", "chromium"]
+    assert _has_with_dependency(root_profile[-1].argv, "playwright")
     builtin_steps = module._agi_gui_specialized_coverage_steps("builtin")
     assert len(builtin_steps) == 1
     assert builtin_steps[0][1] == 16 * 60
@@ -1099,6 +1111,53 @@ def test_agi_gui_combine_rejects_failing_specialized_report(
     else:
         raise AssertionError("failing telemetry was accepted")
     assert "demos: missing or failing JUnit" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("bad_step", ["missing", "failed"])
+def test_agi_gui_combine_rejects_incomplete_general_steps(
+    tmp_path, monkeypatch, capsys, bad_step
+) -> None:
+    module = _load_module()
+    monkeypatch.setattr(module, "AGI_GUI_COVERAGE_MANIFEST_WAIT_SECONDS", 0.0)
+    test_results = tmp_path / "test-results"
+    test_results.mkdir()
+    for chunk in module.AGI_GUI_COVERAGE_CHUNKS:
+        db = test_results / f"coverage-agi-gui-{chunk}.db.fragment"
+        db.write_text("fragment")
+        (test_results / f"coverage-agi-gui-{chunk}.manifest.json").write_text(
+            json.dumps(
+                {
+                    "schema": module.AGI_GUI_COVERAGE_MANIFEST_SCHEMA,
+                    "chunk": chunk,
+                    "returncode": 0,
+                    "data_file": db.as_posix().removesuffix(".fragment"),
+                    "coverage_db_paths": [db.as_posix()],
+                }
+            )
+        )
+    _complete_specialized_test_manifests(test_results)
+    path = test_results / "coverage-agi-gui-general.manifest.json"
+    manifest = json.loads(path.read_text())
+    if bad_step == "missing":
+        manifest["completed_steps"].pop()
+    else:
+        manifest["completed_steps"][0]["returncode"] = 1
+    path.write_text(json.dumps(manifest))
+    monkeypatch.chdir(tmp_path)
+
+    def unexpected_combine(*_args, **_kwargs):
+        raise AssertionError("incomplete general evidence must never reach coverage combine")
+
+    monkeypatch.setitem(
+        sys.modules, "subprocess", SimpleNamespace(run=unexpected_combine)
+    )
+    try:
+        exec(module._agi_gui_coverage_combine_code(), {})
+    except SystemExit as exc:
+        assert exc.code == 1
+    else:
+        raise AssertionError("incomplete general evidence was accepted")
+    assert "general: incomplete specialized steps" in capsys.readouterr().out
 
 
 def test_agi_gui_coverage_chunk_wrapper_writes_manifest(tmp_path) -> None:

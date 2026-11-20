@@ -132,7 +132,8 @@ def test_evidence_runtime_tests_are_in_coverage_plan(tmp_path, with_timings) -> 
         _write_junit(junit_path, [("test.test_evidence_graph", "graph", 1.0)])
     plan = module.build_plan([str(junit_path)])
     assert plan.mode == ("timing-balanced" if with_timings else "static")
-    scheduled = {arg for shard in plan.shards for arg in shard.pytest_args}
+    scheduled_args = [arg for shard in plan.shards for arg in shard.pytest_args]
+    scheduled = set(scheduled_args)
     # Scope this contract to runtime evidence modules with a same-named root
     # test file; inspect source inventory rather than duplicating the plan list.
     expected = {
@@ -144,6 +145,13 @@ def test_evidence_runtime_tests_are_in_coverage_plan(tmp_path, with_timings) -> 
     assert not expected - scheduled, (
         f"Evidence tests omitted from coverage: {sorted(expected - scheduled)}"
     )
+    for path in (
+        "test/test_capsule_attestation.py",
+        "test/test_evaluation.py",
+        "test/test_metadata_store.py",
+        "test/test_serving_handoff.py",
+    ):
+        assert scheduled_args.count(path) == 1, f"Duplicate evidence test: {path}"
 
 
 def test_timing_balanced_plan_does_not_schedule_legacy_src_test_package(tmp_path) -> None:

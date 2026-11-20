@@ -2,7 +2,7 @@
   "file_count": 295,
   "format_version": 3,
   "managed_target": "docs/source",
-  "public_owned_digest_sha256": "3c97bd94a5a9a2d3d06c78d6b24bbbcfaa9a94028cb415011613a39ffe066e51",
+  "public_owned_digest_sha256": "39411e08f127c271781b7c71d36b6d2ac30ba1af9a73c59a947d32eded5bc71c",
   "public_owned_exclusions": [
     "data/release_proof.toml",
     "data/ui_robot_evidence.json",
@@ -10,13 +10,13 @@
   ],
   "public_owned_file_count": 3,
   "public_owned_files_sha256": {
-    "data/release_proof.toml": "b168180ba7cb4f577a43eda813eda1ee34ca7a8b035d4f6d18ccd0a7a3cc498b",
+    "data/release_proof.toml": "a0efcce4edf125e100faaa8522f3578b5dc40607a94c82aa3b4b20c80267032b",
     "data/ui_robot_evidence.json": "18c47a02a0122f6de1dbcffbdee31b6ed4eb53223d0dcb44b9a64bdc07e0dbac",
-    "release-proof.rst": "c849799724732052a79f993253ca6d75db3caa6c22b6f9a889670bbbb3f41948"
+    "release-proof.rst": "534507a054950d21875717ec547f07ba366fe534c2a139616bb22891b1c972b0"
   },
   "source_digest_sha256": null,
   "source_hint": "docs/source",
   "source_status": "unavailable",
   "sync_tool": "tools/sync_docs_source.py",
-  "target_digest_sha256": "fe83fcb2bc11c36a1ba586fad92ce76c5d3fa265d354f88def17ffb43a55b27d"
+  "target_digest_sha256": "e7425ebecc0dd21c94c0ab8a4c1725f487ee5a1d8ed5ede80b288a2d328dbb8b"
 }

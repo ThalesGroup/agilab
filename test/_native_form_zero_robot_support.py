@@ -82,6 +82,46 @@ def _write_form_view(view: Path, app_source: Path, settings: Path, share: Path) 
     )
 
 
+def _matches_widget_action_response(response, widget_id: str, value) -> bool:
+    if not response.url.endswith("/api/action") or response.request.method != "POST":
+        return False
+    try:
+        payload = response.request.post_data_json
+    except (ValueError, TypeError):
+        return False
+    return (
+        isinstance(payload, dict)
+        and payload.get("id") == widget_id
+        and payload.get("value") == value
+        and isinstance(payload.get("value"), bool) == isinstance(value, bool)
+    )
+
+
+def _saved_action_messages(payload) -> list[str]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("nodes"), dict):
+        return []
+    pending = [
+        node
+        for nodes in payload["nodes"].values()
+        if isinstance(nodes, list)
+        for node in nodes
+    ]
+    messages = []
+    while pending:
+        node = pending.pop()
+        if not isinstance(node, dict):
+            continue
+        children = node.get("children", [])
+        if isinstance(children, list):
+            pending.extend(children)
+        props = node.get("props", {})
+        if node.get("kind") == "success" and isinstance(props, dict):
+            body = props.get("body") or props.get("message")
+            if isinstance(body, str) and body.startswith("Saved to"):
+                messages.append(body)
+    return messages
+
+
 def assert_native_zero_form_roundtrip(
     case: NativeZeroFormCase, chromium_executable: str, test_source: Path
 ) -> None:
@@ -155,6 +195,7 @@ def assert_native_zero_form_roundtrip(
         "--no-browser",
     ]
     observations: list[dict[str, object]] = []
+    action_receipts: list[dict[str, object]] = []
     diagnostics: list[dict[str, object]] = []
     passed = False
     page = None
@@ -249,14 +290,29 @@ def assert_native_zero_form_roundtrip(
                 playwright.expect(
                     page.get_by_text("No changes to save.", exact=True)
                 ).to_be_visible()
+                field = page.get_by_label(case.change_label, exact=True)
+                widget_id = field.get_attribute("id")
+                assert widget_id, "The edited native control must expose its widget id"
                 with page.expect_response(
-                    lambda response: response.url.endswith("/api/action")
-                ):
-                    field = page.get_by_label(case.change_label, exact=True)
+                    lambda response: _matches_widget_action_response(
+                        response, widget_id, case.changed_value
+                    )
+                ) as pending_save:
                     field.fill(str(case.changed_value))
                     field.press("Enter")
-                playwright.expect(page.locator(".py-success")).to_contain_text(
-                    "Saved to"
+                response = pending_save.value
+                assert response.status == 200
+                payload = response.json()
+                saved_messages = _saved_action_messages(payload)
+                action_receipts.append({
+                    "widget_id": widget_id, "value": case.changed_value,
+                    "status": response.status, "saved_messages": saved_messages,
+                })
+                assert saved_messages, "The matched action did not report a successful save"
+                # A queued blur may render No changes after the accepted save.
+                # Bind success to its response, then verify settled values on disk.
+                playwright.expect(page.locator(".py-app")).to_have_attribute(
+                    "aria-busy", "false"
                 )
                 expected[case.change_key] = case.changed_value
                 observe("saved")
@@ -291,6 +347,7 @@ def assert_native_zero_form_roundtrip(
                             "source_sha256": source_hashes,
                             "executed_model": executed_model,
                             "observations": observations,
+                            "action_receipts": action_receipts,
                             "browser_diagnostics": [
                                 {
                                     "stage": item["stage"],

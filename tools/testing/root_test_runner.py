@@ -22,6 +22,9 @@ from tools.testing.pytest_entrypoint import cleaned_test_environment
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROOT_TEST_DIR = REPO_ROOT / "test"
 PYTEST_OPTIONS_WITH_VALUES = frozenset({"-k", "-m", "-o"})
+# Long full-widget sweeps retain their dedicated ui-robot-matrix / explicit
+# AGILAB_RUN_*_UI_ROBOT routes; ordinary browser regressions stay mandatory.
+OPT_IN_ROOT_TEST_FILES = frozenset({"test/test_agilab_widget_robot_full.py"})
 
 
 @dataclass(frozen=True)
@@ -80,7 +83,7 @@ def _expand_chunk_args(
 
 
 def build_root_test_groups() -> tuple[RootTestGroup, ...]:
-    """Return deterministic root-test groups with complete file coverage."""
+    """Cover every default-scope root file, reserving explicit-only UI sweeps."""
 
     chunk_groups: list[RootTestGroup] = []
     classified: set[str] = set()
@@ -94,7 +97,10 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
     discovered = tuple(
         _repo_relative(path) for path in sorted(ROOT_TEST_DIR.glob("test_*.py"))
     )
-    general = tuple(path for path in discovered if path not in classified)
+    general = tuple(
+        path for path in discovered
+        if path not in classified and path not in OPT_IN_ROOT_TEST_FILES
+    )
     # The unclassified root tests contain several dynamic-import and Streamlit
     # harnesses that intentionally replace process-global modules. Give each
     # file its own interpreter so one test module cannot corrupt a later one.
@@ -117,7 +123,7 @@ def build_root_test_groups() -> tuple[RootTestGroup, ...]:
     groups.extend(chunk_groups)
 
     planned = {path for group in groups for path in group.test_files}
-    missing = sorted(set(discovered) - planned)
+    missing = sorted(set(discovered) - planned - OPT_IN_ROOT_TEST_FILES)
     if missing:
         raise RuntimeError(
             "root test plan omitted files: " + ", ".join(missing)

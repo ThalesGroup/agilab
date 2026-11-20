@@ -15,7 +15,12 @@ from agilab.evidence import evaluation, evidence_contract
 from test.test_evaluation import build_public_case
 
 
-def test_optional_backend_missing_fails_before_any_input_is_read(tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    "verify_api", ["verify_external_artifact", "verify_external_capsule"]
+)
+def test_optional_backend_missing_fails_before_any_input_is_read(
+    tmp_path, monkeypatch, verify_api
+):
     original = adapter.importlib.import_module
 
     def unexpected_read(*args, **kwargs):
@@ -32,7 +37,7 @@ def test_optional_backend_missing_fails_before_any_input_is_read(tmp_path, monke
 
     monkeypatch.setattr(adapter.importlib, "import_module", missing)
     with pytest.raises(RuntimeError, match="optional Sigstore backend"):
-        adapter.verify_external_artifact(
+        getattr(adapter, verify_api)(
             tmp_path,
             "absent.agipack",
             "absent.bundle",
@@ -264,6 +269,8 @@ def test_generic_distribution_bundle_cannot_attest_a_different_user_capsule(
 def test_capsule_local_contract_uses_captured_bytes_during_path_swap(
     tmp_path, monkeypatch
 ):
+    # Exercise local capture only; no cryptographic verification is reached.
+    monkeypatch.setattr(adapter, "_backend", lambda: None)
     root, _ = build_public_case(tmp_path)
     capsule = root / "public-candidate.agipack"
     evidence_contract.write_proof_capsule(root / "candidate-run.json", capsule)
