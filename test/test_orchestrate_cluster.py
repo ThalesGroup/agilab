@@ -938,6 +938,13 @@ def test_cluster_advisor_reports_missing_or_unusable_discovery(tmp_path):
     assert no_ready_plan["summary"]["excluded_node_count"] == 1
 
 
+def test_home_relative_share_text_preserves_configured_home(tmp_path):
+    home = Path(tmp_path.anchor) / "home" / "agilab-fixture-user" / "workspace"
+    env = SimpleNamespace(home_abs=home)
+
+    assert orchestrate_cluster._home_relative_share_text(home, env) == str(home)
+
+
 def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
     env = SimpleNamespace(home_abs=tmp_path / "home" / "agi")
 

@@ -422,8 +422,7 @@ def _home_relative_share_text(value: Any, env: Any) -> str | None:
             candidate = Path(text).expanduser()
             if candidate.is_absolute():
                 relative = candidate.resolve(strict=False).relative_to(home_path.resolve(strict=False))
-                if relative.parts:
-                    return relative.as_posix()
+                return relative.as_posix() if relative.parts else text
         except (OSError, RuntimeError, TypeError, ValueError):
             pass
 
