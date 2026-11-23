@@ -626,9 +626,17 @@ def _workers_data_path_should_follow_workflow_session(
         return True
     if _workers_data_path_points_to_local_share(text, env):
         return True
-    data_path = _resolve_env_relative_path(text, env)
     cluster_share = _env_cluster_share_candidate(env)
-    if data_path is None or cluster_share is None:
+    if cluster_share is None:
+        return False
+    candidate = Path(text)
+    if not candidate.is_absolute():
+        # Settings can display a remote user's share relative to that user's home.
+        share_setting = _env_cluster_share_setting(env)
+        if share_setting and candidate.is_relative_to(share_setting):
+            candidate = cluster_share / candidate.relative_to(share_setting)
+    data_path = _resolve_env_relative_path(candidate, env)
+    if data_path is None:
         return False
     if data_path == cluster_share:
         return True
