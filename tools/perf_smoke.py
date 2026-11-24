@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shlex
 import statistics
 import subprocess
@@ -46,6 +47,7 @@ class PerfResult:
     min_seconds: float | None
     max_seconds: float | None
     stdev_seconds: float | None
+    failure_summary: str | None = None
 
 
 def _repo_python_paths(extra_paths: Sequence[Path] = ()) -> list[str]:
@@ -276,7 +278,7 @@ def _measure_once(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     time_fn: Callable[[], float] = time.perf_counter,
     cwd: Path = REPO_ROOT,
-) -> tuple[float, int]:
+) -> tuple[float, subprocess.CompletedProcess[str]]:
     start = time_fn()
     proc = runner(
         list(command),
@@ -287,7 +289,19 @@ def _measure_once(
         check=False,
     )
     wall = time_fn() - start
-    return wall, int(proc.returncode)
+    return wall, proc
+
+
+def _describe_failure(sample: PerfSample, stderr: str | None) -> str:
+    summary = f"iteration {sample.iteration} exited with code {sample.returncode}"
+    _, marker, tail = (stderr or "").rpartition("Traceback (most recent call last):")
+    last_line = tail.rstrip().rsplit("\n", 1)[-1]
+    exception_type = last_line.partition(":")[0]
+    if marker and len(exception_type) <= 120 and re.fullmatch(
+        r"(?:[A-Za-z_][A-Za-z0-9_]*\.)*[A-Z][A-Za-z0-9_]*", exception_type
+    ):
+        return f"{summary} ({exception_type})"
+    return summary
 
 
 def run_scenario(
@@ -306,23 +320,22 @@ def run_scenario(
 
     measured: list[PerfSample] = []
     failures = 0
+    failure_summary = None
     for idx in range(warmups + repeats):
-        wall, returncode = _measure_once(
+        wall, proc = _measure_once(
             scenario.command,
             runner=runner,
             time_fn=time_fn,
             cwd=cwd,
         )
-        if idx >= warmups:
-            measured.append(
-                PerfSample(
-                    iteration=idx - warmups + 1,
-                    wall_seconds=wall,
-                    returncode=returncode,
-                )
-            )
-            if returncode != 0:
-                failures += 1
+        if idx < warmups:
+            continue
+        sample = PerfSample(idx - warmups + 1, wall, int(proc.returncode))
+        measured.append(sample)
+        if sample.returncode != 0:
+            failures += 1
+            if failure_summary is None:
+                failure_summary = _describe_failure(sample, proc.stderr)
 
     wall_values = [sample.wall_seconds for sample in measured]
     stdev = statistics.stdev(wall_values) if len(wall_values) > 1 else 0.0
@@ -339,6 +352,7 @@ def run_scenario(
         min_seconds=min(wall_values) if wall_values else None,
         max_seconds=max(wall_values) if wall_values else None,
         stdev_seconds=stdev if wall_values else None,
+        failure_summary=failure_summary,
     )
 
 
@@ -389,17 +403,16 @@ def _render_human(results: Sequence[PerfResult]) -> str:
 
 
 def _results_to_json(results: Sequence[PerfResult]) -> str:
+    rows = []
+    for result in results:
+        row = asdict(result)
+        del row["failure_summary"]
+        rows.append(row)
     payload = {
         "python": sys.version.split()[0],
         "platform": sys.platform,
         "repo_root": str(REPO_ROOT),
-        "results": [
-            {
-                **asdict(result),
-                "samples": [asdict(sample) for sample in result.samples],
-            }
-            for result in results
-        ],
+        "results": rows,
     }
     return json.dumps(payload, indent=2)
 
@@ -428,6 +441,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         for scenario in scenarios
     ]
 
+    for result in results:
+        if result.failure_summary:
+            print(f"perf_smoke: {result.scenario} {result.failure_summary}", file=sys.stderr)
     if args.json:
         print(_results_to_json(results))
     else:
