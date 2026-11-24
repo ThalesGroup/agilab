@@ -66,14 +66,31 @@ def _repo_python_paths(extra_paths: Sequence[Path] = ()) -> list[str]:
     return ordered
 
 
-def _import_command(module_name: str, *, extra_paths: Sequence[Path] = ()) -> tuple[str, ...]:
+def _import_command(
+    module_name: str,
+    *,
+    extra_paths: Sequence[Path] = (),
+    native_view: bool = False,
+) -> tuple[str, ...]:
+    if native_view:
+        web_source = REPO_ROOT / "src/agilab/lib/agi-web/src"
+        extra_paths = (*extra_paths, web_source)
     paths_literal = repr(_repo_python_paths(extra_paths))
     code = (
-        "import importlib, sys; "
-        f"paths = {paths_literal}; "
-        "[sys.path.insert(0, p) for p in reversed(paths) if p not in sys.path]; "
-        f"importlib.import_module({module_name!r})"
+        "import importlib, sys\n"
+        f"paths = {paths_literal}\n"
+        "[sys.path.insert(0, p) for p in reversed(paths) if p not in sys.path]\n"
     )
+    if native_view:
+        code += (
+            "from functools import partial\n"
+            "from agi_web.python_view_session import ViewSession, use_session\n"
+            f"load_view = partial(importlib.import_module, {module_name!r})\n"
+            "with use_session(ViewSession(load_view)):\n"
+            "    load_view()"
+        )
+    else:
+        code += f"importlib.import_module({module_name!r})"
     return (sys.executable, "-c", code)
 
 
@@ -152,6 +169,7 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             command=_import_command(
                 "view_maps_network.view_maps_network",
                 extra_paths=[maps_network_src],
+                native_view=True,
             ),
         ),
         "agi-page-geospatial-3d-import": PerfScenario(
@@ -160,6 +178,7 @@ def scenario_catalog() -> dict[str, PerfScenario]:
             command=_import_command(
                 "view_maps_3d.view_maps_3d",
                 extra_paths=[maps_3d_src],
+                native_view=True,
             ),
         ),
         "ui-project-status-page-import": PerfScenario(

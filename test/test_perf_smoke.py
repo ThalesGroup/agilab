@@ -48,6 +48,44 @@ def test_scenario_catalog_contains_expected_builtins() -> None:
         assert page_name in browser_command
 
 
+@pytest.mark.parametrize(
+    ("scenario_name", "module_name"),
+    [
+        ("agi-page-network-map-import", "view_maps_network.view_maps_network"),
+        ("agi-page-geospatial-3d-import", "view_maps_3d.view_maps_3d"),
+    ],
+)
+def test_map_import_scenarios_activate_native_view_session(
+    tmp_path: Path, monkeypatch, scenario_name: str, module_name: str,
+) -> None:
+    module = _load_module()
+    package_name, page_name = module_name.split(".")
+    package = tmp_path / package_name
+    package.mkdir()
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / f"{page_name}.py").write_text(
+        "from agi_web.python_view_session import current_session\n"
+        "current_session().config.update(page_title='Map import fixture')\n",
+        encoding="utf-8",
+    )
+    repo_paths = module._repo_python_paths
+    web_source = module.REPO_ROOT / "src/agilab/lib/agi-web/src"
+
+    def fixture_paths(extra_paths=()):
+        return [str(tmp_path), str(web_source), *repo_paths(extra_paths)]
+
+    monkeypatch.setattr(module, "_repo_python_paths", fixture_paths)
+    result = subprocess.run(
+        module.scenario_catalog()[scenario_name].command,
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_repo_python_paths_deduplicates_extra_paths() -> None:
     module = _load_module()
     src = module.REPO_ROOT / "src"
