@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import runpy
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -239,6 +240,29 @@ def test_main_json_for_custom_command(monkeypatch, capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["results"][0]["scenario"] == "custom-command"
     assert payload["results"][0]["median_seconds"] == 0.25
+
+
+def test_main_reports_first_measured_failure_without_echoing_stderr(capsys) -> None:
+    module = _load_module()
+    command = shlex.join([sys.executable, "-c", "raise RuntimeError('private fixture detail')"])
+
+    exit_code = module.main(
+        ["--command", command, "--repeats", "2", "--warmups", "0", "--json"],
+    )
+
+    captured = capsys.readouterr()
+    result, = json.loads(captured.out)["results"]
+    assert exit_code == 1
+    assert result["failures"] == 2
+    assert [sample["returncode"] for sample in result["samples"]] == [1, 1]
+    assert set(result) == {
+        "scenario", "description", "command", "repeats", "warmups", "samples",
+        "failures", "median_seconds", "mean_seconds", "min_seconds",
+        "max_seconds", "stdev_seconds",
+    }
+    assert captured.err.splitlines() == [
+        f"perf_smoke: {result['scenario']} iteration 1 exited with code 1 (RuntimeError)"
+    ]
 
 
 def test_main_lists_scenarios_and_renders_human(monkeypatch, capsys) -> None:
