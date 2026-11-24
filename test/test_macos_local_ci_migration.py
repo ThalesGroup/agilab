@@ -344,6 +344,39 @@ def test_receipt_rejects_omitted_artifacts_unknown_profiles_and_unexecuted_tests
     assert evidence.verify_receipt(path, root=root)["status"] == "failed"
 
 
+def test_failed_coverage_receipt_preserves_junit_diagnostics(local_receipt, monkeypatch):
+    root, path, _source = local_receipt
+    support_junit = "test-results/junit-agi-gui-support.xml"
+    pipeline_junit = "test-results/junit-agi-gui-pipeline*.xml"
+    report = root / support_junit
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(
+        "<testsuites><testsuite><testcase name='test_support'>"
+        "<failure message='support assertion failed'/></testcase></testsuite></testsuites>"
+    )
+    support = parity.CommandSpec("agi-gui coverage (support)", ["pytest", "test_support.py"],
+                                 artifact_paths=[support_junit])
+    pipeline = parity.CommandSpec("agi-gui coverage (pipeline)", ["pytest", "test_pipeline.py"],
+                                  artifact_paths=[pipeline_junit])
+    monkeypatch.setattr(parity, "_profile_commands", lambda args: {"coverage": [support, pipeline]})
+    failed = parity.CommandResult(support.label, support.argv, 1, 0.1, str(root), support.env)
+    result = parity.ProfileResult("coverage", "fixture", False, [failed])
+
+    produced = evidence.write_receipt(
+        path, root=root, before=evidence.source_snapshot(root), profiles=["coverage"],
+        results=[asdict(result)], specs={"coverage": [asdict(support), asdict(pipeline)]},
+        started_at="2026-11-23T00:00:00+00:00",
+    )
+
+    assert produced["status"] == "failed"
+    assert produced["artifacts"][pipeline_junit] == {"status": "missing"}
+    failures = produced["validation_failures"]
+    assert "command execution is incomplete" in failures
+    assert "required artifacts are missing" in failures
+    assert "JUnit has failed, entirely skipped or zero executed tests: " + support_junit in failures
+    assert evidence.verify_receipt(path, root=root)["failures"] == failures
+
+
 def test_receipt_rejects_effective_configuration_drift(local_receipt, monkeypatch):
     root, path, _source = local_receipt
     monkeypatch.setenv("AGILAB_DISABLE_BACKGROUND_SERVICES", "different")
