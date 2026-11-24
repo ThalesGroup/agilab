@@ -4578,6 +4578,7 @@ def test_env_editor_write_reloads_file_and_preserves_disjoint_update(tmp_path):
 def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeypatch):
     fake_st = _FakeStreamlit()
     monkeypatch.setattr(about_agilab, "st", fake_st)
+    monkeypatch.setattr(about_agilab, "ENV_FILE_PATH", tmp_path / ".env")
 
     class FakeAgiEnv:
         home_abs = tmp_path
@@ -4637,6 +4638,45 @@ def test_handle_data_root_failure_renders_share_recovery_paths(tmp_path, monkeyp
     assert FakeAgiEnv.saved[-1] == ("AGI_CLUSTER_SHARE", "newshare")
     assert fake_st.session_state["first_run"] is True
     assert ("rerun", "") in fake_st.events
+
+
+def test_handle_data_root_failure_rejects_cleared_persisted_share(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text("AGI_CLUSTER_SHARE=previous-share\n", encoding="utf-8")
+    monkeypatch.delenv("AGI_CLUSTER_SHARE", raising=False)
+    fake_st = _FakeStreamlit()
+    monkeypatch.setattr(about_agilab, "st", fake_st)
+    saved = []
+    env = SimpleNamespace(
+        home_abs=tmp_path,
+        envars={},
+        _ensure_defaults=lambda: None,
+        set_env_var=lambda key, value: saved.append((key, value)),
+    )
+
+    def render():
+        assert about_agilab._handle_data_root_failure(
+            RuntimeError("data directory missing"), agi_env_cls=env, env_file_path=env_file
+        )
+
+    key = "agi_share_path_override_input"
+    render()
+    assert fake_st.session_state[key] == "previous-share"
+
+    fake_st.button_values["Save and retry"] = True
+    fake_st.session_state[key] = ""
+    render()
+    assert ("warning", "AGI_CLUSTER_SHARE cannot be empty.") in fake_st.events
+    assert fake_st.session_state[key] == ""
+    assert saved == []
+    assert "first_run" not in fake_st.session_state
+    assert ("rerun", "") not in fake_st.events
+
+    fake_st.session_state[key] = "replacement-share"
+    render()
+    assert saved == [("AGI_CLUSTER_SHARE", "replacement-share")]
+    assert fake_st.session_state["first_run"] is True
+    assert fake_st.events.count(("rerun", "")) == 1
 
 
 def test_handle_data_root_failure_reads_persisted_share_when_runtime_state_empty(
