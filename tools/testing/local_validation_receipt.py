@@ -399,9 +399,11 @@ def _validate_receipt_payload(payload: dict, *, root: Path) -> dict:
         failures.append("required artifact inventory, size or digest differs")
     if any(record.get("status") == "missing" for record in expected_artifacts.values()):
         failures.append("required artifacts are missing")
-    for name in expected_artifacts:
-        if Path(name).name.startswith("junit-") and not _junit_has_executed_tests(
-            root / name
+    for name, record in expected_artifacts.items():
+        if (
+            record.get("status") != "missing"
+            and Path(name).name.startswith("junit-")
+            and not _junit_has_executed_tests(root / name)
         ):
             failures.append(
                 "JUnit has failed, entirely skipped or zero executed tests: " + name
