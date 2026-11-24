@@ -127,7 +127,7 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
     clone_root = tmp_path / "source-clone"
     clone_root.mkdir()
     clone_proc = subprocess.run(
-        ["git", "clone", "--depth", "1", "--local", str(ROOT), str(clone_root)],
+        ["git", "clone", "--no-local", "--depth", "1", str(ROOT), str(clone_root)],
         check=False,
         capture_output=True,
         text=True,
@@ -168,6 +168,33 @@ def _materialize_fresh_source_clone(tmp_path: Path) -> Path:
             f"{lfs_pull.stderr}"
         )
     return clone_root
+
+
+def test_materialize_fresh_source_clone_keeps_only_the_source_tip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_root = tmp_path / "source"
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    subprocess.run(["git", "init", "--quiet", "--template=", str(source_root)], check=True)
+    source_git = ["git", "-C", str(source_root)]
+    for subject in ("parent", "tip"):
+        subprocess.run(
+            [*source_git, "-c", "user.name=Release proof fixture",
+             "-c", "user.email=release-proof@example.invalid", "commit",
+             "--quiet", "--allow-empty", "--no-gpg-sign", "-m", subject],
+            check=True,
+        )
+    source_tip = subprocess.check_output([*source_git, "rev-parse", "HEAD"], text=True).strip()
+    monkeypatch.setattr(sys.modules[__name__], "ROOT", source_root)
+
+    clone_root = _materialize_fresh_source_clone(tmp_path)
+
+    clone_state = subprocess.check_output(
+        ["git", "-C", str(clone_root), "rev-parse", "--is-shallow-repository", "HEAD"],
+        text=True,
+    )
+    assert clone_state.splitlines() == ["true", source_tip]
 
 
 def test_materialize_fresh_source_clone_fails_when_lfs_pointer_remains(tmp_path: Path, monkeypatch):
