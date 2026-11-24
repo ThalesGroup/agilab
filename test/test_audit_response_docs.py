@@ -273,8 +273,15 @@ def test_proof_capsule_direction_is_explicit_about_signed_capsule_boundary() -> 
     assert "The first public proof-pack layer now adds" in readme
     assert "`agilab sign proof.agipack" in readme
     assert "trust-policy verification" in combined
-    assert "External Sigstore/SLSA attestation binding" in combined
-    assert "remain roadmap work" in readme
+    normalized_combined = " ".join(combined.split()).lower()
+    assert "four official signed fixtures" not in normalized_combined
+    for text in (readme, pypi_readme, docs_page):
+        normalized = " ".join(text.split())
+        assert "opt-in Sigstore" in normalized
+        assert "real user capsule" in normalized
+        assert "SLSA" in normalized
+        assert "remains unavailable" in normalized
+        assert "November 2 packages" in normalized
     assert "detached Ed25519 signatures" in docs_page
     assert "External proof-capsule attestation" in roadmap
 

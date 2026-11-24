@@ -492,8 +492,27 @@ def _docs_guard_profile() -> list[CommandSpec]:
     ]
 
 
+def _native_browser_test_prerequisite() -> tuple[list[str], int]:
+    """Prepare Chromium for ordinary native-browser regressions."""
+    return (
+        [
+            "uv", "--preview-features", "extra-build-dependencies",
+            "run", "--group", "test-ui", "--extra", "ui",
+            "--with", "playwright",
+            "python", "-m", "playwright", "install", "chromium",
+        ],
+        300,
+    )
+
+
 def _root_tests_profile() -> list[CommandSpec]:
+    prepare, timeout = _native_browser_test_prerequisite()
     return [
+        CommandSpec(
+            label="root native browser prerequisite",
+            argv=prepare,
+            timeout_seconds=timeout,
+        ),
         CommandSpec(
             label="isolated root suite",
             argv=[
@@ -509,6 +528,8 @@ def _root_tests_profile() -> list[CommandSpec]:
                 "observability",
                 "--group",
                 "test-ui",
+                "--with",
+                "playwright",
                 "python",
                 "-m",
                 "tools.testing.root_test_runner",
@@ -1313,6 +1334,7 @@ def _agi_gui_specialized_coverage_steps(label: str) -> list[tuple[list[str], int
     data_file = f"test-results/coverage-agi-gui-{label}.db"
     if label == "general":
         return [
+            _native_browser_test_prerequisite(),
             (
                 [
                     "uv",
@@ -1333,6 +1355,8 @@ def _agi_gui_specialized_coverage_steps(label: str) -> list[tuple[list[str], int
                     "observability",
                     "--with",
                     "tiktoken==0.14.0",
+                    "--with",
+                    "playwright",
                     "python",
                     "-m",
                     "tools.testing.root_test_runner",
@@ -1634,7 +1658,7 @@ def _agi_gui_coverage_combine_code() -> str:
         "        failed_chunks.append(f'{chunk}: missing or failing JUnit')\n"
         "    if chunk in ('general', 'demos', 'builtin'):\n"
         "        completed_steps = manifest.get('completed_steps')\n"
-        "        expected_steps = 4 if chunk == 'demos' else 1\n"
+        "        expected_steps = {'general': 2, 'demos': 4, 'builtin': 1}[chunk]\n"
         "        if manifest.get('expected_steps') != expected_steps or not isinstance(completed_steps, list) or len(completed_steps) != expected_steps or any(step.get('returncode') != 0 for step in completed_steps):\n"
         "            failed_chunks.append(f'{chunk}: incomplete specialized steps')\n"
         "    raw_paths = manifest.get('coverage_db_paths')\n"

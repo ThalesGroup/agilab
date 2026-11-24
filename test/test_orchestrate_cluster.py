@@ -938,6 +938,30 @@ def test_cluster_advisor_reports_missing_or_unusable_discovery(tmp_path):
     assert no_ready_plan["summary"]["excluded_node_count"] == 1
 
 
+def test_workers_data_path_follows_portable_share_from_another_home(tmp_path):
+    share = Path(tmp_path.anchor) / "home" / "agilab-fixture-owner" / "clustershare" / "agi"
+    env = SimpleNamespace(home_abs=tmp_path / "isolated-home", AGI_CLUSTER_SHARE=str(share))
+    assert orchestrate_cluster._env_cluster_share_setting(env) == "clustershare/agi"
+
+    for path, expected in (
+        ("clustershare/agi", True),
+        ("clustershare/agi/workflows/session-a", True),
+        ("clustershare/agi-other", False),
+        ("clustershare/agi/../manual", False),
+        (env.home_abs / "clustershare" / "agi", False),
+    ):
+        assert orchestrate_cluster._workers_data_path_should_follow_workflow_session(
+            path, env, user="agi", workflow_name="workflows", project_name="demo_project"
+        ) is expected, path
+
+
+def test_home_relative_share_text_preserves_configured_home(tmp_path):
+    home = Path(tmp_path.anchor) / "home" / "agilab-fixture-user" / "workspace"
+    env = SimpleNamespace(home_abs=home)
+
+    assert orchestrate_cluster._home_relative_share_text(home, env) == str(home)
+
+
 def test_home_relative_share_text_strips_host_specific_home_prefix(tmp_path):
     env = SimpleNamespace(home_abs=tmp_path / "home" / "agi")
 
@@ -2796,6 +2820,7 @@ def test_render_cluster_settings_ui_creates_missing_cluster_share(monkeypatch, t
     missing_share = tmp_path / "clustershare" / "agi"
     env = SimpleNamespace(
         app="demo_project",
+        home_abs=tmp_path,
         is_managed_pc=False,
         AGI_CLUSTER_SHARE=str(missing_share),
         agi_share_path=Path("localshare"),
@@ -2811,7 +2836,19 @@ def test_render_cluster_settings_ui_creates_missing_cluster_share(monkeypatch, t
     cluster = fake_st.session_state.app_settings["cluster"]
     assert missing_share.is_dir()
     assert cluster["cluster_enabled"] is True
-    assert cluster["workers_data_path"] == str(missing_share / "workflows" / "session-a")
+    assert cluster["workers_data_path"] == "clustershare/agi/workflows/session-a"
+    assert (missing_share / "workflows" / "session-a").is_dir()
+
+    keys = orchestrate_cluster.cluster_widget_keys("demo_project")
+    fake_st.widget_values[keys["workflow_session"]] = "session-b"
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+    assert fake_st.session_state.app_settings["cluster"]["workers_data_path"] == "clustershare/agi/workflows/session-b"
+    assert (missing_share / "workflows" / "session-b").is_dir()
+
+    manual_path = str(tmp_path / "external-data")
+    fake_st.widget_values[keys["workers_data_path"]] = manual_path
+    orchestrate_cluster.render_cluster_settings_ui(env, deps)
+    assert fake_st.session_state.app_settings["cluster"]["workers_data_path"] == manual_path
     assert fake_st.errors == []
 
 

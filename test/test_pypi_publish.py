@@ -4471,6 +4471,50 @@ def test_release_rollback_preserves_editor_write_after_owned_write(
     assert module._ACTIVE_RELEASE_JOURNAL.get() is None
 
 
+@pytest.mark.parametrize("result", ["pass", "guard-failure", "editor"])
+def test_build_only_rolls_back_rendered_coverage_badges(tmp_path, monkeypatch, result):
+    module = _load_pypi_publish()
+    real_guard = module.run_pre_upload_release_guard
+    _prepare_minimal_tagged_release_main(module, tmp_path, monkeypatch, [])
+    cfg = module.make_cfg(None)
+    cfg.build_only = True
+    cfg.git_tag = cfg.git_commit_version = cfg.git_reset_on_failure = False
+    monkeypatch.setattr(module, "run_pre_upload_release_guard", real_guard)
+    renderer = module.coverage_badges
+    monkeypatch.setattr(renderer, "REPO_ROOT", tmp_path)
+    xml = tmp_path / "coverage.xml"
+    xml.write_text('<coverage lines-covered="1" lines-valid="2"/>')
+    badges = tmp_path / "badges"
+    badges.mkdir()
+    target = badges / "coverage-existing.svg"
+    new = badges / "coverage-new.svg"
+    target.write_bytes(b"operator original")
+    monkeypatch.setattr(renderer, "COMPONENTS", {
+        name: {"label": name, "xml": xml, "badge": path}
+        for name, path in [("existing", target), ("new", new)]
+    })
+    checked = []
+
+    def check_badges(argv, **kwargs):
+        if "tools/coverage_badge_guard.py" in argv:
+            assert b"50%" in target.read_bytes() and b"50%" in new.read_bytes()
+            checked.append(argv)
+            if result == "editor":
+                target.write_bytes(b"edit after refresh")
+            if result != "pass":
+                raise RuntimeError("guard failed")
+
+    monkeypatch.setattr(module, "run", check_badges)
+    if result == "pass":
+        module.main()
+    else:
+        with pytest.raises(RuntimeError, match="concurrent" if result == "editor" else "guard failed"):
+            module.main()
+    assert checked
+    assert target.read_bytes() == (b"edit after refresh" if result == "editor" else b"operator original")
+    assert not new.exists()
+
+
 def test_release_snapshot_does_not_own_untouched_or_later_created_files(
     tmp_path, monkeypatch
 ):

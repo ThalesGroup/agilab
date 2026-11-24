@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import http.client
 import json
 import socket
@@ -9,6 +10,7 @@ import sys
 import threading
 from html.parser import HTMLParser
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -188,8 +190,16 @@ def test_https_origin_requires_declared_tls_termination(native_host, monkeypatch
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "::1"])
 def test_serve_closes_owned_socket_on_interrupt_and_formats_browser_url(tmp_path, monkeypatch, capsys, address):
-    if address == "::1" and not socket.has_ipv6:
-        pytest.skip("This platform has no IPv6 sockets.")
+    if address == "::1":
+        if not socket.has_ipv6:
+            pytest.skip("Python was built without IPv6 support.")
+        try:
+            with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
+                probe.bind((address, 0))
+        except OSError as exc:
+            if exc.errno in {errno.EAFNOSUPPORT, errno.EPROTONOSUPPORT, errno.EADDRNOTAVAIL}:
+                pytest.skip(f"IPv6 loopback unavailable: {exc}")
+            raise
     script = tmp_path / "view.py"
     script.write_text("", encoding="utf-8")
     owned = []
@@ -213,6 +223,24 @@ def test_serve_closes_owned_socket_on_interrupt_and_formats_browser_url(tmp_path
     assert server.source == script.resolve()
     assert server.source_argv == ["--active-app", "project"]
     assert server.socket.fileno() == -1
+
+
+def test_serve_formats_ipv6_browser_url_without_a_listener(monkeypatch, capsys):
+    server = Mock(server_port=8123)
+    server.serve_forever.side_effect = KeyboardInterrupt
+    make_server = Mock(return_value=server)
+    open_url = Mock()
+    monkeypatch.setattr(host_module, "ReactPythonServer", make_server)
+    monkeypatch.setattr("webbrowser.open", open_url)
+    view = Mock()
+
+    host_module.serve(view, address="::1", port=0, open_browser=True)
+
+    make_server.assert_called_once_with(("::1", 0), view, argv=None)
+    open_url.assert_called_once_with("http://[::1]:8123")
+    assert capsys.readouterr().out.splitlines() == ["AGILAB React interface: http://[::1]:8123"]
+    server.serve_forever.assert_called_once_with()
+    server.server_close.assert_called_once_with()
 
 
 def test_serve_rejects_non_python_file_before_binding_socket(tmp_path, monkeypatch):

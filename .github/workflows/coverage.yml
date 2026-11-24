@@ -350,8 +350,9 @@ jobs:
             exit 0
           fi
           if [ "$label" = general ]; then
+            timeout 5m uv --preview-features extra-build-dependencies run --group test-ui --extra ui --with playwright python -m playwright install chromium
             # Match the established local parity budget for isolated root tests.
-            timeout 25m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz --extra notebook --extra observability --with 'tiktoken==0.14.0' \
+            timeout 25m uv --preview-features extra-build-dependencies run --group dev --group test-ui --extra ui --extra viz --extra notebook --extra observability --with 'tiktoken==0.14.0' --with playwright \
               python -m tools.testing.root_test_runner --unclassified \
               --coverage-data-file=test-results/coverage-agi-gui-general.db \
               --junit-dir=test-results

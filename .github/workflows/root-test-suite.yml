@@ -51,9 +51,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          uv --preview-features extra-build-dependencies run --group test-ui --extra ui --with playwright python -m playwright install chromium
           uv --preview-features extra-build-dependencies run \
             --extra ui \
             --extra notebook \
             --extra observability \
-            --group test-ui \
+            --group test-ui --with playwright \
             python -m tools.testing.root_test_runner

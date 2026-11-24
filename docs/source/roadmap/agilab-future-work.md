@@ -452,7 +452,7 @@ State-of-the-art upgrade backlog:
 
 | Priority | Area | Source baseline or next contract | Remaining acceptance |
 | --- | --- | --- | --- |
-| P0 | External proof-capsule attestation | Source opt-in Sigstore verification adapter exercised by four official signed fixtures | Obtain positive external verification of a real user capsule and SLSA provenance with explicit issuer/identity policy; fixture success does not certify user capsules. |
+| P0 | External proof-capsule attestation | Source opt-in Sigstore verification adapter; PR #1240 reports four fixture test cases using official signed material | Obtain positive external verification of a real user capsule and SLSA provenance with explicit issuer/identity policy; fixture success does not certify user capsules. |
 | P0 | Native OpenTelemetry and GenAI traces | Source JSONL agent events and opt-in loopback OTLP adapter with qualified local optional-dependency composition | Qualify external collector deployment, remote runtime acceptance and end-to-end correlation across UI, workers, notebooks and tracking. |
 | P0 | OpenLineage transport | Source opt-in loopback event delivery with local receipts | Qualify external backend ingestion, operational failures and broader dataset/job hierarchy; source adapter availability is not external service certification. |
 | P1 | Continuous eval and LLMOps loop | Source app-owned finite evaluation receipts and evaluation-gated promotion | Extend to continuous prompt/model/agent comparisons and prepared tracking services with declared quality, cost, latency and safety policies. |
