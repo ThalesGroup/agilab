@@ -9,7 +9,7 @@ WORKFLOW_ROOT = Path(".github/workflows")
 LOCKED_TOOLS_INSTALLER = Path("tools/setup_locked_python_tools.py")
 LOCK_INTEGRITY_WORKFLOW = WORKFLOW_ROOT / "ci-tool-lock-integrity.yml"
 REQUIREMENTS_ROOT = Path(".github/requirements")
-SETUP_UV_SHA = "68559e99cc807c1eb7e9238fd43a15bba460eec2"
+SETUP_UV_SHA = "1db35dd8eee11c5894872e0b383ae6c406cf738d"
 
 LOCKED_TOOL_JOBS = {
     ("pypi-publish.yaml", "release-plan"): ".github/requirements/ci-publish.txt",

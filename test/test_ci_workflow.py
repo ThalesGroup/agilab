@@ -522,7 +522,7 @@ def test_windows_core_tests_workflow_matches_failure_tracker_command() -> None:
     )
     assert "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7" in text
     assert (
-        "astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3"
+        "astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0"
         in text
     )
     assert "prune-cache: true" in text
