@@ -189,7 +189,7 @@ def _handle_data_root_failure(
     st.write(f"Current setting: `{current_display}` (expands to `{expanded_display}`)")
 
     key = "agi_share_path_override_input"
-    if key not in st.session_state or not st.session_state[key]:
+    if key not in st.session_state:
         st.session_state[key] = str(current_value)
 
     with st.form("agi_share_path_override_form"):
