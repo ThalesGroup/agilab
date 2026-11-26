@@ -685,6 +685,8 @@ def _agi_web_coverage_profile() -> list[CommandSpec]:
                 "pytest==9.1.1",
                 "--with",
                 "pytest-cov",
+                "--with",
+                "pydeck>=0.9.1,<1",
                 "python",
                 "-m",
                 "pytest",

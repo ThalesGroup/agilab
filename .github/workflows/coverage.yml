@@ -421,6 +421,7 @@ jobs:
             --with-editable "./src/agilab/lib/agi-gui" \
             --with "pytest==9.1.1" \
             --with pytest-cov \
+            --with "pydeck>=0.9.1,<1" \
             python -m pytest -q --maxfail=1 --disable-warnings -o addopts='' \
             --cov=agi_web --cov-report=xml:coverage-agi-web.xml \
             src/agilab/lib/agi-web/test
