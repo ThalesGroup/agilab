@@ -3890,9 +3890,8 @@ def test_main_preserves_clean_generator_output_after_later_failure(
     assert not empty_directory.exists()
     assert canonical_source.stat().st_mode & 0o777 == 0o750
     assert generated_file.read_bytes() == b"new generated file\n"
-    assert "version = \"2026.07.30\"" in (
-        tmp_path / "agi-env" / "pyproject.toml"
-    ).read_text(encoding="utf-8")
+    manifest = tmp_path / "agi-env" / "pyproject.toml"
+    assert tomllib.loads(manifest.read_text(encoding="utf-8"))["project"]["version"] == "2026.07.30"
 
 
 def test_main_preserves_partial_generator_writes_when_mutation_fails(

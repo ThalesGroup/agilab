@@ -11,6 +11,8 @@ import tomllib
 
 import yaml
 
+from tools import workflow_parity
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/coverage.yml"
@@ -24,6 +26,12 @@ def test_agi_web_coverage_environment_resolves_native_file_picker(tmp_path: Path
     start = command.index("COVERAGE_FILE=.coverage.agi-web uv run")
     argv = shlex.split(command[start:].replace("\\\n", ""))
     assert "--no-project" in argv
+    local_argv = workflow_parity._agi_web_coverage_profile()[0].argv
+    for coverage_argv in (argv, local_argv):
+        requirements = {
+            value for flag, value in zip(coverage_argv, coverage_argv[1:]) if flag == "--with"
+        }
+        assert "pydeck>=0.9.1,<1" in requirements
 
     source_paths = []
     for index, arg in enumerate(argv[:-1]):

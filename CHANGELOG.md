@@ -26,21 +26,25 @@ cleanup, but retired GitHub release pages are not advertised as live evidence.
 
 ## Unreleased
 
-### Added
+### 2026.11.26 - 2026-11-26
+
+#### Added
 
 - Add app-owned evaluation receipts, optional SQLite metadata history, and declarative serving-handoff export and verification.
-- Add opt-in OpenTelemetry and OpenLineage observers for saved agent traces, with delivery receipts separate from run-validation results.
-- Add confined repository-knowledge search and packaged, checksum-verified pydeck renderer assets.
+- Add opt-in OpenTelemetry and OpenLineage observers for saved agent traces, with delivery receipts separate from run validation.
+- Add confined, source-linked repository knowledge search.
 
-### Fixed
+#### Fixed
 
-- Keep installed software development kit (SDK) imports, worker roots and explicit remote configuration bound to the selected runtime; resolve SDK and app dependency constraints together during deployment.
+- Keep installed software development kit (SDK) imports, worker roots and explicit remote configuration bound to the selected runtime. Resolve SDK and app dependency constraints together during deployment.
 - Use the active workflow data root for archive extraction and demo seeding, while preserving existing data during later initialization.
-- Make flight input work items portable across manager and worker data roots; correct DAG preview identities and malformed connector-row handling.
-- Preserve concurrent edits during release failure recovery, align release guidance with manual workflows, and keep generated validation reports outside source inventories.
-- Declare English as the native Python web document language.
+- Make flight input work items portable across manager and worker data roots. Correct DAG preview identities and malformed data connector rows.
+- Package checksum-verified pydeck assets for offline rendering and restore saved data selection in the 3D geospatial and network maps.
+- Record the digest of the final R bridge summary artifact.
+- Preserve a cleared share recovery field in ABOUT and declare English in native Python web documents.
+- Preserve concurrent edits during release failure recovery, keep generated validation reports outside source inventories, and retain failure diagnostics when a test report is missing.
 
-### Dependencies
+#### Dependencies
 
 - Require pypdf >=7.0.1,<8 for local PDF ingestion and allow HiGHS 1.16 through highspy >=1.15.1,<1.17, retaining the existing one-thread solver setting.
 

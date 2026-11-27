@@ -17,7 +17,7 @@ checkout.
 ## Install
 
 ```bash
-pip install agi-app-r-runtime-bridge==2026.10.4 --find-links /path/to/trusted-release-wheels
+pip install agi-app-r-runtime-bridge==2026.11.26 --find-links /path/to/trusted-release-wheels
 ```
 
 Download the matching official AGILAB GitHub Release wheels into that directory.
